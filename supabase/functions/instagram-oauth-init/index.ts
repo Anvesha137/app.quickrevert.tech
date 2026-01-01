@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
 
     const stateData = JSON.stringify({
       user_id: data.user.id,
-      nonce: crypto.randomUUID(),
+      nonce: crypto.randomUUID ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join(''),
     });
     const encoder = new TextEncoder();
     const stateBytes = encoder.encode(stateData);
