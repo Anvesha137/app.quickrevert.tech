@@ -20,7 +20,7 @@ Deno.serve(async (req: Request) => {
     const errorParam = url.searchParams.get("error");
     const errorDescription = url.searchParams.get("error_description");
 
-    const frontendUrl = Deno.env.get("FRONTEND_URL") || "http://localhost:5173";
+    const frontendUrl = Deno.env.get("FRONTEND_URL") || "https://app-quickrevert-tech.vercel.app";
 
     if (errorParam) return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent(errorDescription || errorParam)}`, 302);
     if (!code) return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Authorization code missing')}`, 302);
@@ -103,7 +103,7 @@ Deno.serve(async (req: Request) => {
     return Response.redirect(`${frontendUrl}/connect-accounts?instagram_connected=true`, 302);
 
   } catch (error: any) {
-    const frontendUrl = Deno.env.get("FRONTEND_URL") || "http://localhost:5173";
+    const frontendUrl = Deno.env.get("FRONTEND_URL") || "https://app-quickrevert-tech.vercel.app";
     return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent(error.message || 'Unknown error')}`, 302);
   }
 });
