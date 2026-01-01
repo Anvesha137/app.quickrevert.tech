@@ -74,21 +74,23 @@ const InstagramConnectModal = ({ isOpen, onClose, onConnect }: InstagramConnectM
         
         console.log('OAuth init response status:', response.status);
         console.log('OAuth init response headers:', [...response.headers.entries()]);
-        
-        const result = await response.json();
-        console.log('OAuth init full response:', result);
-
+                
+        // Check response status first
         console.log('Response OK?', response.ok);
-        console.log('Has authUrl?', !!result.authUrl);
-        console.log('Full result object:', result);
-        
+                
         if (!response.ok) {
           console.error('OAuth init response not OK, status:', response.status);
           const errorText = await response.text();
           console.error('Error response text:', errorText);
           throw new Error(`HTTP ${response.status}: ${errorText}`);
         }
-        
+                
+        const result = await response.json();
+        console.log('OAuth init full response:', result);
+                
+        console.log('Has authUrl?', !!result.authUrl);
+        console.log('Full result object:', result);
+                
         if (!result.authUrl) {
           console.error('No authUrl in response:', result);
           const errorMsg = result.details

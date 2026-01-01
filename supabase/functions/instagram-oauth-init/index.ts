@@ -50,6 +50,7 @@ Deno.serve(async (req) => {
       console.error("Auth error:", error.message);
       console.error("Error code:", error.code);
       console.error("Error status:", error.status);
+      console.error("JWT token (first 20 chars):", jwt.substring(0, 20));
       return new Response(JSON.stringify({ error: "Invalid JWT", details: error.message }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
