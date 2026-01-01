@@ -38,11 +38,11 @@ Deno.serve(async (req) => {
     console.log("Supabase URL:", supabaseUrl ? "present" : "missing");
     console.log("Supabase Service Key:", supabaseServiceKey ? "present" : "missing");
 
-    // Create a temporary client with anon key to validate the JWT
-    const tempClient = createClient(supabaseUrl!, Deno.env.get("SUPABASE_ANON_KEY")!);
+    // Use service role key for database operations and user validation
+    const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
     
-    console.log("Validating user with temp client...");
-    const { data, error } = await tempClient.auth.getUser(jwt);
+    console.log("Validating user...");
+    const { data, error } = await supabase.auth.getUser(jwt);
     
     if (error) {
       console.error("Auth error:", error.message);
@@ -59,9 +59,6 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    
-    // Use service role key for database operations
-    const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
 
     console.log("User validated:", data.user.id);
 
