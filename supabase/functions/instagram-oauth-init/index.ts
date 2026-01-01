@@ -33,16 +33,18 @@ Deno.serve(async (req) => {
     console.log("JWT extracted, length:", jwt.length);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     console.log("Supabase URL:", supabaseUrl ? "present" : "missing");
+    console.log("Supabase Anon Key:", supabaseAnonKey ? "present" : "missing");
     console.log("Supabase Service Key:", supabaseServiceKey ? "present" : "missing");
 
-    // Use service role key for database operations and user validation
-    const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
+    // Use anon key to validate the JWT
+    const authClient = createClient(supabaseUrl!, supabaseAnonKey!);
     
     console.log("Validating user...");
-    const { data, error } = await supabase.auth.getUser(jwt);
+    const { data, error } = await authClient.auth.getUser(jwt);
     
     if (error) {
       console.error("Auth error:", error.message);
@@ -59,6 +61,9 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    
+    // Create new client with service role key for database operations
+    const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
 
     console.log("User validated:", data.user.id);
 
