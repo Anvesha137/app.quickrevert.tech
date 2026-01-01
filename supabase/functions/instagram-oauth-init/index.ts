@@ -43,11 +43,13 @@ Deno.serve(async (req) => {
     // Use anon key to validate the JWT
     const authClient = createClient(supabaseUrl!, supabaseAnonKey!);
     
-    console.log("Validating user...");
+    console.log("Validating user with anon key...");
     const { data, error } = await authClient.auth.getUser(jwt);
     
     if (error) {
       console.error("Auth error:", error.message);
+      console.error("Error code:", error.code);
+      console.error("Error status:", error.status);
       return new Response(JSON.stringify({ error: "Invalid JWT", details: error.message }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
