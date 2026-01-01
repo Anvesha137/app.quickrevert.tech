@@ -29,7 +29,10 @@ const InstagramConnectModal = ({ isOpen, onClose, onConnect }: InstagramConnectM
         setError(null);
 
         // Ensure user is authenticated
+        console.log('Fetching session...');
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        console.log('Session data:', { session: !!session, hasAccessToken: !!session?.access_token, sessionError });
         
         if (sessionError) {
           console.error('Session error:', sessionError);
@@ -38,12 +41,16 @@ const InstagramConnectModal = ({ isOpen, onClose, onConnect }: InstagramConnectM
         }
         
         if (!session?.access_token) {
+          console.error('No access token in session');
           setError('Please log in to connect Instagram');
           return;
         }
         
         // Check if the session is still valid
+        console.log('Validating user with token...');
         const { data: { user }, error: userError } = await supabase.auth.getUser(session.access_token);
+        
+        console.log('User validation result:', { user: !!user, userError });
         
         if (userError || !user) {
           console.error('User validation error:', userError);
@@ -51,6 +58,10 @@ const InstagramConnectModal = ({ isOpen, onClose, onConnect }: InstagramConnectM
           return;
         }
 
+        console.log('About to call OAuth init function');
+        console.log('Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
+        console.log('Session token (first 20 chars):', session.access_token?.substring(0, 20));
+        
         const response = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/instagram-oauth-init`,
           {
@@ -60,14 +71,29 @@ const InstagramConnectModal = ({ isOpen, onClose, onConnect }: InstagramConnectM
             },
           }
         );
-
+        
+        console.log('OAuth init response status:', response.status);
+        console.log('OAuth init response headers:', [...response.headers.entries()]);
+        
         const result = await response.json();
-        console.log('OAuth init response:', result);
+        console.log('OAuth init full response:', result);
 
-        if (!response.ok || !result.authUrl) {
+        console.log('Response OK?', response.ok);
+        console.log('Has authUrl?', !!result.authUrl);
+        console.log('Full result object:', result);
+        
+        if (!response.ok) {
+          console.error('OAuth init response not OK, status:', response.status);
+          const errorText = await response.text();
+          console.error('Error response text:', errorText);
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        
+        if (!result.authUrl) {
+          console.error('No authUrl in response:', result);
           const errorMsg = result.details
             ? `${result.error}: ${result.details}`
-            : (result.error || 'Failed to initialize OAuth');
+            : (result.error || 'No authUrl in response');
           throw new Error(errorMsg);
         }
 

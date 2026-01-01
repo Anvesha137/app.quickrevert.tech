@@ -24,8 +24,10 @@ export default function ConnectedAccounts() {
   const [showConnectModal, setShowConnectModal] = useState(false);
 
   useEffect(() => {
+    console.log('ConnectedAccounts useEffect running, URL params:', window.location.search);
     const params = new URLSearchParams(window.location.search);
     if (params.get('instagram_connected') === 'true') {
+      console.log('Instagram connected success parameter detected');
       setSuccessMessage('Instagram account connected successfully!');
       window.history.replaceState({}, '', '/connect-accounts');
       setTimeout(() => setSuccessMessage(null), 5000);
@@ -33,6 +35,7 @@ export default function ConnectedAccounts() {
 
     const errorParam = params.get('error');
     if (errorParam) {
+      console.log('Error parameter detected:', errorParam);
       setError(decodeURIComponent(errorParam));
       window.history.replaceState({}, '', '/connect-accounts');
     }
@@ -41,16 +44,23 @@ export default function ConnectedAccounts() {
   }, []);
 
   const fetchAccounts = async () => {
-    if (!user) return;
+    console.log('fetchAccounts called, user:', !!user);
+    if (!user) {
+      console.error('No user available to fetch accounts');
+      setLoading(false);
+      return;
+    }
 
     try {
       setLoading(true);
+      console.log('Fetching Instagram accounts for user:', user.id);
       const { data, error } = await supabase
         .from('instagram_accounts')
         .select('*')
         .eq('user_id', user.id)
         .order('connected_at', { ascending: false });
 
+      console.log('Instagram accounts fetch result:', { data, error });
       if (error) throw error;
       setAccounts(data || []);
     } catch (err) {
@@ -62,7 +72,12 @@ export default function ConnectedAccounts() {
   };
 
   const handleConnectInstagram = () => {
-    if (!user) return;
+    console.log('handleConnectInstagram called, user:', !!user);
+    if (!user) {
+      console.error('No user available to connect Instagram');
+      return;
+    }
+    console.log('Opening Instagram connect modal');
     setShowConnectModal(true);
   };
 
