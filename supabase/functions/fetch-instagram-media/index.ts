@@ -17,20 +17,26 @@ Deno.serve(async (req: Request) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
+    
+    // Use anon key for JWT validation
+    const authClient = createClient(supabaseUrl, supabaseAnonKey);
+    
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       throw new Error("Missing authorization header");
     }
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    const { data: { user }, error: userError } = await authClient.auth.getUser(token);
 
     if (userError || !user) {
       throw new Error("Invalid user token");
     }
+    
+    // Create new client with service role key for database operations
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const url = new URL(req.url);
     const mediaType = url.searchParams.get("type") || "posts";
