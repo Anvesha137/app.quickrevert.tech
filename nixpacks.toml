@@ -1,0 +1,20 @@
+[variables]
+NIXPACKS_PATH = "/app/node_modules/.bin:$PATH"
+
+[phases.setup]
+nixPkgs = ["nodejs", "yarn", "pnpm", "npm"]
+
+[phases.build]
+cmds = [
+  "npm install",
+  "npm run build"
+]
+
+[phases.start]
+cmd = "npm run start"
+
+[files]
+paths = ["package.json", "package-lock.json", "src/", "public/", "vite.config.ts", "tsconfig.json", "index.html", ".env"]
+
+[providers]
+node = true
