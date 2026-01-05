@@ -32,7 +32,7 @@ export default function ConnectedAccounts() {
       
       // Redirect to home page after a short delay to show success message
       setTimeout(() => {
-        window.location.href = 'https://app-quickrevert.vercel.app/';
+        window.location.href = 'https://app.quickrevert.tech/';
       }, 2000); // 2 seconds to show the success message before redirecting
 
       setTimeout(async () => {
