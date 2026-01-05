@@ -29,7 +29,11 @@ export default function ConnectedAccounts() {
       const username = params.get('username');
       const usernameText = username ? `@${username}` : 'Your Instagram account';
       setSuccessMessage(`${usernameText} connected successfully! Verifying connection...`);
-      window.history.replaceState({}, '', '/connect-accounts');
+      
+      // Redirect to home page after a short delay to show success message
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 2000); // 2 seconds to show the success message before redirecting
 
       setTimeout(async () => {
         await fetchAccounts();
