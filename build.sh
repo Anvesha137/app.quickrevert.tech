@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# Set environment variables for the build
+export VITE_SUPABASE_URL=https://unwijhqoqvwztpbahlly.supabase.co
+export VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVud2lqaHFvcXZ3enRwYmFobGx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1OTg1NjgsImV4cCI6MjA4MzE3NDU2OH0.XxljpvAbv1kR0yWdRBDimBCkvXG0fnmQ0g-e4kJcowY
+
+# Install dependencies
+npm install
+
+# Build the application
+npm run build
