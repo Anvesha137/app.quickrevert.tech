@@ -1,0 +1,52 @@
+# For detailed configuration reference documentation, visit:
+# https://supabase.com/docs/guides/local-development/cli/config
+
+[api]
+port = 54321
+schemas = ["public", "auth", "analytics"]
+extra_search_path = ["public", "auth"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 17
+
+[studio]
+port = 54323
+
+[auth]
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173"]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+
+[auth.sms]
+enable_signup = false
+enable_confirmations = false
+
+[analytics]
+enabled = false
+
+[functions."instagram-oauth-init"]
+verify_jwt = false
+
+[functions."instagram-oauth-callback"]
+verify_jwt = false
+
+[functions."fetch-instagram-profile"]
+verify_jwt = false
+
+[functions."fetch-instagram-media"]
+verify_jwt = false
+
+[functions."instagram-refresh-token"]
+verify_jwt = false
+
+[functions."ig-deauth"]
+verify_jwt = false
+
+[functions."ig-delete"]
+verify_jwt = false
