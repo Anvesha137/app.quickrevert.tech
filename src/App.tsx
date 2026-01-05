@@ -34,8 +34,8 @@ function AppContent() {
     <div className="min-h-screen bg-gray-50">
       <Sidebar />
       <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<div className="ml-64 flex-1"><Dashboard /></div>} />
+        <Route path="/" element={<div className="ml-64 flex-1"><Dashboard /></div>} />
+        <Route path="/dashboard" element={<Navigate to="/" replace />} />
         <Route path="/automation" element={<div className="ml-64 flex-1"><Automations /></div>} />
         <Route path="/automation/create" element={<div className="ml-64 flex-1"><AutomationCreate /></div>} />
         <Route path="/contacts" element={<Contacts />} />
