@@ -3,7 +3,6 @@ import { Palette, User, Trash2, Save, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
-import PromoCodeGenerator from './PromoCodeGenerator';
 
 const colorPalettes = [
   {
@@ -248,9 +247,7 @@ export default function Settings() {
             )}
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-            <PromoCodeGenerator />
-          </div>
+
 
           <div className="bg-red-50 rounded-xl border-2 border-red-200 p-6 shadow-sm">
             <div className="flex items-start gap-3 mb-4">

@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Zap, Github, Mail } from 'lucide-react';
+import { Zap, Mail } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Login() {
-  const { signInWithGoogle, signInWithGithub, signInWithEmail, signUpWithEmail } = useAuth();
-  const [loading, setLoading] = useState<'google' | 'github' | 'email' | null>(null);
+  const { signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
+  const [loading, setLoading] = useState<'google' | 'email' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
@@ -22,16 +22,7 @@ export default function Login() {
     }
   };
 
-  const handleGithubSignIn = async () => {
-    try {
-      setLoading('github');
-      setError(null);
-      await signInWithGithub();
-    } catch (err) {
-      setError('Failed to sign in with GitHub. Please try again.');
-      setLoading(null);
-    }
-  };
+
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -191,18 +182,7 @@ export default function Login() {
               <span>Google</span>
             </button>
 
-            <button
-              onClick={handleGithubSignIn}
-              disabled={loading !== null}
-              className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-gray-900 border-2 border-gray-900 rounded-lg text-white font-medium hover:bg-gray-800 hover:border-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading === 'github' ? (
-                <div className="w-5 h-5 border-2 border-gray-600 border-t-white rounded-full animate-spin" />
-              ) : (
-                <Github className="w-5 h-5" />
-              )}
-              <span>GitHub</span>
-            </button>
+
           </div>
 
           {error && (

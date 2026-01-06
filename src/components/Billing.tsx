@@ -83,7 +83,16 @@ export default function Billing() {
     },
   ];
 
-  const billingHistory = [
+  interface BillingHistoryItem {
+    id: string;
+    date: string;
+    description: string;
+    amount: string;
+    status: 'paid' | 'pending' | 'failed';
+    invoiceUrl?: string;
+  }
+
+  const billingHistory: BillingHistoryItem[] = [
     // Empty for now
   ];
 
@@ -95,92 +104,7 @@ export default function Billing() {
           <p className="text-xl text-gray-600">Choose the perfect plan to grow your Instagram automation</p>
         </div>
 
-        <div className="mb-16">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
-            <div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-1">Available Plans</h2>
-              <p className="text-gray-600">Flexible pricing for businesses of all sizes</p>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {plans.map((plan) => (
-              <div
-                key={plan.id}
-                className={`group relative bg-white rounded-3xl border-2 shadow-xl transition-all hover:shadow-2xl hover:-translate-y-2 ${
-                  plan.isCurrent
-                    ? 'border-green-500 ring-4 ring-green-100 scale-105'
-                    : plan.isPopular
-                    ? 'border-blue-500 ring-4 ring-blue-100 scale-[1.02]'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                {plan.isCurrent && (
-                  <div className="absolute -top-5 left-1/2 -translate-x-1/2">
-                    <span className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-8 py-2.5 rounded-full text-sm font-bold shadow-xl">
-                      Current Plan
-                    </span>
-                  </div>
-                )}
-
-                {plan.isPopular && !plan.isCurrent && (
-                  <div className="absolute -top-5 left-1/2 -translate-x-1/2">
-                    <span className={`bg-gradient-to-r ${gradientClass} text-white px-8 py-2.5 rounded-full text-sm font-bold shadow-xl animate-pulse`}>
-                      Most Popular
-                    </span>
-                  </div>
-                )}
-
-                <div className="p-8">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">{plan.name}</h3>
-                  <p className="text-base text-gray-600 mb-8 min-h-[48px]">{plan.description}</p>
-
-                  <div className="mb-8 pb-8 border-b-2 border-gray-100">
-                    <div className="flex items-baseline gap-2 mb-2">
-                      <span className="text-6xl font-bold text-gray-900 tracking-tight">{plan.price}</span>
-                      {plan.price !== 'Custom' && (
-                        <span className="text-gray-600 font-medium">/{plan.duration}</span>
-                      )}
-                    </div>
-                    {plan.billingNote && (
-                      <p className="text-sm text-gray-500 font-medium">{plan.billingNote}</p>
-                    )}
-                  </div>
-
-                  <ul className="space-y-4 mb-10">
-                    {plan.features.map((feature, index) => (
-                      <li key={index} className="flex items-start gap-3">
-                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-md">
-                          <Check className="w-4 h-4 text-white font-bold stroke-[3]" />
-                        </div>
-                        <span className="text-sm text-gray-700 leading-relaxed font-medium">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <button
-                    className={`w-full py-4 rounded-xl font-bold text-base transition-all shadow-lg hover:shadow-xl hover:scale-105 ${
-                      plan.isCurrent
-                        ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:opacity-90'
-                        : plan.isPopular
-                        ? `bg-gradient-to-r ${gradientClass} text-white hover:opacity-90`
-                        : 'bg-gradient-to-r from-gray-900 to-gray-700 text-white hover:opacity-90'
-                    }`}
-                  >
-                    {plan.id === 'enterprise' ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <MessageCircle className="w-5 h-5" />
-                        {plan.ctaText}
-                      </span>
-                    ) : (
-                      plan.ctaText
-                    )}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
 
         <div className="bg-white/80 backdrop-blur-sm rounded-3xl border-2 border-gray-200 shadow-xl p-10">
           <div className="flex items-center gap-4 mb-8">
