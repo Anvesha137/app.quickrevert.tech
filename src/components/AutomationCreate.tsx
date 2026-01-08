@@ -114,13 +114,23 @@ export default function AutomationCreate() {
             instagram_account_id: instagramAccount.id,
           });
 
-        if (supabaseError) throw supabaseError;
+        if (supabaseError) {
+          console.error('Error saving automation to Supabase:', supabaseError);
+          throw supabaseError; // This will be caught by the outer catch
+        }
         
+        // Navigate after successful fallback save
         navigate('/automation');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating automation:', error);
-      alert('Failed to create automation. Please try again.');
+      
+      // Check if this is a specific error we can handle
+      if (error.message === 'No active Instagram account found') {
+        alert('No active Instagram account found. Please connect an Instagram account first.');
+      } else {
+        alert('Failed to create automation. Please try again.');
+      }
     } finally {
       setSaving(false);
     }

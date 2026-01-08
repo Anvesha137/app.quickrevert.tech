@@ -439,14 +439,14 @@ class N8nService {
     const { error } = await supabase
       .from('automations')
       .insert({
-        id: n8nWorkflowId, // Use N8N workflow ID as our ID
+        id: n8nWorkflowId, // Use the ID as primary key
         user_id: workflowData.userId,
         name: workflowData.automationName,
         trigger_type: workflowData.triggerType,
         trigger_config: workflowData.triggerConfig,
         actions: workflowData.actions,
         status: workflowData.status,
-        n8n_workflow_id: n8nWorkflowId,
+        n8n_workflow_id: n8nWorkflowId, // Store the N8N workflow ID separately
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
