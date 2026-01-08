@@ -425,13 +425,19 @@ export default function Automations() {
                     <div className="flex items-center gap-3 mb-3">
                       <h3 className="text-xl font-bold text-gray-900">{automation.name}</h3>
                       <span
-                        className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide ${
+                        className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide ${
                           automation.status === 'active'
                             ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white shadow-md'
                             : 'bg-gray-200 text-gray-600'
                         }`}
                       >
-                        {automation.status}
+                        {automation.status === 'active' && (
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                          </span>
+                        )}
+                        {automation.status === 'active' ? 'Live & Monitoring' : automation.status}
                       </span>
                     </div>
                     {automation.description && (
