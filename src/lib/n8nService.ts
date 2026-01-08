@@ -177,15 +177,25 @@ class N8nService {
   }
 
   private buildWorkflowPayload(workflowData: WorkflowData): N8nWorkflow {
-    // Create a basic workflow based on the trigger and action types
+    // Generate unique identifiers for this workflow
+    const workflowId = crypto.randomUUID();
+    const webhookPath = `instagram-webhook-${workflowData.userId}-${workflowId}`;
+    
+    // Create the exact workflow structure as provided in the template
     const workflow: N8nWorkflow = {
       name: `${workflowData.automationName} - ${workflowData.userId}`,
       nodes: [],
       connections: {},
       settings: {
         saveManualExecutions: true,
+        saveExecutionProgress: true,
         timezone: 'America/New_York',
         executionTimeout: 3600,
+        maxExecutionTimeout: 3600,
+        onboardingFlowType: 'none',
+        retryOnFail: false,
+        webhookId: workflowId,
+        versionId: workflowId,
       },
       tags: [],
       scope: ['workflow'],
@@ -194,270 +204,343 @@ class N8nService {
       active: true,
     };
 
-    // Create webhook trigger node
+    // 1. Webhook Trigger Node
     const webhookNode: N8nNode = {
+      id: `webhook-${workflowId}`,
+      name: 'Webhook',
+      type: 'n8n-nodes-base.webhook',
+      typeVersion: 1,
+      position: [1080, 460],
       parameters: {
-        multipleMethods: true,
-        path: `instagram-webhook-${workflowData.userId}-${Date.now()}`,
+        httpMethod: 'POST',
+        path: webhookPath, // Dynamic path per user
         responseMode: 'responseNode',
+        responseBinaryPropertyName: 'data',
         options: {},
       },
-      type: 'n8n-nodes-base.webhook',
-      typeVersion: 2.1,
-      position: [-1568, 32],
-      id: `webhook-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      name: 'Instagram Webhook',
-      webhookId: `instagram-webhook-${workflowData.userId}-${Date.now()}`,
-    };
-
-    workflow.nodes.push(webhookNode);
-
-    // Add action nodes based on workflowData.actions
-    workflowData.actions.forEach((action, index) => {
-      const positionX = -896;
-      const positionY = 224 + (index * 192);
-
-      switch (action.type) {
-        case 'reply_to_comment':
-          const randomTemplate = this.selectRandomTemplate(action.replyTemplates);
-
-          const replyNode: N8nNode = {
-            parameters: {
-              method: 'POST',
-              url: '=https://graph.instagram.com/v24.0/{{ $json.body.entry[0].changes[0].value.from.id }}/messages',
-              authentication: 'genericCredentialType',
-              genericAuthType: 'httpHeaderAuth',
-              sendHeaders: true,
-              headerParameters: {
-                parameters: [
-                  {
-                    name: 'Content-Type',
-                    value: 'application/json'
-                  }
-                ]
-              },
-              sendBody: true,
-              specifyBody: 'json',
-              jsonBody: `={
-  "recipient": { "id": "{{ $json.body.entry[0].changes[0].value.from.id }}" },
-  "message": {
-    "text": "${randomTemplate}"
-  }
-}`,
-              options: {}
-            },
-            type: 'n8n-nodes-base.httpRequest',
-            typeVersion: 4.3,
-            position: [positionX, positionY],
-            id: `action-reply-${workflowData.userId}-${index}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            name: `Reply to Comment ${index + 1}`,
-            credentials: {
-              httpHeaderAuth: {
-                id: 'insta-cred-id',
-                name: 'Instagram API'
-              }
-            }
-          };
-
-          workflow.nodes.push(replyNode);
-
-          // Add button node if actionButtons exist
-          if (action.actionButtons && action.actionButtons.length > 0) {
-            const buttonNode: N8nNode = {
-              parameters: {
-                method: 'POST',
-                url: '=https://graph.instagram.com/v24.0/{{ $json.body.entry[0].changes[0].value.from.id }}/messages',
-                authentication: 'genericCredentialType',
-                genericAuthType: 'httpHeaderAuth',
-                sendHeaders: true,
-                headerParameters: {
-                  parameters: [
-                    {
-                      name: 'Content-Type',
-                      value: 'application/json'
-                    }
-                  ]
-                },
-                sendBody: true,
-                specifyBody: 'json',
-                jsonBody: `={
-  "recipient": { "id": "{{ $json.body.entry[0].changes[0].value.from.id }}" },
-  "message": {
-    "attachment": {
-      "type": "template",
-      "payload": {
-        "template_type": "generic",
-        "elements": [
-          {
-            "title": "${randomTemplate}",
-            "buttons": [${action.actionButtons.map((btn: any) => `{"type": "web_url", "url": "${btn.url || ''}", "title": "${btn.text}"}`).join(', ')}]
-          }
-        ]
-      }
-    }
-  }
-}`,
-                options: {}
-              },
-              type: 'n8n-nodes-base.httpRequest',
-              typeVersion: 4.3,
-              position: [positionX, positionY + 100],
-              id: `action-reply-btn-${workflowData.userId}-${index}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              name: `Reply with Buttons ${index + 1}`,
-              credentials: {
-                httpHeaderAuth: {
-                  id: 'insta-cred-id',
-                  name: 'Instagram API'
-                }
-              }
-            };
-
-            workflow.nodes.push(buttonNode);
-          }
-          break;
-
-        case 'ask_to_follow':
-          const followNode: N8nNode = {
-            parameters: {
-              method: 'POST',
-              url: '=https://graph.instagram.com/v24.0/{{ $json.body.entry[0].changes[0].value.from.id }}/messages',
-              authentication: 'genericCredentialType',
-              genericAuthType: 'httpHeaderAuth',
-              sendHeaders: true,
-              headerParameters: {
-                parameters: [
-                  {
-                    name: 'Content-Type',
-                    value: 'application/json'
-                  }
-                ]
-              },
-              sendBody: true,
-              specifyBody: 'json',
-              jsonBody: `={
-  "recipient": { "id": "{{ $json.body.entry[0].changes[0].value.from.id }}" },
-  "message": {
-    "attachment": {
-      "type": "template",
-      "payload": {
-        "template_type": "generic",
-        "elements": [
-          {
-            "title": "${action.messageTemplate}",
-            "buttons": [
-              { "type": "postback", "title": "${action.followButtonText}", "payload": "FOLLOWING" }
-            ]
-          }
-        ]
-      }
-    }
-  }
-}`,
-              options: {}
-            },
-            type: 'n8n-nodes-base.httpRequest',
-            typeVersion: 4.3,
-            position: [positionX, positionY],
-            id: `action-follow-${workflowData.userId}-${index}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            name: `Ask to Follow ${index + 1}`,
-            credentials: {
-              httpHeaderAuth: {
-                id: 'insta-cred-id',
-                name: 'Instagram API'
-              }
-            }
-          };
-
-          workflow.nodes.push(followNode);
-          break;
-
-        case 'send_dm':
-          let messageBody = `={
-  "recipient": { "id": "{{ $json.body.entry[0].changes[0].value.from.id }}" },
-  "message": {
-    "text": "${action.messageTemplate}"
-  }
-}`;
-
-          if (action.actionButtons && action.actionButtons.length > 0) {
-            messageBody = `={
-  "recipient": { "id": "{{ $json.body.entry[0].changes[0].value.from.id }}" },
-  "message": {
-    "attachment": {
-      "type": "template",
-      "payload": {
-        "template_type": "generic",
-        "elements": [
-          {
-            "title": "${action.messageTemplate}",
-            "buttons": [${action.actionButtons.map((btn: any) => {
-              if (btn.url) {
-                return `{"type": "web_url", "url": "${btn.url}", "title": "${btn.text}"}`
-              } else {
-                return `{"type": "postback", "title": "${btn.text}", "payload": "${btn.text.toUpperCase().replace(/\s+/g, '_')}"}`
-              }
-            }).join(', ')}]
-          }
-        ]
-      }
-    }
-  }
-}`;
-          }
-
-          const dmNode: N8nNode = {
-            parameters: {
-              method: 'POST',
-              url: '=https://graph.instagram.com/v24.0/{{ $json.body.entry[0].changes[0].value.from.id }}/messages',
-              authentication: 'genericCredentialType',
-              genericAuthType: 'httpHeaderAuth',
-              sendHeaders: true,
-              headerParameters: {
-                parameters: [
-                  {
-                    name: 'Content-Type',
-                    value: 'application/json'
-                  }
-                ]
-              },
-              sendBody: true,
-              specifyBody: 'json',
-              jsonBody: messageBody,
-              options: {}
-            },
-            type: 'n8n-nodes-base.httpRequest',
-            typeVersion: 4.3,
-            position: [positionX, positionY],
-            id: `action-dm-${workflowData.userId}-${index}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            name: `Send DM ${index + 1}`,
-            credentials: {
-              httpHeaderAuth: {
-                id: 'insta-cred-id',
-                name: 'Instagram API'
-              }
-            }
-          };
-
-          workflow.nodes.push(dmNode);
-          break;
-      }
-    });
-
-    // Build simple connections
-    if (workflow.nodes.length > 1) {
-      workflow.connections = {
-        [webhookNode.name]: {
-          main: [
-            [
-              {
-                node: workflow.nodes[1].id, // Connect to first action node
-                type: 'main',
-                index: 0
-              }
-            ]
-          ]
+      credentials: {
+        httpHeaderAuth: {
+          id: workflowData.instagramAccountId, // Dynamic credential ID per user
+          name: `Instagram Account - ${workflowData.userId}`
         }
-      };
+      },
+      webhookId: webhookPath, // Match webhookId to path
+    };
+    workflow.nodes.push(webhookNode);
+    
+    // 2. IF Node (Verify Webhook)
+    const ifNode: N8nNode = {
+      id: `if-${workflowId}`,
+      name: 'IF',
+      type: 'n8n-nodes-base.if',
+      typeVersion: 2,
+      position: [1280, 460],
+      parameters: {
+        conditions: {
+          options: {
+            caseSensitive: true,
+            leftValue: '',
+            typeValidation: 'strict',
+          },
+          conditions: [
+            {
+              id: 'a1b2c3d4-e5f6-7890-1234-567890abcdef', // Generate unique ID
+              leftValue: '={{ $json.body["hub.challenge"] }}',
+              rightValue: '',
+              operator: {
+                type: 'string',
+                operation: 'isEmpty',
+              },
+            },
+          ],
+          combiner: 'and',
+        },
+        elseOutput: 'noOutput',
+      },
+    };
+    workflow.nodes.push(ifNode);
+    
+    // 3. Response Node (for webhook verification)
+    const responseNode: N8nNode = {
+      id: `response-${workflowId}`,
+      name: 'Response',
+      type: 'n8n-nodes-base.response',
+      typeVersion: 1,
+      position: [1480, 360],
+      parameters: {
+        options: {},
+      },
+    };
+    workflow.nodes.push(responseNode);
+    
+    // 4. Switch Node (for different message types)
+    const switchNode: N8nNode = {
+      id: `switch-${workflowId}`,
+      name: 'Switch',
+      type: 'n8n-nodes-base.switch',
+      typeVersion: 3,
+      position: [1480, 560],
+      parameters: {
+        caseSensitive: true,
+        output: '={{ $json.body.entry[0].changes[0].value.item }}',
+        defaultOutput: 'other',
+        options: {
+          leftValue: '',
+          operations: {
+            operation: 'string',
+            operator: 'contains',
+          },
+          rightValue: '',
+          typeValidation: 'strict',
+        },
+        rules: {
+          values: [
+            {
+              id: 'rule-comment',
+              value: 'comment',
+            },
+            {
+              id: 'rule-message',
+              value: 'message',
+            },
+          ],
+        },
+      },
+    };
+    workflow.nodes.push(switchNode);
+    
+    // 5. HTTP Request Node for Comment Reply
+    const commentReplyNode: N8nNode = {
+      id: `http-comment-${workflowId}`,
+      name: 'HTTP Request',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1680, 460],
+      parameters: {
+        url: '=https://graph.facebook.com/v18.0/{{ $json.body.entry[0].id }}/comments',
+        method: 'POST',
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            {
+              name: 'Content-Type',
+              value: 'application/json',
+            },
+          ],
+        },
+        sendBody: true,
+        bodyParameters: {
+          parameters: [
+            {
+              name: 'message',
+              value: '={{ $json.body.entry[0].changes[0].value.message }}',
+            },
+            {
+              name: 'access_token',
+              value: '={{ $json.body.access_token }}',
+            },
+          ],
+        },
+        options: {},
+      },
+      credentials: {
+        httpHeaderAuth: {
+          id: workflowData.instagramAccountId, // Dynamic credential ID per user
+          name: `Instagram Account - ${workflowData.userId}`
+        }
+      },
+    };
+    workflow.nodes.push(commentReplyNode);
+    
+    // 6. HTTP Request Node for Direct Message
+    const dmNode: N8nNode = {
+      id: `http-dm-${workflowId}`,
+      name: 'HTTP Request1',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1680, 660],
+      parameters: {
+        url: '=https://graph.facebook.com/v18.0/{{ $json.body.entry[0].changes[0].value.from.id }}/messages',
+        method: 'POST',
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            {
+              name: 'Content-Type',
+              value: 'application/json',
+            },
+          ],
+        },
+        sendBody: true,
+        bodyParameters: {
+          parameters: [
+            {
+              name: 'message',
+              value: '={{ $json.body.entry[0].changes[0].value.message }}',
+            },
+            {
+              name: 'access_token',
+              value: '={{ $json.body.access_token }}',
+            },
+          ],
+        },
+        options: {},
+      },
+      credentials: {
+        httpHeaderAuth: {
+          id: workflowData.instagramAccountId, // Dynamic credential ID per user
+          name: `Instagram Account - ${workflowData.userId}`
+        }
+      },
+    };
+    workflow.nodes.push(dmNode);
+    
+    // 7. Supabase Logging Node (to track metrics)
+    const loggingNode: N8nNode = {
+      id: `logging-${workflowId}`,
+      name: 'Supabase Logging',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1880, 560],
+      parameters: {
+        url: `${window.location.origin}/api/log-activity`, // Replace with your actual API endpoint
+        method: 'POST',
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            {
+              name: 'Content-Type',
+              value: 'application/json',
+            },
+          ],
+        },
+        sendBody: true,
+        body: `={
+  "userId": "${workflowData.userId}",
+  "workflowId": "${workflowId}",
+  "event": "dm_sent",
+  "targetUser": "{{ $json.body.entry[0].changes[0].value.from.id }}",
+  "timestamp": "{{ $now }}"
+}`,
+        options: {},
+      },
+    };
+    workflow.nodes.push(loggingNode);
+    
+    // Build connections between nodes
+    workflow.connections = {
+      [webhookNode.name]: {
+        main: [
+          [
+            {
+              node: ifNode.name,
+              type: 'main',
+              index: 0,
+            },
+          ],
+        ],
+      },
+      [ifNode.name]: {
+        main: [
+          [
+            {
+              node: responseNode.name,
+              type: 'main',
+              index: 0,
+            },
+          ],
+          [
+            {
+              node: switchNode.name,
+              type: 'main',
+              index: 0,
+            },
+          ],
+        ],
+      },
+      [switchNode.name]: {
+        main: [
+          [
+            {
+              node: commentReplyNode.name,
+              type: 'main',
+              index: 0,
+            },
+          ],
+          [
+            {
+              node: dmNode.name,
+              type: 'main',
+              index: 0,
+            },
+          ],
+        ],
+      },
+      [commentReplyNode.name]: {
+        main: [
+          [
+            {
+              node: loggingNode.name,
+              type: 'main',
+              index: 0,
+            },
+          ],
+        ],
+      },
+      [dmNode.name]: {
+        main: [
+          [
+            {
+              node: loggingNode.name,
+              type: 'main',
+              index: 0,
+            },
+          ],
+        ],
+      },
+    };
+    
+    // Update the workflowData actions to use the new workflow structure
+    // This is where you would customize the message content based on user input
+    if (workflowData.actions && workflowData.actions.length > 0) {
+      // Customize the HTTP request nodes based on user's action configuration
+      const action = workflowData.actions[0]; // Using first action for demo
+      
+      if (action.type === 'send_dm' && action.messageTemplate) {
+        // Update the DM node with user's message template
+        const dmNodeIndex = workflow.nodes.findIndex(node => node.name === 'HTTP Request1');
+        if (dmNodeIndex !== -1) {
+          (workflow.nodes[dmNodeIndex] as N8nNode).parameters.bodyParameters = {
+            parameters: [
+              {
+                name: 'message',
+                value: action.messageTemplate,
+              },
+              {
+                name: 'access_token',
+                value: '={{ $json.body.access_token }}',
+              },
+            ],
+          };
+        }
+        
+        // Update the comment reply node with user's template
+        const commentNodeIndex = workflow.nodes.findIndex(node => node.name === 'HTTP Request');
+        if (commentNodeIndex !== -1) {
+          (workflow.nodes[commentNodeIndex] as N8nNode).parameters.bodyParameters = {
+            parameters: [
+              {
+                name: 'message',
+                value: action.messageTemplate,
+              },
+              {
+                name: 'access_token',
+                value: '={{ $json.body.access_token }}',
+              },
+            ],
+          };
+        }
+      }
     }
 
     return workflow;
@@ -480,6 +563,7 @@ class N8nService {
         trigger_config: workflowData.triggerConfig,
         actions: workflowData.actions,
         status: workflowData.status,
+        instagram_account_id: workflowData.instagramAccountId, // Store the Instagram account ID
         n8n_workflow_id: n8nWorkflowId, // Store the N8N workflow ID separately
         // Remove created_at and updated_at to let the DB defaults handle them
       });
