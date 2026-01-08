@@ -447,8 +447,7 @@ class N8nService {
         actions: workflowData.actions,
         status: workflowData.status,
         n8n_workflow_id: n8nWorkflowId, // Store the N8N workflow ID separately
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        // Remove created_at and updated_at to let the DB defaults handle them
       });
 
     if (error) {

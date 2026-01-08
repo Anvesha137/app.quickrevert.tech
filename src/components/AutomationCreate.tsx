@@ -112,6 +112,7 @@ export default function AutomationCreate() {
             actions: formData.actions,
             status: 'active',
             instagram_account_id: instagramAccount.id,
+            // Let Supabase handle created_at and updated_at with defaults
           });
 
         if (supabaseError) {
