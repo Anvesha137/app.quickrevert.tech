@@ -25,6 +25,14 @@ export default function TopAutomations() {
     }
   }, [user]);
 
+  // Set up periodic refresh of top automations
+  useEffect(() => {
+    if (user) {
+      const interval = setInterval(fetchTopAutomations, 30000); // Refresh every 30 seconds
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+
   const fetchTopAutomations = async () => {
     try {
       // Get all automations from Supabase
@@ -40,10 +48,36 @@ export default function TopAutomations() {
         return;
       }
       
-      // Get metrics from N8N service
-      const metrics = await n8nService.getWorkflowMetrics(user!.id);
+      // Try to get metrics from N8N service
+      let metrics;
+      try {
+        metrics = await n8nService.getWorkflowMetrics(user!.id);
+      } catch (n8nError) {
+        console.error('Error fetching metrics from N8N:', n8nError);
+        // Fallback: get metrics from Supabase
+        const { data: activities, error: activitiesError } = await supabase
+          .from('automation_activities')
+          .select('automation_id, status, activity_type, metadata')
+          .eq('user_id', user!.id);
+        
+        if (activitiesError) throw activitiesError;
+        
+        const dms = activities?.filter(a => a.activity_type === 'dm_sent') || [];
+        const comments = activities?.filter(a => a.activity_type === 'reply') || [];
+        
+        const seenDms = dms.filter(dm => dm.metadata?.seen === true).length;
+        const dmOpenRate = dms.length > 0 ? Math.round((seenDms / dms.length) * 100) : 0;
+        
+        metrics = {
+          dmsTriggered: dms.length,
+          dmOpenRate,
+          commentReplies: comments.length,
+          uniqueUsers: 0,
+          recentActivities: [],
+        };
+      }
       
-      // Map automation stats based on N8N metrics
+      // Map automation stats based on metrics
       const automationStats = allAutomations.map(auto => {
         // For now, we'll assign metrics based on the automation name or ID
         // In a real implementation, we would have more specific metrics per automation

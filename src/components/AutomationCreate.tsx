@@ -90,13 +90,34 @@ export default function AutomationCreate() {
         status: 'active' as const,
       };
 
-      // Create workflow in N8N
-      const n8nResponse = await n8nService.createWorkflow(workflowData);
+      // Create workflow in N8N - with fallback to local storage if N8N is unavailable
+      try {
+        const n8nResponse = await n8nService.createWorkflow(workflowData);
+        
+        // Update local navigation after a brief delay to allow for processing
+        setTimeout(() => {
+          navigate('/automation');
+        }, 1500);
+      } catch (n8nError) {
+        console.error('Error creating workflow in N8N:', n8nError);
+        
+        // Fallback: save to Supabase directly if N8N is unavailable
+        const { error: supabaseError } = await supabase
+          .from('automations')
+          .insert({
+            user_id: user.id,
+            name: formData.name.trim(),
+            trigger_type: formData.triggerType,
+            trigger_config: formData.triggerConfig,
+            actions: formData.actions,
+            status: 'active',
+            instagram_account_id: instagramAccount.id,
+          });
 
-      // Update local navigation after a brief delay to allow for processing
-      setTimeout(() => {
+        if (supabaseError) throw supabaseError;
+        
         navigate('/automation');
-      }, 1500);
+      }
     } catch (error) {
       console.error('Error creating automation:', error);
       alert('Failed to create automation. Please try again.');

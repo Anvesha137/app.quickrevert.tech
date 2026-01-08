@@ -54,27 +54,61 @@ export default function RecentActivity() {
     }
   }, [user]);
 
+  // Set up periodic refresh of activities
+  useEffect(() => {
+    if (user) {
+      const interval = setInterval(fetchActivities, 30000); // Refresh every 30 seconds
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+
   const fetchActivities = async () => {
     if (!user) return;
 
     try {
       setLoading(true);
       
-      // Get metrics from N8N service which includes recent activities
-      const metrics = await n8nService.getWorkflowMetrics(user.id);
-      
-      // Map the recent activities to the expected format
-      const mappedActivities = metrics.recentActivities.map((activity: any, index: number) => ({
-        id: `${activity.workflowId}-${index}`,
-        activity_type: activity.actionType,
-        target_username: activity.targetUsername,
-        message: activity.metadata?.message || null,
-        metadata: activity.metadata || {},
-        status: activity.metadata?.status || 'success',
-        created_at: activity.timestamp,
-      }));
-      
-      setActivities(mappedActivities.slice(0, 7));
+      // Try to get activities from N8N service
+      try {
+        const metrics = await n8nService.getWorkflowMetrics(user.id);
+        
+        // Map the recent activities to the expected format
+        const mappedActivities = metrics.recentActivities.map((activity: any, index: number) => ({
+          id: `${activity.workflowId}-${index}`,
+          activity_type: activity.actionType,
+          target_username: activity.targetUsername,
+          message: activity.metadata?.message || null,
+          metadata: activity.metadata || {},
+          status: activity.metadata?.status || 'success',
+          created_at: activity.timestamp,
+        }));
+        
+        setActivities(mappedActivities.slice(0, 7));
+      } catch (n8nError) {
+        console.error('Error fetching activities from N8N:', n8nError);
+        // Fallback: get activities from Supabase
+        const { data, error } = await supabase
+          .from('automation_activities')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(7);
+
+        if (error) throw error;
+        
+        // Map Supabase activities to the expected format
+        const mappedActivities = data.map(activity => ({
+          id: activity.id,
+          activity_type: activity.activity_type,
+          target_username: activity.target_username,
+          message: activity.message,
+          metadata: activity.metadata || {},
+          status: activity.status,
+          created_at: activity.created_at,
+        }));
+        
+        setActivities(mappedActivities);
+      }
     } catch (error) {
       console.error('Error fetching activities:', error);
     } finally {

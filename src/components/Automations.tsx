@@ -75,6 +75,7 @@ export default function Automations() {
       setAutomations(data || []);
     } catch (error) {
       console.error('Error fetching automations:', error);
+      alert('Failed to load automations. Please refresh the page.');
     } finally {
       setLoading(false);
     }
@@ -84,7 +85,39 @@ export default function Automations() {
     if (!user) return;
     
     try {
-      const userMetrics = await n8nService.getWorkflowMetrics(user.id);
+      // Try to get metrics from N8N service
+      let userMetrics;
+      try {
+        userMetrics = await n8nService.getWorkflowMetrics(user.id);
+      } catch (n8nError) {
+        console.error('Error fetching metrics from N8N:', n8nError);
+        // Fallback: get metrics from Supabase
+        const { data: activities, error } = await supabase
+          .from('automation_activities')
+          .select('*')
+          .eq('user_id', user.id)
+          .gte('timestamp', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+        
+        if (error) throw error;
+        
+        // Calculate metrics from Supabase data
+        const dmsTriggered = activities?.filter(a => a.actionType === 'dm_sent').length || 0;
+        const commentReplies = activities?.filter(a => a.actionType === 'reply').length || 0;
+        const uniqueUsers = new Set(activities?.map(a => a.targetUsername)).size;
+        
+        // Calculate DM open rate if we have seen data
+        const dms = activities?.filter(a => a.actionType === 'dm_sent') || [];
+        const seenDms = dms.filter(dm => dm.metadata?.seen === true).length;
+        const dmOpenRate = dms.length > 0 ? Math.round((seenDms / dms.length) * 100) : 0;
+        
+        userMetrics = {
+          dmsTriggered,
+          dmOpenRate,
+          commentReplies,
+          uniqueUsers,
+          recentActivities: activities?.slice(0, 10) || [],
+        };
+      }
       
       // Fetch metrics for each automation
       const metricsMap: Record<string, AutomationMetrics> = {};
@@ -198,8 +231,13 @@ export default function Automations() {
     }
 
     try {
-      // Delete from N8N first
-      await n8nService.deleteWorkflow(id);
+      // Try to delete from N8N first
+      try {
+        await n8nService.deleteWorkflow(id);
+      } catch (n8nError) {
+        console.error('Error deleting workflow from N8N:', n8nError);
+        // Continue with Supabase deletion even if N8N fails
+      }
       
       // Then delete from Supabase
       const { error } = await supabase

@@ -37,10 +37,45 @@ export default function Dashboard() {
     }
   }, [user]);
 
+  // Set up periodic refresh of metrics
+  useEffect(() => {
+    if (user) {
+      const interval = setInterval(fetchDashboardStats, 30000); // Refresh every 30 seconds
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+
   const fetchDashboardStats = async () => {
     try {
-      // Get metrics from N8N service
-      const metrics = await n8nService.getWorkflowMetrics(user!.id);
+      // Try to get metrics from N8N service
+      let metrics;
+      try {
+        metrics = await n8nService.getWorkflowMetrics(user!.id);
+      } catch (n8nError) {
+        console.error('Error fetching metrics from N8N:', n8nError);
+        // Fallback: get metrics from Supabase
+        const { data: activities, error: activitiesError } = await supabase
+          .from('automation_activities')
+          .select('activity_type, target_username, metadata')
+          .eq('user_id', user!.id);
+        
+        if (activitiesError) throw activitiesError;
+        
+        const dms = activities?.filter(a => a.activity_type === 'dm_sent') || [];
+        const comments = activities?.filter(a => a.activity_type === 'reply') || [];
+        const uniqueUsersSet = new Set(activities?.map(a => a.target_username) || []);
+        
+        const seenDms = dms.filter(dm => dm.metadata?.seen === true).length;
+        const dmOpenRate = dms.length > 0 ? Math.round((seenDms / dms.length) * 100) : 0;
+        
+        metrics = {
+          dmsTriggered: dms.length,
+          dmOpenRate,
+          commentReplies: comments.length,
+          uniqueUsers: uniqueUsersSet.size,
+          recentActivities: [],
+        };
+      }
       
       // Get active automations count from Supabase
       const { data: automations, error: automationsError } = await supabase
