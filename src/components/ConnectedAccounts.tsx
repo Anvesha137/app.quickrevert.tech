@@ -28,16 +28,16 @@ export default function ConnectedAccounts() {
     if (params.get('instagram_connected') === 'true') {
       const username = params.get('username');
       const usernameText = username ? `@${username}` : 'Your Instagram account';
-      setSuccessMessage(`${usernameText} connected successfully! Verifying connection...`);
-      
-      // Redirect to home page after a short delay to show success message
-      setTimeout(() => {
-        window.location.href = 'https://app.quickrevert.tech/automation';
-      }, 2000); // 2 seconds to show the success message before redirecting
+      setSuccessMessage(`${usernameText} connected successfully! Setting up automation...`);
 
       setTimeout(async () => {
         await fetchAccounts();
-        setSuccessMessage(`${usernameText} has been connected and verified!`);
+        await setupWebhooks();
+        setSuccessMessage(`${usernameText} is ready for automation!`);
+
+        setTimeout(() => {
+          window.location.href = '/automation';
+        }, 2000);
       }, 500);
     }
 
@@ -68,6 +68,47 @@ export default function ConnectedAccounts() {
       setError('Failed to load connected accounts');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const setupWebhooks = async () => {
+    if (!user) return;
+
+    try {
+      const { data: account } = await supabase
+        .from('instagram_accounts')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .order('connected_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!account) return;
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/setup-instagram-webhooks`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ instagramAccountId: account.id }),
+        }
+      );
+
+      const result = await response.json();
+      if (!result.success) {
+        console.warn('Webhook setup:', result.message || result.error);
+      } else {
+        console.log('Webhooks configured successfully');
+      }
+    } catch (err) {
+      console.error('Error setting up webhooks:', err);
     }
   };
 
