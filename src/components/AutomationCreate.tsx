@@ -94,10 +94,8 @@ export default function AutomationCreate() {
       try {
         const n8nResponse = await n8nService.createWorkflow(workflowData);
         
-        // Update local navigation after a brief delay to allow for processing
-        setTimeout(() => {
-          navigate('/automation');
-        }, 1500);
+        // Navigate immediately after successful N8N workflow creation
+        navigate('/automation');
       } catch (n8nError) {
         console.error('Error creating workflow in N8N:', n8nError);
         
