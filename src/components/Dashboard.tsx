@@ -3,6 +3,7 @@ import { MessageSquare, Eye, Zap, MessageCircle, Users } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
+import { n8nService } from '../lib/n8nService';
 import KPICard from './KPICard';
 import RecentActivity from './RecentActivity';
 import TopAutomations from './TopAutomations';
@@ -38,6 +39,10 @@ export default function Dashboard() {
 
   const fetchDashboardStats = async () => {
     try {
+      // Get metrics from N8N service
+      const metrics = await n8nService.getWorkflowMetrics(user!.id);
+      
+      // Get active automations count from Supabase
       const { data: automations, error: automationsError } = await supabase
         .from('automations')
         .select('id, status')
@@ -47,26 +52,12 @@ export default function Dashboard() {
 
       const activeAutomations = automations?.filter(a => a.status === 'active').length || 0;
 
-      const { data: activities, error: activitiesError } = await supabase
-        .from('automation_activities')
-        .select('activity_type, target_username, metadata')
-        .eq('user_id', user!.id);
-
-      if (activitiesError) throw activitiesError;
-
-      const dms = activities?.filter(a => a.activity_type === 'dm_sent') || [];
-      const comments = activities?.filter(a => a.activity_type === 'reply') || [];
-      const uniqueUsersSet = new Set(activities?.map(a => a.target_username) || []);
-
-      const seenDms = dms.filter(dm => dm.metadata?.seen === true).length;
-      const dmOpenRate = dms.length > 0 ? Math.round((seenDms / dms.length) * 100) : 0;
-
       setStats({
-        dmsTriggered: dms.length,
-        dmOpenRate,
+        dmsTriggered: metrics.dmsTriggered,
+        dmOpenRate: metrics.dmOpenRate,
         activeAutomations,
-        commentReplies: comments.length,
-        uniqueUsers: uniqueUsersSet.size,
+        commentReplies: metrics.commentReplies,
+        uniqueUsers: metrics.uniqueUsers,
       });
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);

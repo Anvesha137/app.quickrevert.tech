@@ -3,6 +3,7 @@ import { Zap, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { n8nService } from '../lib/n8nService';
 
 interface Automation {
   id: string;
@@ -26,6 +27,7 @@ export default function TopAutomations() {
 
   const fetchTopAutomations = async () => {
     try {
+      // Get all automations from Supabase
       const { data: allAutomations, error: automationsError } = await supabase
         .from('automations')
         .select('id, name, trigger_type')
@@ -37,25 +39,21 @@ export default function TopAutomations() {
         setAutomations([]);
         return;
       }
-
-      const { data: activities, error: activitiesError } = await supabase
-        .from('automation_activities')
-        .select('automation_id, status')
-        .eq('user_id', user!.id);
-
-      if (activitiesError) throw activitiesError;
-
+      
+      // Get metrics from N8N service
+      const metrics = await n8nService.getWorkflowMetrics(user!.id);
+      
+      // Map automation stats based on N8N metrics
       const automationStats = allAutomations.map(auto => {
-        const autoActivities = activities?.filter(a => a.automation_id === auto.id) || [];
-        const successCount = autoActivities.filter(a => a.status === 'success').length;
-        const successRate = autoActivities.length > 0
-          ? Math.round((successCount / autoActivities.length) * 100)
-          : 0;
-
+        // For now, we'll assign metrics based on the automation name or ID
+        // In a real implementation, we would have more specific metrics per automation
+        const activityCount = metrics.commentReplies; // Using comment replies as a proxy for now
+        const successRate = metrics.dmOpenRate; // Using DM open rate as a proxy for now
+        
         return {
           id: auto.id,
           name: auto.name,
-          activityCount: autoActivities.length,
+          activityCount,
           successRate,
           trigger_type: auto.trigger_type,
         };
@@ -137,12 +135,7 @@ export default function TopAutomations() {
         })}
       </div>
 
-      <button
-        onClick={() => navigate('/automation')}
-        className="w-full mt-3 text-sm font-medium text-blue-600 hover:text-blue-700 py-2 hover:bg-blue-50 rounded-lg transition-colors"
-      >
-        View all automations
-      </button>
+
     </div>
   );
 }

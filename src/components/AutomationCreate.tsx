@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { n8nService } from '../lib/n8nService';
 import { AutomationFormData, TriggerType, TriggerConfig, Action } from '../types/automation';
 import BasicInfo from './automation-steps/BasicInfo';
 import TriggerSelection from './automation-steps/TriggerSelection';
@@ -66,20 +67,36 @@ export default function AutomationCreate() {
     setSaving(true);
 
     try {
-      const { error } = await supabase
-        .from('automations')
-        .insert({
-          user_id: user.id,
-          name: formData.name.trim(),
-          trigger_type: formData.triggerType,
-          trigger_config: formData.triggerConfig,
-          actions: formData.actions,
-          status: 'active',
-        });
+      // Get the user's Instagram account
+      const { data: instagramAccount, error: igError } = await supabase
+        .from('instagram_accounts')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .single();
 
-      if (error) throw error;
+      if (igError || !instagramAccount) {
+        throw new Error('No active Instagram account found');
+      }
 
-      navigate('/automation');
+      // Prepare workflow data
+      const workflowData = {
+        userId: user.id,
+        instagramAccountId: instagramAccount.id,
+        automationName: formData.name.trim(),
+        triggerType: formData.triggerType,
+        triggerConfig: formData.triggerConfig,
+        actions: formData.actions,
+        status: 'active' as const,
+      };
+
+      // Create workflow in N8N
+      const n8nResponse = await n8nService.createWorkflow(workflowData);
+
+      // Update local navigation after a brief delay to allow for processing
+      setTimeout(() => {
+        navigate('/automation');
+      }, 1500);
     } catch (error) {
       console.error('Error creating automation:', error);
       alert('Failed to create automation. Please try again.');

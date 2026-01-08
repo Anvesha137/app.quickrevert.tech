@@ -130,13 +130,13 @@ export default function InstagramConnectionStatus() {
             <div className="flex items-center gap-2 mb-1">
               <h3 className="font-bold text-gray-900 text-lg">@{account.username}</h3>
               {verified === true && (
-                <CheckCircle size={18} className="text-green-600" title="Connection verified" />
+                <CheckCircle size={18} className="text-green-600" />
               )}
               {verified === false && (
-                <XCircle size={18} className="text-red-600" title="Connection failed" />
+                <XCircle size={18} className="text-red-600" />
               )}
               {verified === null && (
-                <AlertTriangle size={18} className="text-yellow-600" title="Verification pending" />
+                <AlertTriangle size={18} className="text-yellow-600" />
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -151,6 +151,11 @@ export default function InstagramConnectionStatus() {
               {verified === false && (
                 <span className="text-xs text-red-700 font-semibold bg-red-100 px-2 py-1 rounded-md">
                   Needs Reauth
+                </span>
+              )}
+              {verified === null && (
+                <span className="text-xs text-yellow-700 font-semibold bg-yellow-100 px-2 py-1 rounded-md">
+                  Verification Pending
                 </span>
               )}
             </div>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { MessageSquare, Reply, UserPlus, Mail, Send, CheckCircle2, XCircle, AlertCircle, Clock } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { n8nService } from '../lib/n8nService';
 
 interface Activity {
   id: string;
@@ -58,15 +59,22 @@ export default function RecentActivity() {
 
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('automation_activities')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(7);
-
-      if (error) throw error;
-      setActivities(data || []);
+      
+      // Get metrics from N8N service which includes recent activities
+      const metrics = await n8nService.getWorkflowMetrics(user.id);
+      
+      // Map the recent activities to the expected format
+      const mappedActivities = metrics.recentActivities.map((activity: any, index: number) => ({
+        id: `${activity.workflowId}-${index}`,
+        activity_type: activity.actionType,
+        target_username: activity.targetUsername,
+        message: activity.metadata?.message || null,
+        metadata: activity.metadata || {},
+        status: activity.metadata?.status || 'success',
+        created_at: activity.timestamp,
+      }));
+      
+      setActivities(mappedActivities.slice(0, 7));
     } catch (error) {
       console.error('Error fetching activities:', error);
     } finally {
@@ -161,12 +169,7 @@ export default function RecentActivity() {
         })}
       </div>
 
-      <button
-        onClick={fetchActivities}
-        className="w-full mt-4 text-sm font-medium text-blue-600 hover:text-blue-700 py-2 hover:bg-blue-50 rounded-lg transition-colors"
-      >
-        Refresh activity
-      </button>
+
     </div>
   );
 }
