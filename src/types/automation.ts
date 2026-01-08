@@ -33,6 +33,7 @@ export interface ActionButton {
 export interface ReplyToCommentAction {
   type: 'reply_to_comment';
   replyTemplates: string[];
+  actionButtons?: ActionButton[];
 }
 
 export interface AskToFollowAction {

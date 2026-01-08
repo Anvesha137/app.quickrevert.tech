@@ -56,6 +56,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
       newAction = {
         type: 'reply_to_comment',
         replyTemplates: [''],
+        actionButtons: [],
       } as ReplyToCommentAction;
     } else if (actionType === 'ask_to_follow') {
       newAction = {
@@ -138,6 +139,36 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
     updateAction(actionIndex, {
       ...action,
       actionButtons: action.actionButtons.filter((_, i) => i !== buttonIndex),
+    });
+  };
+
+  const addReplyButton = (actionIndex: number) => {
+    const action = actions[actionIndex] as ReplyToCommentAction;
+    const newButton = { id: Date.now().toString(), text: '', url: '' };
+    const currentButtons = action.actionButtons || [];
+    updateAction(actionIndex, {
+      ...action,
+      actionButtons: [...currentButtons, newButton],
+    });
+  };
+
+  const updateReplyButton = (actionIndex: number, buttonIndex: number, field: 'text' | 'url', value: string) => {
+    const action = actions[actionIndex] as ReplyToCommentAction;
+    const currentButtons = action.actionButtons || [];
+    const newButtons = [...currentButtons];
+    newButtons[buttonIndex] = { ...newButtons[buttonIndex], [field]: value };
+    updateAction(actionIndex, {
+      ...action,
+      actionButtons: newButtons,
+    });
+  };
+
+  const removeReplyButton = (actionIndex: number, buttonIndex: number) => {
+    const action = actions[actionIndex] as ReplyToCommentAction;
+    const currentButtons = action.actionButtons || [];
+    updateAction(actionIndex, {
+      ...action,
+      actionButtons: currentButtons.filter((_, i) => i !== buttonIndex),
     });
   };
 
@@ -246,6 +277,53 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                       <Plus size={16} />
                       Add Another Reply
                     </button>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900 mb-2">
+                      Action Buttons ({((action as ReplyToCommentAction).actionButtons || []).length}/3)
+                    </label>
+                    {(action as ReplyToCommentAction).actionButtons && (action as ReplyToCommentAction).actionButtons!.length > 0 && (
+                      <div className="space-y-3 mb-3">
+                        {(action as ReplyToCommentAction).actionButtons!.map((button, buttonIndex) => (
+                          <div key={button.id} className="p-4 bg-gray-50 rounded-lg">
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-sm font-medium text-gray-700">Button {buttonIndex + 1}</span>
+                              <button
+                                onClick={() => removeReplyButton(index, buttonIndex)}
+                                className="text-gray-400 hover:text-red-600 transition-colors"
+                              >
+                                <X size={18} />
+                              </button>
+                            </div>
+                            <div className="space-y-2">
+                              <input
+                                type="text"
+                                value={button.text}
+                                onChange={(e) => updateReplyButton(index, buttonIndex, 'text', e.target.value)}
+                                placeholder="Button text"
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
+                              <input
+                                type="url"
+                                value={button.url || ''}
+                                onChange={(e) => updateReplyButton(index, buttonIndex, 'url', e.target.value)}
+                                placeholder="Button URL (optional)"
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {(action as ReplyToCommentAction).actionButtons && (action as ReplyToCommentAction).actionButtons!.length < 3 && (
+                      <button
+                        onClick={() => addReplyButton(index)}
+                        className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                      >
+                        <Sparkles size={16} />
+                        Add Action Button
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
