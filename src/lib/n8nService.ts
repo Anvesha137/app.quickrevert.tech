@@ -589,14 +589,19 @@ class N8nService {
     }
   }
 
+  private formatDateForSupabase(date: Date): string {
+    return date.toISOString().replace('T', ' ').substring(0, 19);
+  }
+
   async getWorkflowMetrics(userId: string) {
     try {
       // Get metrics from Supabase
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const { data: activities, error } = await supabase
         .from('automation_activities')
         .select('*')
         .eq('user_id', userId)
-        .gte('executed_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()); // Last 30 days
+        .gte('executed_at', this.formatDateForSupabase(thirtyDaysAgo)); // Last 30 days
 
       if (error) {
         console.error('Error fetching workflow metrics:', error);

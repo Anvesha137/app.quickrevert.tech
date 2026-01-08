@@ -96,7 +96,7 @@ export default function Automations() {
           .from('automation_activities')
           .select('*')
           .eq('user_id', user.id)
-          .gte('executed_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+          .gte('executed_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19));
         
         if (error) throw error;
         

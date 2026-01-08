@@ -58,7 +58,8 @@ export default function TopAutomations() {
         const { data: activities, error: activitiesError } = await supabase
           .from('automation_activities')
           .select('automation_id, activity_type, activity_data')
-          .eq('user_id', user!.id);
+          .eq('user_id', user!.id)
+          .gte('executed_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19));
         
         if (activitiesError) throw activitiesError;
         
