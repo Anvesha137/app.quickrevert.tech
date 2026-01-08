@@ -557,9 +557,15 @@ class N8nService {
   async logActivity(activity: Omit<ActivityLog, 'id' | 'timestamp'>) {
     try {
       const activityEntry = {
-        ...activity,
         id: crypto.randomUUID(),
-        timestamp: new Date().toISOString(),
+        automation_id: activity.workflowId,
+        user_id: activity.userId,
+        activity_type: activity.actionType,
+        activity_data: {
+          target_username: activity.targetUsername,
+          metadata: activity.metadata,
+        },
+        executed_at: new Date().toISOString(),
       };
       
       const { error } = await supabase
@@ -590,7 +596,7 @@ class N8nService {
         .from('automation_activities')
         .select('*')
         .eq('user_id', userId)
-        .gte('timestamp', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()); // Last 30 days
+        .gte('executed_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()); // Last 30 days
 
       if (error) {
         console.error('Error fetching workflow metrics:', error);
@@ -598,21 +604,30 @@ class N8nService {
       }
 
       // Calculate metrics
-      const dmsTriggered = activities?.filter(a => a.actionType === 'dm_sent').length || 0;
-      const commentReplies = activities?.filter(a => a.actionType === 'reply').length || 0;
-      const uniqueUsers = new Set(activities?.map(a => a.targetUsername)).size;
+      const dmsTriggered = activities?.filter(a => a.activity_type === 'dm_sent').length || 0;
+      const commentReplies = activities?.filter(a => a.activity_type === 'reply').length || 0;
+      const uniqueUsers = new Set(activities?.map(a => a.activity_data?.target_username)).size;
 
       // Calculate DM open rate if we have seen data
-      const dms = activities?.filter(a => a.actionType === 'dm_sent') || [];
-      const seenDms = dms.filter(dm => dm.metadata?.seen === true).length;
+      const dms = activities?.filter(a => a.activity_type === 'dm_sent') || [];
+      const seenDms = dms.filter(dm => dm.activity_data?.metadata?.seen === true).length;
       const dmOpenRate = dms.length > 0 ? Math.round((seenDms / dms.length) * 100) : 0;
+
+      // Map activities to the expected format
+      const mappedActivities = activities?.map(activity => ({
+        workflowId: activity.automation_id,
+        actionType: activity.activity_type,
+        targetUsername: activity.activity_data?.target_username,
+        timestamp: activity.executed_at,
+        metadata: activity.activity_data?.metadata || {},
+      })) || [];
 
       return {
         dmsTriggered,
         dmOpenRate,
         commentReplies,
         uniqueUsers,
-        recentActivities: activities?.slice(0, 10) || [], // Last 10 activities
+        recentActivities: mappedActivities.slice(0, 10), // Last 10 activities
       };
     } catch (error) {
       console.error('Error getting workflow metrics:', error);

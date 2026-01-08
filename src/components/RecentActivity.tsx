@@ -91,7 +91,7 @@ export default function RecentActivity() {
           .from('automation_activities')
           .select('*')
           .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
+          .order('executed_at', { ascending: false })
           .limit(7);
 
         if (error) throw error;
@@ -100,11 +100,11 @@ export default function RecentActivity() {
         const mappedActivities = data.map(activity => ({
           id: activity.id,
           activity_type: activity.activity_type,
-          target_username: activity.target_username,
-          message: activity.message,
-          metadata: activity.metadata || {},
-          status: activity.status,
-          created_at: activity.created_at,
+          target_username: activity.activity_data?.target_username,
+          message: activity.activity_data?.message,
+          metadata: activity.activity_data?.metadata || {},
+          status: activity.activity_data?.status || 'success',
+          created_at: activity.executed_at,
         }));
         
         setActivities(mappedActivities);

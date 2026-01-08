@@ -96,26 +96,35 @@ export default function Automations() {
           .from('automation_activities')
           .select('*')
           .eq('user_id', user.id)
-          .gte('timestamp', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+          .gte('executed_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
         
         if (error) throw error;
         
         // Calculate metrics from Supabase data
-        const dmsTriggered = activities?.filter(a => a.actionType === 'dm_sent').length || 0;
-        const commentReplies = activities?.filter(a => a.actionType === 'reply').length || 0;
-        const uniqueUsers = new Set(activities?.map(a => a.targetUsername)).size;
+        const dmsTriggered = activities?.filter(a => a.activity_type === 'dm_sent').length || 0;
+        const commentReplies = activities?.filter(a => a.activity_type === 'reply').length || 0;
+        const uniqueUsers = new Set(activities?.map(a => a.activity_data?.target_username)).size;
         
         // Calculate DM open rate if we have seen data
-        const dms = activities?.filter(a => a.actionType === 'dm_sent') || [];
-        const seenDms = dms.filter(dm => dm.metadata?.seen === true).length;
+        const dms = activities?.filter(a => a.activity_type === 'dm_sent') || [];
+        const seenDms = dms.filter(dm => dm.activity_data?.metadata?.seen === true).length;
         const dmOpenRate = dms.length > 0 ? Math.round((seenDms / dms.length) * 100) : 0;
+        
+        // Map activities to the expected format
+        const mappedActivities = activities?.map(activity => ({
+          workflowId: activity.automation_id,
+          actionType: activity.activity_type,
+          targetUsername: activity.activity_data?.target_username,
+          timestamp: activity.executed_at,
+          metadata: activity.activity_data?.metadata || {},
+        })) || [];
         
         userMetrics = {
           dmsTriggered,
           dmOpenRate,
           commentReplies,
           uniqueUsers,
-          recentActivities: activities?.slice(0, 10) || [],
+          recentActivities: mappedActivities.slice(0, 10),
         };
       }
       

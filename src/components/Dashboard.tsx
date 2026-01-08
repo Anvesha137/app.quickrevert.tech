@@ -56,16 +56,16 @@ export default function Dashboard() {
         // Fallback: get metrics from Supabase
         const { data: activities, error: activitiesError } = await supabase
           .from('automation_activities')
-          .select('activity_type, target_username, metadata')
+          .select('activity_type, activity_data')
           .eq('user_id', user!.id);
         
         if (activitiesError) throw activitiesError;
         
         const dms = activities?.filter(a => a.activity_type === 'dm_sent') || [];
         const comments = activities?.filter(a => a.activity_type === 'reply') || [];
-        const uniqueUsersSet = new Set(activities?.map(a => a.target_username) || []);
+        const uniqueUsersSet = new Set(activities?.map(a => a.activity_data?.target_username) || []);
         
-        const seenDms = dms.filter(dm => dm.metadata?.seen === true).length;
+        const seenDms = dms.filter(dm => dm.activity_data?.metadata?.seen === true).length;
         const dmOpenRate = dms.length > 0 ? Math.round((seenDms / dms.length) * 100) : 0;
         
         metrics = {
@@ -100,6 +100,14 @@ export default function Dashboard() {
       setLoading(false);
     }
   };
+
+  // Set up periodic refresh of metrics
+  useEffect(() => {
+    if (user) {
+      const interval = setInterval(fetchDashboardStats, 30000); // Refresh every 30 seconds
+      return () => clearInterval(interval);
+    }
+  }, [user]);
 
   return (
     <div className="flex-1 overflow-auto bg-gradient-to-br from-gray-50 via-white to-blue-50/30">

@@ -57,7 +57,7 @@ export default function TopAutomations() {
         // Fallback: get metrics from Supabase
         const { data: activities, error: activitiesError } = await supabase
           .from('automation_activities')
-          .select('automation_id, status, activity_type, metadata')
+          .select('automation_id, activity_type, activity_data')
           .eq('user_id', user!.id);
         
         if (activitiesError) throw activitiesError;
@@ -65,7 +65,7 @@ export default function TopAutomations() {
         const dms = activities?.filter(a => a.activity_type === 'dm_sent') || [];
         const comments = activities?.filter(a => a.activity_type === 'reply') || [];
         
-        const seenDms = dms.filter(dm => dm.metadata?.seen === true).length;
+        const seenDms = dms.filter(dm => dm.activity_data?.metadata?.seen === true).length;
         const dmOpenRate = dms.length > 0 ? Math.round((seenDms / dms.length) * 100) : 0;
         
         metrics = {
@@ -104,6 +104,14 @@ export default function TopAutomations() {
       setLoading(false);
     }
   };
+
+  // Set up periodic refresh of top automations
+  useEffect(() => {
+    if (user) {
+      const interval = setInterval(fetchTopAutomations, 30000); // Refresh every 30 seconds
+      return () => clearInterval(interval);
+    }
+  }, [user]);
 
   if (loading) {
     return (
