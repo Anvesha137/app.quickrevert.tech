@@ -82,6 +82,10 @@ class N8nService {
     }
   }
 
+  private isN8NAvailable(): boolean {
+    return this.n8nApiKey.trim() !== '' && !!this.n8nBaseUrl && this.n8nBaseUrl !== 'https://n8n.yourdomain.com';
+  }
+
   private getHeaders(): HeadersInit {
     return {
       'Content-Type': 'application/json',
@@ -90,6 +94,22 @@ class N8nService {
   }
 
   async createWorkflow(workflowData: WorkflowData): Promise<N8nWorkflowResponse> {
+    if (!this.isN8NAvailable()) {
+      // If N8N is not available, create a local record only
+      const workflowId = crypto.randomUUID();
+      
+      // Save workflow metadata to Supabase
+      await this.saveWorkflowMetadata(workflowData, workflowId);
+      
+      return {
+        id: workflowId,
+        name: workflowData.automationName,
+        active: workflowData.status === 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    }
+    
     try {
       // Create the workflow in N8N
       const workflowPayload = this.buildWorkflowPayload(workflowData);
@@ -438,6 +458,24 @@ class N8nService {
   }
 
   async updateWorkflowStatus(workflowId: string, status: 'active' | 'inactive') {
+    if (!this.isN8NAvailable()) {
+      // If N8N is not available, update only in Supabase
+      const { error } = await supabase
+        .from('automations')
+        .update({ 
+          status,
+          updated_at: new Date().toISOString() 
+        })
+        .eq('n8n_workflow_id', workflowId);
+
+      if (error) {
+        console.error('Error updating workflow status in Supabase:', error);
+        throw error;
+      }
+      
+      return { active: status === 'active' };
+    }
+    
     try {
       const response = await fetch(`${this.n8nBaseUrl}/workflows/${workflowId}`, {
         method: 'PATCH',
@@ -473,6 +511,21 @@ class N8nService {
   }
 
   async deleteWorkflow(workflowId: string) {
+    if (!this.isN8NAvailable()) {
+      // If N8N is not available, delete only from Supabase
+      const { error } = await supabase
+        .from('automations')
+        .delete()
+        .eq('n8n_workflow_id', workflowId);
+
+      if (error) {
+        console.error('Error deleting workflow from Supabase:', error);
+        throw error;
+      }
+
+      return true;
+    }
+    
     try {
       const response = await fetch(`${this.n8nBaseUrl}/workflows/${workflowId}`, {
         method: 'DELETE',

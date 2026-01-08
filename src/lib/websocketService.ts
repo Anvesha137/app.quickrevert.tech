@@ -3,12 +3,18 @@ class WebSocketService {
   private reconnectInterval = 5000;
   private listeners: Array<(data: any) => void> = [];
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 10;
+  private maxReconnectAttempts = 3; // Reduce attempts to minimize console errors
 
   constructor(private url: string) {}
 
   public connect(): void {
     if (typeof window === 'undefined') return; // Skip if server-side rendering
+    
+    // Only attempt connection if the URL is not localhost (to avoid errors in dev)
+    if (this.url.includes('localhost') || this.url.includes('127.0.0.1')) {
+      console.log('WebSocket connection skipped for localhost in development');
+      return;
+    }
     
     try {
       this.ws = new WebSocket(this.url);
