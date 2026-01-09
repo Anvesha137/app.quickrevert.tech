@@ -173,12 +173,7 @@ export default function AutomationCreate() {
 
           if (!response.ok) {
             console.error('Error creating N8N workflow:', result.error || `HTTP ${response.status}`);
-            
-            
-            
-            
-            
-            
+           
             // Don't throw an error here as the main automation was saved
             // Just log the issue and continue
           } else {

@@ -316,15 +316,15 @@ Deno.serve(async (req: Request) => {
 
     // Function to create workflow in N8N
     async function createWorkflowInN8N(workflowData: any, activate: boolean = false) {
-      const n8nUrl = Deno.env.get("N8N_URL")!;
+      const n8nBaseUrl = Deno.env.get("N8N_BASE_URL")!;
       const n8nApiKey = Deno.env.get("N8N_API_KEY")!;
       
       // Call N8N API to create workflow
-      const response = await fetch(`${n8nUrl}/api/v1/workflows`, {
+      const response = await fetch(`${n8nBaseUrl}/api/v1/workflows`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${n8nApiKey}`
+          "X-N8N-API-KEY": n8nApiKey
         },
         body: JSON.stringify(workflowData)
       });
@@ -334,15 +334,15 @@ Deno.serve(async (req: Request) => {
       }
       
       const result = await response.json();
-      const workflowId = result.id;
+      const workflowId = result.data?.id || result.id;
       
       // Optionally activate the workflow
-      if (activate) {
-        const activateResponse = await fetch(`${n8nUrl}/api/v1/workflows/${workflowId}/activate`, {
+      if (activate && workflowId) {
+        const activateResponse = await fetch(`${n8nBaseUrl}/api/v1/workflows/${workflowId}/activate`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${n8nApiKey}`
+            "X-N8N-API-KEY": n8nApiKey
           }
         });
         
@@ -383,11 +383,10 @@ Deno.serve(async (req: Request) => {
     const cleanWorkflow = await removeUnsupportedFields(workflowWithVariables);
 
     // Log the cURL command that would be used to create the workflow
-    const n8nUrl = Deno.env.get("N8N_URL")!;
+    const n8nBaseUrl = Deno.env.get("N8N_BASE_URL")!;
     const n8nApiKey = Deno.env.get("N8N_API_KEY")!;
     
-    console.log("cURL command to create workflow:");
-    const curlCommand = `curl -X POST '${n8nUrl}/api/v1/workflows' -H 'accept: application/json' -H 'X-N8N-API-KEY: ${n8nApiKey}' -H 'Content-Type: application/json' -d '${JSON.stringify(cleanWorkflow).replace(/'/g, "'")}'`;
+    const curlCommand = `curl -X POST '${n8nBaseUrl}/api/v1/workflows' -H 'accept: application/json' -H 'X-N8N-API-KEY: ${n8nApiKey}' -H 'Content-Type: application/json' -d '${JSON.stringify(cleanWorkflow).replace(/'/g, "'")}'`;
     console.log('cURL command to create workflow:');
     console.log(curlCommand);
     
