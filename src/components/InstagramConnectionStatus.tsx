@@ -97,7 +97,7 @@ export default function InstagramConnectionStatus() {
     }
   };
 
-  const status = statusConfig[account.status];
+  const status = statusConfig[account.status] || statusConfig.revoked; // Default to revoked status if unknown status
   const Icon = status.icon;
 
   return (

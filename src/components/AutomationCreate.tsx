@@ -194,7 +194,22 @@ export default function AutomationCreate() {
           {currentStep === 'trigger' && formData.triggerType === null && (
             <TriggerSelection
               selectedTrigger={formData.triggerType}
-              onTriggerSelect={(triggerType: TriggerType) => setFormData({ ...formData, triggerType })}
+              onTriggerSelect={(triggerType: TriggerType) => {
+                // Set default configuration based on trigger type
+                let defaultConfig: TriggerConfig;
+                if (triggerType === 'post_comment') {
+                  defaultConfig = { postsType: 'all', commentsType: 'all' };
+                } else if (triggerType === 'story_reply') {
+                  defaultConfig = { storiesType: 'all' };
+                } else {
+                  defaultConfig = { messageType: 'all' };
+                }
+                setFormData({ 
+                  ...formData, 
+                  triggerType,
+                  triggerConfig: defaultConfig
+                });
+              }}
               onNext={() => setCurrentStep('config')}
               onBack={() => setCurrentStep('basic')}
             />
@@ -203,7 +218,22 @@ export default function AutomationCreate() {
           {currentStep === 'trigger' && formData.triggerType !== null && (
             <TriggerSelection
               selectedTrigger={formData.triggerType}
-              onTriggerSelect={(triggerType: TriggerType) => setFormData({ ...formData, triggerType })}
+              onTriggerSelect={(triggerType: TriggerType) => {
+                // Set default configuration based on trigger type
+                let defaultConfig: TriggerConfig;
+                if (triggerType === 'post_comment') {
+                  defaultConfig = { postsType: 'all', commentsType: 'all' };
+                } else if (triggerType === 'story_reply') {
+                  defaultConfig = { storiesType: 'all' };
+                } else {
+                  defaultConfig = { messageType: 'all' };
+                }
+                setFormData({ 
+                  ...formData, 
+                  triggerType,
+                  triggerConfig: defaultConfig
+                });
+              }}
               onNext={() => setCurrentStep('config')}
               onBack={() => setCurrentStep('basic')}
             />

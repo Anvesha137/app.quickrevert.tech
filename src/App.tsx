@@ -11,6 +11,7 @@ import ActivityLog from './components/ActivityLog';
 import Billing from './components/Billing';
 import Settings from './components/Settings';
 import Login from './components/Login';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -33,17 +34,19 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <Routes>
-        <Route path="/" element={<div className="ml-64 flex-1"><Dashboard /></div>} />
-        <Route path="/dashboard" element={<Navigate to="/" replace />} />
-        <Route path="/automation" element={<div className="ml-64 flex-1"><Automations /></div>} />
-        <Route path="/automation/create" element={<div className="ml-64 flex-1"><AutomationCreate /></div>} />
-        <Route path="/contacts" element={<Contacts />} />
-        <Route path="/activity" element={<ActivityLog />} />
-        <Route path="/billing" element={<Billing />} />
-        <Route path="/connect-accounts" element={<div className="ml-64 flex-1"><ConnectedAccounts /></div>} />
-        <Route path="/settings" element={<Settings />} />
-      </Routes>
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/" element={<div className="ml-64 flex-1"><Dashboard /></div>} />
+          <Route path="/dashboard" element={<Navigate to="/" replace />} />
+          <Route path="/automation" element={<div className="ml-64 flex-1"><Automations /></div>} />
+          <Route path="/automation/create" element={<div className="ml-64 flex-1"><AutomationCreate /></div>} />
+          <Route path="/contacts" element={<Contacts />} />
+          <Route path="/activity" element={<ActivityLog />} />
+          <Route path="/billing" element={<Billing />} />
+          <Route path="/connect-accounts" element={<div className="ml-64 flex-1"><ConnectedAccounts /></div>} />
+          <Route path="/settings" element={<Settings />} />
+        </Routes>
+      </ErrorBoundary>
     </div>
   );
 }
