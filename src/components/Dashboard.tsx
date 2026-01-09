@@ -32,6 +32,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (user) {
+      setLoading(true); // Reset loading state when user changes
       fetchDashboardStats();
     }
   }, [user]);
@@ -70,6 +71,14 @@ export default function Dashboard() {
       });
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
+      // Reset stats to default values on error to prevent undefined values
+      setStats({
+        dmsTriggered: 0,
+        dmOpenRate: 0,
+        activeAutomations: 0,
+        commentReplies: 0,
+        uniqueUsers: 0,
+      });
     } finally {
       setLoading(false);
     }
@@ -102,35 +111,35 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5 mb-10">
           <KPICard
             title="DMs Triggered"
-            value={loading ? '-' : stats.dmsTriggered.toLocaleString()}
+            value={loading ? '-' : (stats.dmsTriggered || 0).toLocaleString()}
             icon={MessageSquare}
             iconColor="text-blue-600"
             iconBgColor="bg-gradient-to-br from-blue-50 to-blue-100"
           />
           <KPICard
             title="DM Open Rate"
-            value={loading ? '-' : `${stats.dmOpenRate}%`}
+            value={loading ? '-' : `${stats.dmOpenRate || 0}%`}
             icon={Eye}
             iconColor="text-emerald-600"
             iconBgColor="bg-gradient-to-br from-emerald-50 to-emerald-100"
           />
           <KPICard
             title="Active Automations"
-            value={loading ? '-' : stats.activeAutomations.toString()}
+            value={loading ? '-' : (stats.activeAutomations || 0).toString()}
             icon={Zap}
             iconColor="text-amber-600"
             iconBgColor="bg-gradient-to-br from-amber-50 to-amber-100"
           />
           <KPICard
             title="Comment Replies"
-            value={loading ? '-' : stats.commentReplies.toLocaleString()}
+            value={loading ? '-' : (stats.commentReplies || 0).toLocaleString()}
             icon={MessageCircle}
             iconColor="text-rose-600"
             iconBgColor="bg-gradient-to-br from-rose-50 to-rose-100"
           />
           <KPICard
             title="Unique Users Contacted"
-            value={loading ? '-' : stats.uniqueUsers.toLocaleString()}
+            value={loading ? '-' : (stats.uniqueUsers || 0).toLocaleString()}
             icon={Users}
             iconColor="text-cyan-600"
             iconBgColor="bg-gradient-to-br from-cyan-50 to-cyan-100"
