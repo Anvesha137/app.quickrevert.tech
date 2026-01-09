@@ -101,7 +101,8 @@ export default function AutomationCreate() {
         status: 'active',
       });
       
-      const { error } = await supabase
+      // First, save the automation to Supabase
+      const { data: automationData, error: automationError } = await supabase
         .from('automations')
         .insert({
           user_id: user.id,
@@ -110,11 +111,78 @@ export default function AutomationCreate() {
           trigger_config: formData.triggerConfig,
           actions: formData.actions,
           status: 'active',
-        });
+        }).select('id').single(); // Get the ID of the created automation
 
-      if (error) {
-        console.error('Supabase error creating automation:', error);
-        throw error;
+      if (automationError) {
+        console.error('Supabase error creating automation:', automationError);
+        throw automationError;
+      }
+
+      // After successfully saving to Supabase, create the corresponding N8N workflow
+      try {
+        // Get auth token
+        const { data: { session } } = await supabase.auth.getSession();
+        const authToken = session?.access_token;
+        
+        if (!authToken) {
+          console.error('No authentication token available for N8N workflow creation');
+          // Don't throw an error here as the main automation was saved
+          // Just log the issue and continue
+        } else {
+          // Prepare N8N workflow variables based on the automation
+          const workflowVariables = {
+            instagramCredentialId: 'TODO', // Need to fetch from user's Instagram account
+            calendarUrl: 'https://example.com/book', // Default or from settings
+            brandName: 'QuickRevert',
+            automationId: automationData.id, // Use the automation ID
+            userId: user.id,
+          };
+
+          // Fetch Instagram account details to get credential info
+          const { data: instagramAccount } = await supabase
+            .from('instagram_accounts')
+            .select('id, instagram_user_id, username, access_token')
+            .eq('user_id', user.id)
+            .eq('status', 'active')
+            .single();
+          
+          if (instagramAccount) {
+            // Use the instagram_user_id as the credential identifier
+            workflowVariables.instagramCredentialId = instagramAccount.instagram_user_id;
+          } else {
+            console.warn('No active Instagram account found for user, proceeding without Instagram credential');
+          }
+
+          // Call the Supabase Edge Function to create the N8N workflow
+          const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-workflow`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`,
+              'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            },
+            body: JSON.stringify({
+              userId: user.id,
+              template: 'instagram_automation_v1',
+              variables: workflowVariables,
+              autoActivate: true,
+            })
+          });
+
+          const result = await response.json();
+
+          if (!response.ok) {
+            console.error('Error creating N8N workflow:', result.error || `HTTP ${response.status}`);
+            // Don't throw an error here as the main automation was saved
+            // Just log the issue and continue
+          } else {
+            console.log('N8N workflow created successfully:', result);
+          }
+        }
+      } catch (n8nError: any) {
+        console.error('Error in N8N workflow creation process:', n8nError);
+        // Don't throw an error here as the main automation was saved
+        // Just log the issue and continue
       }
 
       navigate('/automation');

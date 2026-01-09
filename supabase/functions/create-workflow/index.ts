@@ -48,30 +48,44 @@ Deno.serve(async (req: Request) => {
 
     // Instagram automation workflow template
     const instagramWorkflowTemplate = {
-      "name": "Instagram Automation Workflow",
+      "name": "Instagram DM Automation Workflow",
       "nodes": [
         {
-          "parameters": {},
+          "parameters": {
+            "httpMethod": "POST",
+            "path": "instagram-webhook-{{userId}}-{{automationId}}",
+            "responseMode": "responseNode",
+            "options": {}
+          },
           "id": "webhook-trigger",
-          "name": "Webhook Trigger",
+          "name": "Instagram DM Trigger",
           "type": "n8n-nodes-base.webhook",
           "typeVersion": 1,
-          "position": [240, 300]
+          "position": [240, 300],
+          "webhookId": "{{webhookId}}"
         },
         {
           "parameters": {
             "values": {
               "string": [
                 {
-                  "name": "response",
-                  "value": "={{ ($requestBody || $input.first().json).text || '' }}"
+                  "name": "instagramMessage",
+                  "value": "={{ ($requestBody || $input.first().json).message || $json.text || $json.message || '' }}"
+                },
+                {
+                  "name": "instagramUserId",
+                  "value": "={{ ($requestBody || $input.first().json).sender_id || $json.sender_id || $json.from.id || '' }}"
+                },
+                {
+                  "name": "instagramUserName",
+                  "value": "={{ ($requestBody || $input.first().json).sender_name || $json.sender_name || $json.from.username || '' }}"
                 }
               ]
             },
             "options": {}
           },
-          "id": "set-response",
-          "name": "Set Response",
+          "id": "extract-message-data",
+          "name": "Extract Message Data",
           "type": "n8n-nodes-base.set",
           "typeVersion": 1,
           "position": [500, 300]
@@ -80,27 +94,29 @@ Deno.serve(async (req: Request) => {
           "parameters": {
             "conditions": {
               "options": {
-                "caseSensitive": true,
+                "caseSensitive": false,
                 "leftValue": "",
-                "typeValidation": "strict"
+                "typeValidation": "loose"
               },
               "conditions": [
                 {
                   "id": "condition-1",
-                  "leftValue": "={{ $json.response.toLowerCase() }}",
-                  "rightValue": "hello",
+                  "leftValue": "={{ $json.instagramMessage.toLowerCase() }}",
+                  "rightValue": "{{triggerKeyword1}}",
                   "operator": {
                     "type": "string",
                     "operation": "contains"
                   }
                 }
               ],
-              "combinator": "and"
+              "combinator": "or"
             },
-            "options": {}
+            "options": {
+              "elseOutput": "noMatch"
+            }
           },
-          "id": "check-hello",
-          "name": "Check for Hello",
+          "id": "check-keyword-condition",
+          "name": "Check Keyword Condition",
           "type": "n8n-nodes-base.if",
           "typeVersion": 2,
           "position": [700, 300]
@@ -108,7 +124,7 @@ Deno.serve(async (req: Request) => {
         {
           "parameters": {
             "method": "POST",
-            "url": "https://graph.instagram.com/{{instagramMediaId}}/replies",
+            "url": "https://graph.instagram.com/v20.0/me/messages",
             "sendHeaders": true,
             "headerParameters": {
               "parameters": [
@@ -126,89 +142,117 @@ Deno.serve(async (req: Request) => {
             "bodyParameters": {
               "parameters": [
                 {
+                  "name": "recipient",
+                  "value": "{\"id\": \"{{$json.instagramUserId}}\"}"
+                },
+                {
                   "name": "message",
-                  "value": "Hi there! Thanks for reaching out to {{brandName}}! 🙌"
+                  "value": "{\"text\": \"{{replyTemplate1}}\"}"
                 }
               ]
             },
             "options": {}
           },
-          "id": "send-hello-reply",
-          "name": "Send Hello Reply",
+          "id": "send-instagram-reply",
+          "name": "Send Instagram DM Reply",
           "type": "n8n-nodes-base.httpRequest",
           "typeVersion": 4,
-          "position": [900, 200]
+          "position": [900, 200],
+          "credentials": {
+            "httpHeaderAuth": {
+              "id": "{{instagramCredentialId}}",
+              "name": "Instagram API"
+            }
+          }
         },
         {
           "parameters": {
-            "method": "POST",
-            "url": "https://graph.instagram.com/{{instagramMediaId}}/replies",
-            "sendHeaders": true,
-            "headerParameters": {
-              "parameters": [
-                {
-                  "name": "Authorization",
-                  "value": "Bearer {{instagramAccessToken}}"
-                },
-                {
-                  "name": "Content-Type",
-                  "value": "application/json"
-                }
-              ]
-            },
-            "sendBody": true,
-            "bodyParameters": {
-              "parameters": [
-                {
-                  "name": "message",
-                  "value": "Thanks for your message! Check out our services: {{calendarUrl}}"
-                }
-              ]
-            },
-            "options": {}
+            "operation": "create",
+            "tableId": "logs",
+            "fieldsUi": {
+              "valuesContainer": {
+                "values": [
+                  {
+                    "name": "timestamp",
+                    "value": "={{ new Date().toISOString() }}"
+                  },
+                  {
+                    "name": "userId",
+                    "value": "={{ $json.userId || '{{userId}}' }}"
+                  },
+                  {
+                    "name": "automationId",
+                    "value": "={{ $json.automationId || '{{automationId}}' }}"
+                  },
+                  {
+                    "name": "message",
+                    "value": "={{ $json.instagramMessage }}"
+                  },
+                  {
+                    "name": "response",
+                    "value": "{{replyTemplate1}}"
+                  },
+                  {
+                    "name": "status",
+                    "value": "sent"
+                  }
+                ]
+              }
+            }
           },
-          "id": "send-default-reply",
-          "name": "Send Default Reply",
-          "type": "n8n-nodes-base.httpRequest",
-          "typeVersion": 4,
-          "position": [900, 400]
+          "id": "log-response",
+          "name": "Log Response",
+          "type": "n8n-nodes-base.supabase",
+          "typeVersion": 1,
+          "position": [1100, 200],
+          "credentials": {
+            "supabaseApi": {
+              "id": "{{supabaseCredentialId}}",
+              "name": "Supabase account"
+            }
+          }
         }
       ],
       "connections": {
-        "Webhook Trigger": {
+        "Instagram DM Trigger": {
           "main": [
             [
               {
-                "node": "Set Response",
+                "node": "Extract Message Data",
                 "type": "main",
                 "index": 0
               }
             ]
           ]
         },
-        "Set Response": {
+        "Extract Message Data": {
           "main": [
             [
               {
-                "node": "Check for Hello",
+                "node": "Check Keyword Condition",
                 "type": "main",
                 "index": 0
               }
             ]
           ]
         },
-        "Check for Hello": {
+        "Check Keyword Condition": {
           "main": [
             [
               {
-                "node": "Send Hello Reply",
+                "node": "Send Instagram DM Reply",
                 "type": "main",
                 "index": 0
               }
             ],
+            []
+          ]
+        },
+        "Send Instagram DM Reply": {
+          "main": [
             [
               {
-                "node": "Send Default Reply",
+                "node": "Log Response",
                 "type": "main",
                 "index": 0
               }
@@ -310,8 +354,30 @@ Deno.serve(async (req: Request) => {
       return result;
     }
 
+    // Extract trigger keywords and reply templates from automation configuration
+    const enhancedVariables = { ...variables };
+    
+    // Extract trigger keywords from automation configuration
+    if (variables.triggerConfig && variables.triggerConfig.keywords) {
+      const keywords = variables.triggerConfig.keywords;
+      // Add multiple keyword conditions to the template
+      for (let i = 0; i < Math.min(keywords.length, 5); i++) { // Limit to 5 keywords
+        enhancedVariables[`triggerKeyword${i + 1}`] = keywords[i];
+      }
+    }
+    
+    // Extract reply templates from automation configuration
+    if (variables.actions && variables.actions.length > 0) {
+      const firstAction = variables.actions[0]; // Use first action for now
+      if (firstAction.replyTemplates && firstAction.replyTemplates.length > 0) {
+        // Use a random reply template
+        const randomIndex = Math.floor(Math.random() * firstAction.replyTemplates.length);
+        enhancedVariables.replyTemplate1 = firstAction.replyTemplates[randomIndex];
+      }
+    }
+    
     // Inject variables into the template
-    const workflowWithVariables = await injectVariables(workflowTemplate, variables);
+    const workflowWithVariables = await injectVariables(workflowTemplate, enhancedVariables);
 
     // Remove unsupported fields
     const cleanWorkflow = await removeUnsupportedFields(workflowWithVariables);
