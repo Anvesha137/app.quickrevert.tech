@@ -11,11 +11,31 @@ import ActionConfig from './automation-steps/ActionConfig';
 
 type Step = 'basic' | 'trigger' | 'config' | 'actions';
 
+async function getValidSession(supabaseClient: any, currentState: any) {
+  // Check if the current state session is valid and not expired
+  const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
+  
+  // If session exists and token is not expired, use it
+  let validSession = currentState;
+  if (!currentState || !currentState.access_token || (currentState.expires_at && currentState.expires_at <= currentTime)) {
+    // Token is expired or doesn't exist, refresh it
+    const { data } = await supabaseClient.auth.refreshSession();
+    validSession = data.session;
+  }
+  
+  if (!validSession || !validSession.access_token) {
+    throw new Error("No valid Supabase session");
+  }
+  
+  return validSession;
+}
+
 export default function AutomationCreate() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState<Step>('basic');
   const [saving, setSaving] = useState(false);
+  const [session, setSession] = useState<any>(null);
   const [formData, setFormData] = useState<AutomationFormData>({
     name: '',
     triggerType: null,
@@ -23,6 +43,24 @@ export default function AutomationCreate() {
     actions: [],
   });
 
+  useEffect(() => {
+    // Initialize session on first load
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+    });
+
+    // Subscribe to auth state changes
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+    
+    return () => {
+      if (data?.subscription) {
+        data.subscription.unsubscribe();
+      }
+    };
+  }, []);
+  
   useEffect(() => {
     checkInstagramAccount();
   }, [user]);
@@ -92,6 +130,8 @@ export default function AutomationCreate() {
     setSaving(true);
 
     try {
+      // Get a valid session using the helper function
+      const validSession = await getValidSession(supabase, session);
       console.log('Saving automation:', {
         user_id: user.id,
         name: formData.name.trim(),
@@ -120,9 +160,8 @@ export default function AutomationCreate() {
 
       // After successfully saving to Supabase, create the corresponding N8N workflow
       try {
-        // Get auth token
-        const { data: { session } } = await supabase.auth.getSession();
-        const authToken = session?.access_token;
+        // Use the already validated and refreshed session
+        const authToken = validSession?.access_token;
         
         if (!authToken) {
           console.error('No authentication token available for N8N workflow creation');
@@ -158,13 +197,14 @@ export default function AutomationCreate() {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${authToken}`,
-              'Apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${validSession.access_token}`,
             },
             body: JSON.stringify({
               userId: user.id,
               template: 'instagram_automation_v1',
-              variables: workflowVariables,
+              templateVars: workflowVariables,
+              triggerConfig: formData.triggerConfig,
+              actions: formData.actions,
               autoActivate: true,
             })
           });
@@ -173,9 +213,11 @@ export default function AutomationCreate() {
 
           if (!response.ok) {
             console.error('Error creating N8N workflow:', result.error || `HTTP ${response.status}`);
-           
-            // Don't throw an error here as the main automation was saved
-            // Just log the issue and continue
+            
+            // Log the failure but continue since the main automation was saved
+            // In a production app, you might want to update a status field
+            // or implement a retry mechanism
+            alert(`Warning: Automation saved but workflow creation failed: ${result.error || `HTTP ${response.status}`}. This may affect automation functionality.`);
           } else {
             console.log('N8N workflow created successfully:', result);
           }
