@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://app.quickrevert.tech",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
@@ -44,7 +44,14 @@ Deno.serve(async (req: Request) => {
     }
     
     const body = await req.json();
-    const { userId, template, variables, autoActivate } = body;
+    const {
+      userId,
+      template,
+      autoActivate,
+      templateVars,
+      triggerConfig,
+      actions
+    } = body;
     
     // Verify that the userId in the request matches the authenticated user
     if (userId !== data.user.id) {
@@ -55,7 +62,7 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceRole = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     // Validate input
-    if (!userId || !template || !variables) {
+    if (!userId || !template || !templateVars) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -86,7 +93,7 @@ Deno.serve(async (req: Request) => {
           "type": "n8n-nodes-base.webhook",
           "typeVersion": 1,
           "position": [240, 300],
-          "webhookId": "{{webhookId}}"
+          
         },
         {
           "parameters": {
@@ -147,47 +154,14 @@ Deno.serve(async (req: Request) => {
         },
         {
           "parameters": {
-            "method": "POST",
-            "url": "https://graph.instagram.com/v20.0/me/messages",
-            "sendHeaders": true,
-            "headerParameters": {
-              "parameters": [
-                {
-                  "name": "Authorization",
-                  "value": "Bearer {{instagramAccessToken}}"
-                },
-                {
-                  "name": "Content-Type",
-                  "value": "application/json"
-                }
-              ]
-            },
-            "sendBody": true,
-            "bodyParameters": {
-              "parameters": [
-                {
-                  "name": "recipient",
-                  "value": "{\"id\": \"{{$json.instagramUserId}}\"}"
-                },
-                {
-                  "name": "message",
-                  "value": "{\"text\": \"{{replyTemplate1}}\"}"
-                }
-              ]
-            },
+            "url": "={{ $json.instagramMessage }}",
             "options": {}
           },
-          "id": "send-instagram-reply",
-          "name": "Send Instagram DM Reply",
-          "type": "n8n-nodes-base.httpRequest",
-          "typeVersion": 4,
-          "position": [900, 200],
-          "credentials": {
-            "httpHeaderAuth": {
-              "id": "{{instagramCredentialId}}",
-              "name": "Instagram API"
-            }
-          }
+          "id": "log-reply",
+          "name": "Log Reply",
+          "type": "n8n-nodes-base.log",
+          "typeVersion": 1,
+          "position": [900, 200]
         },
         {
           "parameters": {
@@ -264,7 +238,7 @@ Deno.serve(async (req: Request) => {
           "main": [
             [
               {
-                "node": "Send Instagram DM Reply",
+                "node": "Log Reply",
                 "type": "main",
                 "index": 0
               }
@@ -272,7 +246,7 @@ Deno.serve(async (req: Request) => {
             []
           ]
         },
-        "Send Instagram DM Reply": {
+        "Log Reply": {
           "main": [
             [
               {
@@ -304,20 +278,16 @@ Deno.serve(async (req: Request) => {
     }
 
     // Function to inject variables
-    async function injectVariables(template: any, variables: Record<string, string>) {
+    async function injectVariables(template: any, variables: Record<string, any>) {
       // Convert template to string, replace variables, then parse back
       let templateString = JSON.stringify(template);
       
-      // Replace variables in the template
+      // Replace string variables in the template
       for (const [key, value] of Object.entries(variables)) {
-        const placeholder = `{{${key}}}`;
-        templateString = templateString.split(placeholder).join(value);
-      }
-      
-      // Replace webhookId with a generated ID if not provided
-      if (!variables.webhookId) {
-        const webhookId = `webhook-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        templateString = templateString.split('{{webhookId}}').join(webhookId);
+        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+          const placeholder = `{{${key}}}`;
+          templateString = templateString.split(placeholder).join(String(value));
+        }
       }
       
       return JSON.parse(templateString);
@@ -327,13 +297,37 @@ Deno.serve(async (req: Request) => {
     async function removeUnsupportedFields(workflow: any) {
       // Remove fields that are not supported or should not be in the template
       delete workflow.pinData;
-      delete workflow.meta;
       delete workflow.id;
       
-      // Clean up any remaining placeholder values
-      if (workflow.webhookId && workflow.webhookId.includes('{{')) {
-        workflow.webhookId = `webhook-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      // Remove meta field if it exists
+      if (workflow.meta) {
+        delete workflow.meta;
       }
+      
+      // Remove webhookId since n8n generates it server-side
+      if (workflow.webhookId !== undefined) {
+        delete workflow.webhookId;
+      }
+      
+      // Update timezone to Asia/Kolkata for Indian users
+      if (workflow.settings && workflow.settings.timeZone) {
+        workflow.settings.timeZone = "Asia/Kolkata";
+      }
+      
+      // Remove nested meta fields recursively
+      const removeNestedMeta = (obj: any) => {
+        if (obj && typeof obj === 'object') {
+          for (const key in obj) {
+            if (key === 'meta') {
+              delete obj[key];
+            } else {
+              removeNestedMeta(obj[key]);
+            }
+          }
+        }
+      };
+      
+      removeNestedMeta(workflow);
       
       return workflow;
     }
@@ -378,35 +372,30 @@ Deno.serve(async (req: Request) => {
       return result;
     }
 
-    // Extract trigger keywords and reply templates from automation configuration
-    const enhancedVariables = { ...variables };
+    // Create enhanced template variables with extracted values
+    const enhancedTemplateVars = { ...templateVars };
     
     // Extract trigger keywords from automation configuration
-    if (variables.triggerConfig && variables.triggerConfig.keywords) {
-      const keywords = variables.triggerConfig.keywords;
+    if (triggerConfig && triggerConfig.keywords) {
+      const keywords = triggerConfig.keywords;
       // Add multiple keyword conditions to the template
       for (let i = 0; i < Math.min(keywords.length, 5); i++) { // Limit to 5 keywords
-        enhancedVariables[`triggerKeyword${i + 1}`] = keywords[i];
+        enhancedTemplateVars[`triggerKeyword${i + 1}`] = keywords[i];
       }
     }
     
     // Extract reply templates from automation configuration
-    if (variables.actions && variables.actions.length > 0) {
-      const firstAction = variables.actions[0]; // Use first action for now
+    if (actions && actions.length > 0) {
+      const firstAction = actions[0]; // Use first action for now
       if (firstAction.replyTemplates && firstAction.replyTemplates.length > 0) {
         // Use a random reply template
         const randomIndex = Math.floor(Math.random() * firstAction.replyTemplates.length);
-        enhancedVariables.replyTemplate1 = firstAction.replyTemplates[randomIndex];
+        enhancedTemplateVars.replyTemplate1 = firstAction.replyTemplates[randomIndex];
       }
     }
     
-    // Ensure instagramCredentialId is properly mapped if available
-    if (variables.instagramCredentialId) {
-      enhancedVariables.instagramCredentialId = variables.instagramCredentialId;
-    }
-    
     // Inject variables into the template
-    const workflowWithVariables = await injectVariables(workflowTemplate, enhancedVariables);
+    const workflowWithVariables = await injectVariables(workflowTemplate, enhancedTemplateVars);
 
     // Remove unsupported fields
     const cleanWorkflow = await removeUnsupportedFields(workflowWithVariables);
@@ -415,8 +404,8 @@ Deno.serve(async (req: Request) => {
     const n8nBaseUrl = Deno.env.get("N8N_BASE_URL")!;
     const n8nApiKey = Deno.env.get("N8N_API_KEY")!;
     
-    const curlCommand = `curl -X POST '${n8nBaseUrl}/api/v1/workflows' -H 'accept: application/json' -H 'Authorization: Bearer ${n8nApiKey}' -H 'Content-Type: application/json' -d '${JSON.stringify(cleanWorkflow).replace(/'/g, "'")}'`;
-    console.log('cURL command to create workflow:');
+    const curlCommand = `curl -X POST '${n8nBaseUrl}/api/v1/workflows' -H 'accept: application/json' -H 'Authorization: Bearer ***MASKED***' -H 'Content-Type: application/json' -d '${JSON.stringify(cleanWorkflow).replace(/'/g, "'")}'`;
+    console.log('cURL command to create workflow (API key masked for security):');
     console.log(curlCommand);
     
     // Create workflow in N8N
@@ -429,7 +418,7 @@ Deno.serve(async (req: Request) => {
         user_id: userId,
         n8n_workflow_id: n8nWorkflow.id,
         template: template,
-        variables: variables,
+        variables: { templateVars, triggerConfig, actions },
         created_at: new Date().toISOString()
       });
 
