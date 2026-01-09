@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { n8nService } from '../lib/n8nService';
 import { AutomationFormData, TriggerType, TriggerConfig, Action } from '../types/automation';
 import BasicInfo from './automation-steps/BasicInfo';
 import TriggerSelection from './automation-steps/TriggerSelection';
@@ -67,69 +66,23 @@ export default function AutomationCreate() {
     setSaving(true);
 
     try {
-      // Get the user's Instagram account
-      const { data: instagramAccount, error: igError } = await supabase
-        .from('instagram_accounts')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .single();
+      const { error } = await supabase
+        .from('automations')
+        .insert({
+          user_id: user.id,
+          name: formData.name.trim(),
+          trigger_type: formData.triggerType,
+          trigger_config: formData.triggerConfig,
+          actions: formData.actions,
+          status: 'active',
+        });
 
-      if (igError || !instagramAccount) {
-        throw new Error('No active Instagram account found');
-      }
+      if (error) throw error;
 
-      // Prepare workflow data
-      const workflowData = {
-        userId: user.id,
-        instagramAccountId: instagramAccount.id,
-        automationName: formData.name.trim(),
-        triggerType: formData.triggerType,
-        triggerConfig: formData.triggerConfig,
-        actions: formData.actions,
-        status: 'active' as const,
-      };
-
-      // Create workflow in N8N - with fallback to local storage if N8N is unavailable
-      try {
-        const n8nResponse = await n8nService.createWorkflow(workflowData);
-        
-        // Navigate immediately after successful N8N workflow creation
-        navigate('/automation');
-      } catch (n8nError) {
-        console.error('Error creating workflow in N8N:', n8nError);
-        
-        // Fallback: save to Supabase directly if N8N is unavailable
-        const { error: supabaseError } = await supabase
-          .from('automations')
-          .insert({
-            user_id: user.id,
-            name: formData.name.trim(),
-            trigger_type: formData.triggerType,
-            trigger_config: formData.triggerConfig,
-            actions: formData.actions,
-            status: 'active',
-            instagram_account_id: instagramAccount.id,
-            // Let Supabase handle created_at and updated_at with defaults
-          });
-
-        if (supabaseError) {
-          console.error('Error saving automation to Supabase:', supabaseError);
-          throw supabaseError; // This will be caught by the outer catch
-        }
-        
-        // Navigate after successful fallback save
-        navigate('/automation');
-      }
-    } catch (error: any) {
+      navigate('/automation');
+    } catch (error) {
       console.error('Error creating automation:', error);
-      
-      // Check if this is a specific error we can handle
-      if (error.message === 'No active Instagram account found') {
-        alert('No active Instagram account found. Please connect an Instagram account first.');
-      } else {
-        alert('Failed to create automation. Please try again.');
-      }
+      alert('Failed to create automation. Please try again.');
     } finally {
       setSaving(false);
     }

@@ -3,7 +3,6 @@ import { Zap, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { n8nService } from '../lib/n8nService';
 
 interface Automation {
   id: string;
@@ -25,17 +24,8 @@ export default function TopAutomations() {
     }
   }, [user]);
 
-  // Set up periodic refresh of top automations
-  useEffect(() => {
-    if (user) {
-      const interval = setInterval(fetchTopAutomations, 30000); // Refresh every 30 seconds
-      return () => clearInterval(interval);
-    }
-  }, [user]);
-
   const fetchTopAutomations = async () => {
     try {
-      // Get all automations from Supabase
       const { data: allAutomations, error: automationsError } = await supabase
         .from('automations')
         .select('id, name, trigger_type')
@@ -47,48 +37,25 @@ export default function TopAutomations() {
         setAutomations([]);
         return;
       }
-      
-      // Try to get metrics from N8N service
-      let metrics;
-      try {
-        metrics = await n8nService.getWorkflowMetrics(user!.id);
-      } catch (n8nError) {
-        console.error('Error fetching metrics from N8N:', n8nError);
-        // Fallback: get metrics from Supabase
-        const { data: activities, error: activitiesError } = await supabase
-          .from('automation_activities')
-          .select('automation_id, activity_type, activity_data')
-          .eq('user_id', user!.id)
-          .gte('executed_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19));
-        
-        if (activitiesError) throw activitiesError;
-        
-        const dms = activities?.filter(a => a.activity_type === 'dm_sent') || [];
-        const comments = activities?.filter(a => a.activity_type === 'reply') || [];
-        
-        const seenDms = dms.filter(dm => dm.activity_data?.metadata?.seen === true).length;
-        const dmOpenRate = dms.length > 0 ? Math.round((seenDms / dms.length) * 100) : 0;
-        
-        metrics = {
-          dmsTriggered: dms.length,
-          dmOpenRate,
-          commentReplies: comments.length,
-          uniqueUsers: 0,
-          recentActivities: [],
-        };
-      }
-      
-      // Map automation stats based on metrics
+
+      const { data: activities, error: activitiesError } = await supabase
+        .from('automation_activities')
+        .select('automation_id, status')
+        .eq('user_id', user!.id);
+
+      if (activitiesError) throw activitiesError;
+
       const automationStats = allAutomations.map(auto => {
-        // For now, we'll assign metrics based on the automation name or ID
-        // In a real implementation, we would have more specific metrics per automation
-        const activityCount = metrics.commentReplies; // Using comment replies as a proxy for now
-        const successRate = metrics.dmOpenRate; // Using DM open rate as a proxy for now
-        
+        const autoActivities = activities?.filter(a => a.automation_id === auto.id) || [];
+        const successCount = autoActivities.filter(a => a.status === 'success').length;
+        const successRate = autoActivities.length > 0
+          ? Math.round((successCount / autoActivities.length) * 100)
+          : 0;
+
         return {
           id: auto.id,
           name: auto.name,
-          activityCount,
+          activityCount: autoActivities.length,
           successRate,
           trigger_type: auto.trigger_type,
         };
@@ -105,14 +72,6 @@ export default function TopAutomations() {
       setLoading(false);
     }
   };
-
-  // Set up periodic refresh of top automations
-  useEffect(() => {
-    if (user) {
-      const interval = setInterval(fetchTopAutomations, 30000); // Refresh every 30 seconds
-      return () => clearInterval(interval);
-    }
-  }, [user]);
 
   if (loading) {
     return (
@@ -178,7 +137,12 @@ export default function TopAutomations() {
         })}
       </div>
 
-
+      <button
+        onClick={() => navigate('/automation')}
+        className="w-full mt-3 text-sm font-medium text-blue-600 hover:text-blue-700 py-2 hover:bg-blue-50 rounded-lg transition-colors"
+      >
+        View all automations
+      </button>
     </div>
   );
 }

@@ -1,5 +1,4 @@
 import { supabase } from './supabase';
-import { n8nService } from './n8nService';
 
 export type ActivityType = 'comment' | 'reply' | 'follow_request' | 'dm' | 'dm_sent';
 export type ActivityStatus = 'success' | 'failed' | 'pending';
@@ -35,22 +34,6 @@ export async function logActivity({
       return { error: 'Not authenticated' };
     }
 
-    // Log activity via N8N service which handles both N8N and Supabase logging
-    const activityData = {
-      userId: user.id,
-      workflowId: automationId || 'unknown',
-      actionType: activityType,
-      targetUsername,
-      metadata: {
-        ...metadata,
-        message: message || undefined,
-        status,
-      },
-    };
-    
-    await n8nService.logActivity(activityData);
-    
-    // Also log to Supabase for backup
     const { data, error } = await supabase
       .from('automation_activities')
       .insert({

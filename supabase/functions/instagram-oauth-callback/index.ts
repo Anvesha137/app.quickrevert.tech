@@ -7,7 +7,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const INSTAGRAM_CLIENT_ID = Deno.env.get("INSTAGRAM_CLIENT_ID")!;
+const INSTAGRAM_CLIENT_ID = "1487967782460775";
 const INSTAGRAM_REDIRECT_URI = Deno.env.get("INSTAGRAM_REDIRECT_URI")!;
 
 Deno.serve(async (req: Request) => {
