@@ -46,6 +46,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // For this internal function, we'll trust the userId from the authenticated session
     // Extract the authorization header to verify the user
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
