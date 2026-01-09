@@ -59,13 +59,48 @@ export default function AutomationCreate() {
   const currentStepIndex = steps.findIndex(s => s.id === currentStep);
 
   const handleSave = async () => {
-    if (!user || !formData.name.trim() || !formData.triggerType || !formData.triggerConfig || formData.actions.length === 0) {
+    if (!user) {
+      console.error('No user authenticated');
+      alert('You must be logged in to create an automation');
+      return;
+    }
+    
+    if (!formData.name.trim()) {
+      console.error('Automation name is required');
+      alert('Please provide a name for your automation');
+      return;
+    }
+    
+    if (!formData.triggerType) {
+      console.error('Trigger type is required');
+      alert('Please select a trigger type');
+      return;
+    }
+    
+    if (!formData.triggerConfig) {
+      console.error('Trigger configuration is required');
+      alert('Please configure your trigger');
+      return;
+    }
+    
+    if (formData.actions.length === 0) {
+      console.error('At least one action is required');
+      alert('Please add at least one action to your automation');
       return;
     }
 
     setSaving(true);
 
     try {
+      console.log('Saving automation:', {
+        user_id: user.id,
+        name: formData.name.trim(),
+        trigger_type: formData.triggerType,
+        trigger_config: formData.triggerConfig,
+        actions: formData.actions,
+        status: 'active',
+      });
+      
       const { error } = await supabase
         .from('automations')
         .insert({
@@ -77,12 +112,15 @@ export default function AutomationCreate() {
           status: 'active',
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error creating automation:', error);
+        throw error;
+      }
 
       navigate('/automation');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating automation:', error);
-      alert('Failed to create automation. Please try again.');
+      alert(`Failed to create automation: ${error.message || 'Please try again'}`);
     } finally {
       setSaving(false);
     }
