@@ -1,0 +1,436 @@
+{
+  "name": "Instagram Message Automation",
+  "nodes": [
+    {
+      "id": "webhook-node",
+      "name": "Instagram Webhook",
+      "webhookId": "{{webhookId}}",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [100, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "instagram-webhook-{{userId}}-{{automationId}}",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "message-router",
+      "name": "Message Router",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [320, 300],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.entry[0].messaging[0].message.text }}",
+                    "rightValue": "{{triggerKeyword1}}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "{{triggerKeyword1}}"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.entry[0].messaging[0].postback.payload }}",
+                    "rightValue": "WHATSAPP_AUTOMATION",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "WhatsApp Automation"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.entry[0].messaging[0].postback.payload }}",
+                    "rightValue": "INSTAGRAM_AUTOMATION",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Instagram Automation"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.entry[0].messaging[0].message.text }}",
+                    "rightValue": "{{triggerKeyword2}}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "{{triggerKeyword2}}"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.entry[0].messaging[0].postback.payload }}",
+                    "rightValue": "EXPLORE_NOW",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "EXPLORE_NOW"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.entry[0].messaging[0].message.text }}",
+                    "rightValue": "{{triggerKeyword3}}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "{{triggerKeyword3}}"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.entry[0].messaging[0].message.text }}",
+                    "rightValue": "{{triggerKeyword4}}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "{{triggerKeyword4}}"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.entry[0].messaging[0].postback.payload }}",
+                    "rightValue": "Following",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Following"
+            }
+          ]
+        },
+        "options": {
+          "ignoreCase": true
+        }
+      }
+    },
+    {
+      "id": "welcome-response",
+      "name": "Welcome Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [540, 200],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.instagram.com/v24.0/{{ $json.body.entry[0].messaging[0].recipient.id }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{instagramAccessToken}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"recipient\": {\n    \"id\": \"{{ $json.body.entry[0].messaging[0].sender.id }}\"\n  },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"{{welcomeTitle}}\",\n            \"image_url\": \"{{logoImageUrl}}\",\n            \"subtitle\": \"{{welcomeSubtitle}}\",\n            \"buttons\": [\n              {\n                \"type\": \"postback\",\n                \"title\": \"{{exploreButtonText}}\",\n                \"payload\": \"EXPLORE_NOW\"\n              },\n              {\n                \"type\": \"web_url\",\n                \"url\": \"{{bookingUrl}}\",\n                \"title\": \"{{bookingButtonText}}\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}",
+        "options": {}
+      }
+    },
+    {
+      "id": "whatsapp-automation-response",
+      "name": "WhatsApp Automation Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [540, 350],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.instagram.com/v24.0/{{ $json.body.entry[0].messaging[0].recipient.id }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{instagramAccessToken}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.body.entry[0].messaging[0].sender.id }}\" },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"{{whatsappAutomationTitle}}\",\n            \"image_url\": \"{{logoImageUrl}}\",\n            \"subtitle\": \"{{whatsappAutomationSubtitle}}\",\n            \"buttons\": [\n              {\n                \"type\": \"web_url\",\n                \"url\": \"{{bookingUrl}}\",\n                \"title\": \"{{bookingButtonText}}\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}",
+        "options": {}
+      }
+    },
+    {
+      "id": "instagram-automation-response",
+      "name": "Instagram Automation Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [540, 500],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.instagram.com/v24.0/{{ $json.body.entry[0].messaging[0].recipient.id }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{instagramAccessToken}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.body.entry[0].messaging[0].sender.id }}\" },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"{{instagramAutomationTitle}}\",\n            \"image_url\": \"{{logoImageUrl}}\",\n            \"subtitle\": \"{{instagramAutomationSubtitle}}\",\n            \"buttons\": [\n              {\n                \"type\": \"web_url\",\n                \"url\": \"{{bookingUrl}}\",\n                \"title\": \"{{bookingButtonText}}\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}",
+        "options": {}
+      }
+    },
+    {
+      "id": "explore-now-response",
+      "name": "Explore Now Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [540, 650],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.instagram.com/v24.0/{{ $json.body.entry[0].messaging[0].recipient.id }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{instagramAccessToken}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.body.entry[0].messaging[0].sender.id }}\" },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"{{exploreNowTitle}}\",\n            \"image_url\": \"{{logoImageUrl}}\",\n            \"subtitle\": \"{{exploreNowSubtitle}}\",\n            \"buttons\": [\n              { \"type\": \"postback\", \"title\": \"WhatsApp Automation\", \"payload\": \"WHATSAPP_AUTOMATION\" },\n              { \"type\": \"postback\", \"title\": \"Instagram Automation\", \"payload\": \"INSTAGRAM_AUTOMATION\" }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}",
+        "options": {}
+      }
+    },
+    {
+      "id": "following-response",
+      "name": "Following Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [540, 800],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.instagram.com/v24.0/{{ $json.body.entry[0].messaging[0].recipient.id }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{instagramAccessToken}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"recipient\": {\n    \"id\": \"{{ $json.body.entry[0].messaging[0].sender.id }}\"\n  },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"{{followingTitle}}\",\n            \"buttons\": [\n              {\n                \"type\": \"web_url\",\n                \"url\": \"{{linkUrl}}\",\n                \"title\": \"{{linkButtonText}}\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Instagram Webhook": {
+      "main": [
+        [
+          {
+            "node": "Message Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message Router": {
+      "main": [
+        [
+          {
+            "node": "Welcome Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "WhatsApp Automation Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Instagram Automation Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [],
+        [
+          {
+            "node": "Explore Now Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Welcome Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Welcome Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Following Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "executionTimeout": 3600,
+    "timezone": "America/New_York"
+  }
+}

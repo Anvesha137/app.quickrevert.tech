@@ -382,6 +382,15 @@ Deno.serve(async (req: Request) => {
     // Remove unsupported fields
     const cleanWorkflow = await removeUnsupportedFields(workflowWithVariables);
 
+    // Log the cURL command that would be used to create the workflow
+    const n8nUrl = Deno.env.get("N8N_URL")!;
+    const n8nApiKey = Deno.env.get("N8N_API_KEY")!;
+    
+    console.log("cURL command to create workflow:");
+    const curlCommand = `curl -X POST '${n8nUrl}/api/v1/workflows' -H 'accept: application/json' -H 'X-N8N-API-KEY: ${n8nApiKey}' -H 'Content-Type: application/json' -d '${JSON.stringify(cleanWorkflow).replace(/'/g, "'")}'`;
+    console.log('cURL command to create workflow:');
+    console.log(curlCommand);
+    
     // Create workflow in N8N
     const n8nWorkflow = await createWorkflowInN8N(cleanWorkflow, autoActivate || false);
 
