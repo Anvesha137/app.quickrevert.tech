@@ -23,12 +23,50 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    // Get the Supabase client using auth info from the request
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    
+    // Extract the authorization header to get the user's session
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Missing authorization header" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    
+    // Create a Supabase client with the user's token for authentication
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: authHeader,
+        },
+      },
+    });
+    
+    // Verify the user session by making a simple request
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "Invalid session" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    
+    // Use the service role key only for database operations that require it
+    const supabaseServiceRole = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     const body = await req.json();
     const { userId, template, variables, autoActivate } = body;
+
+    // Validate that the userId in the request matches the authenticated user
+    if (userId !== user.id) {
+      return new Response(JSON.stringify({ error: "Unauthorized: userId mismatch" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Validate input
     if (!userId || !template || !variables) {
@@ -393,8 +431,8 @@ Deno.serve(async (req: Request) => {
     // Create workflow in N8N
     const n8nWorkflow = await createWorkflowInN8N(cleanWorkflow, autoActivate || false);
 
-    // Store the mapping in Supabase
-    const { error } = await supabase
+    // Store the mapping in Supabase using service role client
+    const { error } = await supabaseServiceRole
       .from("n8n_workflows")
       .insert({
         user_id: userId,
