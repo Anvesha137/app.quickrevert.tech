@@ -162,7 +162,7 @@ export default function AutomationCreate() {
       try {
         // Use the already validated and refreshed session
         const authToken = validSession?.access_token;
-        
+              
         if (!authToken) {
           console.error('No authentication token available for N8N workflow creation');
           // Don't throw an error here as the main automation was saved
@@ -176,7 +176,7 @@ export default function AutomationCreate() {
             automationId: automationData.id, // Use the automation ID
             userId: user.id,
           };
-
+      
           // Fetch Instagram account details to get credential info
           const { data: instagramAccount } = await supabase
             .from('instagram_accounts')
@@ -184,42 +184,106 @@ export default function AutomationCreate() {
             .eq('user_id', user.id)
             .eq('status', 'active')
             .single();
-          
+                
           if (instagramAccount) {
             // Use the instagram_user_id as the credential identifier
             workflowVariables.instagramCredentialId = instagramAccount.instagram_user_id;
           } else {
             console.warn('No active Instagram account found for user, proceeding without Instagram credential');
           }
-
-          // Call the Supabase Edge Function to create the N8N workflow
-          const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-workflow`, {
+      
+          // Create a simple Instagram webhook workflow directly in N8N
+          const workflowName = `Instagram Automation ${new Date().toISOString().split('T')[0]}`;
+          const webhookPath = `instagram-webhook-${user.id}-${Date.now()}`;
+                
+          const simpleWorkflow = {
+            name: workflowName,
+            nodes: [
+              {
+                id: "webhook-node",
+                name: "Instagram Webhook",
+                type: "n8n-nodes-base.webhook",
+                typeVersion: 2.1,
+                position: [100, 300],
+                parameters: {
+                  httpMethod: "POST",
+                  path: webhookPath,
+                  responseMode: "responseNode",
+                  options: {}
+                }
+              },
+              {
+                id: "log-node",
+                name: "Log Webhook Data",
+                type: "n8n-nodes-base.code",
+                typeVersion: 2,
+                position: [320, 300],
+                parameters: {
+                  jsCode: `// Log incoming webhook data\nconsole.log('Webhook received:', $input.first().json);\nreturn $input.first();`
+                }
+              }
+            ],
+            connections: {
+              "Instagram Webhook": {
+                main: [
+                  [
+                    {
+                      node: "Log Webhook Data",
+                      type: "main",
+                      index: 0
+                    }
+                  ]
+                ]
+              }
+            },
+            settings: {
+              saveExecutionProgress: true,
+              saveManualExecutions: true,
+              saveDataErrorExecution: "all",
+              saveDataSuccessExecution: "all",
+              executionTimeout: 3600,
+              timezone: "Asia/Kolkata"
+            }
+          };
+      
+          // Call the N8N API directly to create the workflow
+          const n8nResponse = await fetch('https://khushi-n8n.g5ccll.easypanel.host/api/v1/workflows', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+              'X-N8N-API-KEY': import.meta.env.VITE_N8N_API_KEY
             },
-            body: JSON.stringify({
-              userId: user.id,
-              template: 'instagram_automation_v1',
-              templateVars: workflowVariables,
-              triggerConfig: formData.triggerConfig,
-              actions: formData.actions,
-              autoActivate: true,
-            })
+            body: JSON.stringify(simpleWorkflow)
           });
-
-          const result = await response.json();
-
-          if (!response.ok) {
-            console.error('Error creating N8N workflow:', result.error || `HTTP ${response.status}`);
-            
+      
+          const n8nResult = await n8nResponse.json();
+      
+          if (!n8nResponse.ok) {
+            console.error('Error creating N8N workflow:', n8nResult.error || `HTTP ${n8nResponse.status}`);
+                  
             // Log the failure but continue since the main automation was saved
             // In a production app, you might want to update a status field
             // or implement a retry mechanism
-            alert(`Warning: Automation saved but workflow creation failed: ${result.error || `HTTP ${response.status}`}. This may affect automation functionality.`);
+            alert(`Warning: Automation saved but workflow creation failed: ${n8nResult.error || 'HTTP ' + n8nResponse.status}. This may affect automation functionality.`);
           } else {
-            console.log('N8N workflow created successfully:', result);
+            console.log('N8N workflow created successfully:', n8nResult);
+                  
+            // Store the workflow mapping in Supabase
+            const { error: mappingError } = await supabase
+              .from('n8n_workflows')
+              .insert({
+                user_id: user.id,
+                n8n_workflow_id: n8nResult.id,
+                n8n_workflow_name: n8nResult.name,
+                webhook_path: webhookPath,
+                created_at: new Date().toISOString()
+              });
+                    
+            if (mappingError) {
+              console.error('Error storing workflow mapping:', mappingError);
+            } else {
+              console.log('Workflow mapping stored in Supabase');
+            }
           }
         }
       } catch (n8nError: any) {
