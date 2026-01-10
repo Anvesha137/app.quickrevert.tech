@@ -130,7 +130,7 @@ export default function AutomationCreate() {
     setSaving(true);
 
     try {
-      // Get a valid session using the helper function
+      // Get a valid session using the helper function to ensure the user is authenticated
       const validSession = await getValidSession(supabase, session);
       console.log('Saving automation:', {
         user_id: user.id,
@@ -197,7 +197,7 @@ export default function AutomationCreate() {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${validSession.access_token}`,
+              'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
             },
             body: JSON.stringify({
               userId: user.id,

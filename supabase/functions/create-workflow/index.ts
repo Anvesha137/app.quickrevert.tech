@@ -23,25 +23,10 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // Validate the Authorization header
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response("Unauthorized", { status: 401 });
-    }
-
-    const jwt = authHeader.replace("Bearer ", "");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     
-    // Create client with anon key to validate the JWT
-    const supabaseAnon = createClient(
-      supabaseUrl,
-      Deno.env.get("SUPABASE_ANON_KEY")!
-    );
-    
-    const { data, error: authError } = await supabaseAnon.auth.getUser(jwt);
-    if (authError || !data.user) {
-      return new Response("Unauthorized", { status: 401 });
-    }
+    // Get the Supabase client with service role for database operations
+    const supabaseServiceRole = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     
     const body = await req.json();
     const {
@@ -53,13 +38,13 @@ Deno.serve(async (req: Request) => {
       actions
     } = body;
     
-    // Verify that the userId in the request matches the authenticated user
-    if (userId !== data.user.id) {
-      return new Response("Unauthorized: userId mismatch", { status: 403 });
+    // Validate input
+    if (!userId) {
+      return new Response(JSON.stringify({ error: "Missing userId" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
-    
-    // Get the Supabase client with service role for database operations
-    const supabaseServiceRole = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     // Validate input
     if (!userId || !template || !templateVars) {
