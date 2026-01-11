@@ -1002,7 +1002,7 @@ export default function AutomationCreate() {
           };
           
           // Call the N8N API directly to create the workflow
-          const n8nResponse = await fetch('https://khushi-n8n.g5ccll.easypanel.host/api/v1/workflows', {
+          const n8nResponse = await fetch('https://n8n.quickrevert.tech/api/v1/workflows', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

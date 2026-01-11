@@ -15,8 +15,8 @@ major_version = 17
 port = 54323
 
 [auth]
-site_url = "http://localhost:5173"
-additional_redirect_urls = ["http://localhost:5173"]
+site_url = "https://app.quickrevert.tech"
+additional_redirect_urls = ["http://localhost:5173", "https://app.quickrevert.tech"]
 jwt_expiry = 3600
 enable_signup = true
 
