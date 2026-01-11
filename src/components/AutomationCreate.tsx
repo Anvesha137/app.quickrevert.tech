@@ -192,47 +192,802 @@ export default function AutomationCreate() {
             console.warn('No active Instagram account found for user, proceeding without Instagram credential');
           }
       
-          // Create a simple Instagram webhook workflow directly in N8N
-          const workflowName = `Instagram Automation ${new Date().toISOString().split('T')[0]}`;
+          // Create dynamic webhook path
           const webhookPath = `instagram-webhook-${user.id}-${Date.now()}`;
-                
-          const simpleWorkflow = {
-            name: workflowName,
+          
+          // Load the Instagram DM automation workflow template
+          const workflowTemplate = {
+            name: `Instagram DM Automation ${new Date().toISOString().split('T')[0]}`,
             nodes: [
               {
-                id: "webhook-node",
-                name: "Instagram Webhook",
-                type: "n8n-nodes-base.webhook",
-                typeVersion: 2.1,
-                position: [100, 300],
                 parameters: {
-                  httpMethod: "POST",
-                  path: webhookPath,
+                  multipleMethods: true,
+                  path: webhookPath, // Dynamic webhook path
                   responseMode: "responseNode",
                   options: {}
-                }
+                },
+                type: "n8n-nodes-base.webhook",
+                typeVersion: 2.1,
+                position: [-1568, 560],
+                id: "9c6d45b7-9448-42ce-ba0c-a6adac690b19",
+                name: "Webhook",
+                webhookId: webhookPath
               },
               {
-                id: "log-node",
-                name: "Log Webhook Data",
-                type: "n8n-nodes-base.code",
-                typeVersion: 2,
-                position: [320, 300],
                 parameters: {
-                  jsCode: `// Log incoming webhook data\nconsole.log('Webhook received:', $input.first().json);\nreturn $input.first();`
-                }
+                  respondWith: "text",
+                  responseBody: "={{ $json.query['hub.challenge'] }}",
+                  options: {}
+                },
+                type: "n8n-nodes-base.respondToWebhook",
+                typeVersion: 1.4,
+                position: [-1120, 80],
+                id: "8d832c22-40a1-4051-8077-a642c1aac20b",
+                name: "Respond to Webhook"
+              },
+              {
+                parameters: {
+                  conditions: {
+                    options: {
+                      caseSensitive: true,
+                      leftValue: "",
+                      typeValidation: "strict",
+                      version: 2
+                    },
+                    conditions: [
+                      {
+                        id: "52773ef2-be7d-49e4-be5f-1906b21f4b60",
+                        leftValue: "={{ $json.query['hub.mode'] }}",
+                        rightValue: "subscribe",
+                        operator: {
+                          type: "string",
+                          operation: "equals",
+                          name: "filter.operator.equals"
+                        }
+                      },
+                      {
+                        id: "3fb1b160-b73c-44a6-a62b-525070ec6688",
+                        leftValue: "={{ $json.query['hub.verify_token'] }}",
+                        rightValue: "={{ $json.query['hub.verify_token'] }}",
+                        operator: {
+                          type: "string",
+                          operation: "equals",
+                          name: "filter.operator.equals"
+                        }
+                      }
+                    ],
+                    combinator: "and"
+                  },
+                  options: {}
+                },
+                type: "n8n-nodes-base.if",
+                typeVersion: 2.2,
+                position: [-1344, 80],
+                id: "73355b53-be47-4e20-808e-9889821cc0d8",
+                name: "If"
+              },
+              {
+                parameters: {
+                  rules: {
+                    values: [
+                      {
+                        conditions: {
+                          options: {
+                            caseSensitive: false,
+                            leftValue: "",
+                            typeValidation: "strict",
+                            version: 2
+                          },
+                          conditions: [
+                            {
+                              leftValue: "={{ $('Webhook').item.json.body.entry[0].messaging[0].message.text }}",
+                              rightValue: "hi",
+                              operator: {
+                                type: "string",
+                                operation: "contains"
+                              },
+                              id: "106e1f83-ed53-45d0-a979-b5d2d9216586"
+                            }
+                          ],
+                          combinator: "and"
+                        },
+                        renameOutput: true,
+                        outputKey: "hi"
+                      },
+                      {
+                        conditions: {
+                          options: {
+                            caseSensitive: false,
+                            leftValue: "",
+                            typeValidation: "strict",
+                            version: 2
+                          },
+                          conditions: [
+                            {
+                              id: "3a64c616-1cef-43ec-b349-76e27b41d954",
+                              leftValue: "={{ $json.body.entry[0].messaging[0].postback.payload }}",
+                              rightValue: "WHATSAPP_AUTOMATION",
+                              operator: {
+                                type: "string",
+                                operation: "equals",
+                                name: "filter.operator.equals"
+                              }
+                            }
+                          ],
+                          combinator: "and"
+                        },
+                        renameOutput: true,
+                        outputKey: "WhatsApp Automation"
+                      },
+                      {
+                        conditions: {
+                          options: {
+                            caseSensitive: false,
+                            leftValue: "",
+                            typeValidation: "strict",
+                            version: 2
+                          },
+                          conditions: [
+                            {
+                              id: "7b999a9d-c123-4125-aa20-671969a9c72b",
+                              leftValue: "={{ $json.body.entry[0].messaging[0].postback.payload }}",
+                              rightValue: "INSTAGRAM_AUTOMATION",
+                              operator: {
+                                type: "string",
+                                operation: "equals",
+                                name: "filter.operator.equals"
+                              }
+                            }
+                          ],
+                          combinator: "and"
+                        },
+                        renameOutput: true,
+                        outputKey: "Instagram Automation"
+                      },
+                      {
+                        conditions: {
+                          options: {
+                            caseSensitive: false,
+                            leftValue: "",
+                            typeValidation: "strict",
+                            version: 2
+                          },
+                          conditions: [
+                            {
+                              id: "6e0d6eaf-0edd-4dda-90d5-61c6c6018b18",
+                              leftValue: "={{ $('Webhook').item.json.body.entry[0].messaging[0].message.text }} ",
+                              rightValue: "book",
+                              operator: {
+                                type: "string",
+                                operation: "contains"
+                              }
+                            }
+                          ],
+                          combinator: "and"
+                        },
+                        renameOutput: true,
+                        outputKey: "book"
+                      },
+                      {
+                        conditions: {
+                          options: {
+                            caseSensitive: false,
+                            leftValue: "",
+                            typeValidation: "strict",
+                            version: 2
+                          },
+                          conditions: [
+                            {
+                              id: "9b741482-a927-40ee-8d8f-323fc51bf79e",
+                              leftValue: "={{ $json.body.entry[0].messaging[0].postback.payload }}",
+                              rightValue: "=EXPLORE_NOW",
+                              operator: {
+                                type: "string",
+                                operation: "contains"
+                              }
+                            }
+                          ],
+                          combinator: "and"
+                        },
+                        renameOutput: true,
+                        outputKey: "EXPLORE_NOW"
+                      },
+                      {
+                        conditions: {
+                          options: {
+                            caseSensitive: false,
+                            leftValue: "",
+                            typeValidation: "strict",
+                            version: 2
+                          },
+                          conditions: [
+                            {
+                              id: "ec73f3b1-aabf-45df-863e-c3e92d3a0b41",
+                              leftValue: "={{ $('Webhook').item.json.body.entry[0].messaging[0].message.text }}",
+                              rightValue: "hey",
+                              operator: {
+                                type: "string",
+                                operation: "contains"
+                              }
+                            }
+                          ],
+                          combinator: "and"
+                        },
+                        renameOutput: true,
+                        outputKey: "hey"
+                      },
+                      {
+                        conditions: {
+                          options: {
+                            caseSensitive: false,
+                            leftValue: "",
+                            typeValidation: "strict",
+                            version: 2
+                          },
+                          conditions: [
+                            {
+                              id: "52a34a60-1440-4d57-803d-5bb35e5b4797",
+                              leftValue: "={{ $('Webhook').item.json.body.entry[0].messaging[0].message.text }}",
+                              rightValue: "hello",
+                              operator: {
+                                type: "string",
+                                operation: "contains"
+                              }
+                            }
+                          ],
+                          combinator: "and"
+                        },
+                        renameOutput: true,
+                        outputKey: "hello"
+                      },
+                      {
+                        conditions: {
+                          options: {
+                            caseSensitive: false,
+                            leftValue: "",
+                            typeValidation: "strict",
+                            version: 2
+                          },
+                          conditions: [
+                            {
+                              id: "90824a09-9ca6-46be-8d83-6f43a676137b",
+                              leftValue: "={{ $json.body.entry[0].messaging[0].postback.payload }}",
+                              rightValue: "Following",
+                              operator: {
+                                type: "string",
+                                operation: "equals",
+                                name: "filter.operator.equals"
+                              }
+                            }
+                          ],
+                          combinator: "and"
+                        },
+                        renameOutput: true,
+                        outputKey: "Following"
+                      }
+                    ]
+                  },
+                  options: {
+                    ignoreCase: true
+                  }
+                },
+                type: "n8n-nodes-base.switch",
+                typeVersion: 3.3,
+                position: [-1120, 944],
+                id: "f2a79e62-b199-4cf5-9b62-50b728347bc7",
+                name: "Switch1"
+              },
+              {
+                parameters: {
+                  content: "## Instagram automation\n",
+                  height: 1744,
+                  width: 1520,
+                  color: 6
+                },
+                type: "n8n-nodes-base.stickyNote",
+                position: [-1840, 32],
+                typeVersion: 1,
+                id: "3d476491-8b4d-4386-97eb-aedceb5fc568",
+                name: "Sticky Note"
+              },
+              {
+                parameters: {
+                  rules: {
+                    values: [
+                      {
+                        conditions: {
+                          options: {
+                            caseSensitive: false,
+                            leftValue: "",
+                            typeValidation: "strict",
+                            version: 2
+                          },
+                          conditions: [
+                            {
+                              leftValue: "={{ $json.body.entry[0].changes[0].value.text }}",
+                              rightValue: "=Demo",
+                              operator: {
+                                type: "string",
+                                operation: "equals"
+                              },
+                              id: "de04c81d-ab8c-4706-8d00-a191731e80a2"
+                            }
+                          ],
+                          combinator: "and"
+                        }
+                      }
+                    ]
+                  },
+                  options: {
+                    ignoreCase: true
+                  }
+                },
+                type: "n8n-nodes-base.switch",
+                typeVersion: 3.3,
+                position: [-1120, 272],
+                id: "b97090cd-3b5c-40b3-8d5f-3bb8d9dca602",
+                name: "Switch"
+              },
+              {
+                parameters: {
+                  method: "POST",
+                  url: "=https://graph.facebook.com/v24.0/{{ $json.body.entry[0].changes[0].value.id }}/replies",
+                  authentication: "genericCredentialType",
+                  genericAuthType: "httpHeaderAuth",
+                  sendHeaders: true,
+                  headerParameters: {
+                    parameters: [
+                      {
+                        name: "Content-Type",
+                        value: "application/json"
+                      },
+                      {
+                        name: "Authorization",
+                        value: `Bearer ${instagramAccount?.access_token || 'default_token'}`
+                      }
+                    ]
+                  },
+                  sendBody: true,
+                  specifyBody: "json",
+                  jsonBody: "={\n  \"message\": \"@{{ $json.body.entry[0].changes[0].value.from.username }} Thankyou for showing interest !✨ Will get back to you\"\n}\n",
+                  options: {}
+                },
+                name: "Reply to comment",
+                type: "n8n-nodes-base.httpRequest",
+                typeVersion: 4,
+                position: [-896, 272],
+                id: "0dcc0e24-02fb-40fc-b41b-4046620e2c39"
+              },
+              {
+                parameters: {
+                  rules: {
+                    values: [
+                      {
+                        conditions: {
+                          options: {
+                            caseSensitive: true,
+                            leftValue: "",
+                            typeValidation: "strict",
+                            version: 2
+                          },
+                          conditions: [
+                            {
+                              leftValue: "={{ $json.body.entry[0].changes[0].field }}",
+                              rightValue: "comments",
+                              operator: {
+                                type: "string",
+                                operation: "equals"
+                              },
+                              id: "c0f8da85-9794-48b5-a2e3-df805c3e4e03"
+                            }
+                          ],
+                          combinator: "and"
+                        },
+                        renameOutput: true,
+                        outputKey: "comments"
+                      },
+                      {
+                        conditions: {
+                          options: {
+                            caseSensitive: true,
+                            leftValue: "",
+                            typeValidation: "strict",
+                            version: 2
+                          },
+                          conditions: [
+                            {
+                              id: "e91b8930-35f5-4482-8f05-683ba73ddc21",
+                              leftValue: "=",
+                              rightValue: "",
+                              operator: {
+                                type: "string",
+                                operation: "equals",
+                                name: "filter.operator.equals"
+                              }
+                            }
+                          ],
+                          combinator: "and"
+                        },
+                        renameOutput: true
+                      }
+                    ]
+                  },
+                  options: {}
+                },
+                type: "n8n-nodes-base.switch",
+                typeVersion: 3.3,
+                position: [-1344, 656],
+                id: "a9428d66-e3b7-4010-9aa6-c46858e33bcb",
+                name: "Switch2"
+              },
+              {
+                parameters: {
+                  method: "POST",
+                  url: "=https://graph.instagram.com/v24.0/{{ $('Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages",
+                  authentication: "genericCredentialType",
+                  genericAuthType: "httpHeaderAuth",
+                  sendHeaders: true,
+                  headerParameters: {
+                    parameters: [
+                      {
+                        name: "Content-Type",
+                        value: "application/json"
+                      },
+                      {
+                        name: "Authorization",
+                        value: `Bearer ${instagramAccount?.access_token || 'default_token'}`
+                      }
+                    ]
+                  },
+                  sendBody: true,
+                  specifyBody: "json",
+                  jsonBody: "={\n  \"recipient\": {\n    \"id\": \"{{ $json.body.entry[0].messaging[0].sender.id }}\"\n  },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"Hi👋\",\n            \"image_url\": \"https://i.ibb.co/N29QzF6Z/QR-Logo.png\",\n            \"subtitle\": \"Thank you for reaching out to QuickRevert!\\nWe've received your enquiry and one of our team members will get back to you soon.\\n\\nIn the meantime, would you like to explore our automation solutions?\\n\\nThank you for choosing QuickRevert!\",\n            \"buttons\": [\n              {\n                \"type\": \"postback\",\n                \"title\": \"Explore Now\",\n                \"payload\": \"EXPLORE_NOW\"\n              },\n              {\n                \"type\": \"web_url\",\n                \"url\": \"https://calendar.app.google/QmsYv4Q4G5DNeham6\",\n                \"title\": \"Book Demo\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}\n",
+                  options: {}
+                },
+                type: "n8n-nodes-base.httpRequest",
+                typeVersion: 4.3,
+                position: [-896, 464],
+                id: "3f193aea-2e04-4bf6-bcd2-d71070f098c6",
+                name: "HI"
+              },
+              {
+                parameters: {
+                  method: "POST",
+                  url: "=https://graph.instagram.com/v24.0/{{ $('Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages ",
+                  authentication: "genericCredentialType",
+                  genericAuthType: "httpHeaderAuth",
+                  sendHeaders: true,
+                  headerParameters: {
+                    parameters: [
+                      {
+                        name: "Content-Type",
+                        value: "application/json"
+                      },
+                      {
+                        name: "Authorization",
+                        value: `Bearer ${instagramAccount?.access_token || 'default_token'}`
+                      }
+                    ]
+                  },
+                  sendBody: true,
+                  specifyBody: "json",
+                  jsonBody: "={\n  \"recipient\": { \"id\": \"{{ $json.body.entry[0].messaging[0].sender.id }}\" },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"Great choice\\nOur Whatsapp Automation solution helps businesses reply instantly, qualify leads, and manage all customer conversations in one place.\\n\\nOne of our experts will contact you soon to guide you further.\\n\\nYou can also book a quick demo to see how it works📅\",\n            \"image_url\": \"https://i.ibb.co/N29QzF6Z/QR-Logo.png\",\n            \"subtitle\": \"Thank you for choosing QuickRevert!\",\n            \"buttons\": [\n              {\n                \"type\": \"web_url\",\n                \"url\": \"https://calendar.app.google/QmsYv4Q4G5DNeham6\",\n                \"title\": \"Book Demo\"\n              }\\\n            ]\n          }\n        ]\n      }\n    }\n  }\n}\n",
+                  options: {}
+                },
+                type: "n8n-nodes-base.httpRequest",
+                typeVersion: 4.3,
+                position: [-896, 656],
+                id: "44338e99-8617-407b-a557-798241aac9e0",
+                name: "WHATSAPP_AUTOMATION"
+              },
+              {
+                parameters: {
+                  method: "POST",
+                  url: "=https://graph.instagram.com/v24.0/{{ $('Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages ",
+                  authentication: "genericCredentialType",
+                  genericAuthType: "httpHeaderAuth",
+                  sendHeaders: true,
+                  headerParameters: {
+                    parameters: [
+                      {
+                        name: "Content-Type",
+                        value: "application/json"
+                      },
+                      {
+                        name: "Authorization",
+                        value: `Bearer ${instagramAccount?.access_token || 'default_token'}`
+                      }
+                    ]
+                  },
+                  sendBody: true,
+                  specifyBody: "json",
+                  jsonBody: "={\n  \"recipient\": { \"id\": \"{{ $json.body.entry[0].messaging[0].sender.id }}\" },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"Great choice\\nOur instagram Automation solution helps businesses reply instantly, qualify leads, and manage all customer conversations in one place.\\n\\nOne of our experts will contact you soon to guide you further.\\n\\nYou can also book a quick demo to see how it works📅\",\n            \"image_url\": \"https://i.ibb.co/N29QzF6Z/QR-Logo.png\",\n            \"subtitle\": \"Thank you for choosing QuickRevert!\",\n            \"buttons\": [\n              {\n                \"type\": \"web_url\",\n                \"url\": \"https://calendar.app.google/QmsYv4Q4G5DNeham6\",\n                \"title\": \"Book Demo\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}\n",
+                  options: {}
+                },
+                type: "n8n-nodes-base.httpRequest",
+                typeVersion: 4.3,
+                position: [-896, 848],
+                id: "7756baf1-ca27-4743-9018-99ba99e0e18b",
+                name: "INSTA_AUTOMATION"
+              },
+              {
+                parameters: {
+                  method: "POST",
+                  url: "=https://graph.instagram.com/v24.0/{{ $('Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages ",
+                  authentication: "genericCredentialType",
+                  genericAuthType: "httpHeaderAuth",
+                  sendHeaders: true,
+                  headerParameters: {
+                    parameters: [
+                      {
+                        name: "Content-Type",
+                        value: "application/json"
+                      },
+                      {
+                        name: "Authorization",
+                        value: `Bearer ${instagramAccount?.access_token || 'default_token'}`
+                      }
+                    ]
+                  },
+                  sendBody: true,
+                  specifyBody: "json",
+                  jsonBody: "={\n  \"recipient\": { \"id\": \"{{ $json.body.entry[0].messaging[0].sender.id }}\" },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"Awesome🙌\",\n            \"image_url\": \"https://i.ibb.co/N29QzF6Z/QR-Logo.png\",\n            \"subtitle\": \"Let's help you get started!\\nTell us what you are looking for?\",\n            \"buttons\": [\n              { \"type\": \"postback\", \"title\": \"WhatsApp Automation\", \"payload\": \"WHATSAPP_AUTOMATION\" },\n              { \"type\": \"postback\", \"title\": \"Instagram Automation\", \"payload\": \"INSTAGRAM_AUTOMATION\" }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}\n",
+                  options: {}
+                },
+                type: "n8n-nodes-base.httpRequest",
+                typeVersion: 4.3,
+                position: [-896, 1040],
+                id: "32e72098-20cd-43d2-83c3-7a7a242bb63d",
+                name: "EXPLORE NOW"
+              },
+              {
+                parameters: {
+                  method: "POST",
+                  url: "=https://graph.instagram.com/v24.0/{{ $('Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages",
+                  authentication: "genericCredentialType",
+                  genericAuthType: "httpHeaderAuth",
+                  sendHeaders: true,
+                  headerParameters: {
+                    parameters: [
+                      {
+                        name: "Content-Type",
+                        value: "application/json"
+                      },
+                      {
+                        name: "Authorization",
+                        value: `Bearer ${instagramAccount?.access_token || 'default_token'}`
+                      }
+                    ]
+                  },
+                  sendBody: true,
+                  specifyBody: "json",
+                  jsonBody: "={\n  \"recipient\": {\n    \"id\": \"{{ $json.body.entry[0].messaging[0].sender.id }}\"\n  },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"Hi👋\",\n            \"image_url\": \"https://i.ibb.co/N29QzF6Z/QR-Logo.png\",\n            \"subtitle\": \"Thank you for reaching out to QuickRevert!\\nWe've received your enquiry and one of our team members will get back to you soon.\\n\\nIn the meantime, would you like to explore our automation solutions?\\n\\nThank you for choosing QuickRevert!\",\n            \"buttons\": [\n              {\n                \"type\": \"postback\",\n                \"title\": \"Explore Now\",\n                \"payload\": \"EXPLORE_NOW\"\n              },\n              {\n                \"type\": \"web_url\",\n                \"url\": \"https://calendar.app.google/QmsYv4Q4G5DNeham6\",\n                \"title\": \"Book Demo\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}\n",
+                  options: {}
+                },
+                type: "n8n-nodes-base.httpRequest",
+                typeVersion: 4.3,
+                position: [-896, 1232],
+                id: "d950345b-835c-4dfc-9aa2-55b802479811",
+                name: "hey"
+              },
+              {
+                parameters: {
+                  method: "POST",
+                  url: "=https://graph.instagram.com/v24.0/{{ $('Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages",
+                  authentication: "genericCredentialType",
+                  genericAuthType: "httpHeaderAuth",
+                  sendHeaders: true,
+                  headerParameters: {
+                    parameters: [
+                      {
+                        name: "Content-Type",
+                        value: "application/json"
+                      },
+                      {
+                        name: "Authorization",
+                        value: `Bearer ${instagramAccount?.access_token || 'default_token'}`
+                      }
+                    ]
+                  },
+                  sendBody: true,
+                  specifyBody: "json",
+                  jsonBody: "={\n  \"recipient\": {\n    \"id\": \"{{ $json.body.entry[0].messaging[0].sender.id }}\"\n  },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"Hi👋\",\n            \"image_url\": \"https://i.ibb.co/N29QzF6Z/QR-Logo.png\",\n            \"subtitle\": \"Thank you for reaching out to QuickRevert!\\nWe've received your enquiry and one of our team members will get back to you soon.\\n\\nIn the meantime, would you like to explore our automation solutions?\\n\\nThank you for choosing QuickRevert!\",\n            \"buttons\": [\n              {\n                \"type\": \"postback\",\n                \"title\": \"Explore Now\",\n                \"payload\": \"EXPLORE_NOW\"\n              },\n              {\n                \"type\": \"web_url\",\n                \"url\": \"https://calendar.app.google/QmsYv4Q4G5DNeham6\",\n                \"title\": \"Book Demo\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}\n",
+                  options: {}
+                },
+                type: "n8n-nodes-base.httpRequest",
+                typeVersion: 4.3,
+                position: [-896, 1424],
+                id: "e3b649e2-9f0a-4686-a47c-a0f7ea827d5c",
+                name: "HELLO"
+              },
+              {
+                parameters: {
+                  method: "POST",
+                  url: "=https://graph.instagram.com/v24.0/{{ $('Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages ",
+                  authentication: "genericCredentialType",
+                  genericAuthType: "httpHeaderAuth",
+                  sendHeaders: true,
+                  headerParameters: {
+                    parameters: [
+                      {
+                        name: "Content-Type",
+                        value: "application/json"
+                      },
+                      {
+                        name: "Authorization",
+                        value: `Bearer ${instagramAccount?.access_token || 'default_token'}`
+                      }
+                    ]
+                  },
+                  sendBody: true,
+                  specifyBody: "json",
+                  jsonBody: "={\n  \"recipient\": {\n    \"id\": \"{{ $json.body.entry[0].messaging[0].sender.id }}\"\n  },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"Cool 😎\\nHere's the link you asked for\",\n            \"buttons\": [\n              {\n                \"type\": \"web_url\",\n                \"url\": \"https://quickrevert.tech/\",\n                \"title\": \"Link\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}\n",
+                  options: {}
+                },
+                type: "n8n-nodes-base.httpRequest",
+                typeVersion: 4.3,
+                position: [-896, 1616],
+                id: "39879385-4e00-440c-a707-1e720a7a2e06",
+                name: "following"
+              },
+              {
+                parameters: {
+                  method: "POST",
+                  url: "=https://graph.instagram.com/v24.0/{{ $('Switch').item.json.body.entry[0].id }}/messages",
+                  authentication: "genericCredentialType",
+                  genericAuthType: "httpHeaderAuth",
+                  sendHeaders: true,
+                  headerParameters: {
+                    parameters: [
+                      {
+                        name: "Content-Type",
+                        value: "application/json"
+                      },
+                      {
+                        name: "Authorization",
+                        value: `Bearer ${instagramAccount?.access_token || 'default_token'}`
+                      }
+                    ]
+                  },
+                  sendBody: true,
+                  specifyBody: "json",
+                  jsonBody: "={\n  \"recipient\": {\n    \"id\": \"{{ $('Switch').item.json.body.entry[0].changes[0].value.from.id }}\"\n  },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"Cool 😎\\nBefore I share you the link, please hit that follow button\",\n            \"buttons\": [\n              {\n                \"type\": \"postback\",\n                \"title\": \"I'm Following ✅\",\n                \"payload\": \"Following\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}\n",
+                  options: {}
+                },
+                type: "n8n-nodes-base.httpRequest",
+                typeVersion: 4.3,
+                position: [-672, 272],
+                id: "3e99d72b-33b2-4aff-b0aa-4d4773d0032b",
+                name: "please follow"
               }
             ],
             connections: {
-              "Instagram Webhook": {
+              "Webhook": {
                 main: [
                   [
                     {
-                      node: "Log Webhook Data",
+                      node: "If",
+                      type: "main",
+                      index: 0
+                    }
+                  ],
+                  [
+                    {
+                      node: "Switch2",
                       type: "main",
                       index: 0
                     }
                   ]
+                ]
+              },
+              "If": {
+                main: [
+                  [
+                    {
+                      node: "Respond to Webhook",
+                      type: "main",
+                      index: 0
+                    }
+                  ]
+                ]
+              },
+              "Switch1": {
+                main: [
+                  [
+                    {
+                      node: "HI",
+                      type: "main",
+                      index: 0
+                    }
+                  ],
+                  [
+                    {
+                      node: "WHATSAPP_AUTOMATION",
+                      type: "main",
+                      index: 0
+                    }
+                  ],
+                  [
+                    {
+                      node: "INSTA_AUTOMATION",
+                      type: "main",
+                      index: 0
+                    }
+                  ],
+                  [],
+                  [
+                    {
+                      node: "EXPLORE NOW",
+                      type: "main",
+                      index: 0
+                    }
+                  ],
+                  [
+                    {
+                      node: "hey",
+                      type: "main",
+                      index: 0
+                    }
+                  ],
+                  [
+                    {
+                      node: "HELLO",
+                      type: "main",
+                      index: 0
+                    }
+                  ],
+                  [
+                    {
+                      node: "following",
+                      type: "main",
+                      index: 0
+                    }
+                  ]
+                ]
+              },
+              "Switch": {
+                main: [
+                  [
+                    {
+                      node: "Reply to comment",
+                      type: "main",
+                      index: 0
+                    }
+                  ]
+                ]
+              },
+              "Reply to comment": {
+                main: [
+                  [
+                    {
+                      node: "please follow",
+                      type: "main",
+                      index: 0
+                    }
+                  ]
+                ]
+              },
+              "Switch2": {
+                main: [
+                  [
+                    {
+                      node: "Switch",
+                      type: "main",
+                      index: 0
+                    }
+                  ],
+                  [
+                    {
+                      node: "Switch1",
+                      type: "main",
+                      index: 0
+                    }
+                  ]
+                ]
+              },
+              "HI": {
+                main: [
+                  []
                 ]
               }
             },
@@ -245,7 +1000,7 @@ export default function AutomationCreate() {
               timezone: "Asia/Kolkata"
             }
           };
-      
+          
           // Call the N8N API directly to create the workflow
           const n8nResponse = await fetch('https://khushi-n8n.g5ccll.easypanel.host/api/v1/workflows', {
             method: 'POST',
@@ -253,7 +1008,7 @@ export default function AutomationCreate() {
               'Content-Type': 'application/json',
               'X-N8N-API-KEY': import.meta.env.VITE_N8N_API_KEY
             },
-            body: JSON.stringify(simpleWorkflow)
+            body: JSON.stringify(workflowTemplate)
           });
       
           const n8nResult = await n8nResponse.json();
