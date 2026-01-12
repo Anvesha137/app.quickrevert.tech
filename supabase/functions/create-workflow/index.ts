@@ -27,24 +27,18 @@ Deno.serve(async (req: Request) => {
   try {
     console.log("Creating workflow...");
     
-    // Parse request body
-    const body = await req.json();
-    const { userId, template, variables, instagramAccountId, workflowName, automationId } = body;
-    
-    console.log("User ID:", userId);
-    console.log("Template:", template);
-    console.log("Variables:", variables);
-    console.log("Instagram Account ID:", instagramAccountId);
-    
-    // Validate input
-    if (!userId) {
-      return new Response(JSON.stringify({ error: "Missing userId" }), {
-        status: 400,
+    // Get authentication token from Authorization header
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized: Missing or invalid authorization header" }), {
+        status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Get Supabase client to fetch Instagram account
+    const jwt = authHeader.replace("Bearer ", "");
+    
+    // Get Supabase configuration
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     
@@ -55,7 +49,45 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // Create Supabase client and validate user authentication
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
+    
+    if (authError || !user) {
+      console.error("Authentication error:", authError);
+      return new Response(JSON.stringify({ error: "Unauthorized: Invalid or expired token" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    console.log("Authenticated user:", user.id);
+    
+    // Parse request body
+    const body = await req.json();
+    const { userId, template, variables, instagramAccountId, workflowName, automationId } = body;
+    
+    console.log("User ID:", userId);
+    console.log("Template:", template);
+    console.log("Variables:", variables);
+    console.log("Instagram Account ID:", instagramAccountId);
+    
+    // Validate input and ensure userId matches authenticated user
+    if (!userId) {
+      return new Response(JSON.stringify({ error: "Missing userId" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Ensure the userId in the request matches the authenticated user
+    if (userId !== user.id) {
+      return new Response(JSON.stringify({ error: "Unauthorized: userId does not match authenticated user" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Fetch user's Instagram account(s)
     let instagramAccount;
@@ -100,7 +132,7 @@ Deno.serve(async (req: Request) => {
 
     // Get n8n credentials from environment variables
     const n8nBaseUrl = Deno.env.get("N8N_BASE_URL");
-    const n8nApiKey = Deno.env.get("N8N_API_KEY");
+    const n8nApiKey = Deno.env.get("X-N8N-API-KEY");
     
     console.log("N8N Base URL:", n8nBaseUrl ? "Set" : "Not set");
     console.log("N8N API Key:", n8nApiKey ? "Set (masked)" : "Not set");
@@ -114,8 +146,8 @@ Deno.serve(async (req: Request) => {
     }
     
     if (!n8nApiKey) {
-      console.error("N8N_API_KEY not configured");
-      return new Response(JSON.stringify({ error: "N8N_API_KEY not configured" }), {
+      console.error("X-N8N-API-KEY not configured");
+      return new Response(JSON.stringify({ error: "X-N8N-API-KEY not configured" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

@@ -39,9 +39,19 @@ export class N8nWorkflowService {
     userId: string
   ): Promise<WorkflowCreationResponse> {
     try {
-      // Get auth token
-      const { data: { session } } = await supabase.auth.getSession();
-      const authToken = session?.access_token;
+      // Get auth token - try to refresh if needed
+      let { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      // If no session or session expired, try to refresh
+      if (!session || sessionError) {
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError || !refreshData.session) {
+          throw new Error('No authentication token available. Please log in again.');
+        }
+        session = refreshData.session;
+      }
+      
+      const authToken = session.access_token;
       
       if (!authToken) {
         throw new Error('No authentication token available');
