@@ -23,7 +23,7 @@ export default function AutomationCreate() {
     triggerConfig: null,
     actions: [],
   });
-
+  
   useEffect(() => {
     checkInstagramAccount();
   }, [user]);
@@ -122,11 +122,11 @@ export default function AutomationCreate() {
       // After successfully saving to Supabase, create the corresponding N8N workflow
       try {
         // Fetch Instagram account details
-        const { data: instagramAccount } = await supabase
-          .from('instagram_accounts')
+          const { data: instagramAccount } = await supabase
+            .from('instagram_accounts')
           .select('id, instagram_user_id, username')
-          .eq('user_id', user.id)
-          .eq('status', 'active')
+            .eq('user_id', user.id)
+            .eq('status', 'active')
           .order('connected_at', { ascending: false })
           .limit(1)
           .maybeSingle();

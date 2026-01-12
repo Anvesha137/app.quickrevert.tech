@@ -50,3 +50,7 @@ verify_jwt = false
 
 [functions."ig-delete"]
 verify_jwt = false
+
+[functions."create-workflow"]
+# We handle auth inside the function; allow requests with bearer from frontend
+verify_jwt = false
