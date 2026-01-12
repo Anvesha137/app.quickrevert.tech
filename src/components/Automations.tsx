@@ -62,12 +62,14 @@ export default function Automations() {
       const { data: workflowsData, error: workflowsError } = await supabase
         .from('n8n_workflows')
         .select('n8n_workflow_id, automation_id')
-        .eq('user_id', user.id)
-        .not('automation_id', 'is', null);
+        .eq('user_id', user.id);
 
-      if (workflowsError) throw workflowsError;
+      if (workflowsError) {
+        console.error('Error fetching workflows:', workflowsError);
+        // Continue without workflows if there's an error
+      }
 
-      // Map workflows to automations
+      // Map workflows to automations (only those with automation_id)
       const workflowsMap = new Map(
         workflowsData?.filter(w => w.automation_id).map(w => [w.automation_id, w.n8n_workflow_id]) || []
       );

@@ -1,6 +1,3 @@
--- Add automation_id column to n8n_workflows table to link workflows with automations
-ALTER TABLE public.n8n_workflows 
-  ADD COLUMN IF NOT EXISTS automation_id UUID REFERENCES public.automations(id) ON DELETE SET NULL;
-
--- Add index for faster lookups
-CREATE INDEX IF NOT EXISTS idx_n8n_workflows_automation_id ON public.n8n_workflows(automation_id);
+-- This migration is now redundant as automation_id is included in 20251212000000_add_n8n_workflows_columns.sql
+-- Keeping this file for migration history but it's a no-op
+SELECT 1;
