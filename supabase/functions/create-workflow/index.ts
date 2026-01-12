@@ -88,6 +88,29 @@ Deno.serve(async (req: Request) => {
     console.log("Template:", template);
     console.log("Variables:", variables);
     console.log("Instagram Account ID:", instagramAccountId);
+    console.log("Automation ID:", automationId);
+    
+    // Fetch automation data if automationId is provided
+    let automationData: any = null;
+    if (automationId) {
+      const { data: automation, error: automationError } = await supabase
+        .from("automations")
+        .select("trigger_type, trigger_config, actions")
+        .eq("id", automationId)
+        .eq("user_id", userId)
+        .single();
+      
+      if (!automationError && automation) {
+        automationData = automation;
+        console.log("Automation data fetched:", {
+          trigger_type: automation.trigger_type,
+          has_trigger_config: !!automation.trigger_config,
+          actions_count: automation.actions?.length || 0
+        });
+      } else {
+        console.warn("Could not fetch automation data:", automationError?.message);
+      }
+    }
     
     // Validate input and ensure userId matches authenticated user
     if (!userId) {
@@ -181,7 +204,9 @@ Deno.serve(async (req: Request) => {
           .replace(/\{\{automationId\}\}/g, automationId || "")
           .replace(/\{\{instagramAccessToken\}\}/g, instagramAccount.access_token)
           .replace(/\{\{instagramCredentialId\}\}/g, instagramAccount.instagram_user_id)
-          .replace(/\{\{instagramUsername\}\}/g, instagramAccount.username);
+          .replace(/\{\{instagramUsername\}\}/g, instagramAccount.username)
+          .replace(/\{\{calendarUrl\}\}/g, variables?.calendarUrl || 'https://calendar.app.google/QmsYv4Q4G5DNeham6')
+          .replace(/\{\{brandName\}\}/g, variables?.brandName || 'QuickRevert');
       } else if (Array.isArray(obj)) {
         return obj.map(item => replacePlaceholders(item));
       } else if (obj !== null && typeof obj === "object") {
@@ -193,11 +218,440 @@ Deno.serve(async (req: Request) => {
       }
       return obj;
     };
+    
+    // Build DM workflow function
+    const buildDMWorkflow = () => {
+      const triggerConfig = automationData?.trigger_config as { messageType?: 'all' | 'keywords'; keywords?: string[] } || {};
+      const actions = automationData?.actions || [];
+      const sendDmAction = actions.find((a: any) => a.type === 'send_dm');
+      
+      const messageType = triggerConfig.messageType || 'all';
+      const keywords = triggerConfig.keywords || [];
+      const calendarUrl = variables?.calendarUrl || 'https://calendar.app.google/QmsYv4Q4G5DNeham6';
+      const brandName = variables?.brandName || 'QuickRevert';
+      
+      const nodes: any[] = [];
+      const connections: any = {};
+      let nodeYPosition = 560;
+      let nodeXPosition = -1568;
+      
+      // 1. Webhook node
+      const webhookNode = {
+        id: "webhook-node",
+        name: "Instagram Webhook",
+        type: "n8n-nodes-base.webhook",
+        typeVersion: 2.1,
+        position: [nodeXPosition, nodeYPosition],
+        parameters: {
+          multipleMethods: true,
+          path: webhookPath,
+          responseMode: "responseNode",
+          options: {}
+        },
+        webhookId: webhookPath
+      };
+      nodes.push(webhookNode);
+      
+      // 2. Webhook verification (for Instagram webhook setup)
+      nodeXPosition += 224;
+      const verificationNode = {
+        id: "webhook-verification",
+        name: "Webhook Verification",
+        type: "n8n-nodes-base.if",
+        typeVersion: 2.2,
+        position: [nodeXPosition, 80],
+        parameters: {
+          conditions: {
+            options: {
+              caseSensitive: true,
+              leftValue: "",
+              typeValidation: "strict",
+              version: 2
+            },
+            conditions: [
+              {
+                id: "verify-mode",
+                leftValue: "={{ $json.query['hub.mode'] }}",
+                rightValue: "subscribe",
+                operator: {
+                  type: "string",
+                  operation: "equals",
+                  name: "filter.operator.equals"
+                }
+              }
+            ],
+            combinator: "and"
+          },
+          options: {}
+        }
+      };
+      nodes.push(verificationNode);
+      
+      // 3. Respond to webhook (for verification)
+      nodeXPosition += 224;
+      const respondNode = {
+        id: "respond-to-webhook",
+        name: "Respond to Webhook",
+        type: "n8n-nodes-base.respondToWebhook",
+        typeVersion: 1.4,
+        position: [nodeXPosition, 80],
+        parameters: {
+          respondWith: "text",
+          responseBody: "={{ $json.query['hub.challenge'] }}",
+          options: {}
+        }
+      };
+      nodes.push(respondNode);
+      
+      // 4. Message Switch node
+      nodeXPosition = -1216;
+      const switchRules: any[] = [];
+      
+      if (messageType === 'keywords' && keywords.length > 0) {
+        // Add rules for each keyword
+        keywords.forEach((keyword: string, index: number) => {
+          switchRules.push({
+            conditions: {
+              options: {
+                caseSensitive: false,
+                leftValue: "",
+                typeValidation: "strict",
+                version: 2
+              },
+              conditions: [
+                {
+                  id: `keyword-${index}`,
+                  leftValue: "={{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].message.text }}",
+                  rightValue: keyword.toLowerCase(),
+                  operator: {
+                    type: "string",
+                    operation: "contains"
+                  }
+                }
+              ],
+              combinator: "and"
+            },
+            renameOutput: true,
+            outputKey: keyword.toLowerCase()
+          });
+        });
+      } else if (messageType === 'all') {
+        // Check if message text is empty (for "all messages")
+        switchRules.push({
+          conditions: {
+            options: {
+              caseSensitive: false,
+              leftValue: "",
+              typeValidation: "strict",
+              version: 2
+            },
+            conditions: [
+              {
+                id: "empty-message",
+                leftValue: "={{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].message.text }}",
+                rightValue: "",
+                operator: {
+                  type: "string",
+                  operation: "equals",
+                  name: "filter.operator.equals"
+                }
+              }
+            ],
+            combinator: "and"
+          },
+          renameOutput: true,
+          outputKey: "all_messages"
+        });
+      }
+      
+      // Add postback handlers for buttons
+      if (sendDmAction?.actionButtons) {
+        sendDmAction.actionButtons.forEach((button: any, index: number) => {
+          if (!button.url) {
+            // Button without URL = postback type
+            const payload = button.text.toUpperCase().replace(/\s+/g, '_');
+            switchRules.push({
+              conditions: {
+                options: {
+                  caseSensitive: false,
+                  leftValue: "",
+                  typeValidation: "strict",
+                  version: 2
+                },
+                conditions: [
+                  {
+                    id: `postback-${index}`,
+                    leftValue: "={{ $json.body.entry[0].messaging[0].postback.payload }}",
+                    rightValue: payload,
+                    operator: {
+                      type: "string",
+                      operation: "equals",
+                      name: "filter.operator.equals"
+                    }
+                  }
+                ],
+                combinator: "and"
+              },
+              renameOutput: true,
+              outputKey: payload
+            });
+          }
+        });
+      }
+      
+      const switchNode = {
+        id: "message-switch",
+        name: "Message Switch",
+        type: "n8n-nodes-base.switch",
+        typeVersion: 3.3,
+        position: [nodeXPosition, nodeYPosition + 224],
+        parameters: {
+          rules: {
+            values: switchRules
+          },
+          options: {
+            ignoreCase: true
+          }
+        }
+      };
+      nodes.push(switchNode);
+      
+      // 5. First message node (with buttons)
+      nodeXPosition += 224;
+      let firstMessageY = 304;
+      const switchConnections: any[] = [];
+      
+      if (sendDmAction) {
+        const buttons: any[] = [];
+        sendDmAction.actionButtons?.forEach((button: any) => {
+          if (button.url) {
+            buttons.push({
+              type: "web_url",
+              url: button.url === 'calendar' ? calendarUrl : button.url,
+              title: button.text
+            });
+          } else {
+            const payload = button.text.toUpperCase().replace(/\s+/g, '_');
+            buttons.push({
+              type: "postback",
+              title: button.text,
+              payload: payload
+            });
+          }
+        });
+        
+        const firstMessageNode = {
+          id: "send-first-message",
+          name: "Send First Message",
+          type: "n8n-nodes-base.httpRequest",
+          typeVersion: 4.3,
+          position: [nodeXPosition, firstMessageY],
+          parameters: {
+            method: "POST",
+            url: `=https://graph.instagram.com/v24.0/{{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages`,
+            authentication: "genericCredentialType",
+            genericAuthType: "httpHeaderAuth",
+            sendHeaders: true,
+            headerParameters: {
+              parameters: [
+                {
+                  name: "Content-Type",
+                  value: "application/json"
+                }
+              ]
+            },
+            sendBody: true,
+            specifyBody: "json",
+            jsonBody: JSON.stringify({
+              recipient: { id: "={{ $json.body.entry[0].messaging[0].sender.id }}" },
+              message: {
+                attachment: {
+                  type: "template",
+                  payload: {
+                    template_type: "generic",
+                    elements: [
+                      {
+                        title: `Hi👋`,
+                        image_url: "https://i.ibb.co/N29QzF6Z/QR-Logo.png",
+                        subtitle: sendDmAction.messageTemplate || `Thank you for reaching out to ${brandName}!\nWe've received your enquiry and one of our team members will get back to you soon.\n\nIn the meantime, would you like to explore our automation solutions?\n\nThank you for choosing ${brandName}!`,
+                        buttons: buttons
+                      }
+                    ]
+                  }
+                }
+              }
+            }),
+            options: {}
+          },
+          credentials: {
+            httpHeaderAuth: {
+              id: instagramAccount.instagram_user_id,
+              name: "Instagram Access Token"
+            }
+          }
+        };
+        nodes.push(firstMessageNode);
+        
+        // Add connection from switch to first message
+        const switchOutputKey = messageType === 'keywords' && keywords.length > 0 
+          ? keywords[0].toLowerCase() 
+          : messageType === 'all' 
+            ? 'all_messages' 
+            : 'default';
+        
+        const switchOutputIndex = switchRules.findIndex((r: any) => r.outputKey === switchOutputKey);
+        if (switchOutputIndex >= 0) {
+          switchConnections.push({
+            node: "Send First Message",
+            type: "main",
+            index: switchOutputIndex
+          });
+        }
+      }
+      
+      // 6. Button handler nodes (for postbacks)
+      if (sendDmAction?.actionButtons) {
+        sendDmAction.actionButtons.forEach((button: any, index: number) => {
+          if (!button.url) {
+            const payload = button.text.toUpperCase().replace(/\s+/g, '_');
+            firstMessageY += 192;
+            
+            const buttonHandlerNode = {
+              id: `button-handler-${index}`,
+              name: `${button.text} Handler`,
+              type: "n8n-nodes-base.httpRequest",
+              typeVersion: 4.3,
+              position: [nodeXPosition, firstMessageY],
+              parameters: {
+                method: "POST",
+                url: `=https://graph.instagram.com/v24.0/{{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages`,
+                authentication: "genericCredentialType",
+                genericAuthType: "httpHeaderAuth",
+                sendHeaders: true,
+                headerParameters: {
+                  parameters: [
+                    {
+                      name: "Content-Type",
+                      value: "application/json"
+                    }
+                  ]
+                },
+                sendBody: true,
+                specifyBody: "json",
+                jsonBody: JSON.stringify({
+                  recipient: { id: "={{ $json.body.entry[0].messaging[0].sender.id }}" },
+                  message: {
+                    attachment: {
+                      type: "template",
+                      payload: {
+                        template_type: "generic",
+                        elements: [
+                          {
+                            title: `Great choice\nOur ${button.text} solution helps businesses reply instantly, qualify leads, and manage all customer conversations in one place.\n\nOne of our experts will contact you soon to guide you further.\n\nYou can also book a quick demo to see how it works📅`,
+                            image_url: "https://i.ibb.co/N29QzF6Z/QR-Logo.png",
+                            subtitle: `Thank you for choosing ${brandName}!`,
+                            buttons: [
+                              {
+                                type: "web_url",
+                                url: calendarUrl,
+                                title: "Book Demo"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }),
+                options: {}
+              },
+              credentials: {
+                httpHeaderAuth: {
+                  id: instagramAccount.instagram_user_id,
+                  name: "Instagram Access Token"
+                }
+              }
+            };
+            nodes.push(buttonHandlerNode);
+            
+            // Add connection from switch to button handler
+            const payloadIndex = switchRules.findIndex((r: any) => r.outputKey === payload);
+            if (payloadIndex >= 0) {
+              switchConnections.push({
+                node: `${button.text} Handler`,
+                type: "main",
+                index: payloadIndex
+              });
+            }
+          }
+        });
+      }
+      
+      // Set up connections
+      connections["Instagram Webhook"] = {
+        main: [
+          [
+            {
+              node: "Webhook Verification",
+              type: "main",
+              index: 0
+            }
+          ],
+          [
+            {
+              node: "Message Switch",
+              type: "main",
+              index: 0
+            }
+          ]
+        ]
+      };
+      
+      connections["Webhook Verification"] = {
+        main: [
+          [
+            {
+              node: "Respond to Webhook",
+              type: "main",
+              index: 0
+            }
+          ]
+        ]
+      };
+      
+      if (switchConnections.length > 0) {
+        connections["Message Switch"] = {
+          main: [switchConnections]
+        };
+      }
+      
+      return {
+        name: finalWorkflowName,
+        nodes: nodes,
+        connections: connections,
+        settings: {
+          saveExecutionProgress: true,
+          saveManualExecutions: true,
+          saveDataErrorExecution: "all",
+          saveDataSuccessExecution: "all",
+          executionTimeout: 3600,
+          timezone: "Asia/Kolkata"
+        }
+      };
+    };
 
-    // Create workflow with Instagram credentials embedded
-    // Note: 'active' field cannot be set during creation - workflows are created inactive by default
-    const workflowTemplate = {
-      name: finalWorkflowName,
+    // Build workflow based on template and automation type
+    let workflowTemplate: any;
+    
+    // If automation data exists and trigger type is user_directed_messages, build DM workflow
+    if (automationData && automationData.trigger_type === 'user_directed_messages') {
+      console.log("Building DM workflow for user_directed_messages");
+      workflowTemplate = buildDMWorkflow();
+    } else {
+      // Default workflow template (existing code)
+      console.log("Building default workflow template");
+      workflowTemplate = {
+        name: finalWorkflowName,
       nodes: [
         {
           id: "webhook-node",
@@ -310,6 +764,7 @@ Deno.serve(async (req: Request) => {
         timezone: "Asia/Kolkata"
       }
     };
+    }
 
     // Replace any placeholders in the workflow
     const finalWorkflow = replacePlaceholders(workflowTemplate);
