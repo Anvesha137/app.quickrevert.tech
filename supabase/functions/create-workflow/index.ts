@@ -169,8 +169,8 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Create workflow name
-    const finalWorkflowName = workflowName || `Instagram Automation - ${instagramAccount.username} - ${new Date().toISOString().split('T')[0]}`;
+    // Create workflow name - include Instagram ID by default
+    const finalWorkflowName = workflowName || `Instagram Automation - ${instagramAccount.username} (${instagramAccount.instagram_user_id}) - ${new Date().toISOString().split('T')[0]}`;
     const webhookPath = `instagram-webhook-${userId}-${automationId || Date.now()}`;
     
     // Helper function to recursively replace placeholders in workflow nodes
@@ -405,6 +405,9 @@ Deno.serve(async (req: Request) => {
           n8n_workflow_name: n8nResult.name,
           webhook_path: webhookPath,
           instagram_account_id: instagramAccount.id,
+          template: template || 'instagram_automation_v1',
+          variables: variables || {},
+          ...(automationId && { automation_id: automationId }),
           created_at: new Date().toISOString()
         });
       

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { MessageSquare, Reply, UserPlus, Mail, Send, CheckCircle2, XCircle, AlertCircle, Clock } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
+import { N8nWorkflowService } from '../../lib/n8nService';
 
 interface Activity {
   id: string;
@@ -58,24 +60,64 @@ function formatTimeAgo(date: string) {
 }
 
 export default function ContactActivities({ username }: ContactActivitiesProps) {
+  const { user } = useAuth();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchActivities();
-  }, [username]);
+  }, [username, user]);
 
   async function fetchActivities() {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // Fetch from automation_activities table
+      const { data: automationActivities, error: activitiesError } = await supabase
         .from('automation_activities')
         .select('*')
         .eq('target_username', username)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setActivities(data || []);
+      if (activitiesError) throw activitiesError;
+
+      // Fetch n8n executions if user is available
+      let n8nExecutions: any[] = [];
+      if (user) {
+        try {
+          const executionsResult = await N8nWorkflowService.getExecutions(undefined, 50, user.id);
+          if (executionsResult.executions) {
+            // Filter executions related to this contact (username)
+            // Note: This depends on how n8n stores execution data - adjust based on actual structure
+            n8nExecutions = executionsResult.executions.filter((exec: any) => {
+              // Check if execution data contains the username
+              const execData = exec.data || exec;
+              const dataStr = JSON.stringify(execData).toLowerCase();
+              return dataStr.includes(username.toLowerCase());
+            });
+          }
+        } catch (n8nError) {
+          console.error('Error fetching n8n executions:', n8nError);
+          // Continue with automation activities even if n8n fails
+        }
+      }
+
+      // Combine and sort activities
+      const allActivities = [
+        ...(automationActivities || []),
+        // Map n8n executions to activity format
+        ...n8nExecutions.map((exec: any) => ({
+          id: exec.id || `n8n-${exec.executionId}`,
+          activity_type: 'dm',
+          target_username: username,
+          message: exec.data?.message || exec.data?.text || 'Workflow execution',
+          metadata: {},
+          status: exec.finished ? (exec.stoppedAt ? 'success' : 'failed') : 'pending',
+          created_at: exec.startedAt || exec.createdAt || new Date().toISOString(),
+          isN8nExecution: true,
+        }))
+      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      setActivities(allActivities);
     } catch (error) {
       console.error('Error fetching activities:', error);
     } finally {

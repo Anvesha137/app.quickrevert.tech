@@ -4,6 +4,7 @@ import { Search, Plus, ChevronDown, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useThemeColors } from '../hooks/useThemeColors';
+import { N8nWorkflowService } from '../lib/n8nService';
 
 interface Automation {
   id: string;
@@ -13,6 +14,7 @@ interface Automation {
   trigger_type: 'post_comment' | 'story_reply' | 'user_directed_messages';
   created_at: string;
   updated_at: string;
+  n8n_workflow_id?: string;
 }
 
 const triggerLabels = {
@@ -47,14 +49,35 @@ export default function Automations() {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
+      // Fetch automations
+      const { data: automationsData, error: automationsError } = await supabase
         .from('automations')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setAutomations(data || []);
+      if (automationsError) throw automationsError;
+
+      // Fetch n8n workflows linked to automations
+      const { data: workflowsData, error: workflowsError } = await supabase
+        .from('n8n_workflows')
+        .select('n8n_workflow_id, automation_id')
+        .eq('user_id', user.id)
+        .not('automation_id', 'is', null);
+
+      if (workflowsError) throw workflowsError;
+
+      // Map workflows to automations
+      const workflowsMap = new Map(
+        workflowsData?.filter(w => w.automation_id).map(w => [w.automation_id, w.n8n_workflow_id]) || []
+      );
+
+      const automationsWithWorkflows = (automationsData || []).map(automation => ({
+        ...automation,
+        n8n_workflow_id: workflowsMap.get(automation.id)
+      }));
+
+      setAutomations(automationsWithWorkflows);
     } catch (error) {
       console.error('Error fetching automations:', error);
     } finally {
@@ -120,10 +143,11 @@ export default function Automations() {
     navigate('/automation/create');
   };
 
-  const toggleStatus = async (id: string, currentStatus: string) => {
+  const toggleStatus = async (id: string, currentStatus: string, n8nWorkflowId?: string) => {
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
 
     try {
+      // Update automation status in Supabase
       const { error } = await supabase
         .from('automations')
         .update({ status: newStatus })
@@ -131,11 +155,26 @@ export default function Automations() {
 
       if (error) throw error;
 
+      // Update n8n workflow status if workflow exists
+      if (n8nWorkflowId && user) {
+        try {
+          if (newStatus === 'active') {
+            await N8nWorkflowService.activateWorkflow(n8nWorkflowId, user.id);
+          } else {
+            await N8nWorkflowService.deactivateWorkflow(n8nWorkflowId, user.id);
+          }
+        } catch (n8nError) {
+          console.error('Error updating n8n workflow status:', n8nError);
+          // Don't fail the whole operation, just log the error
+        }
+      }
+
       setAutomations(automations.map(auto =>
         auto.id === id ? { ...auto, status: newStatus as 'active' | 'inactive' } : auto
       ));
     } catch (error) {
       console.error('Error updating automation status:', error);
+      alert('Failed to update automation status. Please try again.');
     }
   };
 
@@ -292,7 +331,7 @@ export default function Automations() {
                 </div>
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => toggleStatus(automation.id, automation.status)}
+                    onClick={() => toggleStatus(automation.id, automation.status, automation.n8n_workflow_id)}
                     className={`px-5 py-2.5 rounded-xl font-semibold transition-all shadow-md hover:shadow-lg ${
                       automation.status === 'active'
                         ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'

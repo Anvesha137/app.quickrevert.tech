@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { MessageSquare, Reply, UserPlus, Mail, Send, CheckCircle2, XCircle, AlertCircle, Clock } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { N8nWorkflowService } from '../lib/n8nService';
 
 interface Activity {
   id: string;
@@ -58,15 +59,44 @@ export default function RecentActivity() {
 
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      // Fetch from automation_activities table
+      const { data: automationActivities, error: activitiesError } = await supabase
         .from('automation_activities')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(7);
 
-      if (error) throw error;
-      setActivities(data || []);
+      if (activitiesError) throw activitiesError;
+
+      // Fetch n8n executions
+      let n8nExecutions: any[] = [];
+      try {
+        const executionsResult = await N8nWorkflowService.getExecutions(undefined, 7, user.id);
+        if (executionsResult.executions) {
+          n8nExecutions = executionsResult.executions.map((exec: any) => ({
+            id: exec.id || `n8n-${exec.executionId}`,
+            activity_type: 'dm',
+            target_username: exec.data?.sender_name || exec.data?.from?.username || 'Unknown',
+            message: exec.data?.message || exec.data?.text || 'Workflow execution',
+            metadata: {},
+            status: exec.finished ? (exec.stoppedAt ? 'success' : 'failed') : 'pending',
+            created_at: exec.startedAt || exec.createdAt || new Date().toISOString(),
+            isN8nExecution: true,
+          }));
+        }
+      } catch (n8nError) {
+        console.error('Error fetching n8n executions:', n8nError);
+      }
+
+      // Combine and sort activities
+      const allActivities = [
+        ...(automationActivities || []),
+        ...n8nExecutions
+      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+       .slice(0, 7);
+
+      setActivities(allActivities);
     } catch (error) {
       console.error('Error fetching activities:', error);
     } finally {

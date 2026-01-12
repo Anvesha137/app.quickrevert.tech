@@ -54,3 +54,12 @@ verify_jwt = false
 [functions."create-workflow"]
 # We handle auth inside the function; allow requests with bearer from frontend
 verify_jwt = false
+
+[functions."activate-workflow"]
+verify_jwt = false
+
+[functions."deactivate-workflow"]
+verify_jwt = false
+
+[functions."get-executions"]
+verify_jwt = false
