@@ -195,8 +195,8 @@ Deno.serve(async (req: Request) => {
     };
 
     // Create workflow with Instagram credentials embedded
+    // Note: 'active' field cannot be set during creation - workflows are created inactive by default
     const workflowTemplate = {
-      active: false,
       name: finalWorkflowName,
       nodes: [
         {
@@ -356,7 +356,27 @@ Deno.serve(async (req: Request) => {
 
     console.log("Workflow created successfully:", n8nResult.id);
 
-    // Optionally activate workflow in n8n if requested
+    // Workflows are created inactive by default in n8n
+    // If autoActivate is true, activate the workflow
+    if (autoActivate) {
+      console.log("Activating workflow...");
+      const activateResponse = await fetch(`${n8nBaseUrl}/api/v1/workflows/${n8nResult.id}/activate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-N8N-API-KEY": n8nApiKey
+        }
+      });
+
+      if (activateResponse.ok) {
+        console.log("Workflow activated successfully");
+      } else {
+        console.warn("Failed to activate workflow:", await activateResponse.text());
+        // Don't fail the whole operation if activation fails
+      }
+    } else {
+      console.log("Workflow created but not activated (inactive by default)");
+    }
     if (autoActivate && n8nResult?.id) {
       console.log("Activating workflow in n8n...");
       const activateResponse = await fetch(`${n8nBaseUrl}/api/v1/workflows/${n8nResult.id}/activate`, {
