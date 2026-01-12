@@ -40,29 +40,45 @@ Deno.serve(async (req: Request) => {
     
     // Get Supabase configuration
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     
-    if (!supabaseUrl || !supabaseServiceKey) {
+    if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
+      console.error("Missing Supabase config:", {
+        url: !!supabaseUrl,
+        anonKey: !!supabaseAnonKey,
+        serviceKey: !!supabaseServiceKey
+      });
       return new Response(JSON.stringify({ error: "Supabase configuration missing" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Create Supabase client and validate user authentication
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    
-    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
+    // Validate user authentication using anon key
+    const authClient = createClient(supabaseUrl, supabaseAnonKey);
+    const { data: { user }, error: authError } = await authClient.auth.getUser(jwt);
     
     if (authError || !user) {
-      console.error("Authentication error:", authError);
-      return new Response(JSON.stringify({ error: "Unauthorized: Invalid or expired token" }), {
+      console.error("Authentication error:", {
+        error: authError?.message,
+        errorCode: authError?.status,
+        hasUser: !!user,
+        tokenLength: jwt.length
+      });
+      return new Response(JSON.stringify({ 
+        error: "Unauthorized: Invalid or expired token",
+        details: authError?.message 
+      }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     console.log("Authenticated user:", user.id);
+    
+    // Create Supabase client with service role key for database operations
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
     // Parse request body
     const body = await req.json();

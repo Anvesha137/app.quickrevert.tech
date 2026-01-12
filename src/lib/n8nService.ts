@@ -7,7 +7,7 @@ interface WorkflowCreationData {
     instagramCredentialId?: string;
     calendarUrl?: string;
     brandName?: string;
-    [key: string]: string;
+    [key: string]: string | undefined;
   };
   autoActivate?: boolean;
   instagramAccountId?: string;
@@ -68,6 +68,13 @@ export class N8nWorkflowService {
         automationId: data.automationId,
       };
 
+      console.log('Creating workflow with:', {
+        userId,
+        instagramAccountId: data.instagramAccountId,
+        hasToken: !!authToken,
+        tokenLength: authToken.length
+      });
+
       // Call the Supabase Edge Function
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-workflow`, {
         method: 'POST',
@@ -83,6 +90,11 @@ export class N8nWorkflowService {
 
       if (!response.ok) {
         const errorResult = result as WorkflowErrorResponse;
+        console.error('Workflow creation failed:', {
+          status: response.status,
+          error: errorResult.error,
+          details: (errorResult as any).details
+        });
         throw new Error(errorResult.error || `HTTP error! status: ${response.status}`);
       }
 
