@@ -149,7 +149,7 @@ export default function AutomationCreate() {
           variables: {
             brandName: 'QuickRevert',
           },
-          autoActivate: true,
+          autoActivate: false,
         }, user.id);
 
         console.log('N8N workflow created successfully:', result);

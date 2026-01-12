@@ -26,7 +26,7 @@ export default function N8NWorkflowManager() {
       calendarUrl: '',
       brandName: 'QuickRevert',
     },
-    autoActivate: true,
+    autoActivate: false,
   });
 
   useEffect(() => {
@@ -257,7 +257,7 @@ export default function N8NWorkflowManager() {
               className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
             />
             <label htmlFor="autoActivate" className="ml-2 block text-sm text-gray-700">
-              Auto Activate Workflow
+              Auto Activate Workflow (defaults off)
             </label>
           </div>
           

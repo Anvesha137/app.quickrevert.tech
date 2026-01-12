@@ -62,7 +62,7 @@ export class N8nWorkflowService {
         userId,
         template: data.template || 'instagram_automation_v1',
         variables: data.variables || {},
-        autoActivate: data.autoActivate ?? true,
+        autoActivate: data.autoActivate ?? false,
         instagramAccountId: data.instagramAccountId,
         workflowName: data.workflowName,
         automationId: data.automationId,

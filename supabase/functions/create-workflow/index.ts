@@ -82,7 +82,7 @@ Deno.serve(async (req: Request) => {
     
     // Parse request body
     const body = await req.json();
-    const { userId, template, variables, instagramAccountId, workflowName, automationId } = body;
+    const { userId, template, variables, instagramAccountId, workflowName, automationId, autoActivate = false } = body;
     
     console.log("User ID:", userId);
     console.log("Template:", template);
@@ -196,6 +196,7 @@ Deno.serve(async (req: Request) => {
 
     // Create workflow with Instagram credentials embedded
     const workflowTemplate = {
+      active: false,
       name: finalWorkflowName,
       nodes: [
         {
@@ -354,6 +355,25 @@ Deno.serve(async (req: Request) => {
     }
 
     console.log("Workflow created successfully:", n8nResult.id);
+
+    // Optionally activate workflow in n8n if requested
+    if (autoActivate && n8nResult?.id) {
+      console.log("Activating workflow in n8n...");
+      const activateResponse = await fetch(`${n8nBaseUrl}/api/v1/workflows/${n8nResult.id}/activate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-N8N-API-KEY": n8nApiKey
+        }
+      });
+
+      if (!activateResponse.ok) {
+        const activateText = await activateResponse.text();
+        console.error("Failed to activate workflow in n8n:", activateResponse.status, activateText);
+      } else {
+        console.log("Workflow activated in n8n");
+      }
+    }
 
     // Store the workflow mapping in Supabase
     try {
