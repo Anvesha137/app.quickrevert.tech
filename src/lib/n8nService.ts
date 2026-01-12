@@ -2,20 +2,30 @@ import { supabase } from './supabase';
 
 interface WorkflowCreationData {
   userId: string;
-  template: 'instagram_automation_v1';
-  variables: {
-    instagramCredentialId: string;
-    calendarUrl: string;
-    brandName: string;
+  template?: 'instagram_automation_v1';
+  variables?: {
+    instagramCredentialId?: string;
+    calendarUrl?: string;
+    brandName?: string;
     [key: string]: string;
   };
-  autoActivate: boolean;
+  autoActivate?: boolean;
+  instagramAccountId?: string;
+  workflowName?: string;
+  automationId?: string;
 }
 
 interface WorkflowCreationResponse {
   success: boolean;
   workflowId: string;
-  n8nWorkflow: any;
+  workflowName?: string;
+  webhookPath?: string;
+  webhookUrl?: string;
+  instagramAccount?: {
+    id: string;
+    username: string;
+  };
+  n8nWorkflow?: any;
   message: string;
 }
 
@@ -24,7 +34,10 @@ interface WorkflowErrorResponse {
 }
 
 export class N8nWorkflowService {
-  static async createWorkflow(data: Omit<WorkflowCreationData, 'userId'>, userId: string): Promise<WorkflowCreationResponse> {
+  static async createWorkflow(
+    data: Omit<WorkflowCreationData, 'userId'>, 
+    userId: string
+  ): Promise<WorkflowCreationResponse> {
     try {
       // Get auth token
       const { data: { session } } = await supabase.auth.getSession();
@@ -37,7 +50,12 @@ export class N8nWorkflowService {
       // Prepare the request payload
       const requestBody = {
         userId,
-        ...data
+        template: data.template || 'instagram_automation_v1',
+        variables: data.variables || {},
+        autoActivate: data.autoActivate ?? true,
+        instagramAccountId: data.instagramAccountId,
+        workflowName: data.workflowName,
+        automationId: data.automationId,
       };
 
       // Call the Supabase Edge Function

@@ -29,10 +29,12 @@ Deno.serve(async (req: Request) => {
     
     // Parse request body
     const body = await req.json();
-    const { userId, templateVars } = body;
+    const { userId, template, variables, instagramAccountId, workflowName, automationId } = body;
     
     console.log("User ID:", userId);
-    console.log("Template vars:", templateVars);
+    console.log("Template:", template);
+    console.log("Variables:", variables);
+    console.log("Instagram Account ID:", instagramAccountId);
     
     // Validate input
     if (!userId) {
@@ -41,6 +43,60 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Get Supabase client to fetch Instagram account
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return new Response(JSON.stringify({ error: "Supabase configuration missing" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Fetch user's Instagram account(s)
+    let instagramAccount;
+    if (instagramAccountId) {
+      // Fetch specific account
+      const { data, error } = await supabase
+        .from("instagram_accounts")
+        .select("*")
+        .eq("id", instagramAccountId)
+        .eq("user_id", userId)
+        .eq("status", "active")
+        .single();
+      
+      if (error || !data) {
+        return new Response(JSON.stringify({ error: "Instagram account not found or inactive" }), {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      instagramAccount = data;
+    } else {
+      // Fetch first active account
+      const { data, error } = await supabase
+        .from("instagram_accounts")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("status", "active")
+        .order("connected_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (error || !data) {
+        return new Response(JSON.stringify({ error: "No active Instagram account found. Please connect an Instagram account first." }), {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      instagramAccount = data;
+    }
+
+    console.log("Using Instagram account:", instagramAccount.username);
 
     // Get n8n credentials from environment variables
     const n8nBaseUrl = Deno.env.get("N8N_BASE_URL");
@@ -65,12 +121,34 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Create a simple test workflow
-    const workflowName = `Instagram Automation ${new Date().toISOString().split('T')[0]}`;
-    const webhookPath = `instagram-webhook-${userId}-${Date.now()}`;
+    // Create workflow name
+    const finalWorkflowName = workflowName || `Instagram Automation - ${instagramAccount.username} - ${new Date().toISOString().split('T')[0]}`;
+    const webhookPath = `instagram-webhook-${userId}-${automationId || Date.now()}`;
     
-    const simpleWorkflow = {
-      name: workflowName,
+    // Helper function to recursively replace placeholders in workflow nodes
+    const replacePlaceholders = (obj: any): any => {
+      if (typeof obj === "string") {
+        return obj
+          .replace(/\{\{userId\}\}/g, userId)
+          .replace(/\{\{automationId\}\}/g, automationId || "")
+          .replace(/\{\{instagramAccessToken\}\}/g, instagramAccount.access_token)
+          .replace(/\{\{instagramCredentialId\}\}/g, instagramAccount.instagram_user_id)
+          .replace(/\{\{instagramUsername\}\}/g, instagramAccount.username);
+      } else if (Array.isArray(obj)) {
+        return obj.map(item => replacePlaceholders(item));
+      } else if (obj !== null && typeof obj === "object") {
+        const result: any = {};
+        for (const key in obj) {
+          result[key] = replacePlaceholders(obj[key]);
+        }
+        return result;
+      }
+      return obj;
+    };
+
+    // Create workflow with Instagram credentials embedded
+    const workflowTemplate = {
+      name: finalWorkflowName,
       nodes: [
         {
           id: "webhook-node",
@@ -86,13 +164,67 @@ Deno.serve(async (req: Request) => {
           }
         },
         {
-          id: "log-node",
-          name: "Log Webhook Data",
-          type: "n8n-nodes-base.code",
-          typeVersion: 2,
+          id: "extract-message-data",
+          name: "Extract Message Data",
+          type: "n8n-nodes-base.set",
+          typeVersion: 1,
           position: [320, 300],
           parameters: {
-            jsCode: `// Log incoming webhook data\nconsole.log('Webhook received:', $input.first().json);\nreturn $input.first();`
+            values: {
+              string: [
+                {
+                  name: "instagramMessage",
+                  value: "={{ ($requestBody || $input.first().json).message || $json.text || $json.message || '' }}"
+                },
+                {
+                  name: "instagramUserId",
+                  value: "={{ ($requestBody || $input.first().json).sender_id || $json.sender_id || $json.from.id || '' }}"
+                },
+                {
+                  name: "instagramUserName",
+                  value: "={{ ($requestBody || $input.first().json).sender_name || $json.sender_name || $json.from.username || '' }}"
+                }
+              ]
+            },
+            options: {}
+          }
+        },
+        {
+          id: "send-instagram-reply",
+          name: "Send Instagram DM Reply",
+          type: "n8n-nodes-base.httpRequest",
+          typeVersion: 4,
+          position: [540, 300],
+          parameters: {
+            method: "POST",
+            url: "https://graph.instagram.com/v20.0/me/messages",
+            sendHeaders: true,
+            headerParameters: {
+              parameters: [
+                {
+                  name: "Authorization",
+                  value: `Bearer ${instagramAccount.access_token}`
+                },
+                {
+                  name: "Content-Type",
+                  value: "application/json"
+                }
+              ]
+            },
+            sendBody: true,
+            bodyParameters: {
+              parameters: [
+                {
+                  name: "recipient",
+                  value: "={{ {\"id\": $json.instagramUserId} }}"
+                },
+                {
+                  name: "message",
+                  value: "={{ {\"text\": \"Hello! Thanks for your message.\"} }}"
+                }
+              ]
+            },
+            options: {}
           }
         }
       ],
@@ -101,7 +233,18 @@ Deno.serve(async (req: Request) => {
           main: [
             [
               {
-                node: "Log Webhook Data",
+                node: "Extract Message Data",
+                type: "main",
+                index: 0
+              }
+            ]
+          ]
+        },
+        "Extract Message Data": {
+          main: [
+            [
+              {
+                node: "Send Instagram DM Reply",
                 type: "main",
                 index: 0
               }
@@ -119,6 +262,9 @@ Deno.serve(async (req: Request) => {
       }
     };
 
+    // Replace any placeholders in the workflow
+    const finalWorkflow = replacePlaceholders(workflowTemplate);
+
     // Call n8n API
     console.log("Calling N8N API...");
     const n8nResponse = await fetch(`${n8nBaseUrl}/api/v1/workflows`, {
@@ -127,7 +273,7 @@ Deno.serve(async (req: Request) => {
         "Content-Type": "application/json",
         "X-N8N-API-KEY": n8nApiKey
       },
-      body: JSON.stringify(simpleWorkflow)
+      body: JSON.stringify(finalWorkflow)
     });
 
     // Log the response for debugging
@@ -161,29 +307,23 @@ Deno.serve(async (req: Request) => {
 
     console.log("Workflow created successfully:", n8nResult.id);
 
-    // Create Supabase client to store the workflow mapping
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    
-    if (supabaseUrl && supabaseServiceKey) {
-      try {
-        const supabase = createClient(supabaseUrl, supabaseServiceKey);
-        
-        await supabase
-          .from("n8n_workflows")
-          .insert({
-            user_id: userId,
-            n8n_workflow_id: n8nResult.id,
-            n8n_workflow_name: n8nResult.name,
-            webhook_path: webhookPath,
-            created_at: new Date().toISOString()
-          });
-        
-        console.log("Workflow mapping stored in Supabase");
-      } catch (dbError) {
-        console.error("Failed to store workflow mapping:", dbError);
-        // Continue even if database storage fails
-      }
+    // Store the workflow mapping in Supabase
+    try {
+      await supabase
+        .from("n8n_workflows")
+        .insert({
+          user_id: userId,
+          n8n_workflow_id: n8nResult.id,
+          n8n_workflow_name: n8nResult.name,
+          webhook_path: webhookPath,
+          instagram_account_id: instagramAccount.id,
+          created_at: new Date().toISOString()
+        });
+      
+      console.log("Workflow mapping stored in Supabase");
+    } catch (dbError) {
+      console.error("Failed to store workflow mapping:", dbError);
+      // Continue even if database storage fails
     }
 
     return new Response(JSON.stringify({
@@ -192,7 +332,11 @@ Deno.serve(async (req: Request) => {
       workflowName: n8nResult.name,
       webhookPath: webhookPath,
       webhookUrl: `${n8nBaseUrl}/webhook/${webhookPath}`,
-      message: "Workflow created successfully"
+      instagramAccount: {
+        id: instagramAccount.id,
+        username: instagramAccount.username
+      },
+      message: `Workflow created successfully with Instagram account @${instagramAccount.username}`
     }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
