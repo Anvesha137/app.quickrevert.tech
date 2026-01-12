@@ -1002,7 +1002,7 @@ export default function AutomationCreate() {
           };
           
           // Call the N8N API directly to create the workflow
-          const n8nResponse = await fetch('https://n8n.quickrevert.tech/api/v1/workflows', {
+          const n8nResponse = await fetch('https://khushi-n8n.g5ccll.easypanel.host/api/v1/workflows', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -1019,7 +1019,8 @@ export default function AutomationCreate() {
             // Log the failure but continue since the main automation was saved
             // In a production app, you might want to update a status field
             // or implement a retry mechanism
-            alert(`Warning: Automation saved but workflow creation failed: ${n8nResult.error || 'HTTP ' + n8nResponse.status}. This may affect automation functionality.`);
+            const errorMsg = n8nResult?.error || `HTTP ${n8nResponse?.status || 'Unknown'}`;
+            alert(`Warning: Automation saved but workflow creation failed: ${errorMsg}. This may affect automation functionality.`);
           } else {
             console.log('N8N workflow created successfully:', n8nResult);
                   
