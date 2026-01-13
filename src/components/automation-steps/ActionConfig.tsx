@@ -67,7 +67,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
     } else {
       newAction = {
         type: 'send_dm',
-        title: '',
+        title: 'Hi👋', // Default title since it's required
         imageUrl: '',
         subtitle: '',
         messageTemplate: '', // Keep for backward compatibility
@@ -135,8 +135,12 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
     if (field === 'action' && value === 'calendar') {
       newButtons[buttonIndex].url = 'calendar';
     }
-    // If action is changed to url, clear url if it was 'calendar'
-    if (field === 'action' && value === 'url' && newButtons[buttonIndex].url === 'calendar') {
+    // If action is changed to web_url, clear url if it was 'calendar'
+    if (field === 'action' && value === 'web_url' && newButtons[buttonIndex].url === 'calendar') {
+      newButtons[buttonIndex].url = '';
+    }
+    // If action is changed to postback, clear url
+    if (field === 'action' && value === 'postback') {
       newButtons[buttonIndex].url = '';
     }
     updateAction(actionIndex, {
@@ -200,9 +204,9 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
       return action.messageTemplate.trim().length > 0 && action.followButtonText.trim().length > 0;
     } else {
       const sendDmAction = action as SendDmAction;
-      // Check subtitle (preferred) or messageTemplate (backward compatibility)
-      const hasSubtitle = (sendDmAction.subtitle || sendDmAction.messageTemplate || '').trim().length > 0;
-      return hasSubtitle;
+      // Title is required
+      const hasTitle = (sendDmAction.title || '').trim().length > 0;
+      return hasTitle;
     }
   };
 
@@ -378,7 +382,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-900 mb-2">
-                      Title
+                      Title <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -406,7 +410,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-900 mb-2">
-                      Subtitle <span className="text-red-500">*</span>
+                      Subtitle
                     </label>
                     <textarea
                       value={(action as SendDmAction).subtitle || (action as SendDmAction).messageTemplate || ''}
@@ -418,7 +422,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                       rows={4}
                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                     />
-                    <p className="mt-1 text-xs text-gray-500">The main message text that appears below the title</p>
+                    <p className="mt-1 text-xs text-gray-500">The main message text that appears below the title (optional)</p>
                   </div>
                   
                   <div>

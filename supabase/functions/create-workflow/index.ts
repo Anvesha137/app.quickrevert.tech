@@ -447,9 +447,11 @@ Deno.serve(async (req: Request) => {
       }
       
       // Get user-configured values or use defaults
-      // Use subtitle (preferred) or messageTemplate (backward compatibility)
-      const subtitle = (sendDmAction as any)?.subtitle || sendDmAction?.messageTemplate || `Thank you for reaching out to ${brandName}!\nWe've received your enquiry and one of our team members will get back to you soon.\n\nIn the meantime, would you like to explore our automation solutions?\n\nThank you for choosing ${brandName}!`;
+      // Title is required, so use default if not provided
       const title = (sendDmAction as any)?.title || "Hi👋";
+      // Subtitle is optional - only use if user provided it
+      const subtitle = (sendDmAction as any)?.subtitle || sendDmAction?.messageTemplate || undefined;
+      // Image URL is optional
       const imageUrl = (sendDmAction as any)?.imageUrl || (sendDmAction as any)?.image_url || "https://i.ibb.co/N29QzF6Z/QR-Logo.png";
       
       // Build the element object dynamically based on what user provided
@@ -1098,9 +1100,11 @@ Deno.serve(async (req: Request) => {
           });
           
           // Get user-configured values or use defaults
-          // Use subtitle (preferred) or messageTemplate (backward compatibility)
-          const dmSubtitle = (sendDmAction as any)?.subtitle || sendDmAction.messageTemplate || `Thank you for reaching out to ${brandName}!\nWe've received your enquiry and one of our team members will get back to you soon.\n\nIn the meantime, would you like to explore our automation solutions?\n\nThank you for choosing ${brandName}!`;
+          // Title is required, so use default if not provided
           const dmTitle = (sendDmAction as any)?.title || "Hi👋";
+          // Subtitle is optional - only use if user provided it
+          const dmSubtitle = (sendDmAction as any)?.subtitle || sendDmAction.messageTemplate || undefined;
+          // Image URL is optional
           const dmImageUrl = (sendDmAction as any)?.imageUrl || (sendDmAction as any)?.image_url || "https://i.ibb.co/N29QzF6Z/QR-Logo.png";
           
           // Build the element object dynamically
