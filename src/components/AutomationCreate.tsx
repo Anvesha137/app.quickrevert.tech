@@ -99,7 +99,7 @@ export default function AutomationCreate() {
         trigger_type: formData.triggerType,
         trigger_config: formData.triggerConfig,
         actions: formData.actions,
-        status: 'active',
+        status: 'inactive',
       });
       
       // First, save the automation to Supabase
@@ -111,7 +111,7 @@ export default function AutomationCreate() {
           trigger_type: formData.triggerType,
           trigger_config: formData.triggerConfig,
           actions: formData.actions,
-          status: 'active',
+          status: 'inactive',
         }).select('id').single(); // Get the ID of the created automation
 
       if (automationError) {

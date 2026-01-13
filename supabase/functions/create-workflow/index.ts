@@ -647,8 +647,28 @@ Deno.serve(async (req: Request) => {
       };
       
       if (switchConnections.length > 0) {
+        // Group connections by output index for switch node
+        // n8n switch node connections: main: [[output0_connections], [output1_connections], ...]
+        const groupedConnections: any[] = [];
+        switchConnections.forEach((conn: any) => {
+          const outputIndex = conn.index || 0;
+          if (!groupedConnections[outputIndex]) {
+            groupedConnections[outputIndex] = [];
+          }
+          groupedConnections[outputIndex].push({
+            node: conn.node,
+            type: conn.type,
+            index: 0
+          });
+        });
+        // Build the connections array with all outputs (including empty ones)
+        const maxIndex = Math.max(...switchConnections.map((c: any) => c.index || 0), 0);
+        const mainConnections: any[] = [];
+        for (let i = 0; i <= maxIndex; i++) {
+          mainConnections.push(groupedConnections[i] || []);
+        }
         connections["Message Switch"] = {
-          main: [switchConnections]
+          main: mainConnections
         };
       }
       
@@ -879,7 +899,7 @@ Deno.serve(async (req: Request) => {
               id: replyNodeId,
               name: replyNodeName,
               type: "n8n-nodes-base.httpRequest",
-              typeVersion: 4,
+              typeVersion: 4.3,
               position: [nodeXPosition, replyYPosition],
               parameters: {
                 method: "POST",
@@ -935,7 +955,7 @@ Deno.serve(async (req: Request) => {
             id: "reply-comment-all",
             name: replyNodeName,
             type: "n8n-nodes-base.httpRequest",
-            typeVersion: 4,
+            typeVersion: 4.3,
             position: [nodeXPosition, replyYPosition],
             parameters: {
               method: "POST",
@@ -1177,8 +1197,28 @@ Deno.serve(async (req: Request) => {
       };
       
       if (switchConnections.length > 0) {
+        // Group connections by output index for switch node
+        // n8n switch node connections: main: [[output0_connections], [output1_connections], ...]
+        const groupedConnections: any[] = [];
+        switchConnections.forEach((conn: any) => {
+          const outputIndex = conn.index || 0;
+          if (!groupedConnections[outputIndex]) {
+            groupedConnections[outputIndex] = [];
+          }
+          groupedConnections[outputIndex].push({
+            node: conn.node,
+            type: conn.type,
+            index: 0
+          });
+        });
+        // Build the connections array with all outputs (including empty ones)
+        const maxIndex = Math.max(...switchConnections.map((c: any) => c.index || 0), 0);
+        const mainConnections: any[] = [];
+        for (let i = 0; i <= maxIndex; i++) {
+          mainConnections.push(groupedConnections[i] || []);
+        }
         connections["Switch3"] = {
-          main: [switchConnections]
+          main: mainConnections
         };
       }
       
