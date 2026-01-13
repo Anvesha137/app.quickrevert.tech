@@ -493,7 +493,7 @@ Deno.serve(async (req: Request) => {
                   },
                   {
                     name: "Authorization",
-                    value: "Bearer {{access_token}}"
+                    value: `Bearer ${instagramAccount.access_token}`
                   }
                 ]
               },
@@ -545,7 +545,7 @@ Deno.serve(async (req: Request) => {
                 },
                 {
                   name: "Authorization",
-                  value: "Bearer {{access_token}}"
+                  value: `Bearer ${instagramAccount.access_token}`
                 }
               ]
             },
@@ -602,7 +602,7 @@ Deno.serve(async (req: Request) => {
                     },
                     {
                       name: "Authorization",
-                      value: "Bearer {{access_token}}"
+                      value: `Bearer ${instagramAccount.access_token}`
                     }
                   ]
                 },
@@ -936,7 +936,7 @@ Deno.serve(async (req: Request) => {
                   },
                   {
                     name: "Authorization",
-                    value: "Bearer {{access_token}}"
+                    value: `Bearer ${instagramAccount.access_token}`
                   }
                 ]
               },
@@ -992,7 +992,7 @@ Deno.serve(async (req: Request) => {
                 },
                 {
                   name: "Authorization",
-                  value: "Bearer {{access_token}}"
+                  value: `Bearer ${instagramAccount.access_token}`
                 }
               ]
             },
@@ -1061,7 +1061,7 @@ Deno.serve(async (req: Request) => {
                   },
                   {
                     name: "Authorization",
-                    value: "Bearer {{access_token}}"
+                    value: `Bearer ${instagramAccount.access_token}`
                   }
                 ]
               },
@@ -1135,7 +1135,7 @@ Deno.serve(async (req: Request) => {
                   },
                   {
                     name: "Authorization",
-                    value: "Bearer {{access_token}}"
+                    value: `Bearer ${instagramAccount.access_token}`
                   }
                 ]
               },
