@@ -205,7 +205,7 @@ Deno.serve(async (req: Request) => {
           .replace(/\{\{instagramAccessToken\}\}/g, instagramAccount.access_token)
           .replace(/\{\{instagramCredentialId\}\}/g, instagramAccount.instagram_user_id)
           .replace(/\{\{instagramUsername\}\}/g, instagramAccount.username)
-          .replace(/\{\{calendarUrl\}\}/g, variables?.calendarUrl || 'https://calendar.app.google/QmsYv4Q4G5DNeham6')
+          .replace(/\{\{calendarUrl\}\}/g, variables?.calendarUrl || '')
           .replace(/\{\{brandName\}\}/g, variables?.brandName || 'QuickRevert');
       } else if (Array.isArray(obj)) {
         return obj.map(item => replacePlaceholders(item));
@@ -223,11 +223,15 @@ Deno.serve(async (req: Request) => {
     const buildDMWorkflow = () => {
       const triggerConfig = automationData?.trigger_config as { messageType?: 'all' | 'keywords'; keywords?: string[] } || {};
       const actions = automationData?.actions || [];
+      // For "Reply to Direct Message", it's a reply_to_comment action with title/imageUrl/subtitle
+      const replyToDmAction = actions.find((a: any) => a.type === 'reply_to_comment' && (a.title || a.imageUrl || a.subtitle));
       const sendDmAction = actions.find((a: any) => a.type === 'send_dm');
+      // Use reply_to_comment action if it has the new format, otherwise fall back to send_dm
+      const dmAction = replyToDmAction || sendDmAction;
       
       const messageType = triggerConfig.messageType || 'all';
       const keywords = triggerConfig.keywords || [];
-      const calendarUrl = variables?.calendarUrl || 'https://calendar.app.google/QmsYv4Q4G5DNeham6';
+      const calendarUrl = variables?.calendarUrl || '';
       const brandName = variables?.brandName || 'QuickRevert';
       
       const nodes: any[] = [];
@@ -365,8 +369,8 @@ Deno.serve(async (req: Request) => {
       }
       
       // Add postback handlers for buttons
-      if (sendDmAction?.actionButtons) {
-        sendDmAction.actionButtons.forEach((button: any, index: number) => {
+      if (dmAction?.actionButtons) {
+        dmAction.actionButtons.forEach((button: any, index: number) => {
           const buttonAction = button.action || (button.url ? 'url' : 'postback');
           
           if (buttonAction === 'postback' || !button.url) {
@@ -425,17 +429,27 @@ Deno.serve(async (req: Request) => {
       
       // Prepare buttons and message template from action if available
       const buttons: any[] = [];
-      if (sendDmAction?.actionButtons) {
-        sendDmAction.actionButtons.forEach((button: any) => {
-          const buttonAction = button.action || (button.url ? 'web_url' : 'postback');
-          
-          if (buttonAction === 'web_url' || buttonAction === 'calendar') {
-            buttons.push({
-              type: "web_url",
-              url: buttonAction === 'calendar' || button.url === 'calendar' ? calendarUrl : button.url,
-              title: button.text
-            });
-          } else if (buttonAction === 'postback' || !button.url) {
+      if (dmAction?.actionButtons) {
+        dmAction.actionButtons.forEach((button: any) => {
+          // For buttons: if URL exists, use web_url, otherwise use postback
+          if (button.url && button.url.trim() !== '') {
+            // If button.url is 'calendar', use calendarUrl if provided, otherwise skip
+            if (button.url === 'calendar') {
+              if (calendarUrl && calendarUrl.trim() !== '') {
+                buttons.push({
+                  type: "web_url",
+                  url: calendarUrl,
+                  title: button.text
+                });
+              }
+            } else {
+              buttons.push({
+                type: "web_url",
+                url: button.url,
+                title: button.text
+              });
+            }
+          } else {
             const payload = button.text.toUpperCase().replace(/\s+/g, '_');
             buttons.push({
               type: "postback",
@@ -448,18 +462,18 @@ Deno.serve(async (req: Request) => {
       
       // Get user-configured values or use defaults
       // Title is required, so use default if not provided
-      const title = (sendDmAction as any)?.title || "Hi👋";
+      const title = (dmAction as any)?.title || "Hi👋";
       // Subtitle is optional - only use if user provided it
-      const subtitle = (sendDmAction as any)?.subtitle || sendDmAction?.messageTemplate || undefined;
-      // Image URL is optional
-      const imageUrl = (sendDmAction as any)?.imageUrl || (sendDmAction as any)?.image_url || "https://i.ibb.co/N29QzF6Z/QR-Logo.png";
+      const subtitle = (dmAction as any)?.subtitle || (dmAction as any)?.messageTemplate || undefined;
+      // Image URL is optional - only include if provided
+      const imageUrl = (dmAction as any)?.imageUrl || (dmAction as any)?.image_url || undefined;
       
       // Build the element object dynamically based on what user provided
       const buildElement = () => {
         const element: any = {};
         if (title) element.title = title;
-        if (imageUrl) element.image_url = imageUrl;
-        if (subtitle) element.subtitle = subtitle;
+        if (imageUrl && imageUrl.trim() !== '') element.image_url = imageUrl;
+        if (subtitle && subtitle.trim() !== '') element.subtitle = subtitle;
         if (buttons.length > 0) element.buttons = buttons;
         return element;
       };
@@ -551,7 +565,7 @@ Deno.serve(async (req: Request) => {
             },
             sendBody: true,
             specifyBody: "json",
-            jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].messaging[0].sender.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          {\n            "title": "Hi👋",\n            "image_url": "https://i.ibb.co/N29QzF6Z/QR-Logo.png",\n            "subtitle": "${defaultMessage.replace(/\n/g, '\\n').replace(/"/g, '\\"')}",\n            "buttons": ${JSON.stringify(buttons)}\n          }\n        ]\n      }\n    }\n  }\n}\n`,
+            jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].messaging[0].sender.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          ${elementJson}\n        ]\n      }\n    }\n  }\n}\n`,
             options: {}
           },
           credentials: {
@@ -575,11 +589,10 @@ Deno.serve(async (req: Request) => {
       }
       
       // 6. Button handler nodes (for postbacks)
-      if (sendDmAction?.actionButtons) {
-        sendDmAction.actionButtons.forEach((button: any, index: number) => {
-          const buttonAction = button.action || (button.url ? 'url' : 'postback');
-          
-          if (buttonAction === 'postback' || !button.url) {
+      if (dmAction?.actionButtons) {
+        dmAction.actionButtons.forEach((button: any, index: number) => {
+          // Only create handler for buttons without URL (postback buttons)
+          if (!button.url || button.url.trim() === '') {
             const payload = button.text.toUpperCase().replace(/\s+/g, '_');
             
             const buttonHandlerNode = {
@@ -608,7 +621,7 @@ Deno.serve(async (req: Request) => {
                 },
                 sendBody: true,
                 specifyBody: "json",
-                jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].messaging[0].sender.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          {\n            "title": "Great choice\\nOur ${button.text} solution helps businesses reply instantly, qualify leads, and manage all customer conversations in one place.\\n\\nOne of our experts will contact you soon to guide you further.\\n\\nYou can also book a quick demo to see how it works📅",\n            "image_url": "https://i.ibb.co/N29QzF6Z/QR-Logo.png",\n            "subtitle": "Thank you for choosing ${brandName}!",\n            "buttons": [\n              {\n                "type": "web_url",\n                "url": "${calendarUrl}",\n                "title": "Book Demo"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}\n`,
+                jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].messaging[0].sender.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          {\n            "title": "Great choice\\nOur ${button.text} solution helps businesses reply instantly, qualify leads, and manage all customer conversations in one place.\\n\\nOne of our experts will contact you soon to guide you further.\\n\\nYou can also book a quick demo to see how it works📅",\n            "image_url": "https://i.ibb.co/N29QzF6Z/QR-Logo.png",\n            "subtitle": "Thank you for choosing ${brandName}!"${calendarUrl && calendarUrl.trim() !== '' ? `,\n            "buttons": [\n              {\n                "type": "web_url",\n                "url": "${calendarUrl}",\n                "title": "Book Demo"\n              }\n            ]` : ''}\n          }\n        ]\n      }\n    }\n  }\n}\n`,
                 options: {}
               },
               credentials: {
@@ -718,7 +731,7 @@ Deno.serve(async (req: Request) => {
       
       const commentsType = triggerConfig.commentsType || 'all';
       const keywords = triggerConfig.keywords || [];
-      const calendarUrl = variables?.calendarUrl || 'https://calendar.app.google/QmsYv4Q4G5DNeham6';
+      const calendarUrl = variables?.calendarUrl || '';
       const brandName = variables?.brandName || 'QuickRevert';
       
       const nodes: any[] = [];
@@ -899,11 +912,17 @@ Deno.serve(async (req: Request) => {
       if (replyToCommentAction?.actionButtons && replyToCommentAction.actionButtons.length > 0) {
         replyToCommentAction.actionButtons.forEach((button: any) => {
           if (button.url) {
-            replyButtons.push({
-              type: "web_url",
-              url: button.url === 'calendar' ? calendarUrl : button.url,
-              title: button.text
-            });
+            // If button.url is 'calendar', use calendarUrl if provided, otherwise use button.url
+            const buttonUrl = button.url === 'calendar' 
+              ? (calendarUrl && calendarUrl.trim() !== '' ? calendarUrl : button.url)
+              : button.url;
+            if (buttonUrl && buttonUrl.trim() !== '') {
+              replyButtons.push({
+                type: "web_url",
+                url: buttonUrl,
+                title: button.text
+              });
+            }
           }
         });
       }
@@ -1084,11 +1103,17 @@ Deno.serve(async (req: Request) => {
             const buttonAction = button.action || (button.url ? 'web_url' : 'postback');
             
             if (buttonAction === 'web_url' || buttonAction === 'calendar') {
-              buttons.push({
-                type: "web_url",
-                url: buttonAction === 'calendar' || button.url === 'calendar' ? calendarUrl : button.url,
-                title: button.text
-              });
+              // If calendar action, use calendarUrl if provided, otherwise skip
+              const buttonUrl = (buttonAction === 'calendar' || button.url === 'calendar')
+                ? (calendarUrl && calendarUrl.trim() !== '' ? calendarUrl : null)
+                : button.url;
+              if (buttonUrl && buttonUrl.trim() !== '') {
+                buttons.push({
+                  type: "web_url",
+                  url: buttonUrl,
+                  title: button.text
+                });
+              }
             } else if (buttonAction === 'postback' || !button.url) {
               const payload = button.text.toUpperCase().replace(/\s+/g, '_');
               buttons.push({

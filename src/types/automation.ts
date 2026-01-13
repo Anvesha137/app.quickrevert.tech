@@ -34,6 +34,10 @@ export interface ReplyToCommentAction {
   type: 'reply_to_comment';
   replyTemplates: string[];
   actionButtons?: ActionButton[];
+  // Fields for "Reply to Direct Message" (when triggerType === 'user_directed_messages')
+  title?: string;
+  imageUrl?: string;
+  subtitle?: string;
 }
 
 export interface AskToFollowAction {
