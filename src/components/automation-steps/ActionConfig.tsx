@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, X, Sparkles, UserPlus, Send, MessageSquare, Trash2 } from 'lucide-react';
+import { Plus, X, Sparkles, UserPlus, Send, MessageSquare, Trash2, ChevronDown } from 'lucide-react';
 import { TriggerType, Action, ActionType, ReplyToCommentAction, AskToFollowAction, SendDmAction } from '../../types/automation';
 
 interface ActionConfigProps {
@@ -124,10 +124,18 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
     });
   };
 
-  const updateActionButton = (actionIndex: number, buttonIndex: number, field: 'text' | 'url', value: string) => {
+  const updateActionButton = (actionIndex: number, buttonIndex: number, field: 'text' | 'url' | 'action', value: string) => {
     const action = actions[actionIndex] as SendDmAction;
     const newButtons = [...action.actionButtons];
     newButtons[buttonIndex] = { ...newButtons[buttonIndex], [field]: value };
+    // If action is changed to calendar, set url to 'calendar'
+    if (field === 'action' && value === 'calendar') {
+      newButtons[buttonIndex].url = 'calendar';
+    }
+    // If action is changed to url, clear url if it was 'calendar'
+    if (field === 'action' && value === 'url' && newButtons[buttonIndex].url === 'calendar') {
+      newButtons[buttonIndex].url = '';
+    }
     updateAction(actionIndex, {
       ...action,
       actionButtons: newButtons,
@@ -399,13 +407,37 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                                 placeholder="Button text"
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                               />
-                              <input
-                                type="url"
-                                value={button.url}
-                                onChange={(e) => updateActionButton(index, buttonIndex, 'url', e.target.value)}
-                                placeholder="Button URL (optional)"
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              />
+                              <div className="relative">
+                                <select
+                                  value={(button as any).action || (button.url === 'calendar' ? 'calendar' : button.url ? 'url' : 'postback')}
+                                  onChange={(e) => updateActionButton(index, buttonIndex, 'action', e.target.value)}
+                                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white pr-10"
+                                >
+                                  <option value="url">Open URL</option>
+                                  <option value="postback">Send Postback (Trigger Action)</option>
+                                  <option value="calendar">Book Calendar</option>
+                                </select>
+                                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                              </div>
+                              {((button as any).action === 'url' || (!(button as any).action && button.url && button.url !== 'calendar')) && (
+                                <input
+                                  type="url"
+                                  value={button.url === 'calendar' ? '' : (button.url || '')}
+                                  onChange={(e) => updateActionButton(index, buttonIndex, 'url', e.target.value)}
+                                  placeholder="Button URL"
+                                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                />
+                              )}
+                              {((button as any).action === 'calendar' || (!(button as any).action && button.url === 'calendar')) && (
+                                <p className="text-sm text-gray-600 bg-blue-50 p-2 rounded">
+                                  This button will open your calendar booking link
+                                </p>
+                              )}
+                              {((button as any).action === 'postback' || (!(button as any).action && !button.url)) && (
+                                <p className="text-sm text-gray-600 bg-blue-50 p-2 rounded">
+                                  This button will trigger a postback action that can be handled in the workflow
+                                </p>
+                              )}
                             </div>
                           </div>
                         ))}

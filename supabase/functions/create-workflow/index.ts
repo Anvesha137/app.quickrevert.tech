@@ -367,7 +367,9 @@ Deno.serve(async (req: Request) => {
       // Add postback handlers for buttons
       if (sendDmAction?.actionButtons) {
         sendDmAction.actionButtons.forEach((button: any, index: number) => {
-          if (!button.url) {
+          const buttonAction = button.action || (button.url ? 'url' : 'postback');
+          
+          if (buttonAction === 'postback' || !button.url) {
             // Button without URL = postback type
             const payload = button.text.toUpperCase().replace(/\s+/g, '_');
             switchRules.push({
@@ -416,21 +418,23 @@ Deno.serve(async (req: Request) => {
       };
       nodes.push(switchNode);
       
-      // 5. First message node (with buttons)
+      // 5. Create HTTP request nodes for each keyword
       nodeXPosition += 224;
-      let firstMessageY = 304;
+      let messageYPosition = 304;
       const switchConnections: any[] = [];
       
       if (sendDmAction) {
         const buttons: any[] = [];
         sendDmAction.actionButtons?.forEach((button: any) => {
-          if (button.url) {
+          const buttonAction = button.action || (button.url ? 'url' : 'postback');
+          
+          if (buttonAction === 'url' || buttonAction === 'calendar') {
             buttons.push({
               type: "web_url",
-              url: button.url === 'calendar' ? calendarUrl : button.url,
+              url: buttonAction === 'calendar' || button.url === 'calendar' ? calendarUrl : button.url,
               title: button.text
             });
-          } else {
+          } else if (buttonAction === 'postback' || !button.url) {
             const payload = button.text.toUpperCase().replace(/\s+/g, '_');
             buttons.push({
               type: "postback",
@@ -440,88 +444,19 @@ Deno.serve(async (req: Request) => {
           }
         });
         
-        const firstMessageNode = {
-          id: "send-first-message",
-          name: "Send First Message",
-          type: "n8n-nodes-base.httpRequest",
-          typeVersion: 4.3,
-          position: [nodeXPosition, firstMessageY],
-          parameters: {
-            method: "POST",
-            url: `=https://graph.instagram.com/v24.0/{{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages`,
-            authentication: "genericCredentialType",
-            genericAuthType: "httpHeaderAuth",
-            sendHeaders: true,
-            headerParameters: {
-              parameters: [
-                {
-                  name: "Content-Type",
-                  value: "application/json"
-                }
-              ]
-            },
-            sendBody: true,
-            specifyBody: "json",
-            jsonBody: JSON.stringify({
-              recipient: { id: "={{ $json.body.entry[0].messaging[0].sender.id }}" },
-              message: {
-                attachment: {
-                  type: "template",
-                  payload: {
-                    template_type: "generic",
-                    elements: [
-                      {
-                        title: `Hi👋`,
-                        image_url: "https://i.ibb.co/N29QzF6Z/QR-Logo.png",
-                        subtitle: sendDmAction.messageTemplate || `Thank you for reaching out to ${brandName}!\nWe've received your enquiry and one of our team members will get back to you soon.\n\nIn the meantime, would you like to explore our automation solutions?\n\nThank you for choosing ${brandName}!`,
-                        buttons: buttons
-                      }
-                    ]
-                  }
-                }
-              }
-            }),
-            options: {}
-          },
-          credentials: {
-            httpHeaderAuth: {
-              id: instagramAccount.instagram_user_id,
-              name: "Instagram Access Token"
-            }
-          }
-        };
-        nodes.push(firstMessageNode);
-        
-        // Add connection from switch to first message
-        const switchOutputKey = messageType === 'keywords' && keywords.length > 0 
-          ? keywords[0].toLowerCase() 
-          : messageType === 'all' 
-            ? 'all_messages' 
-            : 'default';
-        
-        const switchOutputIndex = switchRules.findIndex((r: any) => r.outputKey === switchOutputKey);
-        if (switchOutputIndex >= 0) {
-          switchConnections.push({
-            node: "Send First Message",
-            type: "main",
-            index: switchOutputIndex
-          });
-        }
-      }
-      
-      // 6. Button handler nodes (for postbacks)
-      if (sendDmAction?.actionButtons) {
-        sendDmAction.actionButtons.forEach((button: any, index: number) => {
-          if (!button.url) {
-            const payload = button.text.toUpperCase().replace(/\s+/g, '_');
-            firstMessageY += 192;
+        // Create HTTP request node for each keyword
+        if (messageType === 'keywords' && keywords.length > 0) {
+          keywords.forEach((keyword: string, index: number) => {
+            const keywordUpper = keyword.toUpperCase();
+            const keywordNodeId = `http-node-${keyword.toLowerCase().replace(/\s+/g, '-')}`;
+            const keywordNodeName = keywordUpper;
             
-            const buttonHandlerNode = {
-              id: `button-handler-${index}`,
-              name: `${button.text} Handler`,
+            const keywordNode = {
+              id: keywordNodeId,
+              name: keywordNodeName,
               type: "n8n-nodes-base.httpRequest",
               typeVersion: 4.3,
-              position: [nodeXPosition, firstMessageY],
+              position: [nodeXPosition, messageYPosition],
               parameters: {
                 method: "POST",
                 url: `=https://graph.instagram.com/v24.0/{{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages`,
@@ -533,36 +468,126 @@ Deno.serve(async (req: Request) => {
                     {
                       name: "Content-Type",
                       value: "application/json"
+                    },
+                    {
+                      name: "Authorization",
+                      value: "Bearer {{access_token}}"
                     }
                   ]
                 },
                 sendBody: true,
                 specifyBody: "json",
-                jsonBody: JSON.stringify({
-                  recipient: { id: "={{ $json.body.entry[0].messaging[0].sender.id }}" },
-                  message: {
-                    attachment: {
-                      type: "template",
-                      payload: {
-                        template_type: "generic",
-                        elements: [
-                          {
-                            title: `Great choice\nOur ${button.text} solution helps businesses reply instantly, qualify leads, and manage all customer conversations in one place.\n\nOne of our experts will contact you soon to guide you further.\n\nYou can also book a quick demo to see how it works📅`,
-                            image_url: "https://i.ibb.co/N29QzF6Z/QR-Logo.png",
-                            subtitle: `Thank you for choosing ${brandName}!`,
-                            buttons: [
-                              {
-                                type: "web_url",
-                                url: calendarUrl,
-                                title: "Book Demo"
-                              }
-                            ]
-                          }
-                        ]
-                      }
-                    }
+                jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].messaging[0].sender.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          {\n            "title": "Hi👋",\n            "image_url": "https://i.ibb.co/N29QzF6Z/QR-Logo.png",\n            "subtitle": "${(sendDmAction.messageTemplate || `Thank you for reaching out to ${brandName}!\\nWe've received your enquiry and one of our team members will get back to you soon.\\n\\nIn the meantime, would you like to explore our automation solutions?\\n\\nThank you for choosing ${brandName}!`).replace(/\n/g, '\\n').replace(/"/g, '\\"')}",\n            "buttons": ${JSON.stringify(buttons)}\n          }\n        ]\n      }\n    }\n  }\n}\n`,
+                options: {}
+              },
+              credentials: {
+                httpHeaderAuth: {
+                  id: instagramAccount.instagram_user_id,
+                  name: "Instagram Access Token"
+                }
+              }
+            };
+            nodes.push(keywordNode);
+            
+            // Add connection from switch to this keyword node
+            const switchOutputIndex = switchRules.findIndex((r: any) => r.outputKey === keyword.toLowerCase());
+            if (switchOutputIndex >= 0) {
+              switchConnections.push({
+                node: keywordNodeName,
+                type: "main",
+                index: switchOutputIndex
+              });
+            }
+            
+            messageYPosition += 192;
+          });
+        } else if (messageType === 'all') {
+          // Create single HTTP request node for "all messages"
+          const allMessagesNode = {
+            id: "send-first-message",
+            name: "Send First Message",
+            type: "n8n-nodes-base.httpRequest",
+            typeVersion: 4.3,
+            position: [nodeXPosition, messageYPosition],
+            parameters: {
+              method: "POST",
+              url: `=https://graph.instagram.com/v24.0/{{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages`,
+              authentication: "genericCredentialType",
+              genericAuthType: "httpHeaderAuth",
+              sendHeaders: true,
+              headerParameters: {
+                parameters: [
+                  {
+                    name: "Content-Type",
+                    value: "application/json"
+                  },
+                  {
+                    name: "Authorization",
+                    value: "Bearer {{access_token}}"
                   }
-                }),
+                ]
+              },
+              sendBody: true,
+              specifyBody: "json",
+              jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].messaging[0].sender.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          {\n            "title": "Hi👋",\n            "image_url": "https://i.ibb.co/N29QzF6Z/QR-Logo.png",\n            "subtitle": "${(sendDmAction.messageTemplate || `Thank you for reaching out to ${brandName}!\\nWe've received your enquiry and one of our team members will get back to you soon.\\n\\nIn the meantime, would you like to explore our automation solutions?\\n\\nThank you for choosing ${brandName}!`).replace(/\n/g, '\\n').replace(/"/g, '\\"')}",\n            "buttons": ${JSON.stringify(buttons)}\n          }\n        ]\n      }\n    }\n  }\n}\n`,
+              options: {}
+            },
+            credentials: {
+              httpHeaderAuth: {
+                id: instagramAccount.instagram_user_id,
+                name: "Instagram Access Token"
+              }
+            }
+          };
+          nodes.push(allMessagesNode);
+          
+          // Add connection from switch to all messages node
+          const switchOutputIndex = switchRules.findIndex((r: any) => r.outputKey === 'all_messages');
+          if (switchOutputIndex >= 0) {
+            switchConnections.push({
+              node: "Send First Message",
+              type: "main",
+              index: switchOutputIndex
+            });
+          }
+        }
+      }
+      
+      // 6. Button handler nodes (for postbacks)
+      if (sendDmAction?.actionButtons) {
+        sendDmAction.actionButtons.forEach((button: any, index: number) => {
+          const buttonAction = button.action || (button.url ? 'url' : 'postback');
+          
+          if (buttonAction === 'postback' || !button.url) {
+            const payload = button.text.toUpperCase().replace(/\s+/g, '_');
+            
+            const buttonHandlerNode = {
+              id: `button-handler-${index}`,
+              name: `${button.text} Handler`,
+              type: "n8n-nodes-base.httpRequest",
+              typeVersion: 4.3,
+              position: [nodeXPosition, messageYPosition],
+              parameters: {
+                method: "POST",
+                url: `=https://graph.instagram.com/v24.0/{{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages`,
+                authentication: "genericCredentialType",
+                genericAuthType: "httpHeaderAuth",
+                sendHeaders: true,
+                headerParameters: {
+                  parameters: [
+                    {
+                      name: "Content-Type",
+                      value: "application/json"
+                    },
+                    {
+                      name: "Authorization",
+                      value: "Bearer {{access_token}}"
+                    }
+                  ]
+                },
+                sendBody: true,
+                specifyBody: "json",
+                jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].messaging[0].sender.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          {\n            "title": "Great choice\\nOur ${button.text} solution helps businesses reply instantly, qualify leads, and manage all customer conversations in one place.\\n\\nOne of our experts will contact you soon to guide you further.\\n\\nYou can also book a quick demo to see how it works📅",\n            "image_url": "https://i.ibb.co/N29QzF6Z/QR-Logo.png",\n            "subtitle": "Thank you for choosing ${brandName}!",\n            "buttons": [\n              {\n                "type": "web_url",\n                "url": "${calendarUrl}",\n                "title": "Book Demo"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}\n`,
                 options: {}
               },
               credentials: {
@@ -583,6 +608,8 @@ Deno.serve(async (req: Request) => {
                 index: payloadIndex
               });
             }
+            
+            messageYPosition += 192;
           }
         });
       }
@@ -640,13 +667,553 @@ Deno.serve(async (req: Request) => {
       };
     };
 
+    // Build Post Comment workflow function
+    const buildPostCommentWorkflow = () => {
+      const triggerConfig = automationData?.trigger_config as { commentsType?: 'all' | 'keywords'; keywords?: string[] } || {};
+      const actions = automationData?.actions || [];
+      const replyToCommentAction = actions.find((a: any) => a.type === 'reply_to_comment');
+      const askToFollowAction = actions.find((a: any) => a.type === 'ask_to_follow');
+      const sendDmAction = actions.find((a: any) => a.type === 'send_dm');
+      
+      const commentsType = triggerConfig.commentsType || 'all';
+      const keywords = triggerConfig.keywords || [];
+      const calendarUrl = variables?.calendarUrl || 'https://calendar.app.google/QmsYv4Q4G5DNeham6';
+      const brandName = variables?.brandName || 'QuickRevert';
+      
+      const nodes: any[] = [];
+      const connections: any = {};
+      let nodeYPosition = 560;
+      let nodeXPosition = -1568;
+      
+      // 1. Webhook node
+      const webhookNode = {
+        id: "webhook-node",
+        name: "Webhook",
+        type: "n8n-nodes-base.webhook",
+        typeVersion: 2.1,
+        position: [nodeXPosition, nodeYPosition],
+        parameters: {
+          multipleMethods: true,
+          path: webhookPath,
+          responseMode: "responseNode",
+          options: {}
+        },
+        webhookId: webhookPath
+      };
+      nodes.push(webhookNode);
+      
+      // 2. Webhook verification (for Instagram webhook setup)
+      nodeXPosition += 224;
+      const verificationNode = {
+        id: "webhook-verification",
+        name: "If",
+        type: "n8n-nodes-base.if",
+        typeVersion: 2.2,
+        position: [nodeXPosition, 80],
+        parameters: {
+          conditions: {
+            options: {
+              caseSensitive: true,
+              leftValue: "",
+              typeValidation: "strict",
+              version: 2
+            },
+            conditions: [
+              {
+                id: "verify-mode",
+                leftValue: "={{ $json.query['hub.mode'] }}",
+                rightValue: "subscribe",
+                operator: {
+                  type: "string",
+                  operation: "equals",
+                  name: "filter.operator.equals"
+                }
+              },
+              {
+                id: "verify-token",
+                leftValue: "={{ $json.query['hub.verify_token'] }}",
+                rightValue: "={{ $json.query['hub.verify_token'] }}",
+                operator: {
+                  type: "string",
+                  operation: "equals",
+                  name: "filter.operator.equals"
+                }
+              }
+            ],
+            combinator: "and"
+          },
+          options: {}
+        }
+      };
+      nodes.push(verificationNode);
+      
+      // 3. Respond to webhook (for verification)
+      nodeXPosition += 224;
+      const respondNode = {
+        id: "respond-to-webhook",
+        name: "Respond to Webhook",
+        type: "n8n-nodes-base.respondToWebhook",
+        typeVersion: 1.4,
+        position: [nodeXPosition, 80],
+        parameters: {
+          respondWith: "text",
+          responseBody: "={{ $json.query['hub.challenge'] }}",
+          options: {}
+        }
+      };
+      nodes.push(respondNode);
+      
+      // 4. Comment Switch node
+      nodeXPosition = -1344;
+      const switchRules: any[] = [];
+      
+      if (commentsType === 'keywords' && keywords.length > 0) {
+        // Add rules for each keyword
+        keywords.forEach((keyword: string, index: number) => {
+          switchRules.push({
+            conditions: {
+              options: {
+                caseSensitive: false,
+                leftValue: "",
+                typeValidation: "strict",
+                version: 2
+              },
+              conditions: [
+                {
+                  id: `keyword-${index}`,
+                  leftValue: "={{ $json.body.entry[0].changes[0].value.text }}",
+                  rightValue: keyword,
+                  operator: {
+                    type: "string",
+                    operation: "equals"
+                  }
+                }
+              ],
+              combinator: "and"
+            },
+            renameOutput: true,
+            outputKey: keyword.toLowerCase()
+          });
+        });
+      } else if (commentsType === 'all') {
+        // For "all comments", match any comment
+        switchRules.push({
+          conditions: {
+            options: {
+              caseSensitive: false,
+              leftValue: "",
+              typeValidation: "strict",
+              version: 2
+            },
+            conditions: [
+              {
+                id: "all-comments",
+                leftValue: "={{ $json.body.entry[0].changes[0].value.text }}",
+                rightValue: "",
+                operator: {
+                  type: "string",
+                  operation: "notEmpty"
+                }
+              }
+            ],
+            combinator: "and"
+          },
+          renameOutput: true,
+          outputKey: "all_comments"
+        });
+      }
+      
+      const switchNode = {
+        id: "comment-switch",
+        name: "Switch3",
+        type: "n8n-nodes-base.switch",
+        typeVersion: 3.3,
+        position: [nodeXPosition, nodeYPosition - 304],
+        parameters: {
+          rules: {
+            values: switchRules
+          },
+          options: {
+            ignoreCase: true
+          }
+        }
+      };
+      nodes.push(switchNode);
+      
+      // 5. Create Reply to Comment nodes for each keyword
+      nodeXPosition += 224;
+      let replyYPosition = nodeYPosition - 304;
+      const switchConnections: any[] = [];
+      const actionChains: any = {}; // Track action chains for each keyword
+      const keywordYPositions: any = {}; // Track Y position for each keyword branch
+      
+      if (replyToCommentAction) {
+        // Get random reply template (we'll use first one, but n8n can randomize)
+        const replyTemplates = replyToCommentAction.replyTemplates || [];
+        const replyText = replyTemplates.length > 0 
+          ? replyTemplates[0] 
+          : `Thank you for your comment!`;
+        
+        // Build buttons for reply if any
+        const replyButtons: any[] = [];
+        if (replyToCommentAction.actionButtons && replyToCommentAction.actionButtons.length > 0) {
+          replyToCommentAction.actionButtons.forEach((button: any) => {
+            if (button.url) {
+              replyButtons.push({
+                type: "web_url",
+                url: button.url === 'calendar' ? calendarUrl : button.url,
+                title: button.text
+              });
+            }
+          });
+        }
+        
+        if (commentsType === 'keywords' && keywords.length > 0) {
+          keywords.forEach((keyword: string, index: number) => {
+            const keywordUpper = keyword.toUpperCase();
+            const keywordKey = keyword.toLowerCase();
+            const replyNodeId = `reply-comment-${keywordKey.replace(/\s+/g, '-')}`;
+            const replyNodeName = `Reply to comment${index + 1}`;
+            
+            const replyNode = {
+              id: replyNodeId,
+              name: replyNodeName,
+              type: "n8n-nodes-base.httpRequest",
+              typeVersion: 4,
+              position: [nodeXPosition, replyYPosition],
+              parameters: {
+                method: "POST",
+                url: `=https://graph.facebook.com/v24.0/{{ $json.body.entry[0].changes[0].value.id }}/replies`,
+                authentication: "genericCredentialType",
+                genericAuthType: "httpHeaderAuth",
+                sendHeaders: true,
+                headerParameters: {
+                  parameters: [
+                    {
+                      name: "Content-Type",
+                      value: "application/json"
+                    },
+                    {
+                      name: "Authorization",
+                      value: "Bearer {{access_token}}"
+                    }
+                  ]
+                },
+                sendBody: true,
+                specifyBody: "json",
+                jsonBody: `={\n  "message": "@{{ $json.body.entry[0].changes[0].value.from.username }} ${replyText.replace(/\n/g, '\\n').replace(/"/g, '\\"')}"\n}\n`,
+                options: {}
+              },
+              credentials: {
+                httpHeaderAuth: {
+                  id: instagramAccount.instagram_user_id,
+                  name: "Instagram Access Token"
+                }
+              }
+            };
+            nodes.push(replyNode);
+            
+            // Add connection from switch to this reply node
+            const switchOutputIndex = switchRules.findIndex((r: any) => r.outputKey === keyword.toLowerCase());
+            if (switchOutputIndex >= 0) {
+              switchConnections.push({
+                node: replyNodeName,
+                type: "main",
+                index: switchOutputIndex
+              });
+            }
+            
+            // Track the last node for this keyword to chain actions
+            actionChains[keywordKey] = replyNodeName;
+            keywordYPositions[keywordKey] = replyYPosition;
+            replyYPosition += 192;
+          });
+        } else if (commentsType === 'all') {
+          // Create single reply node for "all comments"
+          const replyNodeName = "Reply to comment1";
+          const replyNode = {
+            id: "reply-comment-all",
+            name: replyNodeName,
+            type: "n8n-nodes-base.httpRequest",
+            typeVersion: 4,
+            position: [nodeXPosition, replyYPosition],
+            parameters: {
+              method: "POST",
+              url: `=https://graph.facebook.com/v24.0/{{ $json.body.entry[0].changes[0].value.id }}/replies`,
+              authentication: "genericCredentialType",
+              genericAuthType: "httpHeaderAuth",
+              sendHeaders: true,
+              headerParameters: {
+                parameters: [
+                  {
+                    name: "Content-Type",
+                    value: "application/json"
+                  },
+                  {
+                    name: "Authorization",
+                    value: "Bearer {{access_token}}"
+                  }
+                ]
+              },
+              sendBody: true,
+              specifyBody: "json",
+              jsonBody: `={\n  "message": "@{{ $json.body.entry[0].changes[0].value.from.username }} ${replyText.replace(/\n/g, '\\n').replace(/"/g, '\\"')}"\n}\n`,
+              options: {}
+            },
+            credentials: {
+              httpHeaderAuth: {
+                id: instagramAccount.instagram_user_id,
+                name: "Instagram Access Token"
+              }
+            }
+          };
+          nodes.push(replyNode);
+          
+          // Add connection from switch to reply node
+          const switchOutputIndex = switchRules.findIndex((r: any) => r.outputKey === 'all_comments');
+          if (switchOutputIndex >= 0) {
+            switchConnections.push({
+              node: replyNodeName,
+              type: "main",
+              index: switchOutputIndex
+            });
+          }
+          
+          actionChains['all_comments'] = replyNodeName;
+          keywordYPositions['all_comments'] = replyYPosition;
+        }
+      }
+      
+      // 6. Chain additional actions (ask_to_follow, send_dm) after reply
+      const actionConnections: any = {};
+      
+      // Helper to add action node
+      const addActionNode = (actionType: 'ask_to_follow' | 'send_dm', actionData: any, previousNodeName: string, keywordKey: string) => {
+        let actionNode: any;
+        let actionNodeName: string = '';
+        const currentYPosition = keywordYPositions[keywordKey] || replyYPosition;
+        
+        if (actionType === 'ask_to_follow') {
+          actionNodeName = `please follow${keywords.length > 1 ? keywordKey.replace(/\s+/g, '') : '1'}`;
+          const buttons = [{
+            type: "postback",
+            title: actionData.followButtonText || "I'm Following ✅",
+            payload: "Following"
+          }];
+          
+          actionNode = {
+            id: `ask-follow-${keywordKey.replace(/\s+/g, '-')}`,
+            name: actionNodeName,
+            type: "n8n-nodes-base.httpRequest",
+            typeVersion: 4.3,
+            position: [nodeXPosition + 224, currentYPosition],
+            parameters: {
+              method: "POST",
+              url: `=https://graph.instagram.com/v24.0/{{ $json.body.entry[0].id }}/messages`,
+              authentication: "genericCredentialType",
+              genericAuthType: "httpHeaderAuth",
+              sendHeaders: true,
+              headerParameters: {
+                parameters: [
+                  {
+                    name: "Content-Type",
+                    value: "application/json"
+                  },
+                  {
+                    name: "Authorization",
+                    value: "Bearer {{access_token}}"
+                  }
+                ]
+              },
+              sendBody: true,
+              specifyBody: "json",
+              jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].changes[0].value.from.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          {\n            "title": "${(actionData.messageTemplate || `Cool 😎\\nBefore I share you the link, please hit that follow button`).replace(/\n/g, '\\n').replace(/"/g, '\\"')}",\n            "buttons": ${JSON.stringify(buttons)}\n          }\n        ]\n      }\n    }\n  }\n}\n`,
+              options: {}
+            },
+            credentials: {
+              httpHeaderAuth: {
+                id: instagramAccount.instagram_user_id,
+                name: "Instagram Access Token"
+              }
+            }
+          };
+        } else if (actionType === 'send_dm') {
+          actionNodeName = `send-dm-${keywordKey.replace(/\s+/g, '-')}`;
+          const buttons: any[] = [];
+          sendDmAction.actionButtons?.forEach((button: any) => {
+            const buttonAction = button.action || (button.url ? 'url' : 'postback');
+            
+            if (buttonAction === 'url' || buttonAction === 'calendar') {
+              buttons.push({
+                type: "web_url",
+                url: buttonAction === 'calendar' || button.url === 'calendar' ? calendarUrl : button.url,
+                title: button.text
+              });
+            } else if (buttonAction === 'postback' || !button.url) {
+              const payload = button.text.toUpperCase().replace(/\s+/g, '_');
+              buttons.push({
+                type: "postback",
+                title: button.text,
+                payload: payload
+              });
+            }
+          });
+          
+          actionNode = {
+            id: `send-dm-${keywordKey.replace(/\s+/g, '-')}`,
+            name: actionNodeName,
+            type: "n8n-nodes-base.httpRequest",
+            typeVersion: 4.3,
+            position: [nodeXPosition + 224, currentYPosition],
+            parameters: {
+              method: "POST",
+              url: `=https://graph.instagram.com/v24.0/{{ $json.body.entry[0].id }}/messages`,
+              authentication: "genericCredentialType",
+              genericAuthType: "httpHeaderAuth",
+              sendHeaders: true,
+              headerParameters: {
+                parameters: [
+                  {
+                    name: "Content-Type",
+                    value: "application/json"
+                  },
+                  {
+                    name: "Authorization",
+                    value: "Bearer {{access_token}}"
+                  }
+                ]
+              },
+              sendBody: true,
+              specifyBody: "json",
+              jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].changes[0].value.from.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          {\n            "title": "Hi👋",\n            "image_url": "https://i.ibb.co/N29QzF6Z/QR-Logo.png",\n            "subtitle": "${(sendDmAction.messageTemplate || `Thank you for reaching out to ${brandName}!\\nWe've received your enquiry and one of our team members will get back to you soon.\\n\\nIn the meantime, would you like to explore our automation solutions?\\n\\nThank you for choosing ${brandName}!`).replace(/\n/g, '\\n').replace(/"/g, '\\"')}",\n            "buttons": ${JSON.stringify(buttons)}\n          }\n        ]\n      }\n    }\n  }\n}\n`,
+              options: {}
+            },
+            credentials: {
+              httpHeaderAuth: {
+                id: instagramAccount.instagram_user_id,
+                name: "Instagram Access Token"
+              }
+            }
+          };
+        }
+        
+        if (actionNode && actionNodeName) {
+          nodes.push(actionNode);
+          
+          // Chain from previous node
+          if (!actionConnections[previousNodeName]) {
+            actionConnections[previousNodeName] = [];
+          }
+          actionConnections[previousNodeName].push({
+            node: actionNodeName,
+            type: "main",
+            index: 0
+          });
+          
+          // Update Y position for next action in this keyword branch
+          keywordYPositions[keywordKey] = currentYPosition + 192;
+          return actionNodeName;
+        }
+        return previousNodeName;
+      };
+      
+      // Add ask_to_follow and send_dm actions after reply nodes
+      if (commentsType === 'keywords' && keywords.length > 0) {
+        keywords.forEach((keyword: string) => {
+          const keywordKey = keyword.toLowerCase();
+          let lastNode = actionChains[keywordKey];
+          
+          if (askToFollowAction && lastNode) {
+            lastNode = addActionNode('ask_to_follow', askToFollowAction, lastNode, keywordKey);
+          }
+          
+          if (sendDmAction && lastNode) {
+            lastNode = addActionNode('send_dm', sendDmAction, lastNode, keywordKey);
+          }
+        });
+      } else if (commentsType === 'all') {
+        let lastNode = actionChains['all_comments'];
+        const keywordKey = 'all_comments';
+        
+        if (askToFollowAction && lastNode) {
+          lastNode = addActionNode('ask_to_follow', askToFollowAction, lastNode, keywordKey);
+        }
+        
+        if (sendDmAction && lastNode) {
+          lastNode = addActionNode('send_dm', sendDmAction, lastNode, keywordKey);
+        }
+      }
+      
+      // Set up connections
+      connections["Webhook"] = {
+        main: [
+          [
+            {
+              node: "If",
+              type: "main",
+              index: 0
+            }
+          ],
+          [
+            {
+              node: "Switch3",
+              type: "main",
+              index: 0
+            }
+          ]
+        ]
+      };
+      
+      connections["If"] = {
+        main: [
+          [
+            {
+              node: "Respond to Webhook",
+              type: "main",
+              index: 0
+            }
+          ]
+        ]
+      };
+      
+      if (switchConnections.length > 0) {
+        connections["Switch3"] = {
+          main: [switchConnections]
+        };
+      }
+      
+      // Add action chain connections
+      Object.keys(actionConnections).forEach((nodeName) => {
+        connections[nodeName] = {
+          main: [actionConnections[nodeName]]
+        };
+      });
+      
+      return {
+        name: finalWorkflowName,
+        nodes: nodes,
+        connections: connections,
+        settings: {
+          saveExecutionProgress: true,
+          saveManualExecutions: true,
+          saveDataErrorExecution: "all",
+          saveDataSuccessExecution: "all",
+          executionTimeout: 3600,
+          timezone: "Asia/Kolkata"
+        }
+      };
+    };
+
     // Build workflow based on template and automation type
     let workflowTemplate: any;
     
-    // If automation data exists and trigger type is user_directed_messages, build DM workflow
+    // If automation data exists, build appropriate workflow
     if (automationData && automationData.trigger_type === 'user_directed_messages') {
       console.log("Building DM workflow for user_directed_messages");
       workflowTemplate = buildDMWorkflow();
+    } else if (automationData && automationData.trigger_type === 'post_comment') {
+      console.log("Building Post Comment workflow");
+      workflowTemplate = buildPostCommentWorkflow();
     } else {
       // Default workflow template (existing code)
       console.log("Building default workflow template");
