@@ -67,7 +67,10 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
     } else {
       newAction = {
         type: 'send_dm',
-        messageTemplate: '',
+        title: '',
+        imageUrl: '',
+        subtitle: '',
+        messageTemplate: '', // Keep for backward compatibility
         actionButtons: [],
       } as SendDmAction;
     }
@@ -196,7 +199,10 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
     } else if (action.type === 'ask_to_follow') {
       return action.messageTemplate.trim().length > 0 && action.followButtonText.trim().length > 0;
     } else {
-      return action.messageTemplate.trim().length > 0;
+      const sendDmAction = action as SendDmAction;
+      // Check subtitle (preferred) or messageTemplate (backward compatibility)
+      const hasSubtitle = (sendDmAction.subtitle || sendDmAction.messageTemplate || '').trim().length > 0;
+      return hasSubtitle;
     }
   };
 
@@ -372,16 +378,49 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-900 mb-2">
-                      Message Template <span className="text-red-500">*</span>
+                      Title
+                    </label>
+                    <input
+                      type="text"
+                      value={(action as SendDmAction).title || ''}
+                      onChange={(e) => updateAction(index, { ...action, title: e.target.value } as SendDmAction)}
+                      placeholder="Hi👋"
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">The title that appears at the top of the message card</p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900 mb-2">
+                      Image URL
+                    </label>
+                    <input
+                      type="url"
+                      value={(action as SendDmAction).imageUrl || ''}
+                      onChange={(e) => updateAction(index, { ...action, imageUrl: e.target.value } as SendDmAction)}
+                      placeholder="https://i.ibb.co/N29QzF6Z/QR-Logo.png"
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">URL of the image to display in the message card</p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900 mb-2">
+                      Subtitle <span className="text-red-500">*</span>
                     </label>
                     <textarea
-                      value={(action as SendDmAction).messageTemplate}
-                      onChange={(e) => updateAction(index, { ...action, messageTemplate: e.target.value } as SendDmAction)}
-                      placeholder="Hey 👋 glad you reached out! Check this out: [your link or offer here]"
-                      rows={3}
+                      value={(action as SendDmAction).subtitle || (action as SendDmAction).messageTemplate || ''}
+                      onChange={(e) => {
+                        const updatedAction = { ...action, subtitle: e.target.value, messageTemplate: e.target.value } as SendDmAction;
+                        updateAction(index, updatedAction);
+                      }}
+                      placeholder="Thank you for reaching out! We've received your enquiry and one of our team members will get back to you soon."
+                      rows={4}
                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                     />
+                    <p className="mt-1 text-xs text-gray-500">The main message text that appears below the title</p>
                   </div>
+                  
                   <div>
                     <label className="block text-sm font-medium text-gray-900 mb-2">
                       Action Buttons ({(action as SendDmAction).actionButtons.length}/3)
@@ -389,7 +428,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                     {(action as SendDmAction).actionButtons.length > 0 && (
                       <div className="space-y-3 mb-3">
                         {(action as SendDmAction).actionButtons.map((button, buttonIndex) => (
-                          <div key={button.id} className="p-4 bg-gray-50 rounded-lg">
+                          <div key={button.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                             <div className="flex items-center justify-between mb-3">
                               <span className="text-sm font-medium text-gray-700">Button {buttonIndex + 1}</span>
                               <button
@@ -399,7 +438,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                                 <X size={18} />
                               </button>
                             </div>
-                            <div className="space-y-2">
+                            <div className="space-y-3">
                               <input
                                 type="text"
                                 value={button.text}
@@ -409,33 +448,33 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                               />
                               <div className="relative">
                                 <select
-                                  value={(button as any).action || (button.url === 'calendar' ? 'calendar' : button.url ? 'url' : 'postback')}
+                                  value={(button as any).action || (button.url ? 'web_url' : 'postback')}
                                   onChange={(e) => updateActionButton(index, buttonIndex, 'action', e.target.value)}
                                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white pr-10"
                                 >
-                                  <option value="url">Open URL</option>
-                                  <option value="postback">Send Postback (Trigger Action)</option>
+                                  <option value="postback">Reply (Postback)</option>
+                                  <option value="web_url">Web URL</option>
                                   <option value="calendar">Book Calendar</option>
                                 </select>
                                 <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
                               </div>
-                              {((button as any).action === 'url' || (!(button as any).action && button.url && button.url !== 'calendar')) && (
+                              {((button as any).action === 'web_url' || (!(button as any).action && button.url && button.url !== 'calendar')) && (
                                 <input
                                   type="url"
                                   value={button.url === 'calendar' ? '' : (button.url || '')}
                                   onChange={(e) => updateActionButton(index, buttonIndex, 'url', e.target.value)}
-                                  placeholder="Button URL"
+                                  placeholder="https://example.com"
                                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 />
                               )}
                               {((button as any).action === 'calendar' || (!(button as any).action && button.url === 'calendar')) && (
-                                <p className="text-sm text-gray-600 bg-blue-50 p-2 rounded">
-                                  This button will open your calendar booking link
+                                <p className="text-sm text-gray-600 bg-blue-50 p-2 rounded border border-blue-100">
+                                  📅 This button will open your calendar booking link
                                 </p>
                               )}
                               {((button as any).action === 'postback' || (!(button as any).action && !button.url)) && (
-                                <p className="text-sm text-gray-600 bg-blue-50 p-2 rounded">
-                                  This button will trigger a postback action that can be handled in the workflow
+                                <p className="text-sm text-gray-600 bg-blue-50 p-2 rounded border border-blue-100">
+                                  💬 This button will send a postback that triggers a reply action in the workflow
                                 </p>
                               )}
                             </div>
@@ -446,7 +485,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                     {(action as SendDmAction).actionButtons.length < 3 && (
                       <button
                         onClick={() => addActionButton(index)}
-                        className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                        className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 transition-colors"
                       >
                         <Sparkles size={16} />
                         Add Action Button

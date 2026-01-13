@@ -427,9 +427,9 @@ Deno.serve(async (req: Request) => {
       const buttons: any[] = [];
       if (sendDmAction?.actionButtons) {
         sendDmAction.actionButtons.forEach((button: any) => {
-          const buttonAction = button.action || (button.url ? 'url' : 'postback');
+          const buttonAction = button.action || (button.url ? 'web_url' : 'postback');
           
-          if (buttonAction === 'url' || buttonAction === 'calendar') {
+          if (buttonAction === 'web_url' || buttonAction === 'calendar') {
             buttons.push({
               type: "web_url",
               url: buttonAction === 'calendar' || button.url === 'calendar' ? calendarUrl : button.url,
@@ -447,7 +447,8 @@ Deno.serve(async (req: Request) => {
       }
       
       // Get user-configured values or use defaults
-      const messageTemplate = sendDmAction?.messageTemplate || `Thank you for reaching out to ${brandName}!\nWe've received your enquiry and one of our team members will get back to you soon.\n\nIn the meantime, would you like to explore our automation solutions?\n\nThank you for choosing ${brandName}!`;
+      // Use subtitle (preferred) or messageTemplate (backward compatibility)
+      const subtitle = (sendDmAction as any)?.subtitle || sendDmAction?.messageTemplate || `Thank you for reaching out to ${brandName}!\nWe've received your enquiry and one of our team members will get back to you soon.\n\nIn the meantime, would you like to explore our automation solutions?\n\nThank you for choosing ${brandName}!`;
       const title = (sendDmAction as any)?.title || "Hi👋";
       const imageUrl = (sendDmAction as any)?.imageUrl || (sendDmAction as any)?.image_url || "https://i.ibb.co/N29QzF6Z/QR-Logo.png";
       
@@ -456,7 +457,7 @@ Deno.serve(async (req: Request) => {
         const element: any = {};
         if (title) element.title = title;
         if (imageUrl) element.image_url = imageUrl;
-        if (messageTemplate) element.subtitle = messageTemplate;
+        if (subtitle) element.subtitle = subtitle;
         if (buttons.length > 0) element.buttons = buttons;
         return element;
       };
@@ -1078,9 +1079,9 @@ Deno.serve(async (req: Request) => {
           actionNodeName = `send-dm-${keywordKey.replace(/\s+/g, '-')}`;
           const buttons: any[] = [];
           sendDmAction.actionButtons?.forEach((button: any) => {
-            const buttonAction = button.action || (button.url ? 'url' : 'postback');
+            const buttonAction = button.action || (button.url ? 'web_url' : 'postback');
             
-            if (buttonAction === 'url' || buttonAction === 'calendar') {
+            if (buttonAction === 'web_url' || buttonAction === 'calendar') {
               buttons.push({
                 type: "web_url",
                 url: buttonAction === 'calendar' || button.url === 'calendar' ? calendarUrl : button.url,
@@ -1097,7 +1098,8 @@ Deno.serve(async (req: Request) => {
           });
           
           // Get user-configured values or use defaults
-          const dmMessageTemplate = sendDmAction.messageTemplate || `Thank you for reaching out to ${brandName}!\nWe've received your enquiry and one of our team members will get back to you soon.\n\nIn the meantime, would you like to explore our automation solutions?\n\nThank you for choosing ${brandName}!`;
+          // Use subtitle (preferred) or messageTemplate (backward compatibility)
+          const dmSubtitle = (sendDmAction as any)?.subtitle || sendDmAction.messageTemplate || `Thank you for reaching out to ${brandName}!\nWe've received your enquiry and one of our team members will get back to you soon.\n\nIn the meantime, would you like to explore our automation solutions?\n\nThank you for choosing ${brandName}!`;
           const dmTitle = (sendDmAction as any)?.title || "Hi👋";
           const dmImageUrl = (sendDmAction as any)?.imageUrl || (sendDmAction as any)?.image_url || "https://i.ibb.co/N29QzF6Z/QR-Logo.png";
           
@@ -1105,7 +1107,7 @@ Deno.serve(async (req: Request) => {
           const dmElement: any = {};
           if (dmTitle) dmElement.title = dmTitle;
           if (dmImageUrl) dmElement.image_url = dmImageUrl;
-          if (dmMessageTemplate) dmElement.subtitle = dmMessageTemplate;
+          if (dmSubtitle) dmElement.subtitle = dmSubtitle;
           if (buttons.length > 0) dmElement.buttons = buttons;
           const dmElementJson = JSON.stringify(dmElement);
           

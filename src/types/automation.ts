@@ -44,7 +44,10 @@ export interface AskToFollowAction {
 
 export interface SendDmAction {
   type: 'send_dm';
-  messageTemplate: string;
+  title?: string;
+  imageUrl?: string;
+  subtitle?: string; // Also keep messageTemplate for backward compatibility
+  messageTemplate?: string; // Keep for backward compatibility, but subtitle takes precedence
   actionButtons: ActionButton[];
 }
 
