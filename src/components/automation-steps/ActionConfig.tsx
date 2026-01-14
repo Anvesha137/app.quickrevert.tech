@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Plus, X, Sparkles, UserPlus, Send, MessageSquare, Trash2, ChevronDown } from 'lucide-react';
-import { TriggerType, Action, ActionType, ReplyToCommentAction, AskToFollowAction, SendDmAction } from '../../types/automation';
+import { Plus, X, Sparkles, Send, MessageSquare, Trash2, ChevronDown } from 'lucide-react';
+import { TriggerType, Action, ActionType, ReplyToCommentAction, SendDmAction } from '../../types/automation';
 
 interface ActionConfigProps {
   triggerType: TriggerType;
@@ -24,7 +24,6 @@ const getTriggerName = (type: TriggerType): string => {
 
 const getAvailableActions = (triggerType: TriggerType): { type: ActionType; name: string; icon: any; description: string }[] => {
   const baseActions = [
-    { type: 'ask_to_follow' as ActionType, name: 'Ask To Follow', icon: UserPlus, description: 'Encourage users to follow your account' },
     { type: 'send_dm' as ActionType, name: 'Send DM', icon: Send, description: 'Send a direct message to the user' },
   ];
 
@@ -71,12 +70,6 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
           actionButtons: [],
         } as ReplyToCommentAction;
       }
-    } else if (actionType === 'ask_to_follow') {
-      newAction = {
-        type: 'ask_to_follow',
-        messageTemplate: '',
-        followButtonText: '✅ I am following',
-      } as AskToFollowAction;
     } else {
       newAction = {
         type: 'send_dm',
@@ -203,8 +196,6 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
   const getActionName = (action: Action): string => {
     if (action.type === 'reply_to_comment') {
       return triggerType === 'user_directed_messages' ? 'Reply to Direct Message' : 'Reply To Comment';
-    } else if (action.type === 'ask_to_follow') {
-      return 'Ask To Follow';
     } else {
       return 'Send DM';
     }
@@ -218,8 +209,6 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
       }
       // For regular comment replies, require at least one reply template
       return action.replyTemplates.some(t => t.trim().length > 0);
-    } else if (action.type === 'ask_to_follow') {
-      return action.messageTemplate.trim().length > 0 && action.followButtonText.trim().length > 0;
     } else {
       const sendDmAction = action as SendDmAction;
       // Title is required
@@ -470,38 +459,6 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                       </div>
                     </>
                   )}
-                </div>
-              )}
-
-              {action.type === 'ask_to_follow' && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-900 mb-2">
-                      Message Template <span className="text-red-500">*</span>
-                    </label>
-                    <textarea
-                      value={(action as AskToFollowAction).messageTemplate}
-                      onChange={(e) => updateAction(index, { ...action, messageTemplate: e.target.value } as AskToFollowAction)}
-                      placeholder="Follow me for exciting offers and exclusive content! 🚀"
-                      rows={3}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-900 mb-2">
-                      Follow Button Text <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={(action as AskToFollowAction).followButtonText}
-                      onChange={(e) => updateAction(index, { ...action, followButtonText: e.target.value } as AskToFollowAction)}
-                      placeholder="✅ I am following"
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
-                    This action encourages users to follow your account.
-                  </p>
                 </div>
               )}
 

@@ -726,7 +726,6 @@ Deno.serve(async (req: Request) => {
       const triggerConfig = automationData?.trigger_config as { commentsType?: 'all' | 'keywords'; keywords?: string[] } || {};
       const actions = automationData?.actions || [];
       const replyToCommentAction = actions.find((a: any) => a.type === 'reply_to_comment');
-      const askToFollowAction = actions.find((a: any) => a.type === 'ask_to_follow');
       const sendDmAction = actions.find((a: any) => a.type === 'send_dm');
       
       const commentsType = triggerConfig.commentsType || 'all';
@@ -1043,140 +1042,90 @@ Deno.serve(async (req: Request) => {
         keywordYPositions['all_comments'] = replyYPosition;
       }
       
-      // 6. Chain additional actions (ask_to_follow, send_dm) after reply
+      // 6. Chain additional send_dm actions after reply
       const actionConnections: any = {};
       
-      // Helper to add action node
-      const addActionNode = (actionType: 'ask_to_follow' | 'send_dm', actionData: any, previousNodeName: string, keywordKey: string) => {
+      // Helper to add send_dm action node
+      const addSendDmActionNode = (actionData: any, previousNodeName: string, keywordKey: string) => {
         let actionNode: any;
         let actionNodeName: string = '';
         const currentYPosition = keywordYPositions[keywordKey] || replyYPosition;
-        
-        if (actionType === 'ask_to_follow') {
-          actionNodeName = `please follow${keywords.length > 1 ? keywordKey.replace(/\s+/g, '') : '1'}`;
-          const buttons = [{
-            type: "postback",
-            title: actionData.followButtonText || "I'm Following ✅",
-            payload: "Following"
-          }];
+
+        actionNodeName = `send-dm-${keywordKey.replace(/\s+/g, '-')}`;
+        const buttons: any[] = [];
+        actionData?.actionButtons?.forEach((button: any) => {
+          const buttonAction = button.action || (button.url ? 'web_url' : 'postback');
           
-          actionNode = {
-            id: `ask-follow-${keywordKey.replace(/\s+/g, '-')}`,
-            name: actionNodeName,
-            type: "n8n-nodes-base.httpRequest",
-            typeVersion: 4.3,
-            position: [nodeXPosition + 224, currentYPosition],
-            parameters: {
-              method: "POST",
-              url: `=https://graph.instagram.com/v24.0/{{ $json.body.entry[0].id }}/messages`,
-              authentication: "genericCredentialType",
-              genericAuthType: "httpHeaderAuth",
-              sendHeaders: true,
-              headerParameters: {
-                parameters: [
-                  {
-                    name: "Content-Type",
-                    value: "application/json"
-                  },
-                  {
-                    name: "Authorization",
-                    value: `Bearer ${instagramAccount.access_token}`
-                  }
-                ]
-              },
-              sendBody: true,
-              specifyBody: "json",
-              jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].changes[0].value.from.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          {\n            "title": "${(actionData.messageTemplate || `Cool 😎\\nBefore I share you the link, please hit that follow button`).replace(/\n/g, '\\n').replace(/"/g, '\\"')}",\n            "buttons": ${JSON.stringify(buttons)}\n          }\n        ]\n      }\n    }\n  }\n}\n`,
-              options: {}
-            },
-            credentials: {
-              httpHeaderAuth: {
-                id: instagramAccount.instagram_user_id,
-                name: "Instagram Access Token"
-              }
-            }
-          };
-        } else if (actionType === 'send_dm') {
-          actionNodeName = `send-dm-${keywordKey.replace(/\s+/g, '-')}`;
-          const buttons: any[] = [];
-          sendDmAction.actionButtons?.forEach((button: any) => {
-            const buttonAction = button.action || (button.url ? 'web_url' : 'postback');
-            
-            if (buttonAction === 'web_url' || buttonAction === 'calendar') {
-              // If calendar action, use calendarUrl if provided, otherwise skip
-              const buttonUrl = (buttonAction === 'calendar' || button.url === 'calendar')
-                ? (calendarUrl && calendarUrl.trim() !== '' ? calendarUrl : null)
-                : button.url;
-              if (buttonUrl && buttonUrl.trim() !== '') {
-                buttons.push({
-                  type: "web_url",
-                  url: buttonUrl,
-                  title: button.text
-                });
-              }
-            } else if (buttonAction === 'postback' || !button.url) {
-              const payload = button.text.toUpperCase().replace(/\s+/g, '_');
+          if (buttonAction === 'web_url' || buttonAction === 'calendar') {
+            const buttonUrl = (buttonAction === 'calendar' || button.url === 'calendar')
+              ? (calendarUrl && calendarUrl.trim() !== '' ? calendarUrl : null)
+              : button.url;
+            if (buttonUrl && buttonUrl.trim() !== '') {
               buttons.push({
-                type: "postback",
-                title: button.text,
-                payload: payload
+                type: "web_url",
+                url: buttonUrl,
+                title: button.text
               });
             }
-          });
-          
-          // Get user-configured values or use defaults
-          // Title is required, so use default if not provided
-          const dmTitle = (sendDmAction as any)?.title || "Hi👋";
-          // Subtitle is optional - only use if user provided it
-          const dmSubtitle = (sendDmAction as any)?.subtitle || sendDmAction.messageTemplate || undefined;
-          // Image URL is optional
-          const dmImageUrl = (sendDmAction as any)?.imageUrl || (sendDmAction as any)?.image_url || "https://i.ibb.co/N29QzF6Z/QR-Logo.png";
-          
-          // Build the element object dynamically
-          const dmElement: any = {};
-          if (dmTitle) dmElement.title = dmTitle;
-          if (dmImageUrl) dmElement.image_url = dmImageUrl;
-          if (dmSubtitle) dmElement.subtitle = dmSubtitle;
-          if (buttons.length > 0) dmElement.buttons = buttons;
-          const dmElementJson = JSON.stringify(dmElement);
-          
-          actionNode = {
-            id: `send-dm-${keywordKey.replace(/\s+/g, '-')}`,
-            name: actionNodeName,
-            type: "n8n-nodes-base.httpRequest",
-            typeVersion: 4.3,
-            position: [nodeXPosition + 224, currentYPosition],
-            parameters: {
-              method: "POST",
-              url: `=https://graph.instagram.com/v24.0/{{ $json.body.entry[0].id }}/messages`,
-              authentication: "genericCredentialType",
-              genericAuthType: "httpHeaderAuth",
-              sendHeaders: true,
-              headerParameters: {
-                parameters: [
-                  {
-                    name: "Content-Type",
-                    value: "application/json"
-                  },
-                  {
-                    name: "Authorization",
-                    value: `Bearer ${instagramAccount.access_token}`
-                  }
-                ]
-              },
-              sendBody: true,
-              specifyBody: "json",
-              jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].changes[0].value.from.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          ${dmElementJson}\n        ]\n      }\n    }\n  }\n}\n`,
-              options: {}
+          } else if (buttonAction === 'postback' || !button.url) {
+            const payload = button.text.toUpperCase().replace(/\s+/g, '_');
+            buttons.push({
+              type: "postback",
+              title: button.text,
+              payload: payload
+            });
+          }
+        });
+        
+        // Get user-configured values or use defaults
+        const dmTitle = (actionData as any)?.title || "Hi👋";
+        const dmSubtitle = (actionData as any)?.subtitle || actionData?.messageTemplate || undefined;
+        const dmImageUrl = (actionData as any)?.imageUrl || (actionData as any)?.image_url || "https://i.ibb.co/N29QzF6Z/QR-Logo.png";
+        
+        // Build the element object dynamically
+        const dmElement: any = {};
+        if (dmTitle) dmElement.title = dmTitle;
+        if (dmImageUrl) dmElement.image_url = dmImageUrl;
+        if (dmSubtitle) dmElement.subtitle = dmSubtitle;
+        if (buttons.length > 0) dmElement.buttons = buttons;
+        const dmElementJson = JSON.stringify(dmElement);
+        
+        actionNode = {
+          id: `send-dm-${keywordKey.replace(/\s+/g, '-')}`,
+          name: actionNodeName,
+          type: "n8n-nodes-base.httpRequest",
+          typeVersion: 4.3,
+          position: [nodeXPosition + 224, currentYPosition],
+          parameters: {
+            method: "POST",
+            url: `=https://graph.instagram.com/v24.0/{{ $json.body.entry[0].id }}/messages`,
+            authentication: "genericCredentialType",
+            genericAuthType: "httpHeaderAuth",
+            sendHeaders: true,
+            headerParameters: {
+              parameters: [
+                {
+                  name: "Content-Type",
+                  value: "application/json"
+                },
+                {
+                  name: "Authorization",
+                  value: `Bearer ${instagramAccount.access_token}`
+                }
+              ]
             },
-            credentials: {
-              httpHeaderAuth: {
-                id: instagramAccount.instagram_user_id,
-                name: "Instagram Access Token"
-              }
+            sendBody: true,
+            specifyBody: "json",
+            jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].changes[0].value.from.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          ${dmElementJson}\n        ]\n      }\n    }\n  }\n}\n`,
+            options: {}
+          },
+          credentials: {
+            httpHeaderAuth: {
+              id: instagramAccount.instagram_user_id,
+              name: "Instagram Access Token"
             }
-          };
-        }
+          }
+        };
         
         if (actionNode && actionNodeName) {
           nodes.push(actionNode);
@@ -1198,30 +1147,22 @@ Deno.serve(async (req: Request) => {
         return previousNodeName;
       };
       
-      // Add ask_to_follow and send_dm actions after reply nodes
+      // Add send_dm actions after reply nodes
       if (commentsType === 'keywords' && keywords.length > 0) {
         keywords.forEach((keyword: string) => {
           const keywordKey = keyword.toLowerCase();
           let lastNode = actionChains[keywordKey];
           
-          if (askToFollowAction && lastNode) {
-            lastNode = addActionNode('ask_to_follow', askToFollowAction, lastNode, keywordKey);
-          }
-          
           if (sendDmAction && lastNode) {
-            lastNode = addActionNode('send_dm', sendDmAction, lastNode, keywordKey);
+            lastNode = addSendDmActionNode(sendDmAction, lastNode, keywordKey);
           }
         });
       } else if (commentsType === 'all') {
         let lastNode = actionChains['all_comments'];
         const keywordKey = 'all_comments';
         
-        if (askToFollowAction && lastNode) {
-          lastNode = addActionNode('ask_to_follow', askToFollowAction, lastNode, keywordKey);
-        }
-        
         if (sendDmAction && lastNode) {
-          lastNode = addActionNode('send_dm', sendDmAction, lastNode, keywordKey);
+          lastNode = addSendDmActionNode(sendDmAction, lastNode, keywordKey);
         }
       }
       
@@ -1311,6 +1252,9 @@ Deno.serve(async (req: Request) => {
     // If automation data exists, build appropriate workflow
     if (automationData && automationData.trigger_type === 'user_directed_messages') {
       console.log("Building DM workflow for user_directed_messages");
+      workflowTemplate = buildDMWorkflow();
+    } else if (automationData && automationData.trigger_type === 'story_reply') {
+      console.log("Building DM workflow for story_reply");
       workflowTemplate = buildDMWorkflow();
     } else if (automationData && automationData.trigger_type === 'post_comment') {
       console.log("Building Post Comment workflow");

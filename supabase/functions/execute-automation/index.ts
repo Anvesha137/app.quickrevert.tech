@@ -161,10 +161,6 @@ async function executeAction(params: any) {
       buttons = action.actionButtons || [];
       break;
     
-    case 'ask_to_follow':
-      messageText = action.messageTemplate || '';
-      buttons = [{ text: action.followButtonText || 'Follow', type: 'postback' }];
-      break;
   }
 
   messageText = messageText.replace('{{username}}', eventData.from.username);
