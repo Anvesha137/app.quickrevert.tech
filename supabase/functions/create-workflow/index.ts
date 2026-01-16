@@ -307,11 +307,13 @@ Deno.serve(async (req: Request) => {
       };
       nodes.push(respondNode);
       
-      // 4. Message Switch node
+      // 4. Message Switch node (only create if not "all messages")
       nodeXPosition = -1216;
       const switchRules: any[] = [];
+      let shouldCreateSwitch = false;
       
       if (messageType === 'keywords' && keywords.length > 0) {
+        shouldCreateSwitch = true;
         // Add rules for each keyword
         keywords.forEach((keyword: string, index: number) => {
           switchRules.push({
@@ -339,37 +341,10 @@ Deno.serve(async (req: Request) => {
             outputKey: keyword.toLowerCase()
           });
         });
-      } else if (messageType === 'all') {
-        // Check if message text is empty (for "all messages")
-        switchRules.push({
-          conditions: {
-            options: {
-              caseSensitive: false,
-              leftValue: "",
-              typeValidation: "strict",
-              version: 2
-            },
-            conditions: [
-              {
-                id: "empty-message",
-                leftValue: "={{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].message.text }}",
-                rightValue: "",
-                operator: {
-                  type: "string",
-                  operation: "equals",
-                  name: "filter.operator.equals"
-                }
-              }
-            ],
-            combinator: "and"
-          },
-          renameOutput: true,
-          outputKey: "all_messages"
-        });
       }
       
-      // Add postback handlers for buttons
-      if (dmAction?.actionButtons) {
+      // Add postback handlers for buttons (only if switch is being created)
+      if (shouldCreateSwitch && dmAction?.actionButtons) {
         dmAction.actionButtons.forEach((button: any, index: number) => {
           const buttonAction = button.action || (button.url ? 'url' : 'postback');
           
@@ -405,26 +380,30 @@ Deno.serve(async (req: Request) => {
         });
       }
       
-      const switchNode = {
-        id: "message-switch",
-        name: "Message Switch",
-        type: "n8n-nodes-base.switch",
-        typeVersion: 3.3,
-        position: [nodeXPosition, nodeYPosition + 224],
-        parameters: {
-          rules: {
-            values: switchRules
-          },
-          options: {
-            ignoreCase: true
+      // Only create switch node if we have rules (not for "all messages")
+      if (shouldCreateSwitch && switchRules.length > 0) {
+        const switchNode = {
+          id: "message-switch",
+          name: "Message Switch",
+          type: "n8n-nodes-base.switch",
+          typeVersion: 3.3,
+          position: [nodeXPosition, nodeYPosition + 224],
+          parameters: {
+            rules: {
+              values: switchRules
+            },
+            options: {
+              ignoreCase: true
+            }
           }
-        }
-      };
-      nodes.push(switchNode);
+        };
+        nodes.push(switchNode);
+      }
       
       // 5. Create HTTP request nodes for each keyword - ALWAYS create them
-      nodeXPosition += 224;
-      let messageYPosition = 304;
+      // If switch node was created, position nodes after it; otherwise position after webhook
+      nodeXPosition = shouldCreateSwitch ? nodeXPosition + 224 : -1344;
+      let messageYPosition = shouldCreateSwitch ? 304 : nodeYPosition + 224;
       const switchConnections: any[] = [];
       
       // Prepare buttons and message template from action if available
@@ -496,8 +475,6 @@ Deno.serve(async (req: Request) => {
             parameters: {
               method: "POST",
               url: `=https://graph.instagram.com/v24.0/{{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages`,
-              authentication: "genericCredentialType",
-              genericAuthType: "httpHeaderAuth",
               sendHeaders: true,
               headerParameters: {
                 parameters: [
@@ -515,12 +492,6 @@ Deno.serve(async (req: Request) => {
               specifyBody: "json",
               jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].messaging[0].sender.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          ${elementJson}\n        ]\n      }\n    }\n  }\n}\n`,
               options: {}
-            },
-            credentials: {
-              httpHeaderAuth: {
-                id: instagramAccount.instagram_user_id,
-                name: "Instagram Access Token"
-              }
             }
           };
           nodes.push(keywordNode);
@@ -548,8 +519,6 @@ Deno.serve(async (req: Request) => {
           parameters: {
             method: "POST",
             url: `=https://graph.instagram.com/v24.0/{{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages`,
-            authentication: "genericCredentialType",
-            genericAuthType: "httpHeaderAuth",
             sendHeaders: true,
             headerParameters: {
               parameters: [
@@ -567,25 +536,12 @@ Deno.serve(async (req: Request) => {
             specifyBody: "json",
             jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].messaging[0].sender.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          ${elementJson}\n        ]\n      }\n    }\n  }\n}\n`,
             options: {}
-          },
-          credentials: {
-            httpHeaderAuth: {
-              id: instagramAccount.instagram_user_id,
-              name: "Instagram Access Token"
-            }
           }
         };
         nodes.push(allMessagesNode);
         
-        // Add connection from switch to all messages node
-        const switchOutputIndex = switchRules.findIndex((r: any) => r.outputKey === 'all_messages');
-        if (switchOutputIndex >= 0) {
-          switchConnections.push({
-            node: "Send First Message",
-            type: "main",
-            index: switchOutputIndex
-          });
-        }
+        // For "all messages", connect webhook directly to HTTP request node (no switch node)
+        // This connection will be set up in the connections section below
       }
       
       // 6. Button handler nodes (for postbacks)
@@ -604,8 +560,6 @@ Deno.serve(async (req: Request) => {
               parameters: {
                 method: "POST",
                 url: `=https://graph.instagram.com/v24.0/{{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages`,
-                authentication: "genericCredentialType",
-                genericAuthType: "httpHeaderAuth",
                 sendHeaders: true,
                 headerParameters: {
                   parameters: [
@@ -649,24 +603,47 @@ Deno.serve(async (req: Request) => {
       }
       
       // Set up connections
-      connections["Instagram Webhook"] = {
-        main: [
-          [
-            {
-              node: "Webhook Verification",
-              type: "main",
-              index: 0
-            }
-          ],
-          [
-            {
-              node: "Message Switch",
-              type: "main",
-              index: 0
-            }
+      if (messageType === 'all') {
+        // For "all messages", connect webhook directly to HTTP request node (skip switch)
+        connections["Instagram Webhook"] = {
+          main: [
+            [
+              {
+                node: "Webhook Verification",
+                type: "main",
+                index: 0
+              }
+            ],
+            [
+              {
+                node: "Send First Message",
+                type: "main",
+                index: 0
+              }
+            ]
           ]
-        ]
-      };
+        };
+      } else {
+        // For keywords, use switch node
+        connections["Instagram Webhook"] = {
+          main: [
+            [
+              {
+                node: "Webhook Verification",
+                type: "main",
+                index: 0
+              }
+            ],
+            [
+              {
+                node: "Message Switch",
+                type: "main",
+                index: 0
+              }
+            ]
+          ]
+        };
+      }
       
       connections["Webhook Verification"] = {
         main: [
@@ -680,7 +657,8 @@ Deno.serve(async (req: Request) => {
         ]
       };
       
-      if (switchConnections.length > 0) {
+      // Only set up switch connections if switch node was created
+      if (shouldCreateSwitch && switchConnections.length > 0) {
         // Group connections by output index for switch node
         // n8n switch node connections: main: [[output0_connections], [output1_connections], ...]
         const groupedConnections: any[] = [];
@@ -943,8 +921,6 @@ Deno.serve(async (req: Request) => {
             parameters: {
               method: "POST",
               url: `=https://graph.facebook.com/v24.0/{{ $json.body.entry[0].changes[0].value.id }}/replies`,
-              authentication: "genericCredentialType",
-              genericAuthType: "httpHeaderAuth",
               sendHeaders: true,
               headerParameters: {
                 parameters: [
@@ -962,12 +938,6 @@ Deno.serve(async (req: Request) => {
               specifyBody: "json",
               jsonBody: `={\n  "message": "@{{ $json.body.entry[0].changes[0].value.from.username }} ${replyText.replace(/\n/g, '\\n').replace(/"/g, '\\"')}"\n}\n`,
               options: {}
-            },
-            credentials: {
-              httpHeaderAuth: {
-                id: instagramAccount.instagram_user_id,
-                name: "Instagram Access Token"
-              }
             }
           };
           nodes.push(replyNode);
@@ -999,8 +969,6 @@ Deno.serve(async (req: Request) => {
           parameters: {
             method: "POST",
             url: `=https://graph.facebook.com/v24.0/{{ $json.body.entry[0].changes[0].value.id }}/replies`,
-            authentication: "genericCredentialType",
-            genericAuthType: "httpHeaderAuth",
             sendHeaders: true,
             headerParameters: {
               parameters: [
@@ -1018,12 +986,6 @@ Deno.serve(async (req: Request) => {
             specifyBody: "json",
             jsonBody: `={\n  "message": "@{{ $json.body.entry[0].changes[0].value.from.username }} ${replyText.replace(/\n/g, '\\n').replace(/"/g, '\\"')}"\n}\n`,
             options: {}
-          },
-          credentials: {
-            httpHeaderAuth: {
-              id: instagramAccount.instagram_user_id,
-              name: "Instagram Access Token"
-            }
           }
         };
         nodes.push(replyNode);
@@ -1099,8 +1061,6 @@ Deno.serve(async (req: Request) => {
           parameters: {
             method: "POST",
             url: `=https://graph.instagram.com/v24.0/{{ $json.body.entry[0].id }}/messages`,
-            authentication: "genericCredentialType",
-            genericAuthType: "httpHeaderAuth",
             sendHeaders: true,
             headerParameters: {
               parameters: [
@@ -1118,12 +1078,6 @@ Deno.serve(async (req: Request) => {
             specifyBody: "json",
             jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].changes[0].value.from.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          ${dmElementJson}\n        ]\n      }\n    }\n  }\n}\n`,
             options: {}
-          },
-          credentials: {
-            httpHeaderAuth: {
-              id: instagramAccount.instagram_user_id,
-              name: "Instagram Access Token"
-            }
           }
         };
         
