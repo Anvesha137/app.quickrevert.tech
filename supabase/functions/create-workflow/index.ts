@@ -475,6 +475,7 @@ Deno.serve(async (req: Request) => {
             parameters: {
               method: "POST",
               url: `=https://graph.instagram.com/v24.0/{{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages`,
+              authentication: "none",
               sendHeaders: true,
               headerParameters: {
                 parameters: [
@@ -519,6 +520,7 @@ Deno.serve(async (req: Request) => {
           parameters: {
             method: "POST",
             url: `=https://graph.instagram.com/v24.0/{{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages`,
+            authentication: "none",
             sendHeaders: true,
             headerParameters: {
               parameters: [
@@ -560,6 +562,7 @@ Deno.serve(async (req: Request) => {
               parameters: {
                 method: "POST",
                 url: `=https://graph.instagram.com/v24.0/{{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages`,
+                authentication: "none",
                 sendHeaders: true,
                 headerParameters: {
                   parameters: [
@@ -921,6 +924,7 @@ Deno.serve(async (req: Request) => {
             parameters: {
               method: "POST",
               url: `=https://graph.facebook.com/v24.0/{{ $json.body.entry[0].changes[0].value.id }}/replies`,
+              authentication: "none",
               sendHeaders: true,
               headerParameters: {
                 parameters: [
@@ -969,6 +973,7 @@ Deno.serve(async (req: Request) => {
           parameters: {
             method: "POST",
             url: `=https://graph.facebook.com/v24.0/{{ $json.body.entry[0].changes[0].value.id }}/replies`,
+            authentication: "none",
             sendHeaders: true,
             headerParameters: {
               parameters: [
@@ -1061,6 +1066,7 @@ Deno.serve(async (req: Request) => {
           parameters: {
             method: "POST",
             url: `=https://graph.instagram.com/v24.0/{{ $json.body.entry[0].id }}/messages`,
+            authentication: "none",
             sendHeaders: true,
             headerParameters: {
               parameters: [
@@ -1267,6 +1273,7 @@ Deno.serve(async (req: Request) => {
           parameters: {
             method: "POST",
             url: "https://graph.instagram.com/v20.0/me/messages",
+            authentication: "none",
             sendHeaders: true,
             headerParameters: {
               parameters: [
