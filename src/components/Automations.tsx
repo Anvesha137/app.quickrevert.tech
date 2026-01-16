@@ -203,6 +203,31 @@ export default function Automations() {
     }
 
     try {
+      // First, get the n8n workflow ID if it exists
+      let n8nWorkflowId: string | undefined;
+      if (user) {
+        const { data: workflowData } = await supabase
+          .from('n8n_workflows')
+          .select('n8n_workflow_id')
+          .eq('automation_id', id)
+          .eq('user_id', user.id)
+          .maybeSingle();
+        
+        n8nWorkflowId = workflowData?.n8n_workflow_id;
+      }
+
+      // Delete from n8n if workflow exists
+      if (n8nWorkflowId && user) {
+        try {
+          await N8nWorkflowService.deleteWorkflow(n8nWorkflowId, user.id);
+        } catch (n8nError) {
+          console.error('Error deleting n8n workflow:', n8nError);
+          // Continue with database deletion even if n8n deletion fails
+          // User can manually clean up in n8n if needed
+        }
+      }
+
+      // Delete automation from database
       const { error } = await supabase
         .from('automations')
         .delete()

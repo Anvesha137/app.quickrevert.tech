@@ -274,4 +274,45 @@ export class N8nWorkflowService {
       throw error;
     }
   }
+
+  static async deleteWorkflow(workflowId: string, userId: string): Promise<{ success: boolean; message: string }> {
+    try {
+      let { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (!session || sessionError) {
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError || !refreshData.session) {
+          throw new Error('No authentication token available. Please log in again.');
+        }
+        session = refreshData.session;
+      }
+      
+      const authToken = session.access_token;
+      
+      if (!authToken) {
+        throw new Error('No authentication token available');
+      }
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-workflow`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ workflowId })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error deleting N8N workflow:', error);
+      throw error;
+    }
+  }
 }
