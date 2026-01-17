@@ -72,9 +72,11 @@ export default function Contacts() {
     contact.username.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  function formatTimeAgo(date: string) {
+  function formatTimeAgo(date: string | null | undefined) {
+    if (!date) return 'N/A';
     const now = new Date();
     const contactDate = new Date(date);
+    if (isNaN(contactDate.getTime())) return 'Invalid date';
     const diffInSeconds = Math.floor((now.getTime() - contactDate.getTime()) / 1000);
 
     if (diffInSeconds < 60) return 'Just now';

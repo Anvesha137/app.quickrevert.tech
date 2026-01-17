@@ -370,7 +370,7 @@ export default function Automations() {
                       <span className="text-blue-600">{triggerLabels[automation.trigger_type]}</span>
                     </span>
                     <span className="text-gray-400">•</span>
-                    <span className="text-gray-500 font-medium">Created {new Date(automation.created_at).toLocaleDateString()}</span>
+                    <span className="text-gray-500 font-medium">Created {automation.created_at ? new Date(automation.created_at).toLocaleDateString() : 'N/A'}</span>
                     {automation.webhook_path && (
                       <>
                         <span className="text-gray-400">•</span>
