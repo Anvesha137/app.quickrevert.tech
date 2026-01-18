@@ -143,14 +143,25 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
                   // Check HTTP Request node output first (where we fetch username)
                   let recipientUsername = 'Unknown';
                   
-                  // Try to get username from HTTP Request node output
-                  if (execData.data?.resultData?.runData?.['HTTP Request']?.[0]?.data?.json?.username) {
-                    recipientUsername = execData.data.resultData.runData['HTTP Request'][0].data.json.username;
-                  } else if (execData.data?.json?.username) {
-                    recipientUsername = execData.data.json.username;
-                  } else {
-                    // Fallback to other paths
+                  // Try multiple paths for HTTP Request node output
+                  const httpRequestNode = execData.data?.resultData?.runData?.['HTTP Request'];
+                  if (httpRequestNode) {
+                    // Try main array path
+                    if (httpRequestNode[0]?.data?.main?.[0]?.[0]?.json?.username) {
+                      recipientUsername = httpRequestNode[0].data.main[0][0].json.username;
+                    } else if (httpRequestNode[0]?.data?.json?.username) {
+                      recipientUsername = httpRequestNode[0].data.json.username;
+                    } else if (httpRequestNode[0]?.data?.main?.[0]?.[0]?.json?.id) {
+                      // If we got the ID, try to extract username from other fields
+                      const nodeData = httpRequestNode[0].data.main[0][0].json;
+                      recipientUsername = nodeData.username || nodeData.name || 'Unknown';
+                    }
+                  }
+                  
+                  // Fallback paths if HTTP Request node not found
+                  if (recipientUsername === 'Unknown') {
                     recipientUsername = 
+                      execData.data?.resultData?.runData?.['Instagram Webhook']?.[0]?.data?.main?.[0]?.[0]?.json?.body?.entry?.[0]?.messaging?.[0]?.sender?.id ||
                       execData.data?.data?.body?.sender?.username ||
                       execData.data?.data?.body?.entry?.[0]?.messaging?.[0]?.sender?.id ||
                       execData.data?.body?.from?.username ||
@@ -160,13 +171,31 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
                       'Unknown';
                   }
 
-                  // Extract message from execution data
-                  const message = 
-                    execData.data?.data?.body?.text ||
-                    execData.data?.data?.body?.message ||
-                    execData.data?.message ||
-                    execData.data?.text ||
-                    'Workflow execution';
+                  // Extract message text from webhook body
+                  let message = 'Workflow execution';
+                  
+                  // Try to get message from Instagram Webhook node output
+                  const webhookNode = execData.data?.resultData?.runData?.['Instagram Webhook'];
+                  if (webhookNode) {
+                    const webhookData = webhookNode[0]?.data?.main?.[0]?.[0]?.json;
+                    if (webhookData?.body?.entry?.[0]?.messaging?.[0]?.message?.text) {
+                      message = webhookData.body.entry[0].messaging[0].message.text;
+                    } else if (webhookData?.body?.entry?.[0]?.changes?.[0]?.value?.text) {
+                      message = webhookData.body.entry[0].changes[0].value.text;
+                    }
+                  }
+                  
+                  // Fallback paths
+                  if (message === 'Workflow execution') {
+                    message = 
+                      execData.data?.data?.body?.entry?.[0]?.messaging?.[0]?.message?.text ||
+                      execData.data?.data?.body?.entry?.[0]?.changes?.[0]?.value?.text ||
+                      execData.data?.data?.body?.text ||
+                      execData.data?.data?.body?.message ||
+                      execData.data?.message ||
+                      execData.data?.text ||
+                      'Workflow execution';
+                  }
 
                   return {
                     id: `n8n-${exec.id}`,
@@ -181,11 +210,29 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
                 } as Activity;
                 }
                 // Return basic execution data if detailed execution data is not available
+                // Try to extract from basic exec structure
+                let basicUsername = 'Unknown';
+                let basicMessage = 'Workflow execution';
+                
+                if (exec.data?.resultData?.runData?.['HTTP Request']?.[0]?.data?.main?.[0]?.[0]?.json?.username) {
+                  basicUsername = exec.data.resultData.runData['HTTP Request'][0].data.main[0][0].json.username;
+                } else if (exec.data?.resultData?.runData?.['HTTP Request']?.[0]?.data?.json?.username) {
+                  basicUsername = exec.data.resultData.runData['HTTP Request'][0].data.json.username;
+                } else {
+                  basicUsername = exec.data?.sender_name || exec.data?.from?.username || 'Unknown';
+                }
+                
+                if (exec.data?.resultData?.runData?.['Instagram Webhook']?.[0]?.data?.main?.[0]?.[0]?.json?.body?.entry?.[0]?.messaging?.[0]?.message?.text) {
+                  basicMessage = exec.data.resultData.runData['Instagram Webhook'][0].data.main[0][0].json.body.entry[0].messaging[0].message.text;
+                } else {
+                  basicMessage = exec.data?.message || exec.data?.text || 'Workflow execution';
+                }
+                
                 return {
                   id: `n8n-${exec.id}`,
                   activity_type: 'dm',
-                  target_username: exec.data?.sender_name || exec.data?.from?.username || 'Unknown',
-                  message: exec.data?.message || exec.data?.text || 'Workflow execution',
+                  target_username: basicUsername,
+                  message: basicMessage,
                   metadata: {},
                   status: exec.finished ? (exec.stoppedAt ? 'success' : 'failed') : 'pending' as 'success' | 'failed' | 'pending',
                   created_at: exec.startedAt || exec.createdAt || new Date().toISOString(),
@@ -195,11 +242,29 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
               } catch (execErr) {
                 console.error(`Error fetching detailed execution ${exec.id}:`, execErr);
                 // Return basic execution data if detailed fetch fails
+                // Try to extract from basic exec structure
+                let basicUsername = 'Unknown';
+                let basicMessage = 'Workflow execution';
+                
+                if (exec.data?.resultData?.runData?.['HTTP Request']?.[0]?.data?.main?.[0]?.[0]?.json?.username) {
+                  basicUsername = exec.data.resultData.runData['HTTP Request'][0].data.main[0][0].json.username;
+                } else if (exec.data?.resultData?.runData?.['HTTP Request']?.[0]?.data?.json?.username) {
+                  basicUsername = exec.data.resultData.runData['HTTP Request'][0].data.json.username;
+                } else {
+                  basicUsername = exec.data?.sender_name || exec.data?.from?.username || 'Unknown';
+                }
+                
+                if (exec.data?.resultData?.runData?.['Instagram Webhook']?.[0]?.data?.main?.[0]?.[0]?.json?.body?.entry?.[0]?.messaging?.[0]?.message?.text) {
+                  basicMessage = exec.data.resultData.runData['Instagram Webhook'][0].data.main[0][0].json.body.entry[0].messaging[0].message.text;
+                } else {
+                  basicMessage = exec.data?.message || exec.data?.text || 'Workflow execution';
+                }
+                
                 return {
                   id: `n8n-${exec.id}`,
                   activity_type: 'dm',
-                  target_username: exec.data?.sender_name || exec.data?.from?.username || 'Unknown',
-                  message: exec.data?.message || exec.data?.text || 'Workflow execution',
+                  target_username: basicUsername,
+                  message: basicMessage,
                   metadata: {},
                   status: exec.finished ? (exec.stoppedAt ? 'success' : 'failed') : 'pending' as 'success' | 'failed' | 'pending',
                   created_at: exec.startedAt || exec.createdAt || new Date().toISOString(),
