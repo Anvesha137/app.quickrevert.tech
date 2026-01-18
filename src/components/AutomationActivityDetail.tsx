@@ -139,6 +139,15 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
                 if (detailedResult.execution) {
                   const execData = detailedResult.execution;
                   
+                  // Debug: Log execution data structure (remove in production if not needed)
+                  // console.log('Execution data structure:', {
+                  //   hasResultData: !!execData.data?.resultData,
+                  //   hasRunData: !!execData.data?.resultData?.runData,
+                  //   nodeNames: execData.data?.resultData?.runData ? Object.keys(execData.data.resultData.runData) : [],
+                  //   httpRequestData: execData.data?.resultData?.runData?.['HTTP Request']?.[0]?.data,
+                  //   webhookData: execData.data?.resultData?.runData?.['Instagram Webhook']?.[0]?.data
+                  // });
+                  
                   // Extract recipient username from execution data
                   // Check HTTP Request node output first (where we fetch username)
                   let recipientUsername = 'Unknown';

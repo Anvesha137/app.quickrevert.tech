@@ -81,14 +81,21 @@ export default function Contacts() {
                 // Check HTTP Request node output first (where we fetch username)
                 let recipientUsername = null;
                 
-                // Try to get username from HTTP Request node output
-                if (execData.data?.resultData?.runData?.['HTTP Request']?.[0]?.data?.json?.username) {
-                  recipientUsername = execData.data.resultData.runData['HTTP Request'][0].data.json.username;
-                } else if (execData.data?.json?.username) {
-                  recipientUsername = execData.data.json.username;
-                } else {
-                  // Fallback to other paths
+                // Try multiple paths for HTTP Request node output
+                const httpRequestNode = execData.data?.resultData?.runData?.['HTTP Request'];
+                if (httpRequestNode) {
+                  // Try main array path: main[0][0].json.username
+                  if (httpRequestNode[0]?.data?.main?.[0]?.[0]?.json?.username) {
+                    recipientUsername = httpRequestNode[0].data.main[0][0].json.username;
+                  } else if (httpRequestNode[0]?.data?.json?.username) {
+                    recipientUsername = httpRequestNode[0].data.json.username;
+                  }
+                }
+                
+                // Fallback paths if HTTP Request node not found
+                if (!recipientUsername) {
                   recipientUsername = 
+                    execData.data?.resultData?.runData?.['Instagram Webhook']?.[0]?.data?.main?.[0]?.[0]?.json?.body?.entry?.[0]?.messaging?.[0]?.sender?.id ||
                     execData.data?.data?.body?.sender?.username ||
                     execData.data?.data?.body?.entry?.[0]?.messaging?.[0]?.sender?.id ||
                     execData.data?.body?.from?.username ||
@@ -106,12 +113,26 @@ export default function Contacts() {
             } catch (execErr) {
               console.error(`Error fetching detailed execution ${exec.id}:`, execErr);
               // Try to extract from basic exec data if detailed fetch fails
-              const recipientUsername = 
-                exec.data?.sender_name ||
-                exec.data?.from?.username ||
-                exec.data?.data?.body?.sender?.username ||
-                exec.data?.data?.body?.from?.username ||
-                null;
+              // Try to extract from basic exec structure
+              const httpRequestNodeBasic = exec.data?.resultData?.runData?.['HTTP Request'];
+              let recipientUsername = null;
+              
+              if (httpRequestNodeBasic) {
+                if (httpRequestNodeBasic[0]?.data?.main?.[0]?.[0]?.json?.username) {
+                  recipientUsername = httpRequestNodeBasic[0].data.main[0][0].json.username;
+                } else if (httpRequestNodeBasic[0]?.data?.json?.username) {
+                  recipientUsername = httpRequestNodeBasic[0].data.json.username;
+                }
+              }
+              
+              if (!recipientUsername) {
+                recipientUsername = 
+                  exec.data?.sender_name ||
+                  exec.data?.from?.username ||
+                  exec.data?.data?.body?.sender?.username ||
+                  exec.data?.data?.body?.from?.username ||
+                  null;
+              }
 
               if (recipientUsername && recipientUsername !== 'Unknown') {
                 return {
