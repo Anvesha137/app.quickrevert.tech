@@ -15,6 +15,8 @@ interface Automation {
   created_at: string;
   updated_at: string;
   n8n_workflow_id?: string;
+  webhook_path?: string;
+  webhook_url?: string;
 }
 
 const triggerLabels = {
@@ -61,7 +63,7 @@ export default function Automations() {
       // Fetch n8n workflows linked to automations
       const { data: workflowsData, error: workflowsError } = await supabase
         .from('n8n_workflows')
-        .select('n8n_workflow_id, automation_id')
+        .select('n8n_workflow_id, automation_id, webhook_path')
         .eq('user_id', user.id);
 
       if (workflowsError) {
@@ -69,15 +71,30 @@ export default function Automations() {
         // Continue without workflows if there's an error
       }
 
+      // Get N8N base URL from environment (or construct webhook URL)
+      const n8nBaseUrl = import.meta.env.VITE_N8N_BASE_URL || '';
+
       // Map workflows to automations (only those with automation_id)
       const workflowsMap = new Map(
-        workflowsData?.filter(w => w.automation_id).map(w => [w.automation_id, w.n8n_workflow_id]) || []
+        workflowsData?.filter(w => w.automation_id).map(w => [
+          w.automation_id, 
+          {
+            n8n_workflow_id: w.n8n_workflow_id,
+            webhook_path: w.webhook_path,
+            webhook_url: w.webhook_path && n8nBaseUrl ? `${n8nBaseUrl}/webhook/${w.webhook_path}` : undefined
+          }
+        ]) || []
       );
 
-      const automationsWithWorkflows = (automationsData || []).map(automation => ({
-        ...automation,
-        n8n_workflow_id: workflowsMap.get(automation.id)
-      }));
+      const automationsWithWorkflows = (automationsData || []).map(automation => {
+        const workflow = workflowsMap.get(automation.id);
+        return {
+          ...automation,
+          n8n_workflow_id: workflow?.n8n_workflow_id,
+          webhook_path: workflow?.webhook_path,
+          webhook_url: workflow?.webhook_url
+        };
+      });
 
       setAutomations(automationsWithWorkflows);
     } catch (error) {
@@ -186,6 +203,31 @@ export default function Automations() {
     }
 
     try {
+      // First, get the n8n workflow ID if it exists
+      let n8nWorkflowId: string | undefined;
+      if (user) {
+        const { data: workflowData } = await supabase
+          .from('n8n_workflows')
+          .select('n8n_workflow_id')
+          .eq('automation_id', id)
+          .eq('user_id', user.id)
+          .maybeSingle();
+        
+        n8nWorkflowId = workflowData?.n8n_workflow_id;
+      }
+
+      // Delete from n8n if workflow exists
+      if (n8nWorkflowId && user) {
+        try {
+          await N8nWorkflowService.deleteWorkflow(n8nWorkflowId, user.id);
+        } catch (n8nError) {
+          console.error('Error deleting n8n workflow:', n8nError);
+          // Continue with database deletion even if n8n deletion fails
+          // User can manually clean up in n8n if needed
+        }
+      }
+
+      // Delete automation from database
       const { error } = await supabase
         .from('automations')
         .delete()
@@ -322,13 +364,34 @@ export default function Automations() {
                   {automation.description && (
                     <p className="text-gray-600 mb-4 text-base">{automation.description}</p>
                   )}
-                  <div className="flex items-center gap-4 text-sm">
+                  <div className="flex items-center gap-4 text-sm flex-wrap">
                     <span className="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-lg">
                       <span className="font-bold text-blue-700">Trigger:</span>
                       <span className="text-blue-600">{triggerLabels[automation.trigger_type]}</span>
                     </span>
                     <span className="text-gray-400">•</span>
-                    <span className="text-gray-500 font-medium">Created {new Date(automation.created_at).toLocaleDateString()}</span>
+                    <span className="text-gray-500 font-medium">Created {automation.created_at ? new Date(automation.created_at).toLocaleDateString() : 'N/A'}</span>
+                    {automation.webhook_path && (
+                      <>
+                        <span className="text-gray-400">•</span>
+                        <div className="flex items-center gap-2 bg-green-50 px-3 py-1.5 rounded-lg">
+                          <span className="font-bold text-green-700">Webhook:</span>
+                          <span className="text-green-600 font-mono text-xs">{automation.webhook_path}</span>
+                          {automation.webhook_url && (
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(automation.webhook_url!);
+                                alert('Webhook URL copied to clipboard!');
+                              }}
+                              className="ml-2 text-green-600 hover:text-green-700 text-xs underline"
+                              title="Copy webhook URL"
+                            >
+                              Copy URL
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-3">

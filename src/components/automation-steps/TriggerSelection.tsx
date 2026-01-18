@@ -14,21 +14,21 @@ const triggers = [
     icon: MessageSquare,
     title: 'Post Comment',
     description: 'When someone comments on a post',
-    actions: ['Reply to Comment', 'Ask to Follow', 'Send Direct Message'],
+    actions: ['Reply to Comment', 'Send Direct Message'],
   },
   {
     type: 'story_reply' as TriggerType,
     icon: Image,
     title: 'Story Reply',
     description: 'When someone replies to your story',
-    actions: ['Ask to Follow', 'Send Direct Message'],
+    actions: ['Send Direct Message'],
   },
   {
     type: 'user_directed_messages' as TriggerType,
     icon: Mail,
     title: 'User Direct Message',
     description: 'When someone sends you a direct message',
-    actions: ['Ask to Follow', 'Reply to Direct Message'],
+    actions: ['Reply to Direct Message'],
   },
 ];
 

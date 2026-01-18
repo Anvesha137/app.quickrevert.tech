@@ -19,6 +19,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Force production domain if user lands on the old vercel domain (post-OAuth redirects included)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const { hostname, pathname, search, hash } = window.location;
+      if (hostname === 'app-quickrevert.vercel.app') {
+        const target = `https://app.quickrevert.tech${pathname}${search}${hash}`;
+        window.location.replace(target);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -41,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin,
+        redirectTo: 'https://app.quickrevert.tech',
       },
     });
     if (error) throw error;

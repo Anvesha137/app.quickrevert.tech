@@ -181,21 +181,21 @@ export default function InstagramFeed() {
           <div className="text-center p-4 bg-white rounded-xl shadow-sm">
             <div className="flex items-center justify-center gap-2 mb-2">
               <ImageIcon size={20} className="text-pink-600" />
-              <p className="text-2xl font-bold text-gray-900">{profile.media_count.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-gray-900">{(profile.media_count || 0).toLocaleString()}</p>
             </div>
             <p className="text-sm text-gray-600 font-medium">Posts</p>
           </div>
           <div className="text-center p-4 bg-white rounded-xl shadow-sm">
             <div className="flex items-center justify-center gap-2 mb-2">
               <Users size={20} className="text-rose-600" />
-              <p className="text-2xl font-bold text-gray-900">{profile.followers_count.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-gray-900">{(profile.followers_count || 0).toLocaleString()}</p>
             </div>
             <p className="text-sm text-gray-600 font-medium">Followers</p>
           </div>
           <div className="text-center p-4 bg-white rounded-xl shadow-sm">
             <div className="flex items-center justify-center gap-2 mb-2">
               <Users size={20} className="text-orange-600" />
-              <p className="text-2xl font-bold text-gray-900">{profile.follows_count.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-gray-900">{(profile.follows_count || 0).toLocaleString()}</p>
             </div>
             <p className="text-sm text-gray-600 font-medium">Following</p>
           </div>

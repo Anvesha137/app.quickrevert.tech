@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Plus, X, Sparkles, UserPlus, Send, MessageSquare, Trash2, ChevronDown } from 'lucide-react';
-import { TriggerType, Action, ActionType, ReplyToCommentAction, AskToFollowAction, SendDmAction } from '../../types/automation';
+import { Plus, X, Sparkles, Send, MessageSquare, Trash2, ChevronDown } from 'lucide-react';
+import { TriggerType, Action, ActionType, ReplyToCommentAction, SendDmAction } from '../../types/automation';
 
 interface ActionConfigProps {
   triggerType: TriggerType;
@@ -24,7 +24,6 @@ const getTriggerName = (type: TriggerType): string => {
 
 const getAvailableActions = (triggerType: TriggerType): { type: ActionType; name: string; icon: any; description: string }[] => {
   const baseActions = [
-    { type: 'ask_to_follow' as ActionType, name: 'Ask To Follow', icon: UserPlus, description: 'Encourage users to follow your account' },
     { type: 'send_dm' as ActionType, name: 'Send DM', icon: Send, description: 'Send a direct message to the user' },
   ];
 
@@ -53,17 +52,24 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
     let newAction: Action;
 
     if (actionType === 'reply_to_comment') {
-      newAction = {
-        type: 'reply_to_comment',
-        replyTemplates: [''],
-        actionButtons: [],
-      } as ReplyToCommentAction;
-    } else if (actionType === 'ask_to_follow') {
-      newAction = {
-        type: 'ask_to_follow',
-        messageTemplate: '',
-        followButtonText: '✅ I am following',
-      } as AskToFollowAction;
+      // For "Reply to Direct Message" (user_directed_messages), use the new format
+      if (triggerType === 'user_directed_messages') {
+        newAction = {
+          type: 'reply_to_comment',
+          title: 'Hi👋', // Default title since it's required
+          imageUrl: '',
+          subtitle: '',
+          replyTemplates: [], // Keep empty for DM replies
+          actionButtons: [],
+        } as ReplyToCommentAction;
+      } else {
+        // For regular comment replies, use the old format
+        newAction = {
+          type: 'reply_to_comment',
+          replyTemplates: [''],
+          actionButtons: [],
+        } as ReplyToCommentAction;
+      }
     } else {
       newAction = {
         type: 'send_dm',
@@ -190,8 +196,6 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
   const getActionName = (action: Action): string => {
     if (action.type === 'reply_to_comment') {
       return triggerType === 'user_directed_messages' ? 'Reply to Direct Message' : 'Reply To Comment';
-    } else if (action.type === 'ask_to_follow') {
-      return 'Ask To Follow';
     } else {
       return 'Send DM';
     }
@@ -199,9 +203,12 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
 
   const isActionValid = (action: Action): boolean => {
     if (action.type === 'reply_to_comment') {
+      // For "Reply to Direct Message", require title (like SendDmAction)
+      if (triggerType === 'user_directed_messages') {
+        return (action.title || '').trim().length > 0;
+      }
+      // For regular comment replies, require at least one reply template
       return action.replyTemplates.some(t => t.trim().length > 0);
-    } else if (action.type === 'ask_to_follow') {
-      return action.messageTemplate.trim().length > 0 && action.followButtonText.trim().length > 0;
     } else {
       const sendDmAction = action as SendDmAction;
       // Title is required
@@ -260,121 +267,198 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
 
               {action.type === 'reply_to_comment' && (
                 <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-900 mb-2">
-                      Reply Templates (Random Selection) <span className="text-red-500">*</span>
-                    </label>
-                    <p className="text-sm text-gray-600 mb-3">
-                      I will choose one reply randomly to keep the comments more natural and engaging.
-                    </p>
-                    <div className="space-y-3">
-                      {(action as ReplyToCommentAction).replyTemplates.map((template, templateIndex) => (
-                        <div key={templateIndex} className="flex gap-2">
-                          <input
-                            type="text"
-                            value={template}
-                            onChange={(e) => updateReplyTemplate(index, templateIndex, e.target.value)}
-                            placeholder="e.g., Check your DMs 👋"
-                            className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-                          {(action as ReplyToCommentAction).replyTemplates.length > 1 && (
-                            <button
-                              onClick={() => removeReplyTemplate(index, templateIndex)}
-                              className="px-3 py-2 text-gray-500 hover:text-red-600 transition-colors"
-                            >
-                              <X size={20} />
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                    <button
-                      onClick={() => addReplyTemplate(index)}
-                      className="mt-3 text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
-                    >
-                      <Plus size={16} />
-                      Add Another Reply
-                    </button>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-900 mb-2">
-                      Action Buttons ({((action as ReplyToCommentAction).actionButtons || []).length}/3)
-                    </label>
-                    {(action as ReplyToCommentAction).actionButtons && (action as ReplyToCommentAction).actionButtons!.length > 0 && (
-                      <div className="space-y-3 mb-3">
-                        {(action as ReplyToCommentAction).actionButtons!.map((button, buttonIndex) => (
-                          <div key={button.id} className="p-4 bg-gray-50 rounded-lg">
-                            <div className="flex items-center justify-between mb-3">
-                              <span className="text-sm font-medium text-gray-700">Button {buttonIndex + 1}</span>
-                              <button
-                                onClick={() => removeReplyButton(index, buttonIndex)}
-                                className="text-gray-400 hover:text-red-600 transition-colors"
-                              >
-                                <X size={18} />
-                              </button>
-                            </div>
-                            <div className="space-y-2">
+                  {triggerType === 'user_directed_messages' ? (
+                    // New format for "Reply to Direct Message"
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-900 mb-2">
+                          Title <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={(action as ReplyToCommentAction).title || ''}
+                          onChange={(e) => updateAction(index, { ...action, title: e.target.value } as ReplyToCommentAction)}
+                          placeholder="Hi👋"
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                        <p className="mt-1 text-xs text-gray-500">The title that appears at the top of the message card</p>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-900 mb-2">
+                          Image URL
+                        </label>
+                        <input
+                          type="url"
+                          value={(action as ReplyToCommentAction).imageUrl || ''}
+                          onChange={(e) => updateAction(index, { ...action, imageUrl: e.target.value } as ReplyToCommentAction)}
+                          placeholder="https://i.ibb.co/N29QzF6Z/QR-Logo.png"
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                        <p className="mt-1 text-xs text-gray-500">URL of the image to display in the message card (optional)</p>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-900 mb-2">
+                          Subheading
+                        </label>
+                        <textarea
+                          value={(action as ReplyToCommentAction).subtitle || ''}
+                          onChange={(e) => updateAction(index, { ...action, subtitle: e.target.value } as ReplyToCommentAction)}
+                          placeholder="Thank you for reaching out! We've received your enquiry and one of our team members will get back to you soon."
+                          rows={4}
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                        />
+                        <p className="mt-1 text-xs text-gray-500">The main message text that appears below the title (optional)</p>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-900 mb-2">
+                          Action Buttons ({((action as ReplyToCommentAction).actionButtons || []).length}/3)
+                        </label>
+                        {(action as ReplyToCommentAction).actionButtons && (action as ReplyToCommentAction).actionButtons!.length > 0 && (
+                          <div className="space-y-3 mb-3">
+                            {(action as ReplyToCommentAction).actionButtons!.map((button, buttonIndex) => (
+                              <div key={button.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                <div className="flex items-center justify-between mb-3">
+                                  <span className="text-sm font-medium text-gray-700">Button {buttonIndex + 1}</span>
+                                  <button
+                                    onClick={() => removeReplyButton(index, buttonIndex)}
+                                    className="text-gray-400 hover:text-red-600 transition-colors"
+                                  >
+                                    <X size={18} />
+                                  </button>
+                                </div>
+                                <div className="space-y-3">
+                                  <input
+                                    type="text"
+                                    value={button.text}
+                                    onChange={(e) => updateReplyButton(index, buttonIndex, 'text', e.target.value)}
+                                    placeholder="Button text"
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  />
+                                  {button.url ? (
+                                    <>
+                                      <input
+                                        type="url"
+                                        value={button.url === 'calendar' ? '' : (button.url || '')}
+                                        onChange={(e) => updateReplyButton(index, buttonIndex, 'url', e.target.value)}
+                                        placeholder="https://example.com"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                      />
+                                      <p className="text-sm text-gray-600 bg-blue-50 p-2 rounded border border-blue-100">
+                                        🔗 This button will open a web URL
+                                      </p>
+                                    </>
+                                  ) : (
+                                    <p className="text-sm text-gray-600 bg-blue-50 p-2 rounded border border-blue-100">
+                                      💬 This button will send a postback that triggers a reply action in the workflow
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {(action as ReplyToCommentAction).actionButtons && (action as ReplyToCommentAction).actionButtons!.length < 3 && (
+                          <button
+                            onClick={() => addReplyButton(index)}
+                            className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 transition-colors"
+                          >
+                            <Sparkles size={16} />
+                            Add Action Button
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    // Old format for regular comment replies
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-900 mb-2">
+                          Reply Templates (Random Selection) <span className="text-red-500">*</span>
+                        </label>
+                        <p className="text-sm text-gray-600 mb-3">
+                          I will choose one reply randomly to keep the comments more natural and engaging.
+                        </p>
+                        <div className="space-y-3">
+                          {(action as ReplyToCommentAction).replyTemplates.map((template, templateIndex) => (
+                            <div key={templateIndex} className="flex gap-2">
                               <input
                                 type="text"
-                                value={button.text}
-                                onChange={(e) => updateReplyButton(index, buttonIndex, 'text', e.target.value)}
-                                placeholder="Button text"
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                value={template}
+                                onChange={(e) => updateReplyTemplate(index, templateIndex, e.target.value)}
+                                placeholder="e.g., Check your DMs 👋"
+                                className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                               />
-                              <input
-                                type="url"
-                                value={button.url || ''}
-                                onChange={(e) => updateReplyButton(index, buttonIndex, 'url', e.target.value)}
-                                placeholder="Button URL (optional)"
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              />
+                              {(action as ReplyToCommentAction).replyTemplates.length > 1 && (
+                                <button
+                                  onClick={() => removeReplyTemplate(index, templateIndex)}
+                                  className="px-3 py-2 text-gray-500 hover:text-red-600 transition-colors"
+                                >
+                                  <X size={20} />
+                                </button>
+                              )}
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
+                        <button
+                          onClick={() => addReplyTemplate(index)}
+                          className="mt-3 text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                        >
+                          <Plus size={16} />
+                          Add Another Reply
+                        </button>
                       </div>
-                    )}
-                    {(action as ReplyToCommentAction).actionButtons && (action as ReplyToCommentAction).actionButtons!.length < 3 && (
-                      <button
-                        onClick={() => addReplyButton(index)}
-                        className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
-                      >
-                        <Sparkles size={16} />
-                        Add Action Button
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {action.type === 'ask_to_follow' && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-900 mb-2">
-                      Message Template <span className="text-red-500">*</span>
-                    </label>
-                    <textarea
-                      value={(action as AskToFollowAction).messageTemplate}
-                      onChange={(e) => updateAction(index, { ...action, messageTemplate: e.target.value } as AskToFollowAction)}
-                      placeholder="Follow me for exciting offers and exclusive content! 🚀"
-                      rows={3}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-900 mb-2">
-                      Follow Button Text <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={(action as AskToFollowAction).followButtonText}
-                      onChange={(e) => updateAction(index, { ...action, followButtonText: e.target.value } as AskToFollowAction)}
-                      placeholder="✅ I am following"
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
-                    This action encourages users to follow your account.
-                  </p>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-900 mb-2">
+                          Action Buttons ({((action as ReplyToCommentAction).actionButtons || []).length}/3)
+                        </label>
+                        {(action as ReplyToCommentAction).actionButtons && (action as ReplyToCommentAction).actionButtons!.length > 0 && (
+                          <div className="space-y-3 mb-3">
+                            {(action as ReplyToCommentAction).actionButtons!.map((button, buttonIndex) => (
+                              <div key={button.id} className="p-4 bg-gray-50 rounded-lg">
+                                <div className="flex items-center justify-between mb-3">
+                                  <span className="text-sm font-medium text-gray-700">Button {buttonIndex + 1}</span>
+                                  <button
+                                    onClick={() => removeReplyButton(index, buttonIndex)}
+                                    className="text-gray-400 hover:text-red-600 transition-colors"
+                                  >
+                                    <X size={18} />
+                                  </button>
+                                </div>
+                                <div className="space-y-2">
+                                  <input
+                                    type="text"
+                                    value={button.text}
+                                    onChange={(e) => updateReplyButton(index, buttonIndex, 'text', e.target.value)}
+                                    placeholder="Button text"
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  />
+                                  <input
+                                    type="url"
+                                    value={button.url || ''}
+                                    onChange={(e) => updateReplyButton(index, buttonIndex, 'url', e.target.value)}
+                                    placeholder="Button URL (optional)"
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {(action as ReplyToCommentAction).actionButtons && (action as ReplyToCommentAction).actionButtons!.length < 3 && (
+                          <button
+                            onClick={() => addReplyButton(index)}
+                            className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                          >
+                            <Sparkles size={16} />
+                            Add Action Button
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 

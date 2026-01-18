@@ -14,16 +14,18 @@ interface ContactSummaryProps {
   stats: ContactStats;
 }
 
-function formatTimeAgo(date: string) {
+function formatTimeAgo(date: string | null | undefined) {
+  if (!date) return 'N/A';
   const now = new Date();
   const contactDate = new Date(date);
+  if (isNaN(contactDate.getTime())) return 'Invalid date';
   const diffInSeconds = Math.floor((now.getTime() - contactDate.getTime()) / 1000);
 
   if (diffInSeconds < 60) return 'Just now';
   if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
   if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
   if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)}d ago`;
-  return new Date(date).toLocaleDateString();
+  return contactDate.toLocaleDateString();
 }
 
 export default function ContactSummary({ username, stats }: ContactSummaryProps) {

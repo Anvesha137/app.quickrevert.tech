@@ -32,9 +32,11 @@ const statusConfig = {
   pending: { icon: AlertCircle, color: 'text-yellow-600' }
 };
 
-function formatTimeAgo(date: string) {
+function formatTimeAgo(date: string | null | undefined) {
+  if (!date) return 'N/A';
   const now = new Date();
   const activityDate = new Date(date);
+  if (isNaN(activityDate.getTime())) return 'Invalid date';
   const diffInSeconds = Math.floor((now.getTime() - activityDate.getTime()) / 1000);
 
   if (diffInSeconds < 60) return 'Just now';
