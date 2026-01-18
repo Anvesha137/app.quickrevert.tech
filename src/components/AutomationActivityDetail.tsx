@@ -172,22 +172,32 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
                   }
 
                   // Extract message text from webhook body
+                  // Primary path: $json.body.entry[0].messaging[0].message.text
                   let message = 'Workflow execution';
                   
                   // Try to get message from Instagram Webhook node output
                   const webhookNode = execData.data?.resultData?.runData?.['Instagram Webhook'];
                   if (webhookNode) {
                     const webhookData = webhookNode[0]?.data?.main?.[0]?.[0]?.json;
+                    // Primary path: body.entry[0].messaging[0].message.text
                     if (webhookData?.body?.entry?.[0]?.messaging?.[0]?.message?.text) {
                       message = webhookData.body.entry[0].messaging[0].message.text;
-                    } else if (webhookData?.body?.entry?.[0]?.changes?.[0]?.value?.text) {
+                    } 
+                    // For comments: body.entry[0].changes[0].value.text
+                    else if (webhookData?.body?.entry?.[0]?.changes?.[0]?.value?.text) {
                       message = webhookData.body.entry[0].changes[0].value.text;
+                    }
+                    // Also check direct body path
+                    else if (webhookData?.body?.entry?.[0]?.messaging?.[0]?.message?.text) {
+                      message = webhookData.body.entry[0].messaging[0].message.text;
                     }
                   }
                   
-                  // Fallback paths
+                  // Fallback paths - check other possible locations
                   if (message === 'Workflow execution') {
                     message = 
+                      execData.data?.resultData?.runData?.['Instagram Webhook']?.[0]?.data?.main?.[0]?.[0]?.json?.body?.entry?.[0]?.messaging?.[0]?.message?.text ||
+                      execData.data?.resultData?.runData?.['Instagram Webhook']?.[0]?.data?.main?.[0]?.[0]?.json?.body?.entry?.[0]?.changes?.[0]?.value?.text ||
                       execData.data?.data?.body?.entry?.[0]?.messaging?.[0]?.message?.text ||
                       execData.data?.data?.body?.entry?.[0]?.changes?.[0]?.value?.text ||
                       execData.data?.data?.body?.text ||
@@ -222,8 +232,12 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
                   basicUsername = exec.data?.sender_name || exec.data?.from?.username || 'Unknown';
                 }
                 
-                if (exec.data?.resultData?.runData?.['Instagram Webhook']?.[0]?.data?.main?.[0]?.[0]?.json?.body?.entry?.[0]?.messaging?.[0]?.message?.text) {
-                  basicMessage = exec.data.resultData.runData['Instagram Webhook'][0].data.main[0][0].json.body.entry[0].messaging[0].message.text;
+                // Extract message from body.entry[0].messaging[0].message.text
+                const webhookDataBasic = exec.data?.resultData?.runData?.['Instagram Webhook']?.[0]?.data?.main?.[0]?.[0]?.json;
+                if (webhookDataBasic?.body?.entry?.[0]?.messaging?.[0]?.message?.text) {
+                  basicMessage = webhookDataBasic.body.entry[0].messaging[0].message.text;
+                } else if (webhookDataBasic?.body?.entry?.[0]?.changes?.[0]?.value?.text) {
+                  basicMessage = webhookDataBasic.body.entry[0].changes[0].value.text;
                 } else {
                   basicMessage = exec.data?.message || exec.data?.text || 'Workflow execution';
                 }
@@ -254,8 +268,12 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
                   basicUsername = exec.data?.sender_name || exec.data?.from?.username || 'Unknown';
                 }
                 
-                if (exec.data?.resultData?.runData?.['Instagram Webhook']?.[0]?.data?.main?.[0]?.[0]?.json?.body?.entry?.[0]?.messaging?.[0]?.message?.text) {
-                  basicMessage = exec.data.resultData.runData['Instagram Webhook'][0].data.main[0][0].json.body.entry[0].messaging[0].message.text;
+                // Extract message from body.entry[0].messaging[0].message.text
+                const webhookDataError = exec.data?.resultData?.runData?.['Instagram Webhook']?.[0]?.data?.main?.[0]?.[0]?.json;
+                if (webhookDataError?.body?.entry?.[0]?.messaging?.[0]?.message?.text) {
+                  basicMessage = webhookDataError.body.entry[0].messaging[0].message.text;
+                } else if (webhookDataError?.body?.entry?.[0]?.changes?.[0]?.value?.text) {
+                  basicMessage = webhookDataError.body.entry[0].changes[0].value.text;
                 } else {
                   basicMessage = exec.data?.message || exec.data?.text || 'Workflow execution';
                 }
