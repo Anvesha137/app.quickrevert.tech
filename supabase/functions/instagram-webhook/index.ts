@@ -86,26 +86,6 @@ Deno.serve(async (req: Request) => {
                 from: value.from,
                 timestamp: value.timestamp,
               };
-              
-              // Store incoming message in webhook_messages table
-              if (value.from && value.text) {
-                try {
-                  await supabase
-                    .from('webhook_messages')
-                    .insert({
-                      user_id: instagramAccount.user_id,
-                      instagram_account_id: instagramAccount.id,
-                      sender_id: value.from.id || '',
-                      sender_username: value.from.username || 'unknown',
-                      message_text: value.text,
-                      message_type: 'text',
-                      webhook_data: value,
-                    });
-                } catch (dbError) {
-                  console.error('Error storing webhook message:', dbError);
-                  // Continue even if storage fails
-                }
-              }
             } else if (field === 'story_insights' || field === 'story_mentions') {
               triggerType = 'story_reply';
               eventData = {

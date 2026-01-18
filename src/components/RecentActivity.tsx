@@ -22,7 +22,7 @@ const activityConfig = {
   comment: { icon: MessageSquare, label: 'Comment', color: 'text-blue-600', bg: 'bg-blue-50' },
   reply: { icon: Reply, label: 'Comment Reply', color: 'text-green-600', bg: 'bg-green-50' },
   follow_request: { icon: UserPlus, label: 'Follow Request', color: 'text-purple-600', bg: 'bg-purple-50' },
-  dm: { icon: Mail, label: 'Incoming Message', color: 'text-orange-600', bg: 'bg-orange-50' },
+  dm: { icon: Mail, label: 'User DM', color: 'text-orange-600', bg: 'bg-orange-50' },
   dm_sent: { icon: Send, label: 'DM Sent', color: 'text-pink-600', bg: 'bg-pink-50' }
 };
 
@@ -32,11 +32,9 @@ const statusConfig = {
   pending: { icon: AlertCircle, color: 'text-yellow-600' }
 };
 
-function formatTimeAgo(date: string | null | undefined) {
-  if (!date) return 'N/A';
+function formatTimeAgo(date: string) {
   const now = new Date();
   const activityDate = new Date(date);
-  if (isNaN(activityDate.getTime())) return 'Invalid date';
   const diffInSeconds = Math.floor((now.getTime() - activityDate.getTime()) / 1000);
 
   if (diffInSeconds < 60) return 'Just now';
@@ -61,47 +59,42 @@ export default function RecentActivity() {
 
     try {
       setLoading(true);
-      
-      // Fetch incoming messages from webhook_messages table (users who contacted the account)
-      const { data: webhookMessages, error: webhookError } = await supabase
-        .from('webhook_messages')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      if (webhookError) {
-        console.error('Error fetching webhook messages:', webhookError);
-      }
-
-      // Convert webhook messages to activity format
-      const incomingMessages = (webhookMessages || []).map((msg: any) => ({
-        id: msg.id,
-        activity_type: 'dm', // Incoming DM
-        target_username: msg.sender_username,
-        message: msg.message_text,
-        metadata: {},
-        status: 'success' as const,
-        created_at: msg.created_at,
-        isIncoming: true,
-      }));
-
-      // Fetch from automation_activities table (outgoing actions)
+      // Fetch from automation_activities table
       const { data: automationActivities, error: activitiesError } = await supabase
         .from('automation_activities')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(7);
 
       if (activitiesError) throw activitiesError;
 
-      // Combine incoming messages and automation activities, sort by date
+      // Fetch n8n executions
+      let n8nExecutions: any[] = [];
+      try {
+        const executionsResult = await N8nWorkflowService.getExecutions(undefined, 7, user.id);
+        if (executionsResult.executions) {
+          n8nExecutions = executionsResult.executions.map((exec: any) => ({
+            id: exec.id || `n8n-${exec.executionId}`,
+            activity_type: 'dm',
+            target_username: exec.data?.sender_name || exec.data?.from?.username || 'Unknown',
+            message: exec.data?.message || exec.data?.text || 'Workflow execution',
+            metadata: {},
+            status: exec.finished ? (exec.stoppedAt ? 'success' : 'failed') : 'pending',
+            created_at: exec.startedAt || exec.createdAt || new Date().toISOString(),
+            isN8nExecution: true,
+          }));
+        }
+      } catch (n8nError) {
+        console.error('Error fetching n8n executions:', n8nError);
+      }
+
+      // Combine and sort activities
       const allActivities = [
-        ...incomingMessages,
-        ...(automationActivities || [])
+        ...(automationActivities || []),
+        ...n8nExecutions
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-       .slice(0, 10);
+       .slice(0, 7);
 
       setActivities(allActivities);
     } catch (error) {
@@ -148,7 +141,7 @@ export default function RecentActivity() {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h2>
-      <p className="text-sm text-gray-600 mb-6">Users who contacted you and automation executions</p>
+      <p className="text-sm text-gray-600 mb-6">Latest executions</p>
 
       <div className="space-y-4">
         {activities.map((activity) => {

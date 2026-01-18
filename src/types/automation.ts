@@ -1,6 +1,6 @@
 export type TriggerType = 'post_comment' | 'story_reply' | 'user_directed_messages';
 
-export type ActionType = 'reply_to_comment' | 'send_dm';
+export type ActionType = 'reply_to_comment' | 'ask_to_follow' | 'send_dm';
 
 export interface PostCommentTriggerConfig {
   postsType: 'all' | 'specific';
@@ -34,10 +34,12 @@ export interface ReplyToCommentAction {
   type: 'reply_to_comment';
   replyTemplates: string[];
   actionButtons?: ActionButton[];
-  // Fields for "Reply to Direct Message" (when triggerType === 'user_directed_messages')
-  title?: string;
-  imageUrl?: string;
-  subtitle?: string;
+}
+
+export interface AskToFollowAction {
+  type: 'ask_to_follow';
+  messageTemplate: string;
+  followButtonText: string;
 }
 
 export interface SendDmAction {
@@ -49,7 +51,7 @@ export interface SendDmAction {
   actionButtons: ActionButton[];
 }
 
-export type Action = ReplyToCommentAction | SendDmAction;
+export type Action = ReplyToCommentAction | AskToFollowAction | SendDmAction;
 
 export interface AutomationFormData {
   name: string;

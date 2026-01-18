@@ -27,7 +27,6 @@ const activityConfig = {
   reply: { icon: Reply, label: 'Comment Reply', color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200' },
   follow_request: { icon: UserPlus, label: 'Follow Request', color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200' },
   dm: { icon: Mail, label: 'User DM', color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200' },
-  dm_incoming: { icon: Mail, label: 'Incoming Message', color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200' },
   dm_sent: { icon: Send, label: 'DM Sent', color: 'text-pink-600', bg: 'bg-pink-50', border: 'border-pink-200' },
   story_reply: { icon: MessageSquare, label: 'Story Reply', color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-200' }
 };
@@ -38,10 +37,8 @@ const statusConfig = {
   pending: { icon: AlertCircle, color: 'text-yellow-600' }
 };
 
-function formatDateTime(date: string | null | undefined) {
-  if (!date) return 'N/A';
+function formatDateTime(date: string) {
   const activityDate = new Date(date);
-  if (isNaN(activityDate.getTime())) return 'Invalid date';
   return activityDate.toLocaleString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -51,11 +48,9 @@ function formatDateTime(date: string | null | undefined) {
   });
 }
 
-function formatTimeAgo(date: string | null | undefined) {
-  if (!date) return 'N/A';
+function formatTimeAgo(date: string) {
   const now = new Date();
   const activityDate = new Date(date);
-  if (isNaN(activityDate.getTime())) return 'Invalid date';
   const diffInSeconds = Math.floor((now.getTime() - activityDate.getTime()) / 1000);
 
   if (diffInSeconds < 60) return 'Just now';
@@ -76,54 +71,51 @@ export default function ContactActivities({ username }: ContactActivitiesProps) 
   async function fetchActivities() {
     setLoading(true);
     try {
-      if (!user) return;
-
-      // Fetch incoming messages from webhook_messages (messages sent TO the account)
-      const { data: incomingMessages, error: webhookError } = await supabase
-        .from('webhook_messages')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('sender_username', username)
-        .order('created_at', { ascending: false });
-
-      if (webhookError) {
-        console.error('Error fetching webhook messages:', webhookError);
-      }
-
-      // Fetch outgoing messages from automation_activities (messages sent FROM the account)
+      // Fetch from automation_activities table
       const { data: automationActivities, error: activitiesError } = await supabase
         .from('automation_activities')
         .select('*')
-        .eq('user_id', user.id)
         .eq('target_username', username)
-        .in('activity_type', ['dm_sent', 'reply', 'reply_to_comment'])
         .order('created_at', { ascending: false });
 
       if (activitiesError) throw activitiesError;
 
-      // Convert incoming messages to activity format
-      const incomingActivities = (incomingMessages || []).map((msg: any) => ({
-        id: msg.id,
-        activity_type: 'dm_incoming',
-        target_username: username,
-        message: msg.message_text,
-        metadata: {},
-        status: 'success' as const,
-        created_at: msg.created_at,
-        isIncoming: true,
-      }));
+      // Fetch n8n executions if user is available
+      let n8nExecutions: any[] = [];
+      if (user) {
+        try {
+          const executionsResult = await N8nWorkflowService.getExecutions(undefined, 50, user.id);
+          if (executionsResult.executions) {
+            // Filter executions related to this contact (username)
+            // Note: This depends on how n8n stores execution data - adjust based on actual structure
+            n8nExecutions = executionsResult.executions.filter((exec: any) => {
+              // Check if execution data contains the username
+              const execData = exec.data || exec;
+              const dataStr = JSON.stringify(execData).toLowerCase();
+              return dataStr.includes(username.toLowerCase());
+            });
+          }
+        } catch (n8nError) {
+          console.error('Error fetching n8n executions:', n8nError);
+          // Continue with automation activities even if n8n fails
+        }
+      }
 
-      // Convert outgoing activities
-      const outgoingActivities = (automationActivities || []).map((activity: any) => ({
-        ...activity,
-        isIncoming: false,
-      }));
-
-      // Combine and sort by date (oldest first for chat view)
+      // Combine and sort activities
       const allActivities = [
-        ...incomingActivities,
-        ...outgoingActivities,
-      ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        ...(automationActivities || []),
+        // Map n8n executions to activity format
+        ...n8nExecutions.map((exec: any) => ({
+          id: exec.id || `n8n-${exec.executionId}`,
+          activity_type: 'dm',
+          target_username: username,
+          message: exec.data?.message || exec.data?.text || 'Workflow execution',
+          metadata: {},
+          status: exec.finished ? (exec.stoppedAt ? 'success' : 'failed') : 'pending',
+          created_at: exec.startedAt || exec.createdAt || new Date().toISOString(),
+          isN8nExecution: true,
+        }))
+      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       setActivities(allActivities);
     } catch (error) {
@@ -164,39 +156,61 @@ export default function ContactActivities({ username }: ContactActivitiesProps) 
 
   return (
     <div className="p-6">
-      <div className="mb-4 pb-4 border-b border-gray-200">
+      <div className="mb-4">
         <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
-          Chat History ({activities.length} messages)
+          All Interactions ({activities.length})
         </h3>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         {activities.map((activity) => {
-          const isIncoming = (activity as any).isIncoming;
+          const config = activityConfig[activity.activity_type as keyof typeof activityConfig] || activityConfig.dm;
           const StatusIcon = statusConfig[activity.status].icon;
+          const Icon = config.icon;
 
           return (
             <div
               key={activity.id}
-              className={`flex ${isIncoming ? 'justify-start' : 'justify-end'}`}
+              className={`bg-white rounded-xl border-2 ${config.border} p-4 hover:shadow-md transition-shadow`}
             >
-              <div
-                className={`max-w-[70%] rounded-2xl px-4 py-3 ${
-                  isIncoming
-                    ? 'bg-gray-100 text-gray-900 rounded-tl-sm'
-                    : 'bg-blue-600 text-white rounded-tr-sm'
-                }`}
-              >
-                {activity.message && (
-                  <p className={`text-sm whitespace-pre-wrap ${isIncoming ? 'text-gray-900' : 'text-white'}`}>
-                    {activity.message}
-                  </p>
-                )}
-                <div className={`flex items-center gap-2 mt-2 text-xs ${isIncoming ? 'text-gray-500' : 'text-blue-100'}`}>
-                  <span>{formatTimeAgo(activity.created_at)}</span>
-                  {!isIncoming && (
-                    <StatusIcon className={`w-3 h-3 ${statusConfig[activity.status].color}`} />
+              <div className="flex items-start gap-4">
+                <div className={`${config.bg} p-3 rounded-lg flex-shrink-0`}>
+                  <Icon className={`w-5 h-5 ${config.color}`} />
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`text-sm font-bold ${config.color}`}>{config.label}</span>
+                    <StatusIcon className={`w-4 h-4 ${statusConfig[activity.status].color}`} />
+                    <span className="text-xs text-gray-400 ml-auto">{formatTimeAgo(activity.created_at)}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xs font-semibold">
+                      {activity.target_username[0].toUpperCase()}
+                    </div>
+                    <span className="text-sm font-medium text-gray-900">@{activity.target_username}</span>
+                  </div>
+
+                  {activity.message && (
+                    <div className="bg-gray-50 rounded-lg p-3 border border-gray-200 mb-3">
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{activity.message}</p>
+                    </div>
                   )}
+
+                  <div className="flex items-center gap-4 text-xs">
+                    {activity.metadata.following !== undefined && (
+                      <span className={`flex items-center gap-1 ${activity.metadata.following ? 'text-green-600' : 'text-gray-500'}`}>
+                        {activity.metadata.following ? '✓ Following' : '○ Not following'}
+                      </span>
+                    )}
+                    {activity.metadata.seen !== undefined && (
+                      <span className="text-gray-500">
+                        Seen: {activity.metadata.seen ? 'Yes' : 'No'}
+                      </span>
+                    )}
+                    <span className="text-gray-400 ml-auto">{formatDateTime(activity.created_at)}</span>
+                  </div>
                 </div>
               </div>
             </div>

@@ -94,10 +94,6 @@ Deno.serve(async (req: Request) => {
     }
 
     let pageId = null;
-    let followers_count = 0;
-    let follows_count = 0;
-    let name = profileData.name || null;
-    
     try {
       const pagesRes = await fetch(`https://graph.facebook.com/v21.0/me/accounts?access_token=${accessToken}`);
       const pagesData = await pagesRes.json();
@@ -108,23 +104,7 @@ Deno.serve(async (req: Request) => {
         const igBusinessRes = await fetch(`https://graph.facebook.com/v21.0/${page.id}?fields=instagram_business_account&access_token=${accessToken}`);
         const igBusinessData = await igBusinessRes.json();
         if (igBusinessData.instagram_business_account) {
-          const igBusinessId = igBusinessData.instagram_business_account.id;
-          console.log('Instagram Business Account found:', igBusinessId);
-          
-          // Try to get follower counts from Instagram Business API
-          try {
-            const igProfileRes = await fetch(
-              `https://graph.facebook.com/v21.0/${igBusinessId}?fields=followers_count,follows_count,name&access_token=${accessToken}`
-            );
-            if (igProfileRes.ok) {
-              const igProfileData = await igProfileRes.json();
-              followers_count = igProfileData.followers_count || 0;
-              follows_count = igProfileData.follows_count || 0;
-              if (igProfileData.name) name = igProfileData.name;
-            }
-          } catch (profileError) {
-            console.warn('Could not fetch Instagram Business profile:', profileError);
-          }
+          console.log('Instagram Business Account found:', igBusinessData.instagram_business_account.id);
         }
       }
     } catch (pageError) {
@@ -147,9 +127,6 @@ Deno.serve(async (req: Request) => {
         username: profileData.username,
         profile_picture_url: profileData.profile_picture_url,
         page_id: pageId,
-        followers_count: followers_count,
-        follows_count: follows_count,
-        name: name,
         status: "active",
         last_synced_at: new Date().toISOString(),
       }).eq("id", existingAccount.id);
@@ -162,9 +139,6 @@ Deno.serve(async (req: Request) => {
         token_expires_at: tokenExpiresAt,
         profile_picture_url: profileData.profile_picture_url,
         page_id: pageId,
-        followers_count: followers_count,
-        follows_count: follows_count,
-        name: name,
         status: "active",
         connected_at: new Date().toISOString(),
         last_synced_at: new Date().toISOString(),

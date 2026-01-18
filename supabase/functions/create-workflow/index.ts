@@ -205,7 +205,7 @@ Deno.serve(async (req: Request) => {
           .replace(/\{\{instagramAccessToken\}\}/g, instagramAccount.access_token)
           .replace(/\{\{instagramCredentialId\}\}/g, instagramAccount.instagram_user_id)
           .replace(/\{\{instagramUsername\}\}/g, instagramAccount.username)
-          .replace(/\{\{calendarUrl\}\}/g, variables?.calendarUrl || '')
+          .replace(/\{\{calendarUrl\}\}/g, variables?.calendarUrl || 'https://calendar.app.google/QmsYv4Q4G5DNeham6')
           .replace(/\{\{brandName\}\}/g, variables?.brandName || 'QuickRevert');
       } else if (Array.isArray(obj)) {
         return obj.map(item => replacePlaceholders(item));
@@ -223,15 +223,11 @@ Deno.serve(async (req: Request) => {
     const buildDMWorkflow = () => {
       const triggerConfig = automationData?.trigger_config as { messageType?: 'all' | 'keywords'; keywords?: string[] } || {};
       const actions = automationData?.actions || [];
-      // For "Reply to Direct Message", it's a reply_to_comment action with title/imageUrl/subtitle
-      const replyToDmAction = actions.find((a: any) => a.type === 'reply_to_comment' && (a.title || a.imageUrl || a.subtitle));
       const sendDmAction = actions.find((a: any) => a.type === 'send_dm');
-      // Use reply_to_comment action if it has the new format, otherwise fall back to send_dm
-      const dmAction = replyToDmAction || sendDmAction;
       
       const messageType = triggerConfig.messageType || 'all';
       const keywords = triggerConfig.keywords || [];
-      const calendarUrl = variables?.calendarUrl || '';
+      const calendarUrl = variables?.calendarUrl || 'https://calendar.app.google/QmsYv4Q4G5DNeham6';
       const brandName = variables?.brandName || 'QuickRevert';
       
       const nodes: any[] = [];
@@ -307,13 +303,11 @@ Deno.serve(async (req: Request) => {
       };
       nodes.push(respondNode);
       
-      // 4. Message Switch node (only create if not "all messages")
+      // 4. Message Switch node
       nodeXPosition = -1216;
       const switchRules: any[] = [];
-      let shouldCreateSwitch = false;
       
       if (messageType === 'keywords' && keywords.length > 0) {
-        shouldCreateSwitch = true;
         // Add rules for each keyword
         keywords.forEach((keyword: string, index: number) => {
           switchRules.push({
@@ -341,11 +335,38 @@ Deno.serve(async (req: Request) => {
             outputKey: keyword.toLowerCase()
           });
         });
+      } else if (messageType === 'all') {
+        // Check if message text is empty (for "all messages")
+        switchRules.push({
+          conditions: {
+            options: {
+              caseSensitive: false,
+              leftValue: "",
+              typeValidation: "strict",
+              version: 2
+            },
+            conditions: [
+              {
+                id: "empty-message",
+                leftValue: "={{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].message.text }}",
+                rightValue: "",
+                operator: {
+                  type: "string",
+                  operation: "equals",
+                  name: "filter.operator.equals"
+                }
+              }
+            ],
+            combinator: "and"
+          },
+          renameOutput: true,
+          outputKey: "all_messages"
+        });
       }
       
-      // Add postback handlers for buttons (only if switch is being created)
-      if (shouldCreateSwitch && dmAction?.actionButtons) {
-        dmAction.actionButtons.forEach((button: any, index: number) => {
+      // Add postback handlers for buttons
+      if (sendDmAction?.actionButtons) {
+        sendDmAction.actionButtons.forEach((button: any, index: number) => {
           const buttonAction = button.action || (button.url ? 'url' : 'postback');
           
           if (buttonAction === 'postback' || !button.url) {
@@ -380,55 +401,41 @@ Deno.serve(async (req: Request) => {
         });
       }
       
-      // Only create switch node if we have rules (not for "all messages")
-      if (shouldCreateSwitch && switchRules.length > 0) {
-        const switchNode = {
-          id: "message-switch",
-          name: "Message Switch",
-          type: "n8n-nodes-base.switch",
-          typeVersion: 3.3,
-          position: [nodeXPosition, nodeYPosition + 224],
-          parameters: {
-            rules: {
-              values: switchRules
-            },
-            options: {
-              ignoreCase: true
-            }
+      const switchNode = {
+        id: "message-switch",
+        name: "Message Switch",
+        type: "n8n-nodes-base.switch",
+        typeVersion: 3.3,
+        position: [nodeXPosition, nodeYPosition + 224],
+        parameters: {
+          rules: {
+            values: switchRules
+          },
+          options: {
+            ignoreCase: true
           }
-        };
-        nodes.push(switchNode);
-      }
+        }
+      };
+      nodes.push(switchNode);
       
       // 5. Create HTTP request nodes for each keyword - ALWAYS create them
-      // If switch node was created, position nodes after it; otherwise position after webhook
-      nodeXPosition = shouldCreateSwitch ? nodeXPosition + 224 : -1344;
-      let messageYPosition = shouldCreateSwitch ? 304 : nodeYPosition + 224;
+      nodeXPosition += 224;
+      let messageYPosition = 304;
       const switchConnections: any[] = [];
       
       // Prepare buttons and message template from action if available
       const buttons: any[] = [];
-      if (dmAction?.actionButtons) {
-        dmAction.actionButtons.forEach((button: any) => {
-          // For buttons: if URL exists, use web_url, otherwise use postback
-          if (button.url && button.url.trim() !== '') {
-            // If button.url is 'calendar', use calendarUrl if provided, otherwise skip
-            if (button.url === 'calendar') {
-              if (calendarUrl && calendarUrl.trim() !== '') {
-                buttons.push({
-                  type: "web_url",
-                  url: calendarUrl,
-                  title: button.text
-                });
-              }
-            } else {
-              buttons.push({
-                type: "web_url",
-                url: button.url,
-                title: button.text
-              });
-            }
-          } else {
+      if (sendDmAction?.actionButtons) {
+        sendDmAction.actionButtons.forEach((button: any) => {
+          const buttonAction = button.action || (button.url ? 'web_url' : 'postback');
+          
+          if (buttonAction === 'web_url' || buttonAction === 'calendar') {
+            buttons.push({
+              type: "web_url",
+              url: buttonAction === 'calendar' || button.url === 'calendar' ? calendarUrl : button.url,
+              title: button.text
+            });
+          } else if (buttonAction === 'postback' || !button.url) {
             const payload = button.text.toUpperCase().replace(/\s+/g, '_');
             buttons.push({
               type: "postback",
@@ -441,18 +448,18 @@ Deno.serve(async (req: Request) => {
       
       // Get user-configured values or use defaults
       // Title is required, so use default if not provided
-      const title = (dmAction as any)?.title || "Hi👋";
+      const title = (sendDmAction as any)?.title || "Hi👋";
       // Subtitle is optional - only use if user provided it
-      const subtitle = (dmAction as any)?.subtitle || (dmAction as any)?.messageTemplate || undefined;
-      // Image URL is optional - only include if provided
-      const imageUrl = (dmAction as any)?.imageUrl || (dmAction as any)?.image_url || undefined;
+      const subtitle = (sendDmAction as any)?.subtitle || sendDmAction?.messageTemplate || undefined;
+      // Image URL is optional
+      const imageUrl = (sendDmAction as any)?.imageUrl || (sendDmAction as any)?.image_url || "https://i.ibb.co/N29QzF6Z/QR-Logo.png";
       
       // Build the element object dynamically based on what user provided
       const buildElement = () => {
         const element: any = {};
         if (title) element.title = title;
-        if (imageUrl && imageUrl.trim() !== '') element.image_url = imageUrl;
-        if (subtitle && subtitle.trim() !== '') element.subtitle = subtitle;
+        if (imageUrl) element.image_url = imageUrl;
+        if (subtitle) element.subtitle = subtitle;
         if (buttons.length > 0) element.buttons = buttons;
         return element;
       };
@@ -475,7 +482,8 @@ Deno.serve(async (req: Request) => {
             parameters: {
               method: "POST",
               url: `=https://graph.instagram.com/v24.0/{{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages`,
-              authentication: "none",
+              authentication: "genericCredentialType",
+              genericAuthType: "httpHeaderAuth",
               sendHeaders: true,
               headerParameters: {
                 parameters: [
@@ -485,7 +493,7 @@ Deno.serve(async (req: Request) => {
                   },
                   {
                     name: "Authorization",
-                    value: `Bearer ${instagramAccount.access_token}`
+                    value: "Bearer {{access_token}}"
                   }
                 ]
               },
@@ -493,6 +501,12 @@ Deno.serve(async (req: Request) => {
               specifyBody: "json",
               jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].messaging[0].sender.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          ${elementJson}\n        ]\n      }\n    }\n  }\n}\n`,
               options: {}
+            },
+            credentials: {
+              httpHeaderAuth: {
+                id: instagramAccount.instagram_user_id,
+                name: "Instagram Access Token"
+              }
             }
           };
           nodes.push(keywordNode);
@@ -520,7 +534,8 @@ Deno.serve(async (req: Request) => {
           parameters: {
             method: "POST",
             url: `=https://graph.instagram.com/v24.0/{{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages`,
-            authentication: "none",
+            authentication: "genericCredentialType",
+            genericAuthType: "httpHeaderAuth",
             sendHeaders: true,
             headerParameters: {
               parameters: [
@@ -530,27 +545,41 @@ Deno.serve(async (req: Request) => {
                 },
                 {
                   name: "Authorization",
-                  value: `Bearer ${instagramAccount.access_token}`
+                  value: "Bearer {{access_token}}"
                 }
               ]
             },
             sendBody: true,
             specifyBody: "json",
-            jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].messaging[0].sender.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          ${elementJson}\n        ]\n      }\n    }\n  }\n}\n`,
+            jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].messaging[0].sender.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          {\n            "title": "Hi👋",\n            "image_url": "https://i.ibb.co/N29QzF6Z/QR-Logo.png",\n            "subtitle": "${defaultMessage.replace(/\n/g, '\\n').replace(/"/g, '\\"')}",\n            "buttons": ${JSON.stringify(buttons)}\n          }\n        ]\n      }\n    }\n  }\n}\n`,
             options: {}
+          },
+          credentials: {
+            httpHeaderAuth: {
+              id: instagramAccount.instagram_user_id,
+              name: "Instagram Access Token"
+            }
           }
         };
         nodes.push(allMessagesNode);
         
-        // For "all messages", connect webhook directly to HTTP request node (no switch node)
-        // This connection will be set up in the connections section below
+        // Add connection from switch to all messages node
+        const switchOutputIndex = switchRules.findIndex((r: any) => r.outputKey === 'all_messages');
+        if (switchOutputIndex >= 0) {
+          switchConnections.push({
+            node: "Send First Message",
+            type: "main",
+            index: switchOutputIndex
+          });
+        }
       }
       
       // 6. Button handler nodes (for postbacks)
-      if (dmAction?.actionButtons) {
-        dmAction.actionButtons.forEach((button: any, index: number) => {
-          // Only create handler for buttons without URL (postback buttons)
-          if (!button.url || button.url.trim() === '') {
+      if (sendDmAction?.actionButtons) {
+        sendDmAction.actionButtons.forEach((button: any, index: number) => {
+          const buttonAction = button.action || (button.url ? 'url' : 'postback');
+          
+          if (buttonAction === 'postback' || !button.url) {
             const payload = button.text.toUpperCase().replace(/\s+/g, '_');
             
             const buttonHandlerNode = {
@@ -562,7 +591,8 @@ Deno.serve(async (req: Request) => {
               parameters: {
                 method: "POST",
                 url: `=https://graph.instagram.com/v24.0/{{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages`,
-                authentication: "none",
+                authentication: "genericCredentialType",
+                genericAuthType: "httpHeaderAuth",
                 sendHeaders: true,
                 headerParameters: {
                   parameters: [
@@ -572,13 +602,13 @@ Deno.serve(async (req: Request) => {
                     },
                     {
                       name: "Authorization",
-                      value: `Bearer ${instagramAccount.access_token}`
+                      value: "Bearer {{access_token}}"
                     }
                   ]
                 },
                 sendBody: true,
                 specifyBody: "json",
-                jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].messaging[0].sender.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          {\n            "title": "Great choice\\nOur ${button.text} solution helps businesses reply instantly, qualify leads, and manage all customer conversations in one place.\\n\\nOne of our experts will contact you soon to guide you further.\\n\\nYou can also book a quick demo to see how it works📅",\n            "image_url": "https://i.ibb.co/N29QzF6Z/QR-Logo.png",\n            "subtitle": "Thank you for choosing ${brandName}!"${calendarUrl && calendarUrl.trim() !== '' ? `,\n            "buttons": [\n              {\n                "type": "web_url",\n                "url": "${calendarUrl}",\n                "title": "Book Demo"\n              }\n            ]` : ''}\n          }\n        ]\n      }\n    }\n  }\n}\n`,
+                jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].messaging[0].sender.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          {\n            "title": "Great choice\\nOur ${button.text} solution helps businesses reply instantly, qualify leads, and manage all customer conversations in one place.\\n\\nOne of our experts will contact you soon to guide you further.\\n\\nYou can also book a quick demo to see how it works📅",\n            "image_url": "https://i.ibb.co/N29QzF6Z/QR-Logo.png",\n            "subtitle": "Thank you for choosing ${brandName}!",\n            "buttons": [\n              {\n                "type": "web_url",\n                "url": "${calendarUrl}",\n                "title": "Book Demo"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}\n`,
                 options: {}
               },
               credentials: {
@@ -606,47 +636,24 @@ Deno.serve(async (req: Request) => {
       }
       
       // Set up connections
-      if (messageType === 'all') {
-        // For "all messages", connect webhook directly to HTTP request node (skip switch)
-        connections["Instagram Webhook"] = {
-          main: [
-            [
-              {
-                node: "Webhook Verification",
-                type: "main",
-                index: 0
-              }
-            ],
-            [
-              {
-                node: "Send First Message",
-                type: "main",
-                index: 0
-              }
-            ]
+      connections["Instagram Webhook"] = {
+        main: [
+          [
+            {
+              node: "Webhook Verification",
+              type: "main",
+              index: 0
+            }
+          ],
+          [
+            {
+              node: "Message Switch",
+              type: "main",
+              index: 0
+            }
           ]
-        };
-      } else {
-        // For keywords, use switch node
-        connections["Instagram Webhook"] = {
-          main: [
-            [
-              {
-                node: "Webhook Verification",
-                type: "main",
-                index: 0
-              }
-            ],
-            [
-              {
-                node: "Message Switch",
-                type: "main",
-                index: 0
-              }
-            ]
-          ]
-        };
-      }
+        ]
+      };
       
       connections["Webhook Verification"] = {
         main: [
@@ -660,8 +667,7 @@ Deno.serve(async (req: Request) => {
         ]
       };
       
-      // Only set up switch connections if switch node was created
-      if (shouldCreateSwitch && switchConnections.length > 0) {
+      if (switchConnections.length > 0) {
         // Group connections by output index for switch node
         // n8n switch node connections: main: [[output0_connections], [output1_connections], ...]
         const groupedConnections: any[] = [];
@@ -707,11 +713,12 @@ Deno.serve(async (req: Request) => {
       const triggerConfig = automationData?.trigger_config as { commentsType?: 'all' | 'keywords'; keywords?: string[] } || {};
       const actions = automationData?.actions || [];
       const replyToCommentAction = actions.find((a: any) => a.type === 'reply_to_comment');
+      const askToFollowAction = actions.find((a: any) => a.type === 'ask_to_follow');
       const sendDmAction = actions.find((a: any) => a.type === 'send_dm');
       
       const commentsType = triggerConfig.commentsType || 'all';
       const keywords = triggerConfig.keywords || [];
-      const calendarUrl = variables?.calendarUrl || '';
+      const calendarUrl = variables?.calendarUrl || 'https://calendar.app.google/QmsYv4Q4G5DNeham6';
       const brandName = variables?.brandName || 'QuickRevert';
       
       const nodes: any[] = [];
@@ -892,17 +899,11 @@ Deno.serve(async (req: Request) => {
       if (replyToCommentAction?.actionButtons && replyToCommentAction.actionButtons.length > 0) {
         replyToCommentAction.actionButtons.forEach((button: any) => {
           if (button.url) {
-            // If button.url is 'calendar', use calendarUrl if provided, otherwise use button.url
-            const buttonUrl = button.url === 'calendar' 
-              ? (calendarUrl && calendarUrl.trim() !== '' ? calendarUrl : button.url)
-              : button.url;
-            if (buttonUrl && buttonUrl.trim() !== '') {
-              replyButtons.push({
-                type: "web_url",
-                url: buttonUrl,
-                title: button.text
-              });
-            }
+            replyButtons.push({
+              type: "web_url",
+              url: button.url === 'calendar' ? calendarUrl : button.url,
+              title: button.text
+            });
           }
         });
       }
@@ -924,7 +925,8 @@ Deno.serve(async (req: Request) => {
             parameters: {
               method: "POST",
               url: `=https://graph.facebook.com/v24.0/{{ $json.body.entry[0].changes[0].value.id }}/replies`,
-              authentication: "none",
+              authentication: "genericCredentialType",
+              genericAuthType: "httpHeaderAuth",
               sendHeaders: true,
               headerParameters: {
                 parameters: [
@@ -934,7 +936,7 @@ Deno.serve(async (req: Request) => {
                   },
                   {
                     name: "Authorization",
-                    value: `Bearer ${instagramAccount.access_token}`
+                    value: "Bearer {{access_token}}"
                   }
                 ]
               },
@@ -942,6 +944,12 @@ Deno.serve(async (req: Request) => {
               specifyBody: "json",
               jsonBody: `={\n  "message": "@{{ $json.body.entry[0].changes[0].value.from.username }} ${replyText.replace(/\n/g, '\\n').replace(/"/g, '\\"')}"\n}\n`,
               options: {}
+            },
+            credentials: {
+              httpHeaderAuth: {
+                id: instagramAccount.instagram_user_id,
+                name: "Instagram Access Token"
+              }
             }
           };
           nodes.push(replyNode);
@@ -973,7 +981,8 @@ Deno.serve(async (req: Request) => {
           parameters: {
             method: "POST",
             url: `=https://graph.facebook.com/v24.0/{{ $json.body.entry[0].changes[0].value.id }}/replies`,
-            authentication: "none",
+            authentication: "genericCredentialType",
+            genericAuthType: "httpHeaderAuth",
             sendHeaders: true,
             headerParameters: {
               parameters: [
@@ -983,7 +992,7 @@ Deno.serve(async (req: Request) => {
                 },
                 {
                   name: "Authorization",
-                  value: `Bearer ${instagramAccount.access_token}`
+                  value: "Bearer {{access_token}}"
                 }
               ]
             },
@@ -991,6 +1000,12 @@ Deno.serve(async (req: Request) => {
             specifyBody: "json",
             jsonBody: `={\n  "message": "@{{ $json.body.entry[0].changes[0].value.from.username }} ${replyText.replace(/\n/g, '\\n').replace(/"/g, '\\"')}"\n}\n`,
             options: {}
+          },
+          credentials: {
+            httpHeaderAuth: {
+              id: instagramAccount.instagram_user_id,
+              name: "Instagram Access Token"
+            }
           }
         };
         nodes.push(replyNode);
@@ -1009,83 +1024,134 @@ Deno.serve(async (req: Request) => {
         keywordYPositions['all_comments'] = replyYPosition;
       }
       
-      // 6. Chain additional send_dm actions after reply
+      // 6. Chain additional actions (ask_to_follow, send_dm) after reply
       const actionConnections: any = {};
       
-      // Helper to add send_dm action node
-      const addSendDmActionNode = (actionData: any, previousNodeName: string, keywordKey: string) => {
+      // Helper to add action node
+      const addActionNode = (actionType: 'ask_to_follow' | 'send_dm', actionData: any, previousNodeName: string, keywordKey: string) => {
         let actionNode: any;
         let actionNodeName: string = '';
         const currentYPosition = keywordYPositions[keywordKey] || replyYPosition;
-
-        actionNodeName = `send-dm-${keywordKey.replace(/\s+/g, '-')}`;
-        const buttons: any[] = [];
-        actionData?.actionButtons?.forEach((button: any) => {
-          const buttonAction = button.action || (button.url ? 'web_url' : 'postback');
+        
+        if (actionType === 'ask_to_follow') {
+          actionNodeName = `please follow${keywords.length > 1 ? keywordKey.replace(/\s+/g, '') : '1'}`;
+          const buttons = [{
+            type: "postback",
+            title: actionData.followButtonText || "I'm Following ✅",
+            payload: "Following"
+          }];
           
-          if (buttonAction === 'web_url' || buttonAction === 'calendar') {
-            const buttonUrl = (buttonAction === 'calendar' || button.url === 'calendar')
-              ? (calendarUrl && calendarUrl.trim() !== '' ? calendarUrl : null)
-              : button.url;
-            if (buttonUrl && buttonUrl.trim() !== '') {
+          actionNode = {
+            id: `ask-follow-${keywordKey.replace(/\s+/g, '-')}`,
+            name: actionNodeName,
+            type: "n8n-nodes-base.httpRequest",
+            typeVersion: 4.3,
+            position: [nodeXPosition + 224, currentYPosition],
+            parameters: {
+              method: "POST",
+              url: `=https://graph.instagram.com/v24.0/{{ $json.body.entry[0].id }}/messages`,
+              authentication: "genericCredentialType",
+              genericAuthType: "httpHeaderAuth",
+              sendHeaders: true,
+              headerParameters: {
+                parameters: [
+                  {
+                    name: "Content-Type",
+                    value: "application/json"
+                  },
+                  {
+                    name: "Authorization",
+                    value: "Bearer {{access_token}}"
+                  }
+                ]
+              },
+              sendBody: true,
+              specifyBody: "json",
+              jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].changes[0].value.from.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          {\n            "title": "${(actionData.messageTemplate || `Cool 😎\\nBefore I share you the link, please hit that follow button`).replace(/\n/g, '\\n').replace(/"/g, '\\"')}",\n            "buttons": ${JSON.stringify(buttons)}\n          }\n        ]\n      }\n    }\n  }\n}\n`,
+              options: {}
+            },
+            credentials: {
+              httpHeaderAuth: {
+                id: instagramAccount.instagram_user_id,
+                name: "Instagram Access Token"
+              }
+            }
+          };
+        } else if (actionType === 'send_dm') {
+          actionNodeName = `send-dm-${keywordKey.replace(/\s+/g, '-')}`;
+          const buttons: any[] = [];
+          sendDmAction.actionButtons?.forEach((button: any) => {
+            const buttonAction = button.action || (button.url ? 'web_url' : 'postback');
+            
+            if (buttonAction === 'web_url' || buttonAction === 'calendar') {
               buttons.push({
                 type: "web_url",
-                url: buttonUrl,
+                url: buttonAction === 'calendar' || button.url === 'calendar' ? calendarUrl : button.url,
                 title: button.text
               });
+            } else if (buttonAction === 'postback' || !button.url) {
+              const payload = button.text.toUpperCase().replace(/\s+/g, '_');
+              buttons.push({
+                type: "postback",
+                title: button.text,
+                payload: payload
+              });
             }
-          } else if (buttonAction === 'postback' || !button.url) {
-            const payload = button.text.toUpperCase().replace(/\s+/g, '_');
-            buttons.push({
-              type: "postback",
-              title: button.text,
-              payload: payload
-            });
-          }
-        });
-        
-        // Get user-configured values or use defaults
-        const dmTitle = (actionData as any)?.title || "Hi👋";
-        const dmSubtitle = (actionData as any)?.subtitle || actionData?.messageTemplate || undefined;
-        const dmImageUrl = (actionData as any)?.imageUrl || (actionData as any)?.image_url || "https://i.ibb.co/N29QzF6Z/QR-Logo.png";
-        
-        // Build the element object dynamically
-        const dmElement: any = {};
-        if (dmTitle) dmElement.title = dmTitle;
-        if (dmImageUrl) dmElement.image_url = dmImageUrl;
-        if (dmSubtitle) dmElement.subtitle = dmSubtitle;
-        if (buttons.length > 0) dmElement.buttons = buttons;
-        const dmElementJson = JSON.stringify(dmElement);
-        
-        actionNode = {
-          id: `send-dm-${keywordKey.replace(/\s+/g, '-')}`,
-          name: actionNodeName,
-          type: "n8n-nodes-base.httpRequest",
-          typeVersion: 4.3,
-          position: [nodeXPosition + 224, currentYPosition],
-          parameters: {
-            method: "POST",
-            url: `=https://graph.instagram.com/v24.0/{{ $json.body.entry[0].id }}/messages`,
-            authentication: "none",
-            sendHeaders: true,
-            headerParameters: {
-              parameters: [
-                {
-                  name: "Content-Type",
-                  value: "application/json"
-                },
-                {
-                  name: "Authorization",
-                  value: `Bearer ${instagramAccount.access_token}`
-                }
-              ]
+          });
+          
+          // Get user-configured values or use defaults
+          // Title is required, so use default if not provided
+          const dmTitle = (sendDmAction as any)?.title || "Hi👋";
+          // Subtitle is optional - only use if user provided it
+          const dmSubtitle = (sendDmAction as any)?.subtitle || sendDmAction.messageTemplate || undefined;
+          // Image URL is optional
+          const dmImageUrl = (sendDmAction as any)?.imageUrl || (sendDmAction as any)?.image_url || "https://i.ibb.co/N29QzF6Z/QR-Logo.png";
+          
+          // Build the element object dynamically
+          const dmElement: any = {};
+          if (dmTitle) dmElement.title = dmTitle;
+          if (dmImageUrl) dmElement.image_url = dmImageUrl;
+          if (dmSubtitle) dmElement.subtitle = dmSubtitle;
+          if (buttons.length > 0) dmElement.buttons = buttons;
+          const dmElementJson = JSON.stringify(dmElement);
+          
+          actionNode = {
+            id: `send-dm-${keywordKey.replace(/\s+/g, '-')}`,
+            name: actionNodeName,
+            type: "n8n-nodes-base.httpRequest",
+            typeVersion: 4.3,
+            position: [nodeXPosition + 224, currentYPosition],
+            parameters: {
+              method: "POST",
+              url: `=https://graph.instagram.com/v24.0/{{ $json.body.entry[0].id }}/messages`,
+              authentication: "genericCredentialType",
+              genericAuthType: "httpHeaderAuth",
+              sendHeaders: true,
+              headerParameters: {
+                parameters: [
+                  {
+                    name: "Content-Type",
+                    value: "application/json"
+                  },
+                  {
+                    name: "Authorization",
+                    value: "Bearer {{access_token}}"
+                  }
+                ]
+              },
+              sendBody: true,
+              specifyBody: "json",
+              jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].changes[0].value.from.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          ${dmElementJson}\n        ]\n      }\n    }\n  }\n}\n`,
+              options: {}
             },
-            sendBody: true,
-            specifyBody: "json",
-            jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].changes[0].value.from.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          ${dmElementJson}\n        ]\n      }\n    }\n  }\n}\n`,
-            options: {}
-          }
-        };
+            credentials: {
+              httpHeaderAuth: {
+                id: instagramAccount.instagram_user_id,
+                name: "Instagram Access Token"
+              }
+            }
+          };
+        }
         
         if (actionNode && actionNodeName) {
           nodes.push(actionNode);
@@ -1107,22 +1173,30 @@ Deno.serve(async (req: Request) => {
         return previousNodeName;
       };
       
-      // Add send_dm actions after reply nodes
+      // Add ask_to_follow and send_dm actions after reply nodes
       if (commentsType === 'keywords' && keywords.length > 0) {
         keywords.forEach((keyword: string) => {
           const keywordKey = keyword.toLowerCase();
           let lastNode = actionChains[keywordKey];
           
+          if (askToFollowAction && lastNode) {
+            lastNode = addActionNode('ask_to_follow', askToFollowAction, lastNode, keywordKey);
+          }
+          
           if (sendDmAction && lastNode) {
-            lastNode = addSendDmActionNode(sendDmAction, lastNode, keywordKey);
+            lastNode = addActionNode('send_dm', sendDmAction, lastNode, keywordKey);
           }
         });
       } else if (commentsType === 'all') {
         let lastNode = actionChains['all_comments'];
         const keywordKey = 'all_comments';
         
+        if (askToFollowAction && lastNode) {
+          lastNode = addActionNode('ask_to_follow', askToFollowAction, lastNode, keywordKey);
+        }
+        
         if (sendDmAction && lastNode) {
-          lastNode = addSendDmActionNode(sendDmAction, lastNode, keywordKey);
+          lastNode = addActionNode('send_dm', sendDmAction, lastNode, keywordKey);
         }
       }
       
@@ -1213,9 +1287,6 @@ Deno.serve(async (req: Request) => {
     if (automationData && automationData.trigger_type === 'user_directed_messages') {
       console.log("Building DM workflow for user_directed_messages");
       workflowTemplate = buildDMWorkflow();
-    } else if (automationData && automationData.trigger_type === 'story_reply') {
-      console.log("Building DM workflow for story_reply");
-      workflowTemplate = buildDMWorkflow();
     } else if (automationData && automationData.trigger_type === 'post_comment') {
       console.log("Building Post Comment workflow");
       workflowTemplate = buildPostCommentWorkflow();
@@ -1273,7 +1344,6 @@ Deno.serve(async (req: Request) => {
           parameters: {
             method: "POST",
             url: "https://graph.instagram.com/v20.0/me/messages",
-            authentication: "none",
             sendHeaders: true,
             headerParameters: {
               parameters: [
