@@ -23,9 +23,11 @@ export default function Contacts() {
 
   async function fetchContacts() {
     try {
+      // Only fetch contacts who received automated messages (dm_sent, reply)
       const { data, error } = await supabase
         .from('automation_activities')
-        .select('target_username, created_at')
+        .select('target_username, created_at, activity_type')
+        .in('activity_type', ['dm_sent', 'reply', 'reply_to_comment'])
         .order('created_at', { ascending: false });
 
       if (error) throw error;

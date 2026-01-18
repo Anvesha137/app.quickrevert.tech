@@ -24,6 +24,12 @@ export default function ActivityLog() {
 
   async function fetchAutomations() {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setLoading(false);
+        return;
+      }
+
       const { data: automationsData, error: automationsError } = await supabase
         .from('automations')
         .select('*')
@@ -31,33 +37,60 @@ export default function ActivityLog() {
 
       if (automationsError) throw automationsError;
 
-      const { data: activitiesData, error: activitiesError } = await supabase
-        .from('automation_activities')
-        .select('automation_id, created_at');
+      // Get n8n workflows for each automation
+      const { data: workflowsData } = await supabase
+        .from('n8n_workflows')
+        .select('automation_id, n8n_workflow_id')
+        .not('automation_id', 'is', null);
 
-      if (activitiesError) throw activitiesError;
-
-      const activityMap = new Map<string, { count: number; lastActivity: string | null }>();
-
-      activitiesData?.forEach((activity) => {
-        if (!activity.automation_id) return;
-
-        const existing = activityMap.get(activity.automation_id);
-        if (!existing) {
-          activityMap.set(activity.automation_id, {
-            count: 1,
-            lastActivity: activity.created_at,
-          });
-        } else {
-          existing.count++;
-          if (!existing.lastActivity || new Date(activity.created_at) > new Date(existing.lastActivity)) {
-            existing.lastActivity = activity.created_at;
-          }
+      const workflowMap = new Map<string, string[]>();
+      workflowsData?.forEach((wf) => {
+        if (wf.automation_id) {
+          const existing = workflowMap.get(wf.automation_id) || [];
+          existing.push(wf.n8n_workflow_id);
+          workflowMap.set(wf.automation_id, existing);
         }
       });
 
+      // Fetch execution counts from n8n for each workflow
+      const executionCounts = new Map<string, { count: number; lastActivity: string | null }>();
+      
+      for (const automation of automationsData || []) {
+        const workflowIds = workflowMap.get(automation.id) || [];
+        let totalExecutions = 0;
+        let lastExecution: string | null = null;
+
+        for (const workflowId of workflowIds) {
+          try {
+            const { N8nWorkflowService } = await import('../lib/n8nService');
+            const executionsResult = await N8nWorkflowService.getExecutions(workflowId, 100, session.user.id);
+            
+            if (executionsResult.executions) {
+              totalExecutions += executionsResult.executions.length;
+              
+              // Find most recent execution
+              executionsResult.executions.forEach((exec: any) => {
+                const execTime = exec.startedAt || exec.createdAt;
+                if (execTime && (!lastExecution || new Date(execTime) > new Date(lastExecution))) {
+                  lastExecution = execTime;
+                }
+              });
+            }
+          } catch (err) {
+            console.error(`Error fetching executions for workflow ${workflowId}:`, err);
+          }
+        }
+
+        if (totalExecutions > 0 || lastExecution) {
+          executionCounts.set(automation.id, {
+            count: totalExecutions,
+            lastActivity: lastExecution,
+          });
+        }
+      }
+
       const automationsWithStats = automationsData?.map((automation) => {
-        const stats = activityMap.get(automation.id);
+        const stats = executionCounts.get(automation.id);
         return {
           ...automation,
           activityCount: stats?.count || 0,

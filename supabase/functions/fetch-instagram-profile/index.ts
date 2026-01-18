@@ -49,6 +49,9 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Try to fetch profile with all available fields
+    // Note: Instagram Basic Display API doesn't provide followers_count/follows_count
+    // We'll try to get them from the account data if available
     const profileResponse = await fetch(
       `https://graph.instagram.com/me?fields=id,username,account_type,media_count&access_token=${instagramAccount.access_token}`
     );
@@ -59,9 +62,45 @@ Deno.serve(async (req: Request) => {
     }
 
     const profileData = await profileResponse.json();
+    
+    // Try to get followers/following count from Instagram Business API if available
+    // For now, we'll use stored values or fetch from account if page_id exists
+    let followers_count = 0;
+    let follows_count = 0;
+    let profile_picture_url = profileData.profile_picture_url || null;
+    let name = profileData.name || null;
+    
+    if (instagramAccount.page_id) {
+      try {
+        // Try Instagram Graph API (Business account)
+        const businessProfileResponse = await fetch(
+          `https://graph.facebook.com/v24.0/${instagramAccount.page_id}?fields=followers_count,follows_count,profile_picture_url,name&access_token=${instagramAccount.access_token}`
+        );
+        
+        if (businessProfileResponse.ok) {
+          const businessData = await businessProfileResponse.json();
+          followers_count = businessData.followers_count || 0;
+          follows_count = businessData.follows_count || 0;
+          if (businessData.profile_picture_url) profile_picture_url = businessData.profile_picture_url;
+          if (businessData.name) name = businessData.name;
+        }
+      } catch (e) {
+        console.error('Error fetching business profile:', e);
+      }
+    }
+    
+    // Use stored values from instagram_accounts if available
+    const finalProfile = {
+      ...profileData,
+      followers_count: followers_count || instagramAccount.followers_count || 0,
+      follows_count: follows_count || instagramAccount.follows_count || 0,
+      media_count: profileData.media_count || 0,
+      profile_picture_url: profile_picture_url || instagramAccount.profile_picture_url || null,
+      name: name || instagramAccount.name || null,
+    };
 
     return new Response(
-      JSON.stringify({ profile: profileData }),
+      JSON.stringify({ profile: finalProfile }),
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
