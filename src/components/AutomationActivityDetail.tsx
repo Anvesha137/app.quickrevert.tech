@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { MessageSquare, Reply, UserPlus, Mail, Send, CheckCircle2, XCircle, AlertCircle, Clock, Zap } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { N8nWorkflowService } from '../lib/n8nService';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Activity {
   id: string;
@@ -14,6 +16,8 @@ interface Activity {
   };
   status: 'success' | 'failed' | 'pending';
   created_at: string;
+  isN8nExecution?: boolean;
+  executionData?: any;
 }
 
 interface Automation {
@@ -70,15 +74,18 @@ function formatTimeAgo(date: string | null | undefined) {
 }
 
 export default function AutomationActivityDetail({ automationId }: AutomationActivityDetailProps) {
+  const { user } = useAuth();
   const [automation, setAutomation] = useState<Automation | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchAutomationAndActivities();
-  }, [automationId]);
+  }, [automationId, user]);
 
   async function fetchAutomationAndActivities() {
+    if (!user) return;
+    
     setLoading(true);
     try {
       const { data: automationData, error: automationError } = await supabase
@@ -90,6 +97,7 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
       if (automationError) throw automationError;
       setAutomation(automationData);
 
+      // Fetch activities from automation_activities table
       const { data: activitiesData, error: activitiesError } = await supabase
         .from('automation_activities')
         .select('*')
@@ -97,7 +105,113 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
         .order('created_at', { ascending: false });
 
       if (activitiesError) throw activitiesError;
-      setActivities(activitiesData || []);
+
+      // Fetch n8n workflow ID for this automation
+      let n8nWorkflowId: string | null = null;
+      try {
+        const { data: workflowData, error: workflowError } = await supabase
+          .from('n8n_workflows')
+          .select('n8n_workflow_id')
+          .eq('automation_id', automationId)
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (!workflowError && workflowData) {
+          n8nWorkflowId = workflowData.n8n_workflow_id;
+        }
+      } catch (workflowErr) {
+        console.error('Error fetching n8n workflow:', workflowErr);
+      }
+
+      // Fetch n8n executions for this workflow
+      let n8nExecutions: Activity[] = [];
+      if (n8nWorkflowId) {
+        try {
+          const executionsResult = await N8nWorkflowService.getExecutions(n8nWorkflowId, 100, user.id);
+          
+          if (executionsResult.executions && executionsResult.executions.length > 0) {
+            // Fetch detailed execution data for each execution
+            const executionDetailsPromises = executionsResult.executions.map(async (exec: any) => {
+              try {
+                // Get detailed execution data using getExecution
+                const detailedResult = await N8nWorkflowService.getExecution(exec.id, user.id);
+                
+                if (detailedResult.execution) {
+                  const execData = detailedResult.execution;
+                  
+                  // Extract recipient username from execution data
+                  // This might vary based on n8n workflow structure
+                  const recipientUsername = 
+                    execData.data?.data?.body?.sender?.username ||
+                    execData.data?.body?.from?.username ||
+                    execData.data?.sender_name ||
+                    execData.data?.from?.username ||
+                    'Unknown';
+
+                  // Extract message from execution data
+                  const message = 
+                    execData.data?.data?.body?.text ||
+                    execData.data?.data?.body?.message ||
+                    execData.data?.message ||
+                    execData.data?.text ||
+                    'Workflow execution';
+
+                  return {
+                    id: `n8n-${exec.id}`,
+                    activity_type: 'dm',
+                    target_username: recipientUsername,
+                    message: message,
+                    metadata: {},
+                  status: execData.finished ? (execData.stoppedAt ? 'success' : 'failed') : 'pending' as 'success' | 'failed' | 'pending',
+                  created_at: execData.startedAt || execData.createdAt || new Date().toISOString(),
+                  isN8nExecution: true,
+                  executionData: execData,
+                } as Activity;
+                }
+                // Return basic execution data if detailed execution data is not available
+                return {
+                  id: `n8n-${exec.id}`,
+                  activity_type: 'dm',
+                  target_username: exec.data?.sender_name || exec.data?.from?.username || 'Unknown',
+                  message: exec.data?.message || exec.data?.text || 'Workflow execution',
+                  metadata: {},
+                  status: exec.finished ? (exec.stoppedAt ? 'success' : 'failed') : 'pending' as 'success' | 'failed' | 'pending',
+                  created_at: exec.startedAt || exec.createdAt || new Date().toISOString(),
+                  isN8nExecution: true,
+                  executionData: exec,
+                } as Activity;
+              } catch (execErr) {
+                console.error(`Error fetching detailed execution ${exec.id}:`, execErr);
+                // Return basic execution data if detailed fetch fails
+                return {
+                  id: `n8n-${exec.id}`,
+                  activity_type: 'dm',
+                  target_username: exec.data?.sender_name || exec.data?.from?.username || 'Unknown',
+                  message: exec.data?.message || exec.data?.text || 'Workflow execution',
+                  metadata: {},
+                  status: exec.finished ? (exec.stoppedAt ? 'success' : 'failed') : 'pending' as 'success' | 'failed' | 'pending',
+                  created_at: exec.startedAt || exec.createdAt || new Date().toISOString(),
+                  isN8nExecution: true,
+                  executionData: exec,
+                } as Activity;
+              }
+            });
+
+            const executionDetails = await Promise.all(executionDetailsPromises);
+            n8nExecutions = executionDetails.filter((exec): exec is Activity => exec !== null);
+          }
+        } catch (n8nError) {
+          console.error('Error fetching n8n executions:', n8nError);
+        }
+      }
+
+      // Combine and sort all activities
+      const allActivities = [
+        ...(activitiesData || []),
+        ...n8nExecutions
+      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      setActivities(allActivities);
     } catch (error) {
       console.error('Error fetching automation activities:', error);
     } finally {

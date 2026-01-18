@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Search, User } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import ContactDetail from './ContactDetail';
+import { N8nWorkflowService } from '../lib/n8nService';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Contact {
   username: string;
@@ -12,17 +14,23 @@ interface Contact {
 }
 
 export default function Contacts() {
+  const { user } = useAuth();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContact, setSelectedContact] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchContacts();
-  }, []);
+    if (user) {
+      fetchContacts();
+    }
+  }, [user]);
 
   async function fetchContacts() {
+    if (!user) return;
+
     try {
+      // Fetch contacts from automation_activities table
       const { data, error } = await supabase
         .from('automation_activities')
         .select('target_username, created_at')
@@ -32,6 +40,7 @@ export default function Contacts() {
 
       const contactsMap = new Map<string, Contact>();
 
+      // Process automation_activities
       data?.forEach((activity) => {
         const username = activity.target_username;
         if (!contactsMap.has(username)) {
@@ -52,6 +61,90 @@ export default function Contacts() {
           }
         }
       });
+
+      // Fetch n8n executions to extract recipient usernames
+      try {
+        const executionsResult = await N8nWorkflowService.getExecutions(undefined, 200, user.id);
+        
+        if (executionsResult.executions && executionsResult.executions.length > 0) {
+          // Process each execution to extract recipient username
+          for (const exec of executionsResult.executions) {
+            try {
+              // Get detailed execution data to extract recipient username
+              const detailedResult = await N8nWorkflowService.getExecution(exec.id, user.id);
+              
+              if (detailedResult.execution) {
+                const execData = detailedResult.execution;
+                
+                // Extract recipient username (the person who contacted the connected account)
+                // This might vary based on n8n workflow structure
+                const recipientUsername = 
+                  execData.data?.data?.body?.sender?.username ||
+                  execData.data?.body?.from?.username ||
+                  execData.data?.sender_name ||
+                  execData.data?.from?.username ||
+                  null;
+
+                if (recipientUsername && recipientUsername !== 'Unknown') {
+                  const createdAt = execData.startedAt || execData.createdAt || new Date().toISOString();
+                  
+                  if (!contactsMap.has(recipientUsername)) {
+                    contactsMap.set(recipientUsername, {
+                      username: recipientUsername,
+                      totalInteractions: 1,
+                      lastContactDate: createdAt,
+                      firstContactDate: createdAt,
+                    });
+                  } else {
+                    const contact = contactsMap.get(recipientUsername)!;
+                    contact.totalInteractions++;
+                    if (new Date(createdAt) > new Date(contact.lastContactDate)) {
+                      contact.lastContactDate = createdAt;
+                    }
+                    if (new Date(createdAt) < new Date(contact.firstContactDate)) {
+                      contact.firstContactDate = createdAt;
+                    }
+                  }
+                }
+              }
+            } catch (execErr) {
+              console.error(`Error fetching detailed execution ${exec.id}:`, execErr);
+              // Try to extract from basic exec data if detailed fetch fails
+              const recipientUsername = 
+                exec.data?.sender_name ||
+                exec.data?.from?.username ||
+                exec.data?.data?.body?.sender?.username ||
+                exec.data?.data?.body?.from?.username ||
+                null;
+
+              if (recipientUsername && recipientUsername !== 'Unknown') {
+                const createdAt = exec.startedAt || exec.createdAt || new Date().toISOString();
+                
+                if (!contactsMap.has(recipientUsername)) {
+                  contactsMap.set(recipientUsername, {
+                    username: recipientUsername,
+                    totalInteractions: 1,
+                    lastContactDate: createdAt,
+                    firstContactDate: createdAt,
+                  });
+                } else {
+                  const contact = contactsMap.get(recipientUsername)!;
+                  contact.totalInteractions++;
+                  if (new Date(createdAt) > new Date(contact.lastContactDate)) {
+                    contact.lastContactDate = createdAt;
+                  }
+                  if (new Date(createdAt) < new Date(contact.firstContactDate)) {
+                    contact.firstContactDate = createdAt;
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (n8nError) {
+        console.error('Error fetching n8n executions for contacts:', n8nError);
+        // Continue with contacts from automation_activities even if n8n fails
+      }
 
       const contactsList = Array.from(contactsMap.values()).sort(
         (a, b) => new Date(b.lastContactDate).getTime() - new Date(a.lastContactDate).getTime()

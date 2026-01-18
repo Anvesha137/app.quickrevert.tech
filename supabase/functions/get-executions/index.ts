@@ -64,6 +64,7 @@ Deno.serve(async (req: Request) => {
     const url = new URL(req.url);
     const executionId = url.searchParams.get("executionId");
     const workflowId = url.searchParams.get("workflowId");
+    const automationId = url.searchParams.get("automationId");
     const limit = parseInt(url.searchParams.get("limit") || "50");
 
     // Get n8n credentials
@@ -108,10 +109,17 @@ Deno.serve(async (req: Request) => {
     }
 
     // Get user's workflows
-    const { data: userWorkflows, error: workflowsError } = await supabase
+    let workflowQuery = supabase
       .from("n8n_workflows")
-      .select("n8n_workflow_id")
+      .select("n8n_workflow_id, automation_id")
       .eq("user_id", user.id);
+
+    // If automationId is provided, filter by it
+    if (automationId) {
+      workflowQuery = workflowQuery.eq("automation_id", automationId);
+    }
+
+    const { data: userWorkflows, error: workflowsError } = await workflowQuery;
 
     if (workflowsError) {
       return new Response(JSON.stringify({ error: "Failed to fetch user workflows" }), {
