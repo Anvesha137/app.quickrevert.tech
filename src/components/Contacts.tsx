@@ -63,12 +63,13 @@ export default function Contacts() {
       });
 
       // Fetch n8n executions to extract recipient usernames
+      // Limit to most recent 50 to avoid performance issues
       try {
-        const executionsResult = await N8nWorkflowService.getExecutions(undefined, 200, user.id);
+        const executionsResult = await N8nWorkflowService.getExecutions(undefined, 50, user.id);
         
         if (executionsResult.executions && executionsResult.executions.length > 0) {
-          // Process each execution to extract recipient username
-          for (const exec of executionsResult.executions) {
+          // Process executions in parallel with limit to avoid too many simultaneous requests
+          const processExecution = async (exec: any) => {
             try {
               // Get detailed execution data to extract recipient username
               const detailedResult = await N8nWorkflowService.getExecution(exec.id, user.id);
@@ -97,27 +98,10 @@ export default function Contacts() {
                     null;
                 }
 
-                if (recipientUsername && recipientUsername !== 'Unknown') {
-                  const createdAt = execData.startedAt || execData.createdAt || new Date().toISOString();
-                  
-                  if (!contactsMap.has(recipientUsername)) {
-                    contactsMap.set(recipientUsername, {
-                      username: recipientUsername,
-                      totalInteractions: 1,
-                      lastContactDate: createdAt,
-                      firstContactDate: createdAt,
-                    });
-                  } else {
-                    const contact = contactsMap.get(recipientUsername)!;
-                    contact.totalInteractions++;
-                    if (new Date(createdAt) > new Date(contact.lastContactDate)) {
-                      contact.lastContactDate = createdAt;
-                    }
-                    if (new Date(createdAt) < new Date(contact.firstContactDate)) {
-                      contact.firstContactDate = createdAt;
-                    }
-                  }
-                }
+                return {
+                  username: recipientUsername,
+                  createdAt: execData.startedAt || execData.createdAt || new Date().toISOString()
+                };
               }
             } catch (execErr) {
               console.error(`Error fetching detailed execution ${exec.id}:`, execErr);
@@ -130,17 +114,33 @@ export default function Contacts() {
                 null;
 
               if (recipientUsername && recipientUsername !== 'Unknown') {
-                const createdAt = exec.startedAt || exec.createdAt || new Date().toISOString();
-                
-                if (!contactsMap.has(recipientUsername)) {
-                  contactsMap.set(recipientUsername, {
-                    username: recipientUsername,
+                return {
+                  username: recipientUsername,
+                  createdAt: exec.startedAt || exec.createdAt || new Date().toISOString()
+                };
+              }
+            }
+            return null;
+          };
+
+          // Process executions in batches of 5 to avoid overwhelming the API
+          const batchSize = 5;
+          for (let i = 0; i < executionsResult.executions.length; i += batchSize) {
+            const batch = executionsResult.executions.slice(i, i + batchSize);
+            const results = await Promise.all(batch.map(processExecution));
+            
+            results.forEach((result) => {
+              if (result && result.username && result.username !== 'Unknown') {
+                const { username, createdAt } = result;
+                if (!contactsMap.has(username)) {
+                  contactsMap.set(username, {
+                    username,
                     totalInteractions: 1,
                     lastContactDate: createdAt,
                     firstContactDate: createdAt,
                   });
                 } else {
-                  const contact = contactsMap.get(recipientUsername)!;
+                  const contact = contactsMap.get(username)!;
                   contact.totalInteractions++;
                   if (new Date(createdAt) > new Date(contact.lastContactDate)) {
                     contact.lastContactDate = createdAt;
@@ -150,7 +150,7 @@ export default function Contacts() {
                   }
                 }
               }
-            }
+            });
           }
         }
       } catch (n8nError) {
