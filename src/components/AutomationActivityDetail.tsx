@@ -140,13 +140,25 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
                   const execData = detailedResult.execution;
                   
                   // Extract recipient username from execution data
-                  // This might vary based on n8n workflow structure
-                  const recipientUsername = 
-                    execData.data?.data?.body?.sender?.username ||
-                    execData.data?.body?.from?.username ||
-                    execData.data?.sender_name ||
-                    execData.data?.from?.username ||
-                    'Unknown';
+                  // Check HTTP Request node output first (where we fetch username)
+                  let recipientUsername = 'Unknown';
+                  
+                  // Try to get username from HTTP Request node output
+                  if (execData.data?.resultData?.runData?.['HTTP Request']?.[0]?.data?.json?.username) {
+                    recipientUsername = execData.data.resultData.runData['HTTP Request'][0].data.json.username;
+                  } else if (execData.data?.json?.username) {
+                    recipientUsername = execData.data.json.username;
+                  } else {
+                    // Fallback to other paths
+                    recipientUsername = 
+                      execData.data?.data?.body?.sender?.username ||
+                      execData.data?.data?.body?.entry?.[0]?.messaging?.[0]?.sender?.id ||
+                      execData.data?.body?.from?.username ||
+                      execData.data?.body?.entry?.[0]?.changes?.[0]?.value?.from?.username ||
+                      execData.data?.sender_name ||
+                      execData.data?.from?.username ||
+                      'Unknown';
+                  }
 
                   // Extract message from execution data
                   const message = 

@@ -303,7 +303,34 @@ Deno.serve(async (req: Request) => {
       };
       nodes.push(respondNode);
       
-      // 4. Message Switch node
+      // 4. HTTP Request node to fetch username (between webhook and switch)
+      const fetchUsernameNode = {
+        id: "fetch-username",
+        name: "HTTP Request",
+        type: "n8n-nodes-base.httpRequest",
+        typeVersion: 4.3,
+        position: [-1360, nodeYPosition - 288],
+        parameters: {
+          url: `=https://graph.instagram.com/v24.0/{{ $json.body.entry[0].messaging[0].sender.id }}`,
+          sendQuery: true,
+          queryParameters: {
+            parameters: [
+              {
+                name: "fields",
+                value: "username"
+              },
+              {
+                name: "access_token",
+                value: instagramAccount.access_token
+              }
+            ]
+          },
+          options: {}
+        }
+      };
+      nodes.push(fetchUsernameNode);
+      
+      // 5. Message Switch node
       nodeXPosition = -1216;
       const switchRules: any[] = [];
       
@@ -647,6 +674,18 @@ Deno.serve(async (req: Request) => {
           ],
           [
             {
+              node: "HTTP Request",
+              type: "main",
+              index: 0
+            }
+          ]
+        ]
+      };
+      
+      connections["HTTP Request"] = {
+        main: [
+          [
+            {
               node: "Message Switch",
               type: "main",
               index: 0
@@ -804,7 +843,34 @@ Deno.serve(async (req: Request) => {
       };
       nodes.push(respondNode);
       
-      // 4. Comment Switch node
+      // 4. HTTP Request node to fetch username (between webhook and switch)
+      const fetchUsernameNode = {
+        id: "fetch-username",
+        name: "HTTP Request",
+        type: "n8n-nodes-base.httpRequest",
+        typeVersion: 4.3,
+        position: [-1360, nodeYPosition - 304],
+        parameters: {
+          url: `=https://graph.instagram.com/v24.0/{{ $json.body.entry[0].changes[0].value.from.id }}`,
+          sendQuery: true,
+          queryParameters: {
+            parameters: [
+              {
+                name: "fields",
+                value: "username"
+              },
+              {
+                name: "access_token",
+                value: instagramAccount.access_token
+              }
+            ]
+          },
+          options: {}
+        }
+      };
+      nodes.push(fetchUsernameNode);
+      
+      // 5. Comment Switch node
       nodeXPosition = -1344;
       const switchRules: any[] = [];
       
@@ -1212,6 +1278,18 @@ Deno.serve(async (req: Request) => {
           ],
           [
             {
+              node: "HTTP Request",
+              type: "main",
+              index: 0
+            }
+          ]
+        ]
+      };
+      
+      connections["HTTP Request"] = {
+        main: [
+          [
+            {
               node: "Switch3",
               type: "main",
               index: 0
@@ -1287,6 +1365,9 @@ Deno.serve(async (req: Request) => {
     if (automationData && automationData.trigger_type === 'user_directed_messages') {
       console.log("Building DM workflow for user_directed_messages");
       workflowTemplate = buildDMWorkflow();
+    } else if (automationData && automationData.trigger_type === 'story_reply') {
+      console.log("Building Story workflow (using DM workflow structure)");
+      workflowTemplate = buildDMWorkflow(); // Story workflows use the same structure as DM
     } else if (automationData && automationData.trigger_type === 'post_comment') {
       console.log("Building Post Comment workflow");
       workflowTemplate = buildPostCommentWorkflow();

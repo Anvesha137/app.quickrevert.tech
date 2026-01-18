@@ -77,13 +77,25 @@ export default function Contacts() {
                 const execData = detailedResult.execution;
                 
                 // Extract recipient username (the person who contacted the connected account)
-                // This might vary based on n8n workflow structure
-                const recipientUsername = 
-                  execData.data?.data?.body?.sender?.username ||
-                  execData.data?.body?.from?.username ||
-                  execData.data?.sender_name ||
-                  execData.data?.from?.username ||
-                  null;
+                // Check HTTP Request node output first (where we fetch username)
+                let recipientUsername = null;
+                
+                // Try to get username from HTTP Request node output
+                if (execData.data?.resultData?.runData?.['HTTP Request']?.[0]?.data?.json?.username) {
+                  recipientUsername = execData.data.resultData.runData['HTTP Request'][0].data.json.username;
+                } else if (execData.data?.json?.username) {
+                  recipientUsername = execData.data.json.username;
+                } else {
+                  // Fallback to other paths
+                  recipientUsername = 
+                    execData.data?.data?.body?.sender?.username ||
+                    execData.data?.data?.body?.entry?.[0]?.messaging?.[0]?.sender?.id ||
+                    execData.data?.body?.from?.username ||
+                    execData.data?.body?.entry?.[0]?.changes?.[0]?.value?.from?.username ||
+                    execData.data?.sender_name ||
+                    execData.data?.from?.username ||
+                    null;
+                }
 
                 if (recipientUsername && recipientUsername !== 'Unknown') {
                   const createdAt = execData.startedAt || execData.createdAt || new Date().toISOString();
