@@ -33,22 +33,25 @@ export default function Contacts() {
       // Fetch contacts from automation_activities table
       const { data, error } = await supabase
         .from('automation_activities')
-        .select('target_username, created_at')
+        .select('target_username, created_at, activity_type, automation_id')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      const contactsMap = new Map<string, Contact>();
+      const contactsMap = new Map<string, Contact & { hasAutomatedInteraction: boolean }>();
 
       // Process automation_activities
       data?.forEach((activity) => {
         const username = activity.target_username;
+        const isAutomated = !!activity.automation_id || ['dm_sent', 'reply', 'reply_to_comment'].includes(activity.activity_type);
+
         if (!contactsMap.has(username)) {
           contactsMap.set(username, {
             username,
             totalInteractions: 1,
             lastContactDate: activity.created_at,
             firstContactDate: activity.created_at,
+            hasAutomatedInteraction: isAutomated,
           });
         } else {
           const contact = contactsMap.get(username)!;
@@ -59,6 +62,9 @@ export default function Contacts() {
           if (new Date(activity.created_at) < new Date(contact.firstContactDate)) {
             contact.firstContactDate = activity.created_at;
           }
+          if (isAutomated) {
+            contact.hasAutomatedInteraction = true;
+          }
         }
       });
 
@@ -66,21 +72,21 @@ export default function Contacts() {
       // Limit to most recent 50 to avoid performance issues
       try {
         const executionsResult = await N8nWorkflowService.getExecutions(undefined, 50, user.id);
-        
+
         if (executionsResult.executions && executionsResult.executions.length > 0) {
           // Process executions in parallel with limit to avoid too many simultaneous requests
           const processExecution = async (exec: any) => {
             try {
               // Get detailed execution data to extract recipient username
               const detailedResult = await N8nWorkflowService.getExecution(exec.id, user.id);
-              
+
               if (detailedResult.execution) {
                 const execData = detailedResult.execution;
-                
+
                 // Extract recipient username (the person who contacted the connected account)
                 // Check HTTP Request node output first (where we fetch username)
                 let recipientUsername = null;
-                
+
                 // Try multiple paths for HTTP Request node output
                 const httpRequestNode = execData.data?.resultData?.runData?.['HTTP Request'];
                 if (httpRequestNode) {
@@ -91,10 +97,10 @@ export default function Contacts() {
                     recipientUsername = httpRequestNode[0].data.json.username;
                   }
                 }
-                
+
                 // Fallback paths if HTTP Request node not found
                 if (!recipientUsername) {
-                  recipientUsername = 
+                  recipientUsername =
                     execData.data?.resultData?.runData?.['Instagram Webhook']?.[0]?.data?.main?.[0]?.[0]?.json?.body?.entry?.[0]?.messaging?.[0]?.sender?.id ||
                     execData.data?.data?.body?.sender?.username ||
                     execData.data?.data?.body?.entry?.[0]?.messaging?.[0]?.sender?.id ||
@@ -116,7 +122,7 @@ export default function Contacts() {
               // Try to extract from basic exec structure
               const httpRequestNodeBasic = exec.data?.resultData?.runData?.['HTTP Request'];
               let recipientUsername = null;
-              
+
               if (httpRequestNodeBasic) {
                 if (httpRequestNodeBasic[0]?.data?.main?.[0]?.[0]?.json?.username) {
                   recipientUsername = httpRequestNodeBasic[0].data.main[0][0].json.username;
@@ -124,9 +130,9 @@ export default function Contacts() {
                   recipientUsername = httpRequestNodeBasic[0].data.json.username;
                 }
               }
-              
+
               if (!recipientUsername) {
-                recipientUsername = 
+                recipientUsername =
                   exec.data?.sender_name ||
                   exec.data?.from?.username ||
                   exec.data?.data?.body?.sender?.username ||
@@ -149,7 +155,7 @@ export default function Contacts() {
           for (let i = 0; i < executionsResult.executions.length; i += batchSize) {
             const batch = executionsResult.executions.slice(i, i + batchSize);
             const results = await Promise.all(batch.map(processExecution));
-            
+
             results.forEach((result) => {
               if (result && result.username && result.username !== 'Unknown') {
                 const { username, createdAt } = result;
@@ -159,6 +165,7 @@ export default function Contacts() {
                     totalInteractions: 1,
                     lastContactDate: createdAt,
                     firstContactDate: createdAt,
+                    hasAutomatedInteraction: true,
                   });
                 } else {
                   const contact = contactsMap.get(username)!;
@@ -169,6 +176,7 @@ export default function Contacts() {
                   if (new Date(createdAt) < new Date(contact.firstContactDate)) {
                     contact.firstContactDate = createdAt;
                   }
+                  contact.hasAutomatedInteraction = true;
                 }
               }
             });
@@ -179,9 +187,11 @@ export default function Contacts() {
         // Continue with contacts from automation_activities even if n8n fails
       }
 
-      const contactsList = Array.from(contactsMap.values()).sort(
-        (a, b) => new Date(b.lastContactDate).getTime() - new Date(a.lastContactDate).getTime()
-      );
+      const contactsList = Array.from(contactsMap.values())
+        .filter(c => c.hasAutomatedInteraction)
+        .sort(
+          (a, b) => new Date(b.lastContactDate).getTime() - new Date(a.lastContactDate).getTime()
+        );
 
       setContacts(contactsList);
       if (contactsList.length > 0 && !selectedContact) {
@@ -266,11 +276,10 @@ export default function Contacts() {
                 <button
                   key={contact.username}
                   onClick={() => setSelectedContact(contact.username)}
-                  className={`w-full p-4 flex items-center gap-4 hover:bg-gradient-to-r hover:from-blue-50 hover:to-transparent transition-all text-left group ${
-                    selectedContact === contact.username
-                      ? 'bg-gradient-to-r from-blue-50 via-cyan-50 to-transparent border-l-4 border-blue-600 shadow-sm'
-                      : 'border-l-4 border-transparent'
-                  }`}
+                  className={`w-full p-4 flex items-center gap-4 hover:bg-gradient-to-r hover:from-blue-50 hover:to-transparent transition-all text-left group ${selectedContact === contact.username
+                    ? 'bg-gradient-to-r from-blue-50 via-cyan-50 to-transparent border-l-4 border-blue-600 shadow-sm'
+                    : 'border-l-4 border-transparent'
+                    }`}
                 >
                   <div className="relative">
                     <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 via-cyan-500 to-teal-500 flex items-center justify-center text-white font-bold text-xl flex-shrink-0 shadow-lg group-hover:shadow-xl transition-shadow">

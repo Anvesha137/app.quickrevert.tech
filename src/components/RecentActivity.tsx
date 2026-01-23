@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MessageSquare, Reply, UserPlus, Mail, Send, CheckCircle2, XCircle, AlertCircle, Clock } from 'lucide-react';
+import { MessageSquare, Reply, UserPlus, Mail, Send, CheckCircle2, XCircle, AlertCircle, Clock, MessageCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { N8nWorkflowService } from '../lib/n8nService';
@@ -23,7 +23,9 @@ const activityConfig = {
   reply: { icon: Reply, label: 'Comment Reply', color: 'text-green-600', bg: 'bg-green-50' },
   follow_request: { icon: UserPlus, label: 'Follow Request', color: 'text-purple-600', bg: 'bg-purple-50' },
   dm: { icon: Mail, label: 'User DM', color: 'text-orange-600', bg: 'bg-orange-50' },
-  dm_sent: { icon: Send, label: 'DM Sent', color: 'text-pink-600', bg: 'bg-pink-50' }
+  dm_sent: { icon: Send, label: 'DM Sent', color: 'text-pink-600', bg: 'bg-pink-50' },
+  incoming_message: { icon: MessageCircle, label: 'Incoming Recall', color: 'text-indigo-600', bg: 'bg-indigo-50' },
+  incoming_comment: { icon: MessageSquare, label: 'Incoming Comment', color: 'text-indigo-600', bg: 'bg-indigo-50' }
 };
 
 const statusConfig = {
@@ -94,7 +96,7 @@ export default function RecentActivity() {
         ...(automationActivities || []),
         ...n8nExecutions
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-       .slice(0, 7);
+        .slice(0, 7);
 
       setActivities(allActivities);
     } catch (error) {

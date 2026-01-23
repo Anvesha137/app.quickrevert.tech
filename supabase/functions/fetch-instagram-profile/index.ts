@@ -49,8 +49,9 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Use instagram Graph API for Business/Creator accounts to get followers/following
     const profileResponse = await fetch(
-      `https://graph.instagram.com/me?fields=id,username,account_type,media_count&access_token=${instagramAccount.access_token}`
+      `https://graph.instagram.com/v21.0/${instagramAccount.instagram_user_id}?fields=id,username,name,profile_picture_url,followers_count,follows_count,media_count,biography&access_token=${instagramAccount.access_token}`
     );
 
     if (!profileResponse.ok) {

@@ -44,6 +44,33 @@ Deno.serve(async (req: Request) => {
 
     console.log('Executing automation for:', { userId, triggerType, from: eventData.from.username });
 
+    // NEW: Log the incoming event
+    try {
+      const activityType = triggerType === 'post_comment' ? 'incoming_comment' :
+        triggerType === 'user_directed_messages' ? 'incoming_message' :
+          'incoming_event';
+
+      const messageContent = eventData.commentText || eventData.messageText || '';
+
+      await supabase.from('automation_activities').insert({
+        user_id: userId,
+        instagram_account_id: instagramAccountId,
+        activity_type: activityType,
+        target_username: eventData.from.username,
+        message: messageContent,
+        status: 'success', // It's a received event
+        metadata: {
+          ...eventData,
+          direction: 'inbound'
+        }
+      });
+    } catch (logError) {
+      console.error('Error logging incoming event:', logError);
+      // specific error handling if automation_id is required:
+      // If the table requires automation_id, this insert will fail. 
+      // We assume it is nullable based on the use case.
+    }
+
     const { data: automations, error: automationError } = await supabase
       .from('automations')
       .select('*')
@@ -75,7 +102,7 @@ Deno.serve(async (req: Request) => {
 
     const matchedAutomations = automations.filter(automation => {
       const config = automation.trigger_config || {};
-      
+
       if (triggerType === 'post_comment') {
         if (config.commentsType === 'keywords' && config.keywords && eventData.commentText) {
           const text = eventData.commentText.toLowerCase();
@@ -83,7 +110,7 @@ Deno.serve(async (req: Request) => {
         }
         return config.commentsType === 'all';
       }
-      
+
       if (triggerType === 'user_directed_messages') {
         if (config.messageType === 'keywords' && config.keywords && eventData.messageText) {
           const text = eventData.messageText.toLowerCase();
@@ -91,11 +118,11 @@ Deno.serve(async (req: Request) => {
         }
         return config.messageType === 'all';
       }
-      
+
       if (triggerType === 'story_reply') {
         return config.storiesType === 'all';
       }
-      
+
       return false;
     });
 
@@ -144,7 +171,7 @@ Deno.serve(async (req: Request) => {
 
 async function executeAction(params: any) {
   const { action, eventData, accessToken, pageId, supabase, automationId, userId, instagramAccountId } = params;
-  
+
   let messageText = '';
   let buttons: any[] = [];
 
@@ -155,18 +182,18 @@ async function executeAction(params: any) {
         buttons = action.actionButtons || [];
       }
       break;
-    
+
     case 'send_dm':
       messageText = action.messageTemplate || '';
       buttons = action.actionButtons || [];
       break;
-    
+
   }
 
   messageText = messageText.replace('{{username}}', eventData.from.username);
 
   const apiUrl = `https://graph.instagram.com/v21.0/${pageId || eventData.from.id}/messages`;
-  
+
   let messagePayload: any = {
     recipient: { id: eventData.from.id },
     messaging_type: 'RESPONSE',
