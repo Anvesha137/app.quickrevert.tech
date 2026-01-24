@@ -8,132 +8,115 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req: Request) => {
-  // Handle CORS preflight
-  if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders,
-    });
-  }
-
-  // Only allow POST requests
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   try {
-    // Get authentication token from Authorization header
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized: Missing or invalid authorization header" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
+    if (!authHeader?.startsWith("Bearer ")) throw new Error("Unauthorized");
     const jwt = authHeader.replace("Bearer ", "");
 
-    // Get Supabase configuration
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return new Response(JSON.stringify({ error: "Supabase configuration missing" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Create Supabase client and validate user authentication
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
+    if (authError || !user) throw new Error("Unauthorized");
 
-    if (authError || !user) {
-      console.error("Authentication error:", authError);
-      return new Response(JSON.stringify({ error: "Unauthorized: Invalid or expired token" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const { workflowId } = await req.json();
+    if (!workflowId) throw new Error("Missing workflowId");
 
-    // Parse request body
-    const body = await req.json();
-    const { workflowId } = body;
-
-    if (!workflowId) {
-      return new Response(JSON.stringify({ error: "Missing workflowId" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Verify workflow belongs to user
-    const { data: workflow, error: workflowError } = await supabase
-      .from("n8n_workflows")
-      .select("n8n_workflow_id, user_id")
-      .eq("n8n_workflow_id", workflowId)
-      .eq("user_id", user.id)
+    // 1. Verify workflow & Ownership (Strict)
+    const { data: wfDetails } = await supabase
+      .from('n8n_workflows')
+      .select(`
+            id,
+            user_id,
+            automation_id,
+            automations (
+                instagram_account_id,
+                trigger_type
+            )
+        `)
+      .eq('n8n_workflow_id', workflowId)
+      .eq('user_id', user.id) // STRICT OWNERSHIP CHECK
       .single();
 
-    if (workflowError || !workflow) {
-      return new Response(JSON.stringify({ error: "Workflow not found or unauthorized" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!wfDetails) throw new Error("Workflow not found or unauthorized access attempt");
 
-    // Get n8n credentials
     const n8nBaseUrl = Deno.env.get("N8N_BASE_URL");
     const n8nApiKey = Deno.env.get("X-N8N-API-KEY");
+    if (!n8nBaseUrl || !n8nApiKey) throw new Error("N8N Config missing");
 
-    if (!n8nBaseUrl || !n8nApiKey) {
-      return new Response(JSON.stringify({ error: "N8N configuration missing" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // 2. Register Route in automation_routes (DB FIRST - Source of Truth)
+    if (wfDetails.automations) {
+      // Fetch IG Account ID
+      const { data: igAccount } = await supabase
+        .from('instagram_accounts')
+        .select('instagram_user_id')
+        .eq('id', wfDetails.automations.instagram_account_id)
+        .single();
+
+      if (igAccount) {
+        let eventType = 'messaging';
+        let subType = null;
+
+        const triggerType = wfDetails.automations.trigger_type;
+
+        if (triggerType === 'dm_keyword') {
+          eventType = 'messaging';
+          subType = 'message';
+        } else if (triggerType === 'comments') {
+          eventType = 'changes';
+          subType = 'comments';
+        } else if (triggerType === 'story_reply') {
+          eventType = 'messaging';
+          subType = 'message';
+        }
+
+        // Upsert Route
+        await supabase.from('automation_routes').upsert({
+          user_id: user.id,
+          account_id: igAccount.instagram_user_id,
+          event_type: eventType,
+          sub_type: subType,
+          n8n_workflow_id: workflowId,
+          is_active: true
+        }, { onConflict: 'n8n_workflow_id' });
+
+        console.log(`Route registered: ${workflowId} (${eventType}/${subType})`);
+      }
     }
 
-    // Activate workflow in n8n
-    const activateResponse = await fetch(`${n8nBaseUrl}/api/v1/workflows/${workflowId}/activate`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-N8N-API-KEY": n8nApiKey,
-      },
-    });
-
-    if (!activateResponse.ok) {
-      const errorText = await activateResponse.text();
-      console.error("Failed to activate workflow:", errorText);
-      return new Response(JSON.stringify({
-        error: `Failed to activate workflow: ${activateResponse.status} ${activateResponse.statusText}`,
-        details: errorText,
-      }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+    // 3. Activate in n8n (Execution Logic)
+    // If this fails, the route exists but execution might fail.
+    // This is preferable to "Execution active but no route".
+    try {
+      const activateResp = await fetch(`${n8nBaseUrl}/api/v1/workflows/${workflowId}/activate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey },
       });
+
+      if (!activateResp.ok) {
+        console.error(`N8N Activation Failed: ${await activateResp.text()}`);
+        // Optional: Rollback DB route here? 
+        // For now, we prefer keeping the route active and logging error.
+        // In a stricter system, we might delete the route.
+        throw new Error("Failed to activate workflow in n8n");
+      }
+    } catch (e) {
+      // Attempt rollback if n8n fails?
+      // await supabase.from('automation_routes').delete().eq('n8n_workflow_id', workflowId);
+      // Throwing error to frontend
+      throw e;
     }
 
-    return new Response(JSON.stringify({
-      success: true,
-      message: "Workflow activated successfully",
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    return new Response(JSON.stringify({ success: true }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
 
-  } catch (error: any) {
-    console.error("Error in activate-workflow function:", error);
-    return new Response(JSON.stringify({
-      error: error.message,
-      stack: error.stack,
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  } catch (err: any) {
+    console.error(err);
+    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
   }
 });

@@ -8,132 +8,59 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req: Request) => {
-  // Handle CORS preflight
-  if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders,
-    });
-  }
-
-  // Only allow POST requests
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   try {
-    // Get authentication token from Authorization header
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized: Missing or invalid authorization header" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
+    if (!authHeader?.startsWith("Bearer ")) throw new Error("Unauthorized");
     const jwt = authHeader.replace("Bearer ", "");
 
-    // Get Supabase configuration
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return new Response(JSON.stringify({ error: "Supabase configuration missing" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Create Supabase client and validate user authentication
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
+    if (authError || !user) throw new Error("Unauthorized");
 
-    if (authError || !user) {
-      console.error("Authentication error:", authError);
-      return new Response(JSON.stringify({ error: "Unauthorized: Invalid or expired token" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const { workflowId } = await req.json();
+    if (!workflowId) throw new Error("Missing workflowId");
 
-    // Parse request body
-    const body = await req.json();
-    const { workflowId } = body;
-
-    if (!workflowId) {
-      return new Response(JSON.stringify({ error: "Missing workflowId" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Verify workflow belongs to user
-    const { data: workflow, error: workflowError } = await supabase
+    // 1. Verify owner (Strict)
+    const { data: workflow, error: wfError } = await supabase
       .from("n8n_workflows")
-      .select("n8n_workflow_id, user_id")
+      .select("user_id")
       .eq("n8n_workflow_id", workflowId)
-      .eq("user_id", user.id)
+      .eq("user_id", user.id) // STRICT
       .single();
 
-    if (workflowError || !workflow) {
-      return new Response(JSON.stringify({ error: "Workflow not found or unauthorized" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (wfError || !workflow) throw new Error("Workflow not found or unauthorized");
 
-    // Get n8n credentials
     const n8nBaseUrl = Deno.env.get("N8N_BASE_URL");
     const n8nApiKey = Deno.env.get("X-N8N-API-KEY");
+    if (!n8nBaseUrl || !n8nApiKey) throw new Error("N8N Config missing");
 
-    if (!n8nBaseUrl || !n8nApiKey) {
-      return new Response(JSON.stringify({ error: "N8N configuration missing" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Deactivate workflow in n8n
-    const deactivateResponse = await fetch(`${n8nBaseUrl}/api/v1/workflows/${workflowId}/deactivate`, {
+    // 2. Deactivate in n8n (Stop Execution)
+    const deactResp = await fetch(`${n8nBaseUrl}/api/v1/workflows/${workflowId}/deactivate`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-N8N-API-KEY": n8nApiKey,
-      },
+      headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey },
     });
 
-    if (!deactivateResponse.ok) {
-      const errorText = await deactivateResponse.text();
-      console.error("Failed to deactivate workflow:", errorText);
-      return new Response(JSON.stringify({
-        error: `Failed to deactivate workflow: ${deactivateResponse.status} ${deactivateResponse.statusText}`,
-        details: errorText,
-      }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!deactResp.ok) console.warn(`N8N Deactivation Warning: ${await deactResp.text()}`);
 
-    return new Response(JSON.stringify({
-      success: true,
-      message: "Workflow deactivated successfully",
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    // 3. Update automation_routes (Stop Routing)
+    // Validate User ID again in the update query for double safety
+    await supabase.from('automation_routes')
+      .update({ is_active: false })
+      .eq('n8n_workflow_id', workflowId)
+      .eq('user_id', user.id);
+
+    return new Response(JSON.stringify({ success: true }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
 
-  } catch (error: any) {
-    console.error("Error in deactivate-workflow function:", error);
-    return new Response(JSON.stringify({
-      error: error.message,
-      stack: error.stack,
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  } catch (err: any) {
+    console.error(err);
+    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
   }
 });
