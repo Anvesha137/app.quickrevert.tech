@@ -72,12 +72,16 @@ Deno.serve(async (req: Request) => {
     }
 
     // Verify workflow belongs to user
+    console.log(`Delete Request: User=${user.id}, WorkflowId=${workflowId}`);
+
     const { data: workflow, error: workflowError } = await supabase
       .from("n8n_workflows")
       .select("n8n_workflow_id, user_id")
       .eq("n8n_workflow_id", workflowId)
       .eq("user_id", user.id)
       .single();
+
+    if (workflowError) console.error("Delete Lookup Error:", workflowError);
 
     if (workflowError || !workflow) {
       return new Response(JSON.stringify({ error: "Workflow not found or unauthorized" }), {

@@ -243,7 +243,7 @@ Deno.serve(async (req: Request) => {
     // --- SAVE TO DB ---
     // Insert into n8n_workflows linking to automation
     await supabase.from("n8n_workflows").insert({
-      user_id: userId,
+      user_id: user.id, // Enforce Auth User ID
       n8n_workflow_id: newWorkflowId,
       automation_id: automationId,
       name: workflowJson.name,

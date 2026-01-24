@@ -26,8 +26,10 @@ Deno.serve(async (req: Request) => {
     const { workflowId } = await req.json();
     if (!workflowId) throw new Error("Missing workflowId");
 
+    console.log(`Activate Request: User=${user.id}, WorkflowId=${workflowId}`);
+
     // 1. Verify workflow & Ownership (Strict)
-    const { data: wfDetails } = await supabase
+    const { data: wfDetails, error: lookupError } = await supabase
       .from('n8n_workflows')
       .select(`
             id,
@@ -41,6 +43,9 @@ Deno.serve(async (req: Request) => {
       .eq('n8n_workflow_id', workflowId)
       .eq('user_id', user.id) // STRICT OWNERSHIP CHECK
       .single();
+
+    if (lookupError) console.error("Lookup Error:", lookupError);
+    if (!wfDetails) console.error("Workflow details not found for ID:", workflowId);
 
     if (!wfDetails) throw new Error("Workflow not found or unauthorized access attempt");
 
