@@ -438,7 +438,6 @@ Deno.serve(async (req: Request) => {
           } else if (buttonAction === 'postback' || !button.url) {
             const payload = button.text.toUpperCase().replace(/\s+/g, '_');
             buttons.push({
-              type: "postback",
               title: button.text,
               payload: payload
             });
@@ -446,32 +445,53 @@ Deno.serve(async (req: Request) => {
         });
       }
 
-      // Get user-configured values or use defaults
-      // Title is required, so use default if not provided
-      const title = (sendDmAction as any)?.title || "Hi👋";
-      // Subtitle is optional - only use if user provided it
-      const subtitle = (sendDmAction as any)?.subtitle || sendDmAction?.messageTemplate || undefined;
-      // Image URL is optional
-      const imageUrl = (sendDmAction as any)?.imageUrl || (sendDmAction as any)?.image_url || "https://i.ibb.co/N29QzF6Z/QR-Logo.png";
 
-      // Build the element object dynamically based on what user provided
-      const buildElement = () => {
-        const element: any = {};
-        if (title) element.title = title;
+      // Get user-configured values or use defaults
+      const title = (sendDmAction as any)?.title || "Hi👋";
+      // Subtitle is optional
+      const subtitle = (sendDmAction as any)?.subtitle || sendDmAction?.messageTemplate || undefined;
+      // Image URL is strictly optional - no default if not provided
+      const imageUrl = (sendDmAction as any)?.imageUrl || (sendDmAction as any)?.image_url || undefined;
+
+      // Helper to build the elements array dynamically
+      const buildElements = (customTitle?: string, customSubtitle?: string, customButtons?: any[]) => {
+        const element: any = {
+          title: customTitle || title
+        };
+        // Only add image_url if provided
         if (imageUrl) element.image_url = imageUrl;
-        if (subtitle) element.subtitle = subtitle;
-        if (buttons.length > 0) element.buttons = buttons;
-        return element;
+
+        // Add subtitle if provided
+        const finalSubtitle = customSubtitle || subtitle;
+        if (finalSubtitle) element.subtitle = finalSubtitle;
+
+        // Add buttons if provided
+        const finalButtons = customButtons || buttons;
+        if (finalButtons && finalButtons.length > 0) element.buttons = finalButtons;
+
+        return [element];
       };
 
-      const elementJson = JSON.stringify(buildElement());
-
-      // Create HTTP request node for each keyword - ALWAYS create
+      // Create HTTP request node for each keyword
       if (messageType === 'keywords' && keywords.length > 0) {
         keywords.forEach((keyword: string, index: number) => {
           const keywordUpper = keyword.toUpperCase();
           const keywordNodeId = `http-node-${keyword.toLowerCase().replace(/\s+/g, '-')}`;
           const keywordNodeName = keywordUpper;
+
+          // Construct Payload Object
+          const payloadObj = {
+            recipient: { id: "{{ $json.body.entry[0].messaging[0].sender.id }}" },
+            message: {
+              attachment: {
+                type: "template",
+                payload: {
+                  template_type: "generic",
+                  elements: buildElements()
+                }
+              }
+            }
+          };
 
           const keywordNode = {
             id: keywordNodeId,
@@ -485,25 +505,19 @@ Deno.serve(async (req: Request) => {
               sendHeaders: true,
               headerParameters: {
                 parameters: [
-                  {
-                    name: "Content-Type",
-                    value: "application/json"
-                  },
-                  {
-                    name: "Authorization",
-                    value: `Bearer ${instagramAccount.access_token}`
-                  }
+                  { name: "Content-Type", value: "application/json" },
+                  { name: "Authorization", value: `Bearer ${instagramAccount.access_token}` }
                 ]
               },
               sendBody: true,
               specifyBody: "json",
-              jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].messaging[0].sender.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          ${elementJson}\n        ]\n      }\n    }\n  }\n}\n`,
+              // Use JSON.stringify to handle optional fields automatically
+              jsonBody: `=${JSON.stringify(payloadObj, null, 2)}`,
               options: {}
             }
           };
           nodes.push(keywordNode);
 
-          // Add connection from switch to this keyword node
           const switchOutputIndex = switchRules.findIndex((r: any) => r.outputKey === keyword.toLowerCase());
           if (switchOutputIndex >= 0) {
             switchConnections.push({
@@ -516,7 +530,21 @@ Deno.serve(async (req: Request) => {
           messageYPosition += 192;
         });
       } else if (messageType === 'all') {
-        // Create single HTTP request node for "all messages" - ALWAYS create
+
+        const payloadObj = {
+          recipient: { id: "{{ $json.body.entry[0].messaging[0].sender.id }}" },
+          message: {
+            attachment: {
+              type: "template",
+              payload: {
+                template_type: "generic",
+                // For 'all messages', we use the default message/buttons logic
+                elements: buildElements(undefined, defaultMessage, buttons)
+              }
+            }
+          }
+        };
+
         const allMessagesNode = {
           id: "send-first-message",
           name: "Send First Message",
@@ -529,25 +557,18 @@ Deno.serve(async (req: Request) => {
             sendHeaders: true,
             headerParameters: {
               parameters: [
-                {
-                  name: "Content-Type",
-                  value: "application/json"
-                },
-                {
-                  name: "Authorization",
-                  value: `Bearer ${instagramAccount.access_token}`
-                }
+                { name: "Content-Type", value: "application/json" },
+                { name: "Authorization", value: `Bearer ${instagramAccount.access_token}` }
               ]
             },
             sendBody: true,
             specifyBody: "json",
-            jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].messaging[0].sender.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          {\n            "title": "Hi👋",\n            "image_url": "https://i.ibb.co/N29QzF6Z/QR-Logo.png",\n            "subtitle": "${defaultMessage.replace(/\n/g, '\\n').replace(/"/g, '\\"')}",\n            "buttons": ${JSON.stringify(buttons)}\n          }\n        ]\n      }\n    }\n  }\n}\n`,
+            jsonBody: `=${JSON.stringify(payloadObj, null, 2)}`,
             options: {}
           }
         };
         nodes.push(allMessagesNode);
 
-        // Add connection from switch to all messages node
         const switchOutputIndex = switchRules.findIndex((r: any) => r.outputKey === 'all_messages');
         if (switchOutputIndex >= 0) {
           switchConnections.push({
@@ -558,13 +579,44 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      // 6. Button handler nodes (for postbacks)
+      // 6. Button handler nodes
       if (sendDmAction?.actionButtons) {
         sendDmAction.actionButtons.forEach((button: any, index: number) => {
           const buttonAction = button.action || (button.url ? 'url' : 'postback');
 
           if (buttonAction === 'postback' || !button.url) {
             const payload = button.text.toUpperCase().replace(/\s+/g, '_');
+
+            // For button handler, we construct specific response
+            const handlerPayloadObj = {
+              recipient: { id: "{{ $json.body.entry[0].messaging[0].sender.id }}" },
+              message: {
+                attachment: {
+                  type: "template",
+                  payload: {
+                    template_type: "generic",
+                    elements: buildElements(
+                      `Great choice\nOur ${button.text} solution helps businesses reply instantly, qualify leads, and manage all customer conversations in one place.\n\nOne of our experts will contact you soon to guide you further.\n\nYou can also book a quick demo to see how it works📅`,
+                      `Thank you for choosing ${brandName}!`,
+                      [{
+                        type: "web_url",
+                        url: calendarUrl,
+                        title: "Book Demo"
+                      }]
+                    )
+                  }
+                }
+              }
+            };
+            // Override image for button handler if it's currently undefined? 
+            // The original code had a hardcoded Logo for the handler.
+            // Let's check if the user wants this. The original code had: "https://i.ibb.co/N29QzF6Z/QR-Logo.png" hardcoded in handler. 
+            // I will preserve that by adding it to elements if not present in buildElements, OR just passing it.
+            // Actually, buildElements uses the closure variable `imageUrl`.
+            // The logic: handler always had the logo in the original.
+            if (!handlerPayloadObj.message.attachment.payload.elements[0].image_url) {
+              handlerPayloadObj.message.attachment.payload.elements[0].image_url = "https://i.ibb.co/N29QzF6Z/QR-Logo.png";
+            }
 
             const buttonHandlerNode = {
               id: `button-handler-${index}`,
@@ -578,25 +630,18 @@ Deno.serve(async (req: Request) => {
                 sendHeaders: true,
                 headerParameters: {
                   parameters: [
-                    {
-                      name: "Content-Type",
-                      value: "application/json"
-                    },
-                    {
-                      name: "Authorization",
-                      value: `Bearer ${instagramAccount.access_token}`
-                    }
+                    { name: "Content-Type", value: "application/json" },
+                    { name: "Authorization", value: `Bearer ${instagramAccount.access_token}` }
                   ]
                 },
                 sendBody: true,
                 specifyBody: "json",
-                jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].messaging[0].sender.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          {\n            "title": "Great choice\\nOur ${button.text} solution helps businesses reply instantly, qualify leads, and manage all customer conversations in one place.\\n\\nOne of our experts will contact you soon to guide you further.\\n\\nYou can also book a quick demo to see how it works📅",\n            "image_url": "https://i.ibb.co/N29QzF6Z/QR-Logo.png",\n            "subtitle": "Thank you for choosing ${brandName}!",\n            "buttons": [\n              {\n                "type": "web_url",\n                "url": "${calendarUrl}",\n                "title": "Book Demo"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}\n`,
+                jsonBody: `=${JSON.stringify(handlerPayloadObj, null, 2)}`,
                 options: {}
               }
             };
             nodes.push(buttonHandlerNode);
 
-            // Add connection from switch to button handler
             const payloadIndex = switchRules.findIndex((r: any) => r.outputKey === payload);
             if (payloadIndex >= 0) {
               switchConnections.push({
