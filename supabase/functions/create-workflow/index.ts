@@ -579,82 +579,11 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      // 6. Button handler nodes
-      if (sendDmAction?.actionButtons) {
-        sendDmAction.actionButtons.forEach((button: any, index: number) => {
-          const buttonAction = button.action || (button.url ? 'url' : 'postback');
+      // 6. Button handler nodes - REMOVED as per user request
+      // We no longer auto-generate the handler interactions.
+      // The Switch Node will still have the output ports (generated earlier),
+      // effectively leaving them as unconnected "stubs" for manual or future frontend connection.
 
-          if (buttonAction === 'postback' || !button.url) {
-            const payload = button.text.toUpperCase().replace(/\s+/g, '_');
-
-            // For button handler, we construct specific response
-            const handlerPayloadObj = {
-              recipient: { id: "{{ $json.body.entry[0].messaging[0].sender.id }}" },
-              message: {
-                attachment: {
-                  type: "template",
-                  payload: {
-                    template_type: "generic",
-                    elements: buildElements(
-                      `Great choice\nOur ${button.text} solution helps businesses reply instantly, qualify leads, and manage all customer conversations in one place.\n\nOne of our experts will contact you soon to guide you further.\n\nYou can also book a quick demo to see how it works📅`,
-                      `Thank you for choosing ${brandName}!`,
-                      [{
-                        type: "web_url",
-                        url: calendarUrl,
-                        title: "Book Demo"
-                      }]
-                    )
-                  }
-                }
-              }
-            };
-            // Override image for button handler if it's currently undefined? 
-            // The original code had a hardcoded Logo for the handler.
-            // Let's check if the user wants this. The original code had: "https://i.ibb.co/N29QzF6Z/QR-Logo.png" hardcoded in handler. 
-            // I will preserve that by adding it to elements if not present in buildElements, OR just passing it.
-            // Actually, buildElements uses the closure variable `imageUrl`.
-            // The logic: handler always had the logo in the original.
-            if (!handlerPayloadObj.message.attachment.payload.elements[0].image_url) {
-              handlerPayloadObj.message.attachment.payload.elements[0].image_url = "https://i.ibb.co/N29QzF6Z/QR-Logo.png";
-            }
-
-            const buttonHandlerNode = {
-              id: `button-handler-${index}`,
-              name: `${button.text} Handler`,
-              type: "n8n-nodes-base.httpRequest",
-              typeVersion: 4.3,
-              position: [nodeXPosition, messageYPosition],
-              parameters: {
-                method: "POST",
-                url: `=https://graph.instagram.com/v24.0/{{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages`,
-                sendHeaders: true,
-                headerParameters: {
-                  parameters: [
-                    { name: "Content-Type", value: "application/json" },
-                    { name: "Authorization", value: `Bearer ${instagramAccount.access_token}` }
-                  ]
-                },
-                sendBody: true,
-                specifyBody: "json",
-                jsonBody: `=${JSON.stringify(handlerPayloadObj, null, 2)}`,
-                options: {}
-              }
-            };
-            nodes.push(buttonHandlerNode);
-
-            const payloadIndex = switchRules.findIndex((r: any) => r.outputKey === payload);
-            if (payloadIndex >= 0) {
-              switchConnections.push({
-                node: `${button.text} Handler`,
-                type: "main",
-                index: payloadIndex
-              });
-            }
-
-            messageYPosition += 192;
-          }
-        });
-      }
 
       // Set up connections
       connections["Instagram Webhook"] = {
