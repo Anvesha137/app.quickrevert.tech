@@ -15,7 +15,7 @@ Deno.serve(async (req: Request) => {
       headers: corsHeaders,
     });
   }
-  
+
   // Only allow POST requests
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
@@ -26,7 +26,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     console.log("Creating workflow...");
-    
+
     // Get authentication token from Authorization header
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
@@ -37,12 +37,12 @@ Deno.serve(async (req: Request) => {
     }
 
     const jwt = authHeader.replace("Bearer ", "");
-    
+
     // Get Supabase configuration
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    
+
     if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
       console.error("Missing Supabase config:", {
         url: !!supabaseUrl,
@@ -58,7 +58,7 @@ Deno.serve(async (req: Request) => {
     // Validate user authentication using anon key
     const authClient = createClient(supabaseUrl, supabaseAnonKey);
     const { data: { user }, error: authError } = await authClient.auth.getUser(jwt);
-    
+
     if (authError || !user) {
       console.error("Authentication error:", {
         error: authError?.message,
@@ -66,9 +66,9 @@ Deno.serve(async (req: Request) => {
         hasUser: !!user,
         tokenLength: jwt.length
       });
-      return new Response(JSON.stringify({ 
+      return new Response(JSON.stringify({
         error: "Unauthorized: Invalid or expired token",
-        details: authError?.message 
+        details: authError?.message
       }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -76,20 +76,20 @@ Deno.serve(async (req: Request) => {
     }
 
     console.log("Authenticated user:", user.id);
-    
+
     // Create Supabase client with service role key for database operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    
+
     // Parse request body
     const body = await req.json();
     const { userId, template, variables, instagramAccountId, workflowName, automationId, autoActivate = false } = body;
-    
+
     console.log("User ID:", userId);
     console.log("Template:", template);
     console.log("Variables:", variables);
     console.log("Instagram Account ID:", instagramAccountId);
     console.log("Automation ID:", automationId);
-    
+
     // Fetch automation data if automationId is provided
     let automationData: any = null;
     if (automationId) {
@@ -99,7 +99,7 @@ Deno.serve(async (req: Request) => {
         .eq("id", automationId)
         .eq("user_id", userId)
         .single();
-      
+
       if (!automationError && automation) {
         automationData = automation;
         console.log("Automation data fetched:", {
@@ -111,7 +111,7 @@ Deno.serve(async (req: Request) => {
         console.warn("Could not fetch automation data:", automationError?.message);
       }
     }
-    
+
     // Validate input and ensure userId matches authenticated user
     if (!userId) {
       return new Response(JSON.stringify({ error: "Missing userId" }), {
@@ -139,7 +139,7 @@ Deno.serve(async (req: Request) => {
         .eq("user_id", userId)
         .eq("status", "active")
         .single();
-      
+
       if (error || !data) {
         return new Response(JSON.stringify({ error: "Instagram account not found or inactive" }), {
           status: 404,
@@ -157,7 +157,7 @@ Deno.serve(async (req: Request) => {
         .order("connected_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      
+
       if (error || !data) {
         return new Response(JSON.stringify({ error: "No active Instagram account found. Please connect an Instagram account first." }), {
           status: 404,
@@ -172,10 +172,10 @@ Deno.serve(async (req: Request) => {
     // Get n8n credentials from environment variables
     const n8nBaseUrl = Deno.env.get("N8N_BASE_URL");
     const n8nApiKey = Deno.env.get("X-N8N-API-KEY");
-    
+
     console.log("N8N Base URL:", n8nBaseUrl ? "Set" : "Not set");
     console.log("N8N API Key:", n8nApiKey ? "Set (masked)" : "Not set");
-    
+
     if (!n8nBaseUrl) {
       console.error("N8N_BASE_URL not configured");
       return new Response(JSON.stringify({ error: "N8N_BASE_URL not configured" }), {
@@ -183,7 +183,7 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    
+
     if (!n8nApiKey) {
       console.error("X-N8N-API-KEY not configured");
       return new Response(JSON.stringify({ error: "X-N8N-API-KEY not configured" }), {
@@ -195,7 +195,7 @@ Deno.serve(async (req: Request) => {
     // Create workflow name - include Instagram ID by default
     const finalWorkflowName = workflowName || `Instagram Automation - ${instagramAccount.username} (${instagramAccount.instagram_user_id}) - ${new Date().toISOString().split('T')[0]}`;
     const webhookPath = `instagram-webhook-${userId}-${automationId || Date.now()}`;
-    
+
     // Helper function to recursively replace placeholders in workflow nodes
     const replacePlaceholders = (obj: any): any => {
       if (typeof obj === "string") {
@@ -218,23 +218,23 @@ Deno.serve(async (req: Request) => {
       }
       return obj;
     };
-    
+
     // Build DM workflow function
     const buildDMWorkflow = () => {
       const triggerConfig = automationData?.trigger_config as { messageType?: 'all' | 'keywords'; keywords?: string[] } || {};
       const actions = automationData?.actions || [];
       const sendDmAction = actions.find((a: any) => a.type === 'send_dm');
-      
+
       const messageType = triggerConfig.messageType || 'all';
       const keywords = triggerConfig.keywords || [];
       const calendarUrl = variables?.calendarUrl || 'https://calendar.app.google/QmsYv4Q4G5DNeham6';
       const brandName = variables?.brandName || 'QuickRevert';
-      
+
       const nodes: any[] = [];
       const connections: any = {};
       let nodeYPosition = 560;
       let nodeXPosition = -1568;
-      
+
       // 1. Webhook node
       const webhookNode = {
         id: "webhook-node",
@@ -251,7 +251,7 @@ Deno.serve(async (req: Request) => {
         webhookId: webhookPath
       };
       nodes.push(webhookNode);
-      
+
       // 2. Webhook verification (for Instagram webhook setup)
       nodeXPosition += 224;
       const verificationNode = {
@@ -286,7 +286,7 @@ Deno.serve(async (req: Request) => {
         }
       };
       nodes.push(verificationNode);
-      
+
       // 3. Respond to webhook (for verification)
       nodeXPosition += 224;
       const respondNode = {
@@ -302,11 +302,11 @@ Deno.serve(async (req: Request) => {
         }
       };
       nodes.push(respondNode);
-      
+
       // 4. Message Switch node
       nodeXPosition = -1216;
       const switchRules: any[] = [];
-      
+
       if (messageType === 'keywords' && keywords.length > 0) {
         // Add rules for each keyword
         keywords.forEach((keyword: string, index: number) => {
@@ -363,12 +363,12 @@ Deno.serve(async (req: Request) => {
           outputKey: "all_messages"
         });
       }
-      
+
       // Add postback handlers for buttons
       if (sendDmAction?.actionButtons) {
         sendDmAction.actionButtons.forEach((button: any, index: number) => {
           const buttonAction = button.action || (button.url ? 'url' : 'postback');
-          
+
           if (buttonAction === 'postback' || !button.url) {
             // Button without URL = postback type
             const payload = button.text.toUpperCase().replace(/\s+/g, '_');
@@ -400,7 +400,7 @@ Deno.serve(async (req: Request) => {
           }
         });
       }
-      
+
       const switchNode = {
         id: "message-switch",
         name: "Message Switch",
@@ -417,18 +417,18 @@ Deno.serve(async (req: Request) => {
         }
       };
       nodes.push(switchNode);
-      
+
       // 5. Create HTTP request nodes for each keyword - ALWAYS create them
       nodeXPosition += 224;
       let messageYPosition = 304;
       const switchConnections: any[] = [];
-      
+
       // Prepare buttons and message template from action if available
       const buttons: any[] = [];
       if (sendDmAction?.actionButtons) {
         sendDmAction.actionButtons.forEach((button: any) => {
           const buttonAction = button.action || (button.url ? 'web_url' : 'postback');
-          
+
           if (buttonAction === 'web_url' || buttonAction === 'calendar') {
             buttons.push({
               type: "web_url",
@@ -445,7 +445,7 @@ Deno.serve(async (req: Request) => {
           }
         });
       }
-      
+
       // Get user-configured values or use defaults
       // Title is required, so use default if not provided
       const title = (sendDmAction as any)?.title || "Hi👋";
@@ -453,7 +453,7 @@ Deno.serve(async (req: Request) => {
       const subtitle = (sendDmAction as any)?.subtitle || sendDmAction?.messageTemplate || undefined;
       // Image URL is optional
       const imageUrl = (sendDmAction as any)?.imageUrl || (sendDmAction as any)?.image_url || "https://i.ibb.co/N29QzF6Z/QR-Logo.png";
-      
+
       // Build the element object dynamically based on what user provided
       const buildElement = () => {
         const element: any = {};
@@ -463,16 +463,16 @@ Deno.serve(async (req: Request) => {
         if (buttons.length > 0) element.buttons = buttons;
         return element;
       };
-      
+
       const elementJson = JSON.stringify(buildElement());
-      
+
       // Create HTTP request node for each keyword - ALWAYS create
       if (messageType === 'keywords' && keywords.length > 0) {
         keywords.forEach((keyword: string, index: number) => {
           const keywordUpper = keyword.toUpperCase();
           const keywordNodeId = `http-node-${keyword.toLowerCase().replace(/\s+/g, '-')}`;
           const keywordNodeName = keywordUpper;
-          
+
           const keywordNode = {
             id: keywordNodeId,
             name: keywordNodeName,
@@ -482,8 +482,6 @@ Deno.serve(async (req: Request) => {
             parameters: {
               method: "POST",
               url: `=https://graph.instagram.com/v24.0/{{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages`,
-              authentication: "genericCredentialType",
-              genericAuthType: "httpHeaderAuth",
               sendHeaders: true,
               headerParameters: {
                 parameters: [
@@ -493,7 +491,7 @@ Deno.serve(async (req: Request) => {
                   },
                   {
                     name: "Authorization",
-                    value: "Bearer {{access_token}}"
+                    value: `Bearer ${instagramAccount.access_token}`
                   }
                 ]
               },
@@ -501,16 +499,10 @@ Deno.serve(async (req: Request) => {
               specifyBody: "json",
               jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].messaging[0].sender.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          ${elementJson}\n        ]\n      }\n    }\n  }\n}\n`,
               options: {}
-            },
-            credentials: {
-              httpHeaderAuth: {
-                id: instagramAccount.instagram_user_id,
-                name: "Instagram Access Token"
-              }
             }
           };
           nodes.push(keywordNode);
-          
+
           // Add connection from switch to this keyword node
           const switchOutputIndex = switchRules.findIndex((r: any) => r.outputKey === keyword.toLowerCase());
           if (switchOutputIndex >= 0) {
@@ -520,7 +512,7 @@ Deno.serve(async (req: Request) => {
               index: switchOutputIndex
             });
           }
-          
+
           messageYPosition += 192;
         });
       } else if (messageType === 'all') {
@@ -534,8 +526,6 @@ Deno.serve(async (req: Request) => {
           parameters: {
             method: "POST",
             url: `=https://graph.instagram.com/v24.0/{{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages`,
-            authentication: "genericCredentialType",
-            genericAuthType: "httpHeaderAuth",
             sendHeaders: true,
             headerParameters: {
               parameters: [
@@ -545,7 +535,7 @@ Deno.serve(async (req: Request) => {
                 },
                 {
                   name: "Authorization",
-                  value: "Bearer {{access_token}}"
+                  value: `Bearer ${instagramAccount.access_token}`
                 }
               ]
             },
@@ -553,16 +543,10 @@ Deno.serve(async (req: Request) => {
             specifyBody: "json",
             jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].messaging[0].sender.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          {\n            "title": "Hi👋",\n            "image_url": "https://i.ibb.co/N29QzF6Z/QR-Logo.png",\n            "subtitle": "${defaultMessage.replace(/\n/g, '\\n').replace(/"/g, '\\"')}",\n            "buttons": ${JSON.stringify(buttons)}\n          }\n        ]\n      }\n    }\n  }\n}\n`,
             options: {}
-          },
-          credentials: {
-            httpHeaderAuth: {
-              id: instagramAccount.instagram_user_id,
-              name: "Instagram Access Token"
-            }
           }
         };
         nodes.push(allMessagesNode);
-        
+
         // Add connection from switch to all messages node
         const switchOutputIndex = switchRules.findIndex((r: any) => r.outputKey === 'all_messages');
         if (switchOutputIndex >= 0) {
@@ -573,15 +557,15 @@ Deno.serve(async (req: Request) => {
           });
         }
       }
-      
+
       // 6. Button handler nodes (for postbacks)
       if (sendDmAction?.actionButtons) {
         sendDmAction.actionButtons.forEach((button: any, index: number) => {
           const buttonAction = button.action || (button.url ? 'url' : 'postback');
-          
+
           if (buttonAction === 'postback' || !button.url) {
             const payload = button.text.toUpperCase().replace(/\s+/g, '_');
-            
+
             const buttonHandlerNode = {
               id: `button-handler-${index}`,
               name: `${button.text} Handler`,
@@ -591,8 +575,6 @@ Deno.serve(async (req: Request) => {
               parameters: {
                 method: "POST",
                 url: `=https://graph.instagram.com/v24.0/{{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages`,
-                authentication: "genericCredentialType",
-                genericAuthType: "httpHeaderAuth",
                 sendHeaders: true,
                 headerParameters: {
                   parameters: [
@@ -602,7 +584,7 @@ Deno.serve(async (req: Request) => {
                     },
                     {
                       name: "Authorization",
-                      value: "Bearer {{access_token}}"
+                      value: `Bearer ${instagramAccount.access_token}`
                     }
                   ]
                 },
@@ -610,16 +592,10 @@ Deno.serve(async (req: Request) => {
                 specifyBody: "json",
                 jsonBody: `={\n  "recipient": {\n    "id": "{{ $json.body.entry[0].messaging[0].sender.id }}"\n  },\n  "message": {\n    "attachment": {\n      "type": "template",\n      "payload": {\n        "template_type": "generic",\n        "elements": [\n          {\n            "title": "Great choice\\nOur ${button.text} solution helps businesses reply instantly, qualify leads, and manage all customer conversations in one place.\\n\\nOne of our experts will contact you soon to guide you further.\\n\\nYou can also book a quick demo to see how it works📅",\n            "image_url": "https://i.ibb.co/N29QzF6Z/QR-Logo.png",\n            "subtitle": "Thank you for choosing ${brandName}!",\n            "buttons": [\n              {\n                "type": "web_url",\n                "url": "${calendarUrl}",\n                "title": "Book Demo"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}\n`,
                 options: {}
-              },
-              credentials: {
-                httpHeaderAuth: {
-                  id: instagramAccount.instagram_user_id,
-                  name: "Instagram Access Token"
-                }
               }
             };
             nodes.push(buttonHandlerNode);
-            
+
             // Add connection from switch to button handler
             const payloadIndex = switchRules.findIndex((r: any) => r.outputKey === payload);
             if (payloadIndex >= 0) {
@@ -629,12 +605,12 @@ Deno.serve(async (req: Request) => {
                 index: payloadIndex
               });
             }
-            
+
             messageYPosition += 192;
           }
         });
       }
-      
+
       // Set up connections
       connections["Instagram Webhook"] = {
         main: [
@@ -654,7 +630,7 @@ Deno.serve(async (req: Request) => {
           ]
         ]
       };
-      
+
       connections["Webhook Verification"] = {
         main: [
           [
@@ -666,7 +642,7 @@ Deno.serve(async (req: Request) => {
           ]
         ]
       };
-      
+
       if (switchConnections.length > 0) {
         // Group connections by output index for switch node
         // n8n switch node connections: main: [[output0_connections], [output1_connections], ...]
@@ -692,7 +668,7 @@ Deno.serve(async (req: Request) => {
           main: mainConnections
         };
       }
-      
+
       return {
         name: finalWorkflowName,
         nodes: nodes,
@@ -715,17 +691,17 @@ Deno.serve(async (req: Request) => {
       const replyToCommentAction = actions.find((a: any) => a.type === 'reply_to_comment');
       const askToFollowAction = actions.find((a: any) => a.type === 'ask_to_follow');
       const sendDmAction = actions.find((a: any) => a.type === 'send_dm');
-      
+
       const commentsType = triggerConfig.commentsType || 'all';
       const keywords = triggerConfig.keywords || [];
       const calendarUrl = variables?.calendarUrl || 'https://calendar.app.google/QmsYv4Q4G5DNeham6';
       const brandName = variables?.brandName || 'QuickRevert';
-      
+
       const nodes: any[] = [];
       const connections: any = {};
       let nodeYPosition = 560;
       let nodeXPosition = -1568;
-      
+
       // 1. Webhook node
       const webhookNode = {
         id: "webhook-node",
@@ -742,7 +718,7 @@ Deno.serve(async (req: Request) => {
         webhookId: webhookPath
       };
       nodes.push(webhookNode);
-      
+
       // 2. Webhook verification (for Instagram webhook setup)
       nodeXPosition += 224;
       const verificationNode = {
@@ -787,7 +763,7 @@ Deno.serve(async (req: Request) => {
         }
       };
       nodes.push(verificationNode);
-      
+
       // 3. Respond to webhook (for verification)
       nodeXPosition += 224;
       const respondNode = {
@@ -803,11 +779,11 @@ Deno.serve(async (req: Request) => {
         }
       };
       nodes.push(respondNode);
-      
+
       // 4. Comment Switch node
       nodeXPosition = -1344;
       const switchRules: any[] = [];
-      
+
       if (commentsType === 'keywords' && keywords.length > 0) {
         // Add rules for each keyword
         keywords.forEach((keyword: string, index: number) => {
@@ -863,7 +839,7 @@ Deno.serve(async (req: Request) => {
           outputKey: "all_comments"
         });
       }
-      
+
       const switchNode = {
         id: "comment-switch",
         name: "Switch3",
@@ -880,20 +856,20 @@ Deno.serve(async (req: Request) => {
         }
       };
       nodes.push(switchNode);
-      
+
       // 5. Create Reply to Comment nodes for each keyword - ALWAYS create them
       nodeXPosition += 224;
       let replyYPosition = nodeYPosition - 304;
       const switchConnections: any[] = [];
       const actionChains: any = {}; // Track action chains for each keyword
       const keywordYPositions: any = {}; // Track Y position for each keyword branch
-      
+
       // Get reply template from action if available, otherwise use default
       const replyTemplates = replyToCommentAction?.replyTemplates || [];
-      const replyText = replyTemplates.length > 0 
-        ? replyTemplates[0] 
+      const replyText = replyTemplates.length > 0
+        ? replyTemplates[0]
         : `Thank you for your comment!`;
-      
+
       // Build buttons for reply if any
       const replyButtons: any[] = [];
       if (replyToCommentAction?.actionButtons && replyToCommentAction.actionButtons.length > 0) {
@@ -907,7 +883,7 @@ Deno.serve(async (req: Request) => {
           }
         });
       }
-      
+
       // ALWAYS create HTTP nodes for each keyword/output
       if (commentsType === 'keywords' && keywords.length > 0) {
         keywords.forEach((keyword: string, index: number) => {
@@ -915,7 +891,7 @@ Deno.serve(async (req: Request) => {
           const keywordKey = keyword.toLowerCase();
           const replyNodeId = `reply-comment-${keywordKey.replace(/\s+/g, '-')}`;
           const replyNodeName = `Reply to comment${index + 1}`;
-          
+
           const replyNode = {
             id: replyNodeId,
             name: replyNodeName,
@@ -953,7 +929,7 @@ Deno.serve(async (req: Request) => {
             }
           };
           nodes.push(replyNode);
-          
+
           // Add connection from switch to this reply node
           const switchOutputIndex = switchRules.findIndex((r: any) => r.outputKey === keyword.toLowerCase());
           if (switchOutputIndex >= 0) {
@@ -963,7 +939,7 @@ Deno.serve(async (req: Request) => {
               index: switchOutputIndex
             });
           }
-          
+
           // Track the last node for this keyword to chain actions
           actionChains[keywordKey] = replyNodeName;
           keywordYPositions[keywordKey] = replyYPosition;
@@ -1009,7 +985,7 @@ Deno.serve(async (req: Request) => {
           }
         };
         nodes.push(replyNode);
-        
+
         // Add connection from switch to reply node
         const switchOutputIndex = switchRules.findIndex((r: any) => r.outputKey === 'all_comments');
         if (switchOutputIndex >= 0) {
@@ -1019,20 +995,20 @@ Deno.serve(async (req: Request) => {
             index: switchOutputIndex
           });
         }
-        
+
         actionChains['all_comments'] = replyNodeName;
         keywordYPositions['all_comments'] = replyYPosition;
       }
-      
+
       // 6. Chain additional actions (ask_to_follow, send_dm) after reply
       const actionConnections: any = {};
-      
+
       // Helper to add action node
       const addActionNode = (actionType: 'ask_to_follow' | 'send_dm', actionData: any, previousNodeName: string, keywordKey: string) => {
         let actionNode: any;
         let actionNodeName: string = '';
         const currentYPosition = keywordYPositions[keywordKey] || replyYPosition;
-        
+
         if (actionType === 'ask_to_follow') {
           actionNodeName = `please follow${keywords.length > 1 ? keywordKey.replace(/\s+/g, '') : '1'}`;
           const buttons = [{
@@ -1040,7 +1016,7 @@ Deno.serve(async (req: Request) => {
             title: actionData.followButtonText || "I'm Following ✅",
             payload: "Following"
           }];
-          
+
           actionNode = {
             id: `ask-follow-${keywordKey.replace(/\s+/g, '-')}`,
             name: actionNodeName,
@@ -1082,7 +1058,7 @@ Deno.serve(async (req: Request) => {
           const buttons: any[] = [];
           sendDmAction.actionButtons?.forEach((button: any) => {
             const buttonAction = button.action || (button.url ? 'web_url' : 'postback');
-            
+
             if (buttonAction === 'web_url' || buttonAction === 'calendar') {
               buttons.push({
                 type: "web_url",
@@ -1098,7 +1074,7 @@ Deno.serve(async (req: Request) => {
               });
             }
           });
-          
+
           // Get user-configured values or use defaults
           // Title is required, so use default if not provided
           const dmTitle = (sendDmAction as any)?.title || "Hi👋";
@@ -1106,7 +1082,7 @@ Deno.serve(async (req: Request) => {
           const dmSubtitle = (sendDmAction as any)?.subtitle || sendDmAction.messageTemplate || undefined;
           // Image URL is optional
           const dmImageUrl = (sendDmAction as any)?.imageUrl || (sendDmAction as any)?.image_url || "https://i.ibb.co/N29QzF6Z/QR-Logo.png";
-          
+
           // Build the element object dynamically
           const dmElement: any = {};
           if (dmTitle) dmElement.title = dmTitle;
@@ -1114,7 +1090,7 @@ Deno.serve(async (req: Request) => {
           if (dmSubtitle) dmElement.subtitle = dmSubtitle;
           if (buttons.length > 0) dmElement.buttons = buttons;
           const dmElementJson = JSON.stringify(dmElement);
-          
+
           actionNode = {
             id: `send-dm-${keywordKey.replace(/\s+/g, '-')}`,
             name: actionNodeName,
@@ -1152,10 +1128,10 @@ Deno.serve(async (req: Request) => {
             }
           };
         }
-        
+
         if (actionNode && actionNodeName) {
           nodes.push(actionNode);
-          
+
           // Chain from previous node
           if (!actionConnections[previousNodeName]) {
             actionConnections[previousNodeName] = [];
@@ -1165,24 +1141,24 @@ Deno.serve(async (req: Request) => {
             type: "main",
             index: 0
           });
-          
+
           // Update Y position for next action in this keyword branch
           keywordYPositions[keywordKey] = currentYPosition + 192;
           return actionNodeName;
         }
         return previousNodeName;
       };
-      
+
       // Add ask_to_follow and send_dm actions after reply nodes
       if (commentsType === 'keywords' && keywords.length > 0) {
         keywords.forEach((keyword: string) => {
           const keywordKey = keyword.toLowerCase();
           let lastNode = actionChains[keywordKey];
-          
+
           if (askToFollowAction && lastNode) {
             lastNode = addActionNode('ask_to_follow', askToFollowAction, lastNode, keywordKey);
           }
-          
+
           if (sendDmAction && lastNode) {
             lastNode = addActionNode('send_dm', sendDmAction, lastNode, keywordKey);
           }
@@ -1190,16 +1166,16 @@ Deno.serve(async (req: Request) => {
       } else if (commentsType === 'all') {
         let lastNode = actionChains['all_comments'];
         const keywordKey = 'all_comments';
-        
+
         if (askToFollowAction && lastNode) {
           lastNode = addActionNode('ask_to_follow', askToFollowAction, lastNode, keywordKey);
         }
-        
+
         if (sendDmAction && lastNode) {
           lastNode = addActionNode('send_dm', sendDmAction, lastNode, keywordKey);
         }
       }
-      
+
       // Set up connections
       connections["Webhook"] = {
         main: [
@@ -1219,7 +1195,7 @@ Deno.serve(async (req: Request) => {
           ]
         ]
       };
-      
+
       connections["If"] = {
         main: [
           [
@@ -1231,7 +1207,7 @@ Deno.serve(async (req: Request) => {
           ]
         ]
       };
-      
+
       if (switchConnections.length > 0) {
         // Group connections by output index for switch node
         // n8n switch node connections: main: [[output0_connections], [output1_connections], ...]
@@ -1257,14 +1233,14 @@ Deno.serve(async (req: Request) => {
           main: mainConnections
         };
       }
-      
+
       // Add action chain connections
       Object.keys(actionConnections).forEach((nodeName) => {
         connections[nodeName] = {
           main: [actionConnections[nodeName]]
         };
       });
-      
+
       return {
         name: finalWorkflowName,
         nodes: nodes,
@@ -1282,7 +1258,7 @@ Deno.serve(async (req: Request) => {
 
     // Build workflow based on template and automation type
     let workflowTemplate: any;
-    
+
     // If automation data exists, build appropriate workflow
     if (automationData && automationData.trigger_type === 'user_directed_messages') {
       console.log("Building DM workflow for user_directed_messages");
@@ -1295,118 +1271,118 @@ Deno.serve(async (req: Request) => {
       console.log("Building default workflow template");
       workflowTemplate = {
         name: finalWorkflowName,
-      nodes: [
-        {
-          id: "webhook-node",
-          name: "Instagram Webhook",
-          type: "n8n-nodes-base.webhook",
-          typeVersion: 2.1,
-          position: [100, 300],
-          parameters: {
-            httpMethod: "POST",
-            path: webhookPath,
-            responseMode: "responseNode",
-            options: {}
+        nodes: [
+          {
+            id: "webhook-node",
+            name: "Instagram Webhook",
+            type: "n8n-nodes-base.webhook",
+            typeVersion: 2.1,
+            position: [100, 300],
+            parameters: {
+              httpMethod: "POST",
+              path: webhookPath,
+              responseMode: "responseNode",
+              options: {}
+            }
+          },
+          {
+            id: "extract-message-data",
+            name: "Extract Message Data",
+            type: "n8n-nodes-base.set",
+            typeVersion: 1,
+            position: [320, 300],
+            parameters: {
+              values: {
+                string: [
+                  {
+                    name: "instagramMessage",
+                    value: "={{ ($requestBody || $input.first().json).message || $json.text || $json.message || '' }}"
+                  },
+                  {
+                    name: "instagramUserId",
+                    value: "={{ ($requestBody || $input.first().json).sender_id || $json.sender_id || $json.from.id || '' }}"
+                  },
+                  {
+                    name: "instagramUserName",
+                    value: "={{ ($requestBody || $input.first().json).sender_name || $json.sender_name || $json.from.username || '' }}"
+                  }
+                ]
+              },
+              options: {}
+            }
+          },
+          {
+            id: "send-instagram-reply",
+            name: "Send Instagram DM Reply",
+            type: "n8n-nodes-base.httpRequest",
+            typeVersion: 4,
+            position: [540, 300],
+            parameters: {
+              method: "POST",
+              url: "https://graph.instagram.com/v20.0/me/messages",
+              sendHeaders: true,
+              headerParameters: {
+                parameters: [
+                  {
+                    name: "Authorization",
+                    value: `Bearer ${instagramAccount.access_token}`
+                  },
+                  {
+                    name: "Content-Type",
+                    value: "application/json"
+                  }
+                ]
+              },
+              sendBody: true,
+              bodyParameters: {
+                parameters: [
+                  {
+                    name: "recipient",
+                    value: "={{ {\"id\": $json.instagramUserId} }}"
+                  },
+                  {
+                    name: "message",
+                    value: "={{ {\"text\": \"Hello! Thanks for your message.\"} }}"
+                  }
+                ]
+              },
+              options: {}
+            }
           }
-        },
-        {
-          id: "extract-message-data",
-          name: "Extract Message Data",
-          type: "n8n-nodes-base.set",
-          typeVersion: 1,
-          position: [320, 300],
-          parameters: {
-            values: {
-              string: [
+        ],
+        connections: {
+          "Instagram Webhook": {
+            main: [
+              [
                 {
-                  name: "instagramMessage",
-                  value: "={{ ($requestBody || $input.first().json).message || $json.text || $json.message || '' }}"
-                },
-                {
-                  name: "instagramUserId",
-                  value: "={{ ($requestBody || $input.first().json).sender_id || $json.sender_id || $json.from.id || '' }}"
-                },
-                {
-                  name: "instagramUserName",
-                  value: "={{ ($requestBody || $input.first().json).sender_name || $json.sender_name || $json.from.username || '' }}"
+                  node: "Extract Message Data",
+                  type: "main",
+                  index: 0
                 }
               ]
-            },
-            options: {}
-          }
-        },
-        {
-          id: "send-instagram-reply",
-          name: "Send Instagram DM Reply",
-          type: "n8n-nodes-base.httpRequest",
-          typeVersion: 4,
-          position: [540, 300],
-          parameters: {
-            method: "POST",
-            url: "https://graph.instagram.com/v20.0/me/messages",
-            sendHeaders: true,
-            headerParameters: {
-              parameters: [
-                {
-                  name: "Authorization",
-                  value: `Bearer ${instagramAccount.access_token}`
-                },
-                {
-                  name: "Content-Type",
-                  value: "application/json"
-                }
-              ]
-            },
-            sendBody: true,
-            bodyParameters: {
-              parameters: [
-                {
-                  name: "recipient",
-                  value: "={{ {\"id\": $json.instagramUserId} }}"
-                },
-                {
-                  name: "message",
-                  value: "={{ {\"text\": \"Hello! Thanks for your message.\"} }}"
-                }
-              ]
-            },
-            options: {}
-          }
-        }
-      ],
-      connections: {
-        "Instagram Webhook": {
-          main: [
-            [
-              {
-                node: "Extract Message Data",
-                type: "main",
-                index: 0
-              }
             ]
-          ]
-        },
-        "Extract Message Data": {
-          main: [
-            [
-              {
-                node: "Send Instagram DM Reply",
-                type: "main",
-                index: 0
-              }
+          },
+          "Extract Message Data": {
+            main: [
+              [
+                {
+                  node: "Send Instagram DM Reply",
+                  type: "main",
+                  index: 0
+                }
+              ]
             ]
-          ]
+          }
+        },
+        settings: {
+          saveExecutionProgress: true,
+          saveManualExecutions: true,
+          saveDataErrorExecution: "all",
+          saveDataSuccessExecution: "all",
+          executionTimeout: 3600,
+          timezone: "Asia/Kolkata"
         }
-      },
-      settings: {
-        saveExecutionProgress: true,
-        saveManualExecutions: true,
-        saveDataErrorExecution: "all",
-        saveDataSuccessExecution: "all",
-        executionTimeout: 3600,
-        timezone: "Asia/Kolkata"
-      }
-    };
+      };
     }
 
     // Replace any placeholders in the workflow
@@ -1434,8 +1410,8 @@ Deno.serve(async (req: Request) => {
         statusText: n8nResponse.statusText,
         body: responseText
       });
-      
-      return new Response(JSON.stringify({ 
+
+      return new Response(JSON.stringify({
         error: `Failed to create workflow in n8n: ${n8nResponse.status} ${n8nResponse.statusText}`,
         details: responseText
       }), {
@@ -1508,7 +1484,7 @@ Deno.serve(async (req: Request) => {
           ...(automationId && { automation_id: automationId }),
           created_at: new Date().toISOString()
         });
-      
+
       console.log("Workflow mapping stored in Supabase");
     } catch (dbError) {
       console.error("Failed to store workflow mapping:", dbError);
@@ -1533,9 +1509,9 @@ Deno.serve(async (req: Request) => {
 
   } catch (error: any) {
     console.error("Error in create-workflow function:", error);
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       error: error.message,
-      stack: error.stack 
+      stack: error.stack
     }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
