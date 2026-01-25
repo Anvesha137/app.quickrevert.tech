@@ -14,48 +14,18 @@ Deno.serve(async (req: Request) => {
         const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-        // COMPREHENSIVE DEBUG
-        const targetPath = 'instagram-webhook-4d45ae4f-2036-444b-8753-4d4ca1b99ee5-71b2c681-9124-4657-b2af-0db23e51c397';
-
-        const { data: wf } = await supabase
-            .from('n8n_workflows')
+        // DUMP ROUTE SCHEMA
+        const { data: rows, error: discoveryError } = await supabase
+            .from('automation_routes')
             .select('*')
-            .eq('webhook_path', targetPath)
-            .maybeSingle();
+            .limit(1);
 
-        let routeStatus = "NOT_FOUND";
-        let triggerType = null;
-        let accountId = null;
-
-        if (wf) {
-            // Check Trigger Type
-            if (wf.automation_id) {
-                const { data: auto } = await supabase
-                    .from('automations')
-                    .select('trigger_type')
-                    .eq('id', wf.automation_id)
-                    .maybeSingle();
-                triggerType = auto?.trigger_type;
-            }
-
-            // Check Route
-            const { data: r } = await supabase
-                .from('automation_routes')
-                .select('*')
-                .eq('n8n_workflow_id', wf.n8n_workflow_id)
-                .maybeSingle();
-
-            if (r) {
-                routeStatus = r.is_active ? "ACTIVE" : "INACTIVE";
-                accountId = r.account_id;
-            }
-        }
+        const keys = rows && rows.length > 0 ? Object.keys(rows[0]) : [];
 
         return new Response(JSON.stringify({
-            workflowFound: !!wf,
-            triggerType,
-            routeStatus,
-            routedAccountId: accountId
+            tableName: "automation_routes",
+            keys,
+            error: discoveryError,
         }, null, 2), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
         });

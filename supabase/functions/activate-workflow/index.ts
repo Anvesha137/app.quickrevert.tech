@@ -98,17 +98,27 @@ Deno.serve(async (req: Request) => {
             console.warn(`Unknown trigger type ${triggerType}, defaulting to messaging/message`);
           }
 
-          // Upsert Route
-          await supabase.from('automation_routes').upsert({
-            user_id: user.id,
+          // Upsert Route (Using Delete+Insert to handle schema constraints)
+          const { error: deleteError } = await supabase
+            .from('automation_routes')
+            .delete()
+            .eq('workflow_ref', workflowId);
+
+          if (deleteError) console.error("Error clearing old route:", deleteError);
+
+          const { error: insertError } = await supabase.from('automation_routes').insert({
             account_id: igAccount.instagram_user_id,
             event_type: eventType,
             sub_type: subType,
-            n8n_workflow_id: workflowId,
+            workflow_ref: workflowId,
             is_active: true
-          }, { onConflict: 'n8n_workflow_id' });
+          });
 
-          console.log(`Route registered: ${workflowId} (${eventType}/${subType})`);
+          if (insertError) {
+            console.error("Error inserting route:", insertError);
+          } else {
+            console.log(`Route registered: ${workflowId} (${eventType}/${subType})`);
+          }
         } else {
           console.warn(`Instagram Account record not found for ID: ${existingWf.instagram_account_id}`);
         }
