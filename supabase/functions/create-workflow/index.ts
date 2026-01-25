@@ -126,6 +126,69 @@ Deno.serve(async (req: Request) => {
     const n8nApiKey = Deno.env.get("X-N8N-API-KEY");
     if (!n8nBaseUrl || !n8nApiKey) throw new Error("N8N configuration missing");
 
+    // --- CREDENTIAL MANAGEMENT ---
+    // Ensure n8n credential exists for this account
+    const ensureCredential = async () => {
+      const credName = `Instagram - ${instagramAccount.username} (${instagramAccount.instagram_user_id})`;
+      const credType = "facebookGraphApi"; // Correct n8n type
+
+      // 1. Check if exists (not easily searched by name via API, usually list and filter)
+      // Simplification: Try to create, if name conflict update? Or just list first.
+      // List credentials logic involves paging, might be slow. 
+      // Strategy: Create a NEW credential with a unique name every time? Or Reuse?
+      // Reuse is better. Let's list.
+      try {
+        const listRes = await fetch(`${n8nBaseUrl}/api/v1/credentials`, {
+          headers: { "X-N8N-API-KEY": n8nApiKey }
+        });
+        if (listRes.ok) {
+          const listData = await listRes.json();
+          const existing = listData.data.find((c: any) => c.name === credName);
+          if (existing) {
+            console.log(`Using existing credential: ${existing.id}`);
+            // Optional: Update it to ensure token is fresh?
+            // await fetch(`${n8nBaseUrl}/api/v1/credentials/${existing.id}`, { method: 'PUT', ... })
+            // For now, assume it's good or if user reconnected we should update.
+            // Let's update it to be safe.
+            await fetch(`${n8nBaseUrl}/api/v1/credentials/${existing.id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey },
+              body: JSON.stringify({ data: { accessToken: instagramAccount.access_token } }) // facebookGraphApi expects 'accessToken'
+            });
+            return existing.id;
+          }
+        }
+      } catch (e) {
+        console.warn("Credential list failed", e);
+      }
+
+      // 2. Create if not found
+      console.log("Creating new n8n credential");
+      const createRes = await fetch(`${n8nBaseUrl}/api/v1/credentials`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey },
+        body: JSON.stringify({
+          name: credName,
+          type: credType,
+          data: { accessToken: instagramAccount.access_token }
+        })
+      });
+
+      if (!createRes.ok) {
+        const txt = await createRes.text();
+        console.error("Credential creation failed", txt);
+        // Fallback: If we can't create credential, we might have to fail or fallback to hardcoded (but user requested strict fix)
+        // Throwing error is safer.
+        throw new Error("Failed to create n8n credential: " + txt);
+      }
+      const newCred = await createRes.json();
+      return newCred.id;
+    };
+
+    const credentialId = await ensureCredential();
+    console.log("N8N Credential ID:", credentialId);
+
+
     // Create workflow name and path
     const finalWorkflowName = workflowName || `Instagram Automation - ${instagramAccount.username} (${instagramAccount.instagram_user_id}) - ${new Date().toISOString().split('T')[0]}`;
     const webhookPath = `instagram-webhook-${userId}-${automationId || Date.now()}`;
@@ -147,11 +210,16 @@ Deno.serve(async (req: Request) => {
       let nodeYPosition = 560;
       let nodeXPosition = -1568;
 
-      // 1. Webhook
+      // 1. Webhook (Fixed responseMode)
       nodes.push({
         id: "webhook-node", name: "Worker Webhook", type: "n8n-nodes-base.webhook", typeVersion: 2.1,
         position: [nodeXPosition, nodeYPosition],
-        parameters: { multipleMethods: true, path: webhookPath, responseMode: "responseNode", options: {} },
+        parameters: {
+          multipleMethods: true,
+          path: webhookPath,
+          responseMode: "onReceived", // Critical Fix
+          options: {}
+        },
         webhookId: webhookPath
       });
 
@@ -192,7 +260,7 @@ Deno.serve(async (req: Request) => {
       const switchNode = { id: "message-switch", name: "Message Switch", type: "n8n-nodes-base.switch", typeVersion: 3.3, position: [nodeXPosition, nodeYPosition], parameters: { rules: { values: switchRules }, options: { ignoreCase: true } } };
       nodes.push(switchNode);
 
-      // 4. Replies
+      // 4. Replies (Fixed Credentials)
       nodeXPosition += 224;
       let messageYPosition = 304;
       const switchConnections: any[] = [];
@@ -211,7 +279,18 @@ Deno.serve(async (req: Request) => {
       const addReply = (name: string, key: string) => {
         nodes.push({
           id: `reply-${key}`, name: name, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [nodeXPosition, messageYPosition],
-          parameters: { method: "POST", url: `=https://graph.instagram.com/v24.0/{{ $json.sender_id }}/messages`, sendHeaders: true, headerParameters: { parameters: [{ name: "Content-Type", value: "application/json" }, { name: "Authorization", value: `Bearer ${instagramAccount.access_token}` }] }, sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify(payloadObj, null, 2)}`, options: {} }
+          parameters: {
+            method: "POST",
+            url: `=https://graph.instagram.com/v24.0/{{ $json.sender_id }}/messages`,
+            authentication: "predefinedCredentialType", // Fix
+            nodeCredentialType: "facebookGraphApi",     // Fix
+            sendBody: true, specifyBody: "json",
+            jsonBody: `=${JSON.stringify(payloadObj, null, 2)}`,
+            options: {}
+          },
+          credentials: {
+            facebookGraphApi: { id: credentialId } // Fix
+          }
         });
         const idx = switchRules.findIndex(r => r.outputKey === key);
         if (idx >= 0) switchConnections.push({ node: name, type: "main", index: idx });
@@ -252,11 +331,16 @@ Deno.serve(async (req: Request) => {
       let nodeYPosition = 560;
       let nodeXPosition = -1568;
 
-      // 1. Webhook
+      // 1. Webhook (Fixed responseMode)
       nodes.push({
         id: "webhook-node", name: "Worker Webhook", type: "n8n-nodes-base.webhook", typeVersion: 2.1,
         position: [nodeXPosition, nodeYPosition],
-        parameters: { multipleMethods: true, path: webhookPath, responseMode: "responseNode", options: {} },
+        parameters: {
+          multipleMethods: true,
+          path: webhookPath,
+          responseMode: "onReceived", // Critical Fix 
+          options: {}
+        },
         webhookId: webhookPath
       });
 
@@ -286,7 +370,7 @@ Deno.serve(async (req: Request) => {
       }
       nodes.push({ id: "comment-switch", name: "Comment Switch", type: "n8n-nodes-base.switch", typeVersion: 3.3, position: [nodeXPosition, nodeYPosition], parameters: { rules: { values: switchRules }, options: { ignoreCase: true } } });
 
-      // 4. Actions
+      // 4. Actions (Fixed Credentials)
       nodeXPosition += 224;
       let actionYPosition = 304;
       const switchConnections: any[] = [];
@@ -303,7 +387,16 @@ Deno.serve(async (req: Request) => {
           if (!firstNodeName) firstNodeName = name;
           nodes.push({
             id: `rep-${key}`, name: name, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [currentX, actionYPosition],
-            parameters: { method: "POST", url: `=https://graph.instagram.com/v24.0/{{ $json.comment_id }}/replies`, sendHeaders: true, headerParameters: { parameters: [{ name: "Content-Type", value: "application/json" }, { name: "Authorization", value: `Bearer ${instagramAccount.access_token}` }] }, sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify({ message: replyText }, null, 2)}`, options: {} }
+            parameters: {
+              method: "POST",
+              url: `=https://graph.instagram.com/v24.0/{{ $json.comment_id }}/replies`,
+              authentication: "predefinedCredentialType", // Fix
+              nodeCredentialType: "facebookGraphApi",     // Fix
+              sendBody: true, specifyBody: "json",
+              jsonBody: `=${JSON.stringify({ message: replyText }, null, 2)}`,
+              options: {}
+            },
+            credentials: { facebookGraphApi: { id: credentialId } } // Fix
           });
           previousNodeName = name;
           currentX += 220;
@@ -314,7 +407,16 @@ Deno.serve(async (req: Request) => {
           if (!firstNodeName) firstNodeName = name;
           nodes.push({
             id: `dm-${key}`, name: name, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [currentX, actionYPosition],
-            parameters: { method: "POST", url: `=https://graph.instagram.com/v24.0/me/messages`, sendHeaders: true, headerParameters: { parameters: [{ name: "Content-Type", value: "application/json" }, { name: "Authorization", value: `Bearer ${instagramAccount.access_token}` }] }, sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify({ recipient: { comment_id: "{{ $json.comment_id }}" }, message: { text: dmText } }, null, 2)}`, options: {} }
+            parameters: {
+              method: "POST",
+              url: `=https://graph.instagram.com/v24.0/me/messages`,
+              authentication: "predefinedCredentialType", // Fix 
+              nodeCredentialType: "facebookGraphApi",     // Fix
+              sendBody: true, specifyBody: "json",
+              jsonBody: `=${JSON.stringify({ recipient: { comment_id: "{{ $json.comment_id }}" }, message: { text: dmText } }, null, 2)}`,
+              options: {}
+            },
+            credentials: { facebookGraphApi: { id: credentialId } } // Fix
           });
           if (previousNodeName) connections[previousNodeName] = { main: [[{ node: name, type: "main", index: 0 }]] };
         }
@@ -351,7 +453,7 @@ Deno.serve(async (req: Request) => {
     } else if (triggerType === 'comments') {
       n8nWorkflowJSON = buildPostCommentWorkflow();
     } else {
-      // Fallback for verification/other
+      // Fallback
       n8nWorkflowJSON = buildDMWorkflow();
     }
 
