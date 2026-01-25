@@ -82,7 +82,7 @@ Deno.serve(async (req: Request) => {
           let subType = null;
           const triggerType = automationsData?.trigger_type || 'user_dm'; // Default to DM if missing
 
-          if (triggerType === 'dm_keyword' || triggerType === 'user_dm' || triggerType === 'dm') {
+          if (triggerType === 'dm_keyword' || triggerType === 'user_dm' || triggerType === 'dm' || triggerType === 'user_directed_messages') {
             eventType = 'messaging';
             subType = 'message';
           } else if (triggerType === 'comments') {
@@ -91,6 +91,11 @@ Deno.serve(async (req: Request) => {
           } else if (triggerType === 'story_reply') {
             eventType = 'messaging';
             subType = 'message';
+          } else {
+            // Fallback for unknown types
+            eventType = 'messaging';
+            subType = 'message';
+            console.warn(`Unknown trigger type ${triggerType}, defaulting to messaging/message`);
           }
 
           // Upsert Route

@@ -14,22 +14,24 @@ Deno.serve(async (req: Request) => {
         const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-        // EVENTS DEBUG
-        const { data: processed } = await supabase
-            .from('processed_events')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(5);
+        // 1. Fetch trigger_type for the target automation
+        const targetWfPath = 'instagram-webhook-4d45ae4f-2036-444b-8753-4d4ca1b99ee5-7175f282-dc03-4960-b039-ced5d8ec78af';
+        const { data: wf } = await supabase.from('n8n_workflows').select('automation_id').eq('webhook_path', targetWfPath).maybeSingle();
+        let triggerType = null;
+        if (wf?.automation_id) {
+            const { data: auto } = await supabase.from('automations').select('trigger_type').eq('id', wf.automation_id).maybeSingle();
+            triggerType = auto?.trigger_type;
+        }
 
-        const { data: failed } = await supabase
-            .from('failed_events')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(5);
+        // 2. Fetch schema info (hard to do via PostgREST, so we try to insert a dummy route with null subtype and see error)
+        // We can't easily check information_schema via client.
+        // Instead we will just try to select * from automation_routes limit 1 and see if any existing have null subtype.
+        const { data: routes } = await supabase.from('automation_routes').select('sub_type').limit(10);
+
 
         return new Response(JSON.stringify({
-            processed,
-            failed
+            triggerType,
+            routesSample: routes
         }, null, 2), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
