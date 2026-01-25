@@ -1448,7 +1448,7 @@ Deno.serve(async (req: Request) => {
       await supabase
         .from("n8n_workflows")
         .insert({
-          user_id: userId,
+          user_id: user.id,
           n8n_workflow_id: n8nResult.id,
           n8n_workflow_name: n8nResult.name,
           webhook_path: webhookPath,

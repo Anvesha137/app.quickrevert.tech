@@ -27,12 +27,16 @@ Deno.serve(async (req: Request) => {
     if (!workflowId) throw new Error("Missing workflowId");
 
     // 1. Verify owner (Strict)
+    console.log(`Deactivate Request: User=${user.id}, WorkflowId=${workflowId}`);
+
     const { data: workflow, error: wfError } = await supabase
       .from("n8n_workflows")
       .select("user_id")
       .eq("n8n_workflow_id", workflowId)
       .eq("user_id", user.id) // STRICT
       .single();
+
+    if (wfError) console.error("Deactivate Lookup Error:", wfError);
 
     if (wfError || !workflow) throw new Error("Workflow not found or unauthorized");
 
