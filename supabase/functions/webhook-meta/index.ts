@@ -163,12 +163,44 @@ async function routeAndTrigger(normalized: any) {
     if (error) { console.error("Route Lookup Error:", error); return; }
     if (!routes || routes.length === 0) { console.log("No active routes found."); return; }
 
+    // Resolve Webhook Paths
+    const workflowIds = routes.map(r => r.n8n_workflow_id);
+    const { data: workflows, error: wfError } = await supabase
+        .from('n8n_workflows')
+        .select('n8n_workflow_id, webhook_path')
+        .in('n8n_workflow_id', workflowIds);
+
+    if (wfError) console.error("Workflow Lookup Error:", wfError);
+
+    const pathMap = new Map();
+    if (workflows) {
+        workflows.forEach((w: any) => {
+            if (w.webhook_path) pathMap.set(w.n8n_workflow_id, w.webhook_path);
+        });
+    }
+
     for (const route of routes) {
         try {
-            console.log(`Triggering Workflow: ${route.n8n_workflow_id}`);
-            const res = await fetch(`${N8N_BASE_URL}/api/v1/workflows/${route.n8n_workflow_id}/execute`, {
+            const webhookPath = pathMap.get(route.n8n_workflow_id);
+            let targetUrl = `${N8N_BASE_URL}/api/v1/workflows/${route.n8n_workflow_id}/execute`; // Fallback
+
+            if (webhookPath) {
+                targetUrl = `${N8N_BASE_URL}/webhook/${webhookPath}`;
+                console.log(`Triggering Workflow via Webhook: ${route.n8n_workflow_id} -> ${webhookPath}`);
+            } else {
+                console.log(`Triggering Workflow via Execute (No Path): ${route.n8n_workflow_id}`);
+            }
+
+            // Headers: Execute needs API Key, Webhook might not (but good to verify)
+            // If using Webhook Node, we usually don't need X-N8N-API-KEY, but sending it doesn't hurt? 
+            // Actually, for Webhook, we send simple Content-Type.
+            // For Execute, we need API Key.
+            const headers: any = { "Content-Type": "application/json" };
+            if (!webhookPath) headers["X-N8N-API-KEY"] = N8N_API_KEY;
+
+            const res = await fetch(targetUrl, {
                 method: "POST",
-                headers: { "Content-Type": "application/json", "X-N8N-API-KEY": N8N_API_KEY },
+                headers: headers,
                 body: JSON.stringify(normalized)
             });
             if (!res.ok) throw new Error(`n8n responded with ${res.status}: ${await res.text()}`);
