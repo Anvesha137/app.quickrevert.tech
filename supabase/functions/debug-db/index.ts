@@ -14,18 +14,22 @@ Deno.serve(async (req: Request) => {
         const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-        // DISCOVER N8N WORKFLOWS SCHEMA KEYS
-        const { data: rows, error: discoveryError } = await supabase
-            .from('n8n_workflows')
+        // EVENTS DEBUG
+        const { data: processed } = await supabase
+            .from('processed_events')
             .select('*')
-            .limit(1);
+            .order('created_at', { ascending: false })
+            .limit(5);
 
-        const keys = rows && rows.length > 0 ? Object.keys(rows[0]) : [];
+        const { data: failed } = await supabase
+            .from('failed_events')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(5);
 
         return new Response(JSON.stringify({
-            tableName: "n8n_workflows",
-            keys,
-            error: discoveryError,
+            processed,
+            failed
         }, null, 2), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
