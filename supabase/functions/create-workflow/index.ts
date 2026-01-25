@@ -539,7 +539,7 @@ Deno.serve(async (req: Request) => {
               payload: {
                 template_type: "generic",
                 // For 'all messages', we use the default message/buttons logic
-                elements: buildElements(undefined, defaultMessage, buttons)
+                elements: buildElements(undefined, subtitle, buttons)
               }
             }
           }
@@ -1439,12 +1439,18 @@ Deno.serve(async (req: Request) => {
     // Determine which workflow builder to use based on automation data
     // Assuming 'story_reply' (trigger type 2) and 'dm' (trigger type 3) map to these
     const tType = automationData?.trigger_type;
-    if (tType === 'story_reply' || tType === 'user_dm' || tType === 'dm') {
+    const msgType = automationData?.trigger_config?.messageType;
+
+    // Use Linear Workflow (No Switch) for:
+    // 1. Story Replies
+    // 2. Direct Messages (specific type)
+    // 3. "All Messages" configuration (User requested no switch)
+    if (tType === 'story_reply' || tType === 'user_dm' || tType === 'dm' || msgType === 'all') {
       workflowTemplate = buildStoryOrDMWorkflow();
     } else if (tType === 'comments') {
       workflowTemplate = buildPostCommentWorkflow();
     } else {
-      // Default to DM workflow for keywords
+      // Default to DM workflow for keywords (Switch Based)
       workflowTemplate = buildDMWorkflow();
     }
 
