@@ -1,23 +1,28 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const META_VERIFY_TOKEN = Deno.env.get("META_VERIFY_TOKEN")!;
-const META_APP_SECRET = Deno.env.get("META_APP_SECRET")!;
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const N8N_BASE_URL = Deno.env.get("N8N_BASE_URL")!;
-const N8N_API_KEY = Deno.env.get("X-N8N-API-KEY")!;
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+// Lazy load config to prevents crash if secrets are missing
+// const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY); // Move inside logic
 
 serve(async (req) => {
     const url = new URL(req.url);
 
     if (req.method === "GET") {
+        const META_VERIFY_TOKEN = Deno.env.get("META_VERIFY_TOKEN");
+        if (!META_VERIFY_TOKEN) {
+            console.error("Missing META_VERIFY_TOKEN");
+            return new Response("Config Error", { status: 500 });
+        }
+
         const mode = url.searchParams.get("hub.mode");
         const token = url.searchParams.get("hub.verify_token");
         const challenge = url.searchParams.get("hub.challenge");
-        if (mode === "subscribe" && token === META_VERIFY_TOKEN) return new Response(challenge, { status: 200 });
+
+        if (mode === "subscribe" && token === META_VERIFY_TOKEN) {
+            return new Response(challenge, { status: 200 });
+        }
+        console.warn("Verification Failed: Token Mismatch or Bad Mode");
         return new Response("Forbidden", { status: 403 });
     }
 
@@ -25,6 +30,13 @@ serve(async (req) => {
         try {
             const signature = req.headers.get("x-hub-signature-256");
             const body = await req.text();
+
+            const META_APP_SECRET = Deno.env.get("META_APP_SECRET");
+            if (!META_APP_SECRET) {
+                console.error("Missing META_APP_SECRET");
+                return new Response("Config Error", { status: 500 });
+            }
+
             if (!await verifySignature(signature, body, META_APP_SECRET)) {
                 console.error("Invalid Signature");
                 return new Response("Unauthorized", { status: 403 });
@@ -66,6 +78,9 @@ function hexToBytes(hex: string) {
 }
 
 async function processEvent(body: any) {
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const object = body.object;
     const entries = body.entry || [];
 
@@ -123,6 +138,10 @@ async function hashPayload(payload: any): Promise<string> {
 }
 
 async function isDuplicate(eventId: string, accountId: string): Promise<boolean> {
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
     // Try to insert event_id. If conflict -> it exists -> return true (is duplicate)
     const { error } = await supabase
         .from('processed_events')
@@ -138,6 +157,10 @@ async function isDuplicate(eventId: string, accountId: string): Promise<boolean>
 }
 
 async function checkRateLimit(accountId: string): Promise<boolean> {
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
     const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString();
     const { count, error } = await supabase
         .from('processed_events')
@@ -150,6 +173,14 @@ async function checkRateLimit(accountId: string): Promise<boolean> {
 }
 
 async function routeAndTrigger(normalized: any) {
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const N8N_BASE_URL = Deno.env.get("N8N_BASE_URL");
+    const N8N_API_KEY = Deno.env.get("X-N8N-API-KEY");
+
+    if (!N8N_BASE_URL) console.error("Missing N8N_BASE_URL");
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
     console.log("Routing:", normalized);
 
     const { data: routes, error } = await supabase
@@ -212,6 +243,9 @@ async function routeAndTrigger(normalized: any) {
 }
 
 async function logFailedEvent(payload: any, errorMessage: string) {
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const { error } = await supabase
         .from('failed_events')
         .insert({
