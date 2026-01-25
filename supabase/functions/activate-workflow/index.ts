@@ -23,13 +23,15 @@ Deno.serve(async (req: Request) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
     if (authError || !user) throw new Error("Unauthorized");
 
-    const { workflowId } = await req.json();
+    const body = await req.json();
+    const { workflowId, active } = body; // Support 'active' flag if sent, default to true
+    const shouldActivate = active !== false; // Default true
+
     if (!workflowId) throw new Error("Missing workflowId");
 
-    console.log(`Activate Request: User=${user.id}, WorkflowId=${workflowId}`);
+    console.log(`Req: User=${user.id}, Workflow=${workflowId}, Active=${shouldActivate}`);
 
-    // 1. Verify workflow & Ownership
-    // FETCH instagram_account_id FROM n8n_workflows (Source of Truth)
+    // 1. Verify workflow
     const { data: existingWf, error: findError } = await supabase
       .from('n8n_workflows')
       .select('id, user_id, automation_id, instagram_account_id')
@@ -37,115 +39,74 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (findError || !existingWf) {
-      console.error("Workflow NOT FOUND in n8n_workflows table:", workflowId);
+      console.error("Workflow not found", findError);
       throw new Error("Workflow not found in database");
     }
 
-    if (existingWf.user_id !== user.id) {
-      console.error(`Ownership Mismatch! Workflow Owner: ${existingWf.user_id}, Requestor: ${user.id}`);
-      throw new Error("Unauthorized: Workflow belongs to another user");
-    }
+    if (existingWf.user_id !== user.id) throw new Error("Unauthorized");
 
     const n8nBaseUrl = Deno.env.get("N8N_BASE_URL");
     const n8nApiKey = Deno.env.get("X-N8N-API-KEY");
-    if (!n8nBaseUrl || !n8nApiKey) throw new Error("N8N Config missing");
 
-    // 2. Register Route in automation_routes (Non-Blocking)
-    try {
-      let automationsData = null;
-      if (existingWf.automation_id) {
-        const { data: autoData, error: autoError } = await supabase
-          .from('automations')
-          .select('trigger_type') // Only trigger_type
-          .eq('id', existingWf.automation_id)
-          .single();
+    // 2. ROUTE MANAGEMENT (The Critical Fix)
+    if (existingWf.instagram_account_id) {
+      const { data: acc } = await supabase.from('instagram_accounts').select('instagram_user_id').eq('id', existingWf.instagram_account_id).single();
 
-        if (autoError || !autoData) {
-          console.warn(`Associated automation lookup failed for ID ${existingWf.automation_id}:`, autoError);
+      if (acc) {
+        const metaId = acc.instagram_user_id;
+
+        if (shouldActivate) {
+          // ACTIVATE:
+          // A. KILL ALL OTHER ROUTES FOR THIS ACCOUNT (Prevent Ghosts)
+          const { error: delError } = await supabase
+            .from('automation_routes')
+            .delete()
+            .eq('account_id', metaId); // WIPE EVERYTHING FOR THIS PAGE
+
+          if (delError) console.error("Cleanup Error:", delError);
+
+          // B. INSERT THIS ROUTE (Wildcard)
+          const { error: insError } = await supabase
+            .from('automation_routes')
+            .insert({
+              account_id: metaId,
+              user_id: user.id,
+              n8n_workflow_id: workflowId,
+              event_type: 'messaging',
+              sub_type: null, // WILDCARD (Matches everything)
+              is_active: true
+            });
+
+          if (insError) console.error("Insert Error:", insError);
+          else console.log("Route Active (Highlander Mode)");
+
         } else {
-          automationsData = autoData;
-        }
-      }
-
-      // We need Account ID (from n8n_workflows) and Trigger Type (from automations)
-      if (existingWf.instagram_account_id) {
-
-        // Fetch IG Account ID Scoped
-        const { data: igAccount } = await supabase
-          .from('instagram_accounts')
-          .select('instagram_user_id')
-          .eq('id', existingWf.instagram_account_id)
-          .single();
-
-        if (igAccount) {
-          let eventType = 'messaging';
-          let subType = null;
-          const triggerType = automationsData?.trigger_type || 'user_dm'; // Default to DM if missing
-
-          if (triggerType === 'dm_keyword' || triggerType === 'user_dm' || triggerType === 'dm' || triggerType === 'user_directed_messages') {
-            eventType = 'messaging';
-            subType = 'message';
-          } else if (triggerType === 'comments') {
-            eventType = 'changes';
-            subType = 'comments';
-          } else if (triggerType === 'story_reply') {
-            eventType = 'messaging';
-            subType = 'message';
-          } else {
-            // Fallback for unknown types
-            eventType = 'messaging';
-            subType = 'message';
-            console.warn(`Unknown trigger type ${triggerType}, defaulting to messaging/message`);
-          }
-
-          // Upsert Route (Using Delete+Insert to handle schema constraints)
-          const { error: deleteError } = await supabase
+          // DEACTIVATE
+          const { error: delError } = await supabase
             .from('automation_routes')
             .delete()
             .eq('n8n_workflow_id', workflowId);
 
-          if (deleteError) console.error("Error clearing old route:", deleteError);
-
-          const { error: insertError } = await supabase.from('automation_routes').insert({
-            account_id: igAccount.instagram_user_id,
-            event_type: eventType,
-            sub_type: subType,
-            n8n_workflow_id: workflowId,
-            is_active: true
-          });
-
-          if (insertError) {
-            console.error("Error inserting route:", insertError);
-          } else {
-            console.log(`Route registered: ${workflowId} (${eventType}/${subType})`);
-          }
-        } else {
-          console.warn(`Instagram Account record not found for ID: ${existingWf.instagram_account_id}`);
+          if (delError) console.error("Deactivation Error:", delError);
         }
-      } else {
-        console.warn(`Workflow record missing instagram_account_id. Routing skipped.`);
       }
-    } catch (routeError) {
-      console.error("Non-fatal error registering route:", routeError);
-      // Continue to n8n activation
     }
 
-    // 3. Activate in n8n
-    try {
-      const activateResp = await fetch(`${n8nBaseUrl}/api/v1/workflows/${workflowId}/activate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey },
-      });
-
-      if (!activateResp.ok) {
-        console.error(`N8N Activation Failed: ${await activateResp.text()}`);
-        throw new Error("Failed to activate workflow in n8n");
+    // 3. N8N ACTIVATION
+    if (n8nBaseUrl && n8nApiKey) {
+      const action = shouldActivate ? 'activate' : 'deactivate';
+      try {
+        await fetch(`${n8nBaseUrl}/api/v1/workflows/${workflowId}/${action}`, {
+          method: "POST",
+          headers: { "X-N8N-API-KEY": n8nApiKey }
+        });
+      } catch (e) {
+        console.error(`n8n ${action} failed`, e);
+        // Don't fail the request if n8n is down, routing is what matters
       }
-    } catch (e) {
-      throw e;
     }
 
-    return new Response(JSON.stringify({ success: true }), {
+    return new Response(JSON.stringify({ success: true, active: shouldActivate }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
 

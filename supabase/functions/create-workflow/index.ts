@@ -218,12 +218,41 @@ return results;
 
     if (autoActivate) await fetch(`${n8nBaseUrl}/api/v1/workflows/${n8nResult.id}/activate`, { method: "POST", headers: { "X-N8N-API-KEY": n8nApiKey } });
 
+    // Store in DB
     await supabase.from("n8n_workflows").insert({
       user_id: user.id, n8n_workflow_id: n8nResult.id, n8n_workflow_name: n8nResult.name,
       webhook_path: webhookPath, instagram_account_id: instagramAccount.id,
       template: template || 'instagram_automation_v1', variables: variables || {},
       ...(automationId && { automation_id: automationId })
     });
+
+    // AUTO-CREATE ROUTE (Fix for "Ghost" Workflows)
+    if (autoActivate) {
+      const trigger = automationData?.trigger_type || 'user_dm';
+      let eventType = 'messaging';
+      let subType: string | null = 'message';
+
+      if (trigger === 'comments') {
+        eventType = 'changes';
+        subType = 'comments'; // broadly catch comments
+      } else {
+        // DMs, Story Replies, etc.
+        eventType = 'messaging';
+        subType = 'message';
+      }
+
+      // Upsert Route
+      const { error: routeError } = await supabase.from('automation_routes').insert({
+        user_id: user.id,
+        account_id: instagramAccount.instagram_user_id, // Meta ID
+        event_type: eventType,
+        sub_type: subType,
+        n8n_workflow_id: n8nResult.id, // Correct Column
+        is_active: true
+      });
+
+      if (routeError) console.error("Auto-Route Error:", routeError);
+    }
 
     return new Response(JSON.stringify({ success: true, workflowId: n8nResult.id, webhookPath }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 

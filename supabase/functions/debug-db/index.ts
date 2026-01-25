@@ -14,48 +14,24 @@ Deno.serve(async (req: Request) => {
         const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-        // FETCH LATEST WORKFLOW
-        const { data: wf, error: wfError } = await supabase
-            .from('n8n_workflows')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+        // CHECK TRAFFIC (LAST 1 HOUR)
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+        const { count: trafficCount } = await supabase
+            .from('processed_events')
+            .select('*', { count: 'exact', head: true })
+            .gte('created_at', oneHourAgo);
 
-        if (wfError) throw wfError;
-        if (!wf) return new Response(JSON.stringify({ error: "No workflows found" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-
-        // CHECK ROUTE
-        const { data: r } = await supabase
-            .from('automation_routes')
-            .select('*')
-            .eq('n8n_workflow_id', wf.n8n_workflow_id)
-            .maybeSingle();
-
-        let routeStatus = "NOT_FOUND";
-        let accountId = null;
-        if (r) {
-            routeStatus = r.is_active ? "ACTIVE" : "INACTIVE";
-            accountId = r.account_id;
-        }
-
-        // FETCH 5 MOST RECENT FAILED EVENTS
-        const { data: failures } = await supabase
-            .from('failed_events')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(5);
+        // CHECK LAST 1 MINUTE (To see if loop died)
+        const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString();
+        const { count: lastMinCount } = await supabase
+            .from('processed_events')
+            .select('*', { count: 'exact', head: true })
+            .gte('created_at', oneMinuteAgo);
 
         return new Response(JSON.stringify({
-            latestWorkflow: {
-                id: wf.n8n_workflow_id,
-                name: wf.n8n_workflow_name,
-                path: wf.webhook_path,
-                created_at: wf.created_at
-            },
-            routeStatus,
-            routedAccountId: accountId,
-            recentFailures: failures
+            last_hour: trafficCount || 0,
+            last_minute: lastMinCount || 0,
+            status: (lastMinCount || 0) > 50 ? "LOOP_ACTIVE" : "STABLE"
         }, null, 2), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
