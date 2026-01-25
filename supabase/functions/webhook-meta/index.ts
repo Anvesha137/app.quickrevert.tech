@@ -121,7 +121,20 @@ async function processEvent(body: any) {
                 if (msg.message) sub_type = 'message';
                 else if (msg.postback) sub_type = 'postback';
 
-                await routeAndTrigger({ platform: object, account_id, event_type: 'messaging', sub_type, payload: msg, event_id: eventId });
+                // Dual Payload Support
+                // 1. Clean Payload (for new automations)
+                // 2. Legacy 'entry' array (for manual/default n8n nodes)
+                const legacyEntry = { id: account_id, time: Date.now(), messaging: [msg] };
+
+                await routeAndTrigger({
+                    platform: object,
+                    account_id,
+                    event_type: 'messaging',
+                    sub_type,
+                    payload: msg, // Clean path: body.payload
+                    entry: [legacyEntry], // Legacy path: body.entry[0].messaging[0]
+                    event_id: eventId
+                });
             }
         }
         if (entry.changes) {

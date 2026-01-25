@@ -57,11 +57,12 @@ Deno.serve(async (req: Request) => {
 
         if (shouldActivate) {
           // ACTIVATE:
-          // A. KILL ALL OTHER ROUTES FOR THIS ACCOUNT (Prevent Ghosts)
+          // A. Clean up Previous Versions of THIS Workflow only
+          // Allow other workflows to exist concurrently (Multi-Tenancy)
           const { error: delError } = await supabase
             .from('automation_routes')
             .delete()
-            .eq('account_id', metaId); // WIPE EVERYTHING FOR THIS PAGE
+            .eq('n8n_workflow_id', workflowId);
 
           if (delError) console.error("Cleanup Error:", delError);
 
@@ -78,7 +79,7 @@ Deno.serve(async (req: Request) => {
             });
 
           if (insError) console.error("Insert Error:", insError);
-          else console.log("Route Active (Highlander Mode)");
+          else console.log("Route Active (Concurrent Mode)");
 
         } else {
           // DEACTIVATE

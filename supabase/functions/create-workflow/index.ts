@@ -79,78 +79,23 @@ Deno.serve(async (req: Request) => {
     const buildWorkflow = () => {
       const triggerType = automationData?.trigger_type || "user_dm";
       const actions = automationData?.actions || [];
-      const triggerConfig = automationData?.trigger_config || {};
 
       const nodes: any[] = [];
-      let nodeX = -1000;
+      let nodeX = -300; // Start closer to center
 
       // 1. Webhook (Standard Worker)
       nodes.push({
         id: "webhook-node", name: "Worker Webhook", type: "n8n-nodes-base.webhook", typeVersion: 2.1, position: [nodeX, 300],
-        parameters: { multipleMethods: true, path: webhookPath, responseMode: "onReceived", options: {} },
+        parameters: { httpMethod: "POST", path: webhookPath, responseMode: "onReceived", options: {} },
         webhookId: webhookPath
       });
-      nodeX += 250;
+      nodeX += 300;
 
-      // 2. Code Node (Robust Parsing)
-      // Handles: Router payload (payload.*) OR Direct payload (body.entry[0]...)
-      const jsCode = `
-const items = $input.all();
-const results = [];
-
-for (const item of items) {
-  const json = item.json;
-  // 1. Router Payload?
-  let data = json.payload;
-  let type = json.sub_type || 'unknown';
-  
-  // 2. Direct Meta Payload?
-  if (!data && json.body?.entry?.[0]) {
-     const entry = json.body.entry[0];
-     if (entry.messaging?.[0]) {
-         data = entry.messaging[0];
-         type = data.message ? 'message' : (data.postback ? 'postback' : 'unknown');
-     } else if (entry.changes?.[0]?.value) {
-         data = entry.changes[0].value;
-         type = 'comment'; // simplified
-     }
-  }
-  
-  // Fallback
-  if (!data) data = {};
-
-  const text = data.message?.text || data.text || '(Media/Other)';
-  const senderId = data.sender?.id || data.from?.id;
-  const recipientId = data.recipient?.id;
-  const commentId = data.id; // for comments
-  const mediaId = data.media?.id;
-
-  results.push({
-    json: {
-       sender_id: senderId,
-       recipient_id: recipientId,
-       comment_id: commentId,
-       text: text,
-       type: type,
-       raw: data
-    }
-  });
-}
-
-return results;
-`;
-      nodes.push({
-        id: "extract-data", name: "Extract Data", type: "n8n-nodes-base.code", typeVersion: 2, position: [nodeX, 300],
-        parameters: { jsCode: jsCode.trim() }
-      });
-      nodeX += 250;
-
-      // 3. Actions (No Switch - Direct wiring)
-      // Determine action based on automation
+      // 2. Actions (Directly connected)
       const sendDmAction = actions.find((a: any) => a.type === 'send_dm');
       const replyCommentAction = actions.find((a: any) => a.type === 'reply_to_comment');
 
-      let previousNode = "Extract Data";
+      let previousNode = "Worker Webhook"; // Connect directly to Webhook
 
       if (triggerType === 'comments' && replyCommentAction) {
         const text = replyCommentAction.text || "Thanks!";
@@ -159,32 +104,43 @@ return results;
           id: "act-reply-comment", name: name, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [nodeX, 300],
           parameters: {
             method: "POST",
-            url: `=https://graph.instagram.com/v24.0/{{ $json.comment_id }}/replies`,
+            // Comment ID is usually at payload.value.id or payload.id depending on Meta structure. 
+            // Router sends 'change' object as payload. change.value.id is the comment ID.
+            url: `=https://graph.instagram.com/v24.0/{{ $json.body.payload.value.id }}/replies`,
             authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
             sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify({ message: text }, null, 2)}`, options: {}
           },
           credentials: { facebookGraphApi: { id: credentialId } }
         });
-        previousNode = name; // Update chain
-        nodeX += 250;
+        nodeX += 300;
       }
 
       if (sendDmAction) {
-        // For DM trigger or DM action after comment
         const text = sendDmAction.title || "Hello!";
         const name = "Send DM";
+        // Recipient ID navigation:
+        // DM: payload.sender.id (Router normalizes this? Router normalization: payload contains 'sender'. Yes.)
+        // Comment: payload.value.from.id ?? No, usually we rely on Private Replies which use comment_id via /messages endpoint?
+        // Wait, for Private Reply to comment, we use { recipient: { comment_id: "..." } }.
+        // For standard DM, we use { recipient: { id: "..." } }.
+
+        let recipientLogic = `"id": "{{ $json.body.payload.sender.id }}"`; // Default DM
+
+        if (triggerType === 'comments') {
+          // For Private Reply
+          recipientLogic = `"comment_id": "{{ $json.body.payload.value.id }}"`;
+        }
+
         nodes.push({
           id: "act-send-dm", name: name, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [nodeX, 300],
           parameters: {
             method: "POST",
-            url: `=https://graph.instagram.com/v24.0/me/messages`, // User requested graph.facebook.com/v19.0/me/messages
+            url: `=https://graph.instagram.com/v24.0/me/messages`,
             authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
             sendBody: true, specifyBody: "json",
-            // If coming from Comment, use recipient.comment_id. If DM, use recipient.id
             jsonBody: `={
   "recipient": {
-    "id": "{{ $json.type === 'comment' ? undefined : $json.sender_id }}",
-    "comment_id": "{{ $json.type === 'comment' ? $json.comment_id : undefined }}"
+    ${recipientLogic}
   },
   "message": { "text": "${text.replace(/"/g, '\\"')}" }
 }`,
@@ -192,17 +148,15 @@ return results;
           },
           credentials: { facebookGraphApi: { id: credentialId } }
         });
-        // Note: graph.facebook.com/v19.0/me/messages works for both DM replies and Private Replies to comments? 
-        // Yes, if `recipient.comment_id` is used.
       }
 
-      // Wiring
-      const connections: any = { "Worker Webhook": { main: [[{ node: "Extract Data", type: "main", index: 0 }]] } };
-
-      // Linear chain
-      if (nodes.length > 2) {
-        for (let i = 1; i < nodes.length - 1; i++) {
-          connections[nodes[i].name] = { main: [[{ node: nodes[i + 1].name, type: "main", index: 0 }]] };
+      // Wiring - Auto-chaining
+      const connections: any = {};
+      if (nodes.length > 1) {
+        for (let i = 0; i < nodes.length - 1; i++) {
+          const source = nodes[i].name;
+          const target = nodes[i + 1].name;
+          connections[source] = { main: [[{ node: target, type: "main", index: 0 }]] };
         }
       }
 
@@ -228,20 +182,14 @@ return results;
 
     // AUTO-CREATE ROUTE (Fix for "Ghost" Workflows)
     if (autoActivate) {
-      const trigger = automationData?.trigger_type || 'user_dm';
-      let eventType = 'messaging';
-      let subType: string | null = 'message';
+      // Force Wildcard to match 'activate-workflow' behavior
+      const eventType = 'messaging';
+      const subType = null; // WILDCARD
 
-      if (trigger === 'comments') {
-        eventType = 'changes';
-        subType = 'comments'; // broadly catch comments
-      } else {
-        // DMs, Story Replies, etc.
-        eventType = 'messaging';
-        subType = 'message';
-      }
+      // 1. Concurrent Mode: Do NOT delete other routes.
+      // Allow multiple automations to run for this account.
 
-      // Upsert Route
+      // 2. Insert New Route
       const { error: routeError } = await supabase.from('automation_routes').insert({
         user_id: user.id,
         account_id: instagramAccount.instagram_user_id, // Meta ID

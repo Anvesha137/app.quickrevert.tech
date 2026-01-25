@@ -12,26 +12,66 @@ Deno.serve(async (req: Request) => {
     try {
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
         const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const n8nBaseUrl = Deno.env.get("N8N_BASE_URL")!;
+        const n8nApiKey = Deno.env.get("X-N8N-API-KEY")!;
+
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
+        const WORKFLOW_ID = "pyJre9NR0QzGz7rl";
 
-        // CHECK TRAFFIC (LAST 1 HOUR)
-        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-        const { count: trafficCount } = await supabase
-            .from('processed_events')
-            .select('*', { count: 'exact', head: true })
-            .gte('created_at', oneHourAgo);
+        // 1. Fetch Workflow JSON from n8n
+        const res = await fetch(`${n8nBaseUrl}/api/v1/workflows/${WORKFLOW_ID}`, {
+            headers: { "X-N8N-API-KEY": n8nApiKey }
+        });
 
-        // CHECK LAST 1 MINUTE (To see if loop died)
-        const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString();
-        const { count: lastMinCount } = await supabase
-            .from('processed_events')
-            .select('*', { count: 'exact', head: true })
-            .gte('created_at', oneMinuteAgo);
+        if (!res.ok) throw new Error(`n8n API Error: ${res.status}`);
+        const n8nWf = await res.json();
+
+        // 2. Extract Webhook Path
+        let userPath = null;
+        if (n8nWf && n8nWf.nodes) {
+            const webhookNode = n8nWf.nodes.find((n: any) => n.type.includes('webhook'));
+            if (webhookNode) {
+                userPath = webhookNode.parameters?.path;
+            }
+        }
+
+        if (!userPath) throw new Error("Could not find Webhook Path in n8n workflow. Is the node present?");
+
+        // 3. Find Correct User & Account
+        const { data: acc } = await supabase.from('instagram_accounts').select('user_id, id, instagram_user_id').eq('status', 'active').limit(1).single();
+        if (!acc) throw new Error("No active account");
+
+        // 4. Update DB to match User's Path
+        const { error: wfError } = await supabase.from('n8n_workflows').upsert({
+            user_id: acc.user_id,
+            n8n_workflow_id: WORKFLOW_ID,
+            n8n_workflow_name: n8nWf.name,
+            webhook_path: userPath, // <--- SYNC WITH USER
+            instagram_account_id: acc.id,
+            template: 'manual_sync',
+            variables: {}
+        }, { onConflict: 'n8n_workflow_id' });
+
+        if (wfError) throw wfError;
+
+        // 5. Restore Route
+        await supabase.from('automation_routes').delete().eq('n8n_workflow_id', WORKFLOW_ID);
+
+        const { error: routeError } = await supabase.from('automation_routes').insert({
+            user_id: acc.user_id,
+            account_id: acc.instagram_user_id,
+            event_type: 'messaging',
+            sub_type: null,
+            n8n_workflow_id: WORKFLOW_ID,
+            is_active: true
+        });
+
+        if (routeError) throw routeError;
 
         return new Response(JSON.stringify({
-            last_hour: trafficCount || 0,
-            last_minute: lastMinCount || 0,
-            status: (lastMinCount || 0) > 50 ? "LOOP_ACTIVE" : "STABLE"
+            success: true,
+            msg: `Synced! Connected Router to User Path: ${userPath}`,
+            path: userPath
         }, null, 2), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
