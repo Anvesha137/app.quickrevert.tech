@@ -31,7 +31,7 @@ Deno.serve(async (req: Request) => {
     // 1. Verify workflow & Ownership (Strict CHECK separated for debugging)
     const { data: existingWf, error: findError } = await supabase
       .from('n8n_workflows')
-      .select('id, user_id, automation_id') // Fetched ID and Automation ID
+      .select('id, user_id, automation_id, instagram_account_id') // Fetched ID and Automation ID AND Account ID
       .eq('n8n_workflow_id', workflowId)
       .single();
 
@@ -55,7 +55,7 @@ Deno.serve(async (req: Request) => {
       if (existingWf.automation_id) {
         const { data: autoData, error: autoError } = await supabase
           .from('automations')
-          .select('instagram_account_id, trigger_type')
+          .select('trigger_type')
           .eq('id', existingWf.automation_id)
           .single();
 
@@ -69,75 +69,76 @@ Deno.serve(async (req: Request) => {
 
       if (automationsData) {
         // Fetch IG Account ID
-        const { data: igAccount } = await supabase
-          .from('instagram_accounts')
-          .select('instagram_user_id')
-          .eq('id', automationsData.instagram_account_id)
-          .single();
+        if (existingWf.instagram_account_id) {
+          const { data: igAccount } = await supabase
+            .from('instagram_accounts')
+            .select('instagram_user_id')
+            .eq('id', existingWf.instagram_account_id)
+            .single();
 
-        if (igAccount) {
-          let eventType = 'messaging';
-          let subType = null;
-          const triggerType = automationsData.trigger_type;
+          if (igAccount) {
+            let eventType = 'messaging';
+            let subType = null;
+            const triggerType = automationsData.trigger_type;
 
-          if (triggerType === 'dm_keyword' || triggerType === 'user_dm' || triggerType === 'dm') {
-            eventType = 'messaging';
-            subType = 'message';
-          } else if (triggerType === 'comments') {
-            eventType = 'changes';
-            subType = 'comments';
-          } else if (triggerType === 'story_reply') {
-            eventType = 'messaging';
-            subType = 'message';
+            if (triggerType === 'dm_keyword' || triggerType === 'user_dm' || triggerType === 'dm') {
+              eventType = 'messaging';
+              subType = 'message';
+            } else if (triggerType === 'comments') {
+              eventType = 'changes';
+              subType = 'comments';
+            } else if (triggerType === 'story_reply') {
+              eventType = 'messaging';
+              subType = 'message';
+            }
+
+            // Upsert Route
+            await supabase.from('automation_routes').upsert({
+              user_id: user.id,
+              account_id: igAccount.instagram_user_id,
+              event_type: eventType,
+              sub_type: subType,
+              n8n_workflow_id: workflowId,
+              is_active: true
+            }, { onConflict: 'n8n_workflow_id' });
+
+            console.log(`Route registered: ${workflowId} (${eventType}/${subType})`);
           }
-
-          // Upsert Route
-          await supabase.from('automation_routes').upsert({
-            user_id: user.id,
-            account_id: igAccount.instagram_user_id,
-            event_type: eventType,
-            sub_type: subType,
-            n8n_workflow_id: workflowId,
-            is_active: true
-          }, { onConflict: 'n8n_workflow_id' });
-
-          console.log(`Route registered: ${workflowId} (${eventType}/${subType})`);
         }
+      } catch (routeError) {
+        console.error("Non-fatal error registering route:", routeError);
+        // Continue to n8n activation
       }
-    } catch (routeError) {
-      console.error("Non-fatal error registering route:", routeError);
-      // Continue to n8n activation
-    }
 
-    // 3. Activate in n8n (Execution Logic)
-    // If this fails, the route exists but execution might fail.
-    // This is preferable to "Execution active but no route".
-    try {
-      const activateResp = await fetch(`${n8nBaseUrl}/api/v1/workflows/${workflowId}/activate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey },
+      // 3. Activate in n8n (Execution Logic)
+      // If this fails, the route exists but execution might fail.
+      // This is preferable to "Execution active but no route".
+      try {
+        const activateResp = await fetch(`${n8nBaseUrl}/api/v1/workflows/${workflowId}/activate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey },
+        });
+
+        if (!activateResp.ok) {
+          console.error(`N8N Activation Failed: ${await activateResp.text()}`);
+          // Optional: Rollback DB route here? 
+          // For now, we prefer keeping the route active and logging error.
+          // In a stricter system, we might delete the route.
+          throw new Error("Failed to activate workflow in n8n");
+        }
+      } catch (e) {
+        // Attempt rollback if n8n fails?
+        // await supabase.from('automation_routes').delete().eq('n8n_workflow_id', workflowId);
+        // Throwing error to frontend
+        throw e;
+      }
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
 
-      if (!activateResp.ok) {
-        console.error(`N8N Activation Failed: ${await activateResp.text()}`);
-        // Optional: Rollback DB route here? 
-        // For now, we prefer keeping the route active and logging error.
-        // In a stricter system, we might delete the route.
-        throw new Error("Failed to activate workflow in n8n");
-      }
-    } catch (e) {
-      // Attempt rollback if n8n fails?
-      // await supabase.from('automation_routes').delete().eq('n8n_workflow_id', workflowId);
-      // Throwing error to frontend
-      throw e;
+    } catch (err: any) {
+      console.error(err);
+      return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
     }
-
-    return new Response(JSON.stringify({ success: true }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" }
-    });
-
-  } catch (err: any) {
-    console.error(err);
-    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
-  }
-});
+  });
