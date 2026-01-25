@@ -19,10 +19,13 @@ serve(async (req) => {
         const token = url.searchParams.get("hub.verify_token");
         const challenge = url.searchParams.get("hub.challenge");
 
+        console.log(`[VERIFY DEBUG] Mode: '${mode}', Token: '${token}', Secret: '${META_VERIFY_TOKEN}'`);
+
         if (mode === "subscribe" && token === META_VERIFY_TOKEN) {
+            console.log("[VERIFY SUCCESS] Returning challenge");
             return new Response(challenge, { status: 200 });
         }
-        console.warn("Verification Failed: Token Mismatch or Bad Mode");
+        console.warn("[VERIFY FAILED] Token Mismatch or Bad Mode");
         return new Response("Forbidden", { status: 403 });
     }
 
