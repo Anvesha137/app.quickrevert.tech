@@ -36,9 +36,10 @@ Deno.serve(async (req: Request) => {
       .eq("user_id", user.id) // STRICT
       .single();
 
-    if (wfError) console.error("Deactivate Lookup Error:", wfError);
-
-    if (wfError || !workflow) throw new Error("Workflow not found or unauthorized");
+    if (wfError || !workflow) {
+      console.warn(`Workflow record not found for ID ${workflowId}. Proceeding with N8N deactivation attempt mostly as cleanup.`);
+      // Do NOT throw. We want to stop the n8n execution regardless of DB state.
+    }
 
     const n8nBaseUrl = Deno.env.get("N8N_BASE_URL");
     const n8nApiKey = Deno.env.get("X-N8N-API-KEY");
