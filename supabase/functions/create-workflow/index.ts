@@ -1230,124 +1230,200 @@ Deno.serve(async (req: Request) => {
       };
     };
 
-    // Build workflow based on template and automation type
-    let workflowTemplate: any;
 
-    // If automation data exists, build appropriate workflow
-    if (automationData && automationData.trigger_type === 'user_directed_messages') {
-      console.log("Building DM workflow for user_directed_messages");
-      workflowTemplate = buildDMWorkflow();
-    } else if (automationData && automationData.trigger_type === 'post_comment') {
-      console.log("Building Post Comment workflow");
-      workflowTemplate = buildPostCommentWorkflow();
-    } else {
-      // Default workflow template (existing code)
-      console.log("Building default workflow template");
-      workflowTemplate = {
-        name: finalWorkflowName,
-        nodes: [
-          {
-            id: "webhook-node",
-            name: "Instagram Webhook",
-            type: "n8n-nodes-base.webhook",
-            typeVersion: 2.1,
-            position: [100, 300],
-            parameters: {
-              httpMethod: "POST",
-              path: webhookPath,
-              responseMode: "responseNode",
-              options: {}
-            }
-          },
-          {
-            id: "extract-message-data",
-            name: "Extract Message Data",
-            type: "n8n-nodes-base.set",
-            typeVersion: 1,
-            position: [320, 300],
-            parameters: {
-              values: {
-                string: [
-                  {
-                    name: "instagramMessage",
-                    value: "={{ ($requestBody || $input.first().json).message || $json.text || $json.message || '' }}"
-                  },
-                  {
-                    name: "instagramUserId",
-                    value: "={{ ($requestBody || $input.first().json).sender_id || $json.sender_id || $json.from.id || '' }}"
-                  },
-                  {
-                    name: "instagramUserName",
-                    value: "={{ ($requestBody || $input.first().json).sender_name || $json.sender_name || $json.from.username || '' }}"
-                  }
-                ]
-              },
-              options: {}
-            }
-          },
-          {
-            id: "send-instagram-reply",
-            name: "Send Instagram DM Reply",
-            type: "n8n-nodes-base.httpRequest",
-            typeVersion: 4,
-            position: [540, 300],
-            parameters: {
-              method: "POST",
-              url: "https://graph.instagram.com/v20.0/me/messages",
-              sendHeaders: true,
-              headerParameters: {
-                parameters: [
-                  {
-                    name: "Authorization",
-                    value: `Bearer ${instagramAccount.access_token}`
-                  },
-                  {
-                    name: "Content-Type",
-                    value: "application/json"
-                  }
-                ]
-              },
-              sendBody: true,
-              bodyParameters: {
-                parameters: [
-                  {
-                    name: "recipient",
-                    value: "={{ {\"id\": $json.instagramUserId} }}"
-                  },
-                  {
-                    name: "message",
-                    value: "={{ {\"text\": \"Hello! Thanks for your message.\"} }}"
-                  }
-                ]
-              },
-              options: {}
-            }
-          }
-        ],
-        connections: {
-          "Instagram Webhook": {
-            main: [
-              [
-                {
-                  node: "Extract Message Data",
-                  type: "main",
-                  index: 0
-                }
-              ]
-            ]
-          },
-          "Extract Message Data": {
-            main: [
-              [
-                {
-                  node: "Send Instagram DM Reply",
-                  type: "main",
-                  index: 0
-                }
-              ]
-            ]
-          }
+
+
+    // Build Story Reply or DM Workflow function
+    const buildStoryOrDMWorkflow = () => {
+      const actions = automationData?.actions || [];
+      const sendDmAction = actions.find((a: any) => a.type === 'send_dm');
+
+      const calendarUrl = variables?.calendarUrl || 'https://calendar.app.google/QmsYv4Q4G5DNeham6';
+      const brandName = variables?.brandName || 'QuickRevert';
+
+      const nodes: any[] = [];
+      const connections: any = {};
+      let nodeYPosition = 272;
+      let nodeXPosition = -1584;
+
+      // 1. Webhook node
+      const webhookNode = {
+        id: "webhook-node",
+        name: "Instagram Webhook",
+        type: "n8n-nodes-base.webhook",
+        typeVersion: 2.1,
+        position: [nodeXPosition, nodeYPosition],
+        parameters: {
+          multipleMethods: true,
+          path: webhookPath,
+          responseMode: "responseNode",
+          options: {}
         },
+        webhookId: webhookPath
+      };
+      nodes.push(webhookNode);
+
+      // 2. Webhook verification & Response (Standard Logic for Meta verification)
+      const verificationNode = {
+        id: "webhook-verification",
+        name: "Webhook Verification",
+        type: "n8n-nodes-base.if",
+        typeVersion: 2.2,
+        position: [nodeXPosition + 224, 80], // Separate branch
+        parameters: {
+          conditions: {
+            options: {
+              caseSensitive: true,
+              leftValue: "",
+              typeValidation: "strict",
+              version: 2
+            },
+            conditions: [
+              {
+                id: "verify-mode",
+                leftValue: "={{ $json.query['hub.mode'] }}",
+                rightValue: "subscribe",
+                operator: {
+                  type: "string",
+                  operation: "equals",
+                  name: "filter.operator.equals"
+                }
+              }
+            ],
+            combinator: "and"
+          },
+          options: {}
+        }
+      };
+      nodes.push(verificationNode);
+
+      const respondNode = {
+        id: "respond-to-webhook",
+        name: "Respond to Webhook",
+        type: "n8n-nodes-base.respondToWebhook",
+        typeVersion: 1.4,
+        position: [nodeXPosition + 448, 80],
+        parameters: {
+          respondWith: "text",
+          responseBody: "={{ $json.query['hub.challenge'] }}",
+          options: {}
+        }
+      };
+      nodes.push(respondNode);
+
+      // 3. Fetch Username Node
+      nodeXPosition += 240;
+      const fetchUsernameNode = {
+        id: "fetch-username",
+        name: "Fetch Profile",
+        type: "n8n-nodes-base.httpRequest",
+        typeVersion: 4.3,
+        position: [nodeXPosition, nodeYPosition],
+        parameters: {
+          method: "GET",
+          url: `=https://graph.instagram.com/v24.0/{{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].sender.id }}`,
+          sendQuery: true,
+          queryParameters: {
+            parameters: [
+              { name: "fields", value: "username" },
+              { name: "access_token", value: instagramAccount.access_token }
+            ]
+          },
+          options: {}
+        }
+      };
+      nodes.push(fetchUsernameNode);
+
+      // 4. Send Reply Node
+      nodeXPosition += 214;
+
+      // Build Reply Payload
+      const title = (sendDmAction as any)?.title || "Hi👋";
+      const subtitle = (sendDmAction as any)?.subtitle || undefined;
+      const imageUrl = (sendDmAction as any)?.imageUrl || (sendDmAction as any)?.image_url || undefined;
+      const buttons: any[] = [];
+      if (sendDmAction?.actionButtons) {
+        sendDmAction.actionButtons.forEach((button: any) => {
+          const buttonAction = button.action || (button.url ? 'web_url' : 'postback');
+          if (buttonAction === 'web_url' || buttonAction === 'calendar') {
+            buttons.push({
+              type: "web_url",
+              url: buttonAction === 'calendar' || button.url === 'calendar' ? calendarUrl : button.url,
+              title: button.text
+            });
+          } else if (buttonAction === 'postback' || !button.url) {
+            buttons.push({
+              type: "postback",
+              title: button.text,
+              payload: button.text.toUpperCase().replace(/\s+/g, '_')
+            });
+          }
+        });
+      }
+
+      const buildElements = () => {
+        const element: any = { title: title };
+        if (imageUrl) element.image_url = imageUrl;
+        if (subtitle) element.subtitle = subtitle;
+        if (buttons.length > 0) element.buttons = buttons;
+        return [element];
+      };
+
+      const payloadObj = {
+        recipient: { id: "{{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].sender.id }}" }, // Use webhook data as fetch node response changes structure
+        message: {
+          attachment: {
+            type: "template",
+            payload: {
+              template_type: "generic",
+              elements: buildElements()
+            }
+          }
+        }
+      };
+
+      const replyNode = {
+        id: "send-reply",
+        name: "Send Reply",
+        type: "n8n-nodes-base.httpRequest",
+        typeVersion: 4.3,
+        position: [nodeXPosition, nodeYPosition],
+        parameters: {
+          method: "POST",
+          url: `=https://graph.instagram.com/v24.0/{{ $('Instagram Webhook').item.json.body.entry[0].messaging[0].recipient.id }}/messages`, // Recipient is the bot (me), sender is the user
+          sendHeaders: true,
+          headerParameters: {
+            parameters: [
+              { name: "Content-Type", value: "application/json" },
+              { name: "Authorization", value: `Bearer ${instagramAccount.access_token}` }
+            ]
+          },
+          sendBody: true,
+          specifyBody: "json",
+          jsonBody: `=${JSON.stringify(payloadObj, null, 2)}`,
+          options: {}
+        }
+      };
+      nodes.push(replyNode);
+
+      // Connections
+      connections["Instagram Webhook"] = {
+        main: [
+          [{ node: "Webhook Verification", type: "main", index: 0 }],
+          [{ node: "Fetch Profile", type: "main", index: 0 }]
+        ]
+      };
+      connections["Webhook Verification"] = {
+        main: [[{ node: "Respond to Webhook", type: "main", index: 0 }]]
+      };
+      connections["Fetch Profile"] = {
+        main: [[{ node: "Send Reply", type: "main", index: 0 }]]
+      };
+
+      return {
+        name: finalWorkflowName,
+        nodes: nodes,
+        connections: connections,
         settings: {
           saveExecutionProgress: true,
           saveManualExecutions: true,
@@ -1357,6 +1433,19 @@ Deno.serve(async (req: Request) => {
           timezone: "Asia/Kolkata"
         }
       };
+    };
+
+    let workflowTemplate: any;
+    // Determine which workflow builder to use based on automation data
+    // Assuming 'story_reply' (trigger type 2) and 'dm' (trigger type 3) map to these
+    const tType = automationData?.trigger_type;
+    if (tType === 'story_reply' || tType === 'user_dm' || tType === 'dm') {
+      workflowTemplate = buildStoryOrDMWorkflow();
+    } else if (tType === 'comments') {
+      workflowTemplate = buildPostCommentWorkflow();
+    } else {
+      // Default to DM workflow for keywords
+      workflowTemplate = buildDMWorkflow();
     }
 
     // Replace any placeholders in the workflow
