@@ -102,7 +102,7 @@ Deno.serve(async (req: Request) => {
           const { error: deleteError } = await supabase
             .from('automation_routes')
             .delete()
-            .eq('workflow_ref', workflowId);
+            .eq('n8n_workflow_id', workflowId);
 
           if (deleteError) console.error("Error clearing old route:", deleteError);
 
@@ -110,7 +110,7 @@ Deno.serve(async (req: Request) => {
             account_id: igAccount.instagram_user_id,
             event_type: eventType,
             sub_type: subType,
-            workflow_ref: workflowId,
+            n8n_workflow_id: workflowId,
             is_active: true
           });
 
