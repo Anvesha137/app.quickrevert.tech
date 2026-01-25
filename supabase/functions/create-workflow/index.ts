@@ -1555,9 +1555,11 @@ Deno.serve(async (req: Request) => {
         });
 
       console.log("Workflow mapping stored in Supabase");
-    } catch (dbError) {
+      console.log("Workflow mapping stored in Supabase");
+    } catch (dbError: any) {
       console.error("Failed to store workflow mapping:", dbError);
-      // Continue even if database storage fails
+      // DO NOT SWALLOW THIS ERROR. It is critical for activation.
+      throw new Error(`Database Insert Failed: ${dbError.message || dbError}`);
     }
 
     return new Response(JSON.stringify({

@@ -28,8 +28,25 @@ Deno.serve(async (req: Request) => {
 
     console.log(`Activate Request: User=${user.id}, WorkflowId=${workflowId}`);
 
-    // 1. Verify workflow & Ownership (Strict)
-    const { data: wfDetails, error: lookupError } = await supabase
+    // 1. Verify workflow & Ownership (Strict CHECK separated for debugging)
+    const { data: existingWf, error: findError } = await supabase
+      .from('n8n_workflows')
+      .select('user_id')
+      .eq('n8n_workflow_id', workflowId)
+      .single();
+
+    if (findError || !existingWf) {
+      console.error("Workflow NOT FOUND in n8n_workflows table:", workflowId);
+      throw new Error("Workflow not found in database");
+    }
+
+    if (existingWf.user_id !== user.id) {
+      console.error(`Ownership Mismatch! Workflow Owner: ${existingWf.user_id}, Requestor: ${user.id}`);
+      throw new Error("Unauthorized: Workflow belongs to another user");
+    }
+
+    // Re-fetch details needed for routing
+    const { data: wfDetails } = await supabase
       .from('n8n_workflows')
       .select(`
             id,
@@ -41,13 +58,12 @@ Deno.serve(async (req: Request) => {
             )
         `)
       .eq('n8n_workflow_id', workflowId)
-      .eq('user_id', user.id) // STRICT OWNERSHIP CHECK
       .single();
 
-    if (lookupError) console.error("Lookup Error:", lookupError);
-    if (!wfDetails) console.error("Workflow details not found for ID:", workflowId);
-
-    if (!wfDetails) throw new Error("Workflow not found or unauthorized access attempt");
+    if (!wfDetails) {
+      console.error("Critical Error: Second lookup failed for ID:", workflowId);
+      throw new Error("Workflow details could not be retrieved despite existence check");
+    }
 
     const n8nBaseUrl = Deno.env.get("N8N_BASE_URL");
     const n8nApiKey = Deno.env.get("X-N8N-API-KEY");
