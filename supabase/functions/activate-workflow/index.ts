@@ -31,7 +31,7 @@ Deno.serve(async (req: Request) => {
     // 1. Verify workflow & Ownership (Strict CHECK separated for debugging)
     const { data: existingWf, error: findError } = await supabase
       .from('n8n_workflows')
-      .select('user_id')
+      .select('id, user_id, automation_id') // Fetched ID and Automation ID
       .eq('n8n_workflow_id', workflowId)
       .single();
 
@@ -45,25 +45,30 @@ Deno.serve(async (req: Request) => {
       throw new Error("Unauthorized: Workflow belongs to another user");
     }
 
-    // Re-fetch details needed for routing
-    const { data: wfDetails } = await supabase
-      .from('n8n_workflows')
-      .select(`
-            id,
-            user_id,
-            automation_id,
-            automations (
-                instagram_account_id,
-                trigger_type
-            )
-        `)
-      .eq('n8n_workflow_id', workflowId)
-      .single();
+    // 2. Fetch Automation Details Separately (Avoid Join Issues)
+    let automationsData = null;
+    if (existingWf.automation_id) {
+      const { data: autoData, error: autoError } = await supabase
+        .from('automations')
+        .select('instagram_account_id, trigger_type')
+        .eq('id', existingWf.automation_id)
+        .single();
 
-    if (!wfDetails) {
-      console.error("Critical Error: Second lookup failed for ID:", workflowId);
-      throw new Error("Workflow details could not be retrieved despite existence check");
+      if (autoError) {
+        console.error("Failed to fetch automation details:", autoError);
+        // Proceed? Or Fail? Failing is safer as we need routing info.
+        throw new Error(`Associated automation not found: ${existingWf.automation_id}`);
+      }
+      automationsData = autoData;
+    } else {
+      console.warn("Workflow has no associated automation ID. Routing might fail.");
     }
+
+    // Construct wfDetails object to match existing structure
+    const wfDetails = {
+      ...existingWf,
+      automations: automationsData
+    };
 
     const n8nBaseUrl = Deno.env.get("N8N_BASE_URL");
     const n8nApiKey = Deno.env.get("X-N8N-API-KEY");
