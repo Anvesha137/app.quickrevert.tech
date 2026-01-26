@@ -95,9 +95,16 @@ Deno.serve(async (req: Request) => {
       let previousNode = "Worker Webhook"; // Connect directly to Webhook
 
       // 1.5 Switch Node Logic (Exclusive for keyword_dm)
-      if (triggerType === 'keyword_dm') {
-        const keywordString = automationData?.trigger_config?.keyword || "";
-        const keywords = keywordString.split(',').map((k: string) => k.trim()).filter((k: string) => k);
+      // Frontend sends: trigger_type 'user_directed_messages' with config { messageType: 'keywords', keywords: [...] }
+      const isKeywordTrigger = triggerType === 'user_directed_messages' && automationData?.trigger_config?.messageType === 'keywords';
+
+      if (isKeywordTrigger) {
+        // Frontend sends keywords as an array of strings
+        // Fallback to empty array if missing
+        const keywords = Array.isArray(automationData?.trigger_config?.keywords)
+          ? automationData.trigger_config.keywords
+          : [];
+
         const postbackButtons: any[] = [];
 
         // Check for buttons in the Main DM Action (Frontend uses 'actionButtons')
@@ -170,11 +177,65 @@ Deno.serve(async (req: Request) => {
         nodeX += 400; // Move right significantly
 
         // Create Main Action Node (Configured by User)
-        // Note: Reusing the standard DM creation logic but manually placing it
         if (sendDmAction) {
           const text = sendDmAction.title || "Hello!";
-          // Recipient Logic for DM
+          const subtitle = sendDmAction.subtitle || sendDmAction.messageTemplate || "";
+          const imageUrl = sendDmAction.imageUrl || "";
+
+          // Check if we need a Generic Template (if buttons or image exist)
+          const hasButtons = sendDmAction.actionButtons && sendDmAction.actionButtons.length > 0;
+          const isRichMessage = hasButtons || imageUrl;
+
+          let jsonBody = "";
           const recipientLogic = `"id": "{{ $json.body.payload.sender.id }}"`;
+
+          if (isRichMessage) {
+            // Construct Buttons Array
+            const elementsButtons: any[] = [];
+            if (hasButtons) {
+              sendDmAction.actionButtons.forEach((b: any) => {
+                const btnType = b.action || (b.url ? 'web_url' : 'postback');
+                if (btnType === 'web_url') {
+                  elementsButtons.push({ type: "web_url", url: b.url, title: b.text });
+                } else {
+                  // Postback
+                  elementsButtons.push({ type: "postback", title: b.text, payload: b.text });
+                }
+              });
+            }
+
+            // Construct Generic Template
+            const messagePayload = {
+              recipient: { id: `{{ $json.body.payload.sender.id }}` },
+              message: {
+                attachment: {
+                  type: "template",
+                  payload: {
+                    template_type: "generic",
+                    elements: [
+                      {
+                        title: text,
+                        // User provided snippet shows image_url. If no image, maybe just text+buttons? generic template usually requires image/title/subtitle.
+                        // If no image, we might try "button" template but that's deprecated/limited?
+                        // Let's stick to generic. If no image, providing a placeholder or omitting? 
+                        // Providing valid logic: If imageUrl is empty, omit it.
+                        ...(imageUrl ? { image_url: imageUrl } : {}),
+                        subtitle: subtitle,
+                        buttons: elementsButtons
+                      }
+                    ]
+                  }
+                }
+              }
+            };
+            jsonBody = `=${JSON.stringify(messagePayload, null, 2)}`;
+          } else {
+            // Simple Text Message
+            jsonBody = `={
+                  "recipient": { ${recipientLogic} },
+                  "message": { "text": "${text.replace(/"/g, '\\"')}" }
+                }`;
+          }
 
           nodes.push({
             id: "act-send-dm", name: "Send DM", type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [nodeX, 200], // Upper track
@@ -183,10 +244,7 @@ Deno.serve(async (req: Request) => {
               url: `=https://graph.instagram.com/v24.0/me/messages`,
               authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
               sendBody: true, specifyBody: "json",
-              jsonBody: `={
-                  "recipient": { ${recipientLogic} },
-                  "message": { "text": "${text.replace(/"/g, '\\"')}" }
-                }`,
+              jsonBody: jsonBody,
               options: {}
             },
             credentials: { facebookGraphApi: { id: credentialId } }
@@ -281,70 +339,277 @@ Deno.serve(async (req: Request) => {
         return { name: finalWorkflowName, nodes, connections, settings: { saveExecutionProgress: true, timezone: "Asia/Kolkata" } };
       }
 
-      // 2. Actions (Directly connected) - For non-keyword_dm triggers
-      const sendDmAction = actions.find((a: any) => a.type === 'send_dm');
-      const replyCommentAction = actions.find((a: any) => a.type === 'reply_to_comment');
+      // 1.55 Post Filter Switch (Exclusive for post_comment with specific posts)
+      const isSpecificPostTrigger = triggerType === 'post_comment' && automationData?.trigger_config?.postsType === 'specific';
 
-      if (triggerType === 'comments' && replyCommentAction) {
-        const text = replyCommentAction.text || "Thanks!";
-        const name = "Reply to Comment";
-        nodes.push({
-          id: "act-reply-comment", name: name, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [nodeX, 300],
-          parameters: {
-            method: "POST",
-            // Comment ID is usually at payload.value.id or payload.id depending on Meta structure. 
-            // Router sends 'change' object as payload. change.value.id is the comment ID.
-            url: `=https://graph.instagram.com/v24.0/{{ $json.body.payload.value.id }}/replies`,
-            authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
-            sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify({ message: text }, null, 2)}`, options: {}
-          },
-          credentials: { facebookGraphApi: { id: credentialId } }
-        });
-        nodeX += 300;
+      if (isSpecificPostTrigger) {
+        const specificPosts = Array.isArray(automationData?.trigger_config?.specificPosts)
+          ? automationData.trigger_config.specificPosts
+          : [];
+
+        if (specificPosts.length > 0) {
+          const rules: any[] = [];
+
+          // We create ONE rule that matches ANY of the post IDs (OR logic)
+          // But n8n Switch 'conditions' array is AND by default within a rule (combinator).
+          // To do OR, we need multiple rules or use regex for 'any'.
+          // Cleaner approach: One rule per post ID? 
+          // If we have 50 posts, that's 50 outputs.
+          // Better: Use regex matching or 'contains' if possible?
+          // n8n v1 conditions are tricky.
+          // Let's use multiple rules, all pointing to the SAME output?
+          // No, n8n switch routes to DIFFERENT outputs.
+          // Wait! n8n Switch node has 'combinator' for conditions?
+          // Actually, if we want "If PostID in [A, B, C]", 
+          // We can add multiple conditions to ONE rule if the combinator is OR.
+          // Let's check the structure:
+          /*
+           rules: {
+             values: [
+               {
+                 conditions: {
+                   options: { caseSensitive: false, ... },
+                   conditions: [ ... ],
+                   combinator: "or"  <-- THIS IS WHAT WE WANT
+                 }
+               }
+             ]
+           }
+          */
+
+          const conditions = specificPosts.map((id: string, index: number) => ({
+            id: `post-${index}`,
+            leftValue: "={{ $json.body.entry[0].changes[0].value.media.id }}",
+            rightValue: id,
+            operator: { type: "string", operation: "equals" }
+          }));
+
+          rules.push({
+            conditions: {
+              options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
+              conditions: conditions,
+              combinator: "or"
+            }
+          });
+
+          nodes.push({
+            id: "post-switch", name: "Post Filter Switch",
+            type: "n8n-nodes-base.switch", typeVersion: 3.3,
+            position: [nodeX, 300],
+            parameters: { rules: { values: rules }, options: { ignoreCase: true } }
+          });
+
+          // Logic to insert this into the chain
+          // The previousNode was "Worker Webhook"
+          // Now previousNode becomes "Post Filter Switch"
+          // Unlike the Keyword DM (which is a terminal set of branches), this is a FILTER in the main line.
+
+          previousNode = "Post Filter Switch";
+          nodeX += 300;
+        }
       }
 
-      if (sendDmAction) {
-        const text = sendDmAction.title || "Hello!";
-        const name = "Send DM";
-        // Recipient ID navigation:
-        // DM: payload.sender.id (Router normalizes this? Router normalization: payload contains 'sender'. Yes.)
-        // Comment: payload.value.from.id ?? No, usually we rely on Private Replies which use comment_id via /messages endpoint?
-        // Wait, for Private Reply to comment, we use { recipient: { comment_id: "..." } }.
-        // For standard DM, we use { recipient: { id: "..." } }.
+      // 1.6 Switch Node Logic (Exclusive for post_comment with keywords)
+      const isCommentKeywordTrigger = triggerType === 'post_comment' && automationData?.trigger_config?.commentsType === 'keywords';
 
-        let recipientLogic = `"id": "{{ $json.body.payload.sender.id }}"`; // Default DM
+      if (isCommentKeywordTrigger) {
+        const keywords = Array.isArray(automationData?.trigger_config?.keywords)
+          ? automationData.trigger_config.keywords
+          : [];
 
-        if (triggerType === 'comments') {
-          // For Private Reply
-          recipientLogic = `"comment_id": "{{ $json.body.payload.value.id }}"`;
+        const rules: any[] = [];
+        // Map all keywords to route to the main output
+        keywords.forEach((k: string, index: number) => {
+          rules.push({
+            conditions: {
+              options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
+              conditions: [{
+                id: `comment-kw-${index}`,
+                leftValue: "={{ $json.body.entry[0].changes[0].value.text }}",
+                rightValue: k,
+                operator: { type: "string", operation: "contains" }
+              }],
+              combinator: "and"
+            }
+          });
+        });
+
+        if (rules.length > 0) {
+          nodes.push({
+            id: "comment-switch", name: "Comment Switch",
+            type: "n8n-nodes-base.switch", typeVersion: 3.3,
+            position: [nodeX, 300],
+            parameters: { rules: { values: rules }, options: { ignoreCase: true } }
+          });
+
+          // Wiring: All keyword matches connect to the next node (Action 1)
+          // Since we didn't specify outputKeys, n8n switch usually routes to output 0, 1, 2...
+          // User request implies: "If keyword matches, do the action".
+          // So we need to connect ALL switch outputs to the next node.
+
+          // Update: In n8n Switch, if rules don't rename outputs, they are just "0", "1", "2".
+          // We need to store this node to connect it later.
+          previousNode = "Comment Switch";
+          nodeX += 300;
+        }
+      }
+
+      // 2. Actions Generation (Iterate through all configured actions)
+      // This supports multi-step workflows (e.g. Reply to Comment -> Send DM)
+
+      actions.forEach((action: any, index: number) => {
+        let nodeParams: any = {};
+        let nodeType = "n8n-nodes-base.httpRequest";
+        let nodeName = `Action ${index + 1}`; // Fallback name
+
+        // --- DATA MAPPING HELPERS ---
+        // Define paths based on trigger type
+        let commentIdPath = "";
+        let senderIdPath = "";
+        let usernamePath = "";
+
+        if (triggerType === 'post_comment') {
+          // Instagram Graph API Webhook structure for Comments
+          commentIdPath = "{{ $json.body.entry[0].changes[0].value.id }}";
+          senderIdPath = "{{ $json.body.entry[0].changes[0].value.from.id }}";
+          usernamePath = "{{ $json.body.entry[0].changes[0].value.from.username }}";
+        } else {
+          // Default to DM structure (user_directed_messages / keyword_dm)
+          // Note: $json.body.payload.sender.id is for our custom Normalize? 
+          // The raw webhook is entry[0].messaging[0].sender.id
+          // If using Worker Webhook (raw), use raw paths.
+          senderIdPath = "{{ $json.body.entry[0].messaging[0].sender.id }}";
         }
 
-        nodes.push({
-          id: "act-send-dm", name: name, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [nodeX, 300],
-          parameters: {
+        // --- ACTION: REPLY TO COMMENT ---
+        if (action.type === 'reply_to_comment') {
+          nodeName = `Reply to Comment ${index + 1}`;
+          // Fix 1: Add username mention and use user's text
+          const userText = action.text || "Thanks!";
+          // We use the usernamePath we defined earlier
+          const replyText = `@${usernamePath} ${userText}`;
+
+          nodeParams = {
+            method: "POST",
+            url: `=https://graph.instagram.com/v24.0/${commentIdPath}/replies`,
+            authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
+            sendBody: true, specifyBody: "json",
+            jsonBody: `=${JSON.stringify({ message: replyText }, null, 2)}`,
+            options: {}
+          };
+        }
+
+        // --- ACTION: SEND DM ---
+        else if (action.type === 'send_dm') {
+          nodeName = `Send DM ${index + 1}`;
+          const text = action.title || "Hello!";
+          const subtitle = action.subtitle || action.messageTemplate || "";
+          const imageUrl = action.imageUrl || "";
+          const hasButtons = action.actionButtons && action.actionButtons.length > 0;
+          const isRichMessage = hasButtons || imageUrl;
+
+          // Fix 2: Use explicit Webhook reference for Recipient ID in post_comment triggers
+          // This ensures we get the original sender ID even if previous nodes changed the input data
+          let recipientId = senderIdPath;
+          if (triggerType === 'post_comment') {
+            recipientId = "{{ $('Worker Webhook').item.json.body.entry[0].changes[0].value.from.id }}";
+          }
+
+          let jsonBody = "";
+          // ... (rest of DM logic remains similar, just ensuring recipientId is used)
+
+          if (isRichMessage) {
+            // ... (Buttons/Generic Template Logic)
+            const elementsButtons: any[] = [];
+            if (hasButtons) {
+              action.actionButtons.forEach((b: any) => {
+                const btnType = b.action || (b.url ? 'web_url' : 'postback');
+                if (btnType === 'web_url') {
+                  elementsButtons.push({ type: "web_url", url: b.url, title: b.text });
+                } else {
+                  elementsButtons.push({ type: "postback", title: b.text, payload: b.text });
+                }
+              });
+            }
+            const messagePayload = {
+              recipient: { id: recipientId },
+              message: {
+                attachment: {
+                  type: "template",
+                  payload: {
+                    template_type: "generic",
+                    elements: [{
+                      title: text,
+                      ...(imageUrl ? { image_url: imageUrl } : {}),
+                      subtitle: subtitle,
+                      buttons: elementsButtons
+                    }]
+                  }
+                }
+              }
+            };
+            jsonBody = `=${JSON.stringify(messagePayload, null, 2)}`;
+          } else {
+            // Simple Text
+            jsonBody = `={
+                "recipient": { "id": "${recipientId}" },
+                "message": { "text": "${text.replace(/"/g, '\\"')}" }
+              }`;
+          }
+
+          nodeParams = {
             method: "POST",
             url: `=https://graph.instagram.com/v24.0/me/messages`,
             authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
             sendBody: true, specifyBody: "json",
-            jsonBody: `={
-  "recipient": {
-    ${recipientLogic}
-  },
-  "message": { "text": "${text.replace(/"/g, '\\"')}" }
-}`,
+            jsonBody: jsonBody,
             options: {}
-          },
-          credentials: { facebookGraphApi: { id: credentialId } }
-        });
-      }
+          };
+        }
+
+        // Add Node
+        if (Object.keys(nodeParams).length > 0) {
+          nodes.push({
+            id: `act-${index}`,
+            name: nodeName,
+            type: nodeType,
+            typeVersion: 4.3,
+            position: [nodeX, 300],
+            parameters: nodeParams,
+            credentials: { facebookGraphApi: { id: credentialId } }
+          });
+          nodeX += 300;
+        }
+      });
 
       // Wiring - Auto-chaining
       const connections: any = {};
+
+      // Special Handling for Comment Switch Wiring (Fan-in)
+      // We need to connect ALL outputs of 'Comment Switch' to the next node (which is nodes[index of Switch + 1])
+      // Assuming 'Comment Switch' was added immediately before the Actions started.
+
       if (nodes.length > 1) {
         for (let i = 0; i < nodes.length - 1; i++) {
           const source = nodes[i].name;
           const target = nodes[i + 1].name;
-          connections[source] = { main: [[{ node: target, type: "main", index: 0 }]] };
+
+          if (source === "Comment Switch") {
+            // Find how many rules we added (outputs)
+            // We can infer it from the node parameters rules.values
+            const switchNode = nodes[i];
+            const ruleCount = switchNode.parameters.rules.values.length;
+
+            const switchConnections = [];
+            for (let j = 0; j < ruleCount; j++) {
+              // Connect output index j to target input 0
+              switchConnections.push([{ node: target, type: "main", index: 0 }]);
+            }
+            connections[source] = { main: switchConnections };
+          } else {
+            // Standard linear connection
+            connections[source] = { main: [[{ node: target, type: "main", index: 0 }]] };
+          }
         }
       }
 
@@ -360,45 +625,72 @@ Deno.serve(async (req: Request) => {
 
     if (autoActivate) await fetch(`${n8nBaseUrl}/api/v1/workflows/${n8nResult.id}/activate`, { method: "POST", headers: { "X-N8N-API-KEY": n8nApiKey } });
 
-    // Store in DB
-    await supabase.from("n8n_workflows").insert({
-      user_id: user.id, n8n_workflow_id: n8nResult.id, n8n_workflow_name: n8nResult.name,
-      webhook_path: webhookPath, instagram_account_id: instagramAccount.id,
-      template: template || 'instagram_automation_v1', variables: variables || {},
-      ...(automationId && { automation_id: automationId })
-    });
-
-    // AUTO-CREATE ROUTE (Fix for "Ghost" Workflows)
+    // ATOMIC DATABASE REGISTRATION
     if (autoActivate) {
-      // Force Wildcard to match 'activate-workflow' behavior
-      const eventType = 'messaging';
-      const subType = null; // WILDCARD
+      const globalRoutesPayload = [];
+      const trackedPostsPayload: any[] = [];
 
-      // 1. Concurrent Mode: Do NOT delete other routes.
-      // Allow multiple automations to run for this account.
+      // Logic for Specific Posts vs Global
+      const isSpecificPostTrigger = automationData?.trigger_type === 'post_comment' && automationData?.trigger_config?.postsType === 'specific';
 
-      // 2. Insert New Route
-      // 2. Insert New Routes (Messaging + Comments)
-      const { error: routeError } = await supabase.from('automation_routes').insert([
-        {
-          user_id: user.id,
-          account_id: instagramAccount.instagram_user_id, // Meta ID
-          event_type: 'messaging',
-          sub_type: null, // WILDCARD
-          n8n_workflow_id: n8nResult.id, // Correct Column
-          is_active: true
-        },
-        {
-          user_id: user.id,
-          account_id: instagramAccount.instagram_user_id, // Meta ID
-          event_type: 'changes',
-          sub_type: null, // WILDCARD
-          n8n_workflow_id: n8nResult.id,
-          is_active: true
+      if (isSpecificPostTrigger) {
+        // A. TRACKED POSTS (Specific)
+        const specificPosts = Array.isArray(automationData?.trigger_config?.specificPosts)
+          ? automationData.trigger_config.specificPosts
+          : [];
+
+        if (specificPosts.length > 0) {
+          specificPosts.forEach((pid: string) => {
+            trackedPostsPayload.push({
+              media_id: pid,
+              platform: 'instagram'
+            });
+          });
         }
-      ]);
+      } else {
+        // B. GLOBAL ROUTES (Default)
+        globalRoutesPayload.push(
+          {
+            account_id: instagramAccount.instagram_user_id,
+            event_type: 'messaging',
+            sub_type: null,
+            is_active: true
+          },
+          {
+            account_id: instagramAccount.instagram_user_id,
+            event_type: 'changes',
+            sub_type: null,
+            is_active: true
+          }
+        );
+      }
 
-      if (routeError) console.error("Auto-Route Error:", routeError);
+      // CALL RPC
+      const { error: dbError } = await supabase.rpc('register_automation', {
+        p_user_id: user.id,
+        p_n8n_id: n8nResult.id,
+        p_n8n_name: n8nResult.name,
+        p_webhook_path: webhookPath,
+        p_instagram_account_id: instagramAccount.id,
+        p_template: template || 'instagram_automation_v1',
+        p_variables: variables || {},
+        p_automation_id: automationId || null,
+        p_global_routes: globalRoutesPayload,
+        p_tracked_posts: trackedPostsPayload
+      });
+
+      if (dbError) {
+        console.error("RPC Error:", dbError);
+        throw new Error("Database Transaction Failed: " + dbError.message);
+      }
+    } else {
+      // Manual Insert for Inactive Workflows
+      await supabase.from("n8n_workflows").insert({
+        user_id: user.id, n8n_workflow_id: n8nResult.id, n8n_workflow_name: n8nResult.name,
+        webhook_path: webhookPath, instagram_account_id: instagramAccount.id,
+        template: template || 'instagram_automation_v1', variables: variables || {},
+        ...(automationId && { automation_id: automationId })
+      });
     }
 
     return new Response(JSON.stringify({ success: true, workflowId: n8nResult.id, webhookPath }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });

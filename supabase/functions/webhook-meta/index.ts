@@ -221,16 +221,50 @@ async function routeAndTrigger(normalized: any) {
 
     console.log("Routing:", normalized);
 
-    const { data: routes, error } = await supabase
-        .from('automation_routes')
-        .select('n8n_workflow_id, sub_type')
-        .eq('account_id', normalized.account_id)
-        .eq('event_type', normalized.event_type) // e.g. 'messaging'
-        .eq('is_active', true)
-        .or(`sub_type.eq.${normalized.sub_type},sub_type.is.null`);
+    // 1. Priority: Tracked Posts (Specific)
+    // Only relevant for 'changes' logic (comments) or if we later support specific DM flows via postback
+    // For now, check if payload has a media id (comments usually do)
+    let specificWorkflowId = null;
 
-    if (error) { console.error("Route Lookup Error:", error); return; }
-    if (!routes || routes.length === 0) { console.log("No active routes found."); return; }
+    // Check if this is a comment/change with a media object
+    const mediaId = normalized.payload?.value?.media?.id || normalized.payload?.value?.media_id;
+
+    if (mediaId) {
+        const { data: trackedData, error: trackedError } = await supabase
+            .from('tracked_posts')
+            .select('workflow_id')
+            .eq('media_id', mediaId)
+            .eq('platform', 'instagram')
+            .maybeSingle(); // We assume unique constraint enforces one workflow per post per platform?
+        // If not, we might trigger multiple. User architecture notes "multiple workflows track same post is undefined".
+        // maybeSingle() picks one arbitrary if multiple exist, or null if none.
+
+        if (trackedData) {
+            console.log(`Specific Route Found for Media ${mediaId} -> Workflow ${trackedData.workflow_id}`);
+            specificWorkflowId = trackedData.workflow_id;
+        }
+    }
+
+    let routes = [];
+
+    if (specificWorkflowId) {
+        // If specific match found, we ONLY trigger that one.
+        routes = [{ n8n_workflow_id: specificWorkflowId }];
+    } else {
+        // 2. Fallback: Global Routes
+        const { data: globalRoutes, error } = await supabase
+            .from('automation_routes')
+            .select('n8n_workflow_id, sub_type')
+            .eq('account_id', normalized.account_id)
+            .eq('event_type', normalized.event_type) // e.g. 'messaging'
+            .eq('is_active', true)
+            .or(`sub_type.eq.${normalized.sub_type},sub_type.is.null`);
+
+        if (error) { console.error("Route Lookup Error:", error); return; }
+        routes = globalRoutes || [];
+    }
+
+    if (!routes || routes.length === 0) { console.log("No active routes found (Specific or Global)."); return; }
 
     // Resolve Webhook Paths
     const workflowIds = routes.map(r => r.n8n_workflow_id);

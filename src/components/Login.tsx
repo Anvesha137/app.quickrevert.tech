@@ -1,15 +1,20 @@
 import { useState } from 'react';
 import { Zap, Mail } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { TermsOfServiceModal, PrivacyPolicyModal } from './LegalModals';
 
 export default function Login() {
   const { signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
   const [loading, setLoading] = useState<'google' | 'email' | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false); // Default to Sign In
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+
+  // Modal States
+  const [showTerms, setShowTerms] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
 
   const handleGoogleSignIn = async () => {
     try {
@@ -21,8 +26,6 @@ export default function Login() {
       setLoading(null);
     }
   };
-
-
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,19 +130,7 @@ export default function Login() {
               <span>{isSignUp ? 'Sign Up' : 'Sign In'} with Email</span>
             </button>
 
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSignUp(!isSignUp);
-                  setError(null);
-                }}
-                disabled={loading !== null}
-                className="text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
-              >
-                {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
-              </button>
-            </div>
+            {/* Removed Sign Up Toggle as per request */}
           </form>
 
           <div className="relative my-6">
@@ -181,8 +172,6 @@ export default function Login() {
               )}
               <span>Google</span>
             </button>
-
-
           </div>
 
           {error && (
@@ -193,7 +182,20 @@ export default function Login() {
 
           <div className="mt-6 pt-6 border-t border-gray-200">
             <p className="text-xs text-gray-500 text-center">
-              By signing in, you agree to our Terms of Service and Privacy Policy
+              By signing in, you agree to our{' '}
+              <button
+                onClick={() => setShowTerms(true)}
+                className="text-blue-600 hover:text-blue-800 hover:underline font-medium focus:outline-none"
+              >
+                Terms of Service
+              </button>
+              {' '}and{' '}
+              <button
+                onClick={() => setShowPrivacy(true)}
+                className="text-blue-600 hover:text-blue-800 hover:underline font-medium focus:outline-none"
+              >
+                Privacy Policy
+              </button>
             </p>
           </div>
         </div>
@@ -204,6 +206,10 @@ export default function Login() {
           </p>
         </div>
       </div>
+
+      {/* Modals */}
+      <TermsOfServiceModal isOpen={showTerms} onClose={() => setShowTerms(false)} />
+      <PrivacyPolicyModal isOpen={showPrivacy} onClose={() => setShowPrivacy(false)} />
     </div>
   );
 }
