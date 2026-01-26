@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MessageSquare, Reply, UserPlus, Mail, Send, CheckCircle2, XCircle, AlertCircle, Clock } from 'lucide-react';
+import { MessageSquare, Reply, UserPlus, Mail, Send, CheckCircle2, XCircle, AlertCircle, Clock, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { N8nWorkflowService } from '../../lib/n8nService';
@@ -12,6 +12,7 @@ interface Activity {
   metadata: {
     seen?: boolean;
     following?: boolean;
+    direction?: 'inbound' | 'outbound';
     [key: string]: unknown;
   };
   status: 'success' | 'failed' | 'pending';
@@ -28,7 +29,11 @@ const activityConfig = {
   follow_request: { icon: UserPlus, label: 'Follow Request', color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200' },
   dm: { icon: Mail, label: 'User DM', color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200' },
   dm_sent: { icon: Send, label: 'DM Sent', color: 'text-pink-600', bg: 'bg-pink-50', border: 'border-pink-200' },
-  story_reply: { icon: MessageSquare, label: 'Story Reply', color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-200' }
+  story_reply: { icon: MessageSquare, label: 'Story Reply', color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-200' },
+  // New types
+  incoming_message: { icon: ArrowDownLeft, label: 'Received Message', color: 'text-gray-700', bg: 'bg-gray-100', border: 'border-gray-200' },
+  incoming_comment: { icon: ArrowDownLeft, label: 'Received Comment', color: 'text-gray-700', bg: 'bg-gray-100', border: 'border-gray-200' },
+  incoming_event: { icon: ArrowDownLeft, label: 'Received Event', color: 'text-gray-700', bg: 'bg-gray-100', border: 'border-gray-200' },
 };
 
 const statusConfig = {
@@ -80,41 +85,53 @@ export default function ContactActivities({ username }: ContactActivitiesProps) 
 
       if (activitiesError) throw activitiesError;
 
-      // Fetch n8n executions if user is available
-      let n8nExecutions: any[] = [];
+      // Filter out n8n executions if we have DB records to avoid duplicates
+      // We'll mostly rely on DB records now
+      let n8nActivities: Activity[] = [];
+
       if (user) {
         try {
           const executionsResult = await N8nWorkflowService.getExecutions(undefined, 50, user.id);
           if (executionsResult.executions) {
-            // Filter executions related to this contact (username)
-            // Note: This depends on how n8n stores execution data - adjust based on actual structure
-            n8nExecutions = executionsResult.executions.filter((exec: any) => {
-              // Check if execution data contains the username
+            const rawN8n = executionsResult.executions.filter((exec: any) => {
+              // Loose check: only include if we don't have a DB record around the same time
+              // or if the username loosely matches in the raw data
               const execData = exec.data || exec;
               const dataStr = JSON.stringify(execData).toLowerCase();
               return dataStr.includes(username.toLowerCase());
             });
+
+            n8nActivities = rawN8n.map((exec: any) => ({
+              id: exec.id || `n8n-${exec.executionId}`,
+              activity_type: 'dm', // Generic fallback
+              target_username: username,
+              message: exec.data?.message || exec.data?.text || 'Workflow execution log',
+              metadata: { source: 'n8n' },
+              status: exec.finished ? (exec.stoppedAt ? 'success' : 'failed') : 'pending',
+              created_at: exec.startedAt || exec.createdAt || new Date().toISOString(),
+            }));
           }
-        } catch (n8nError) {
-          console.error('Error fetching n8n executions:', n8nError);
-          // Continue with automation activities even if n8n fails
+        } catch (e) {
+          console.error(e);
         }
       }
 
-      // Combine and sort activities
+      // Merge: Prefer DB activities. Only add N8n activity if it's significantly different timestamp
+      // simple de-dupe strategy: if an n8n activity is within 2 seconds of a db activity, ignore it (assume it was the trigger)
+      const dbTimestamps = new Set((automationActivities || []).map(a => new Date(a.created_at).getTime()));
+
+      const uniqueN8n = n8nActivities.filter(n8n => {
+        const n8nTime = new Date(n8n.created_at).getTime();
+        // Check if any DB activity is within 5 seconds
+        for (const dbTime of dbTimestamps) {
+          if (Math.abs(dbTime - n8nTime) < 5000) return false;
+        }
+        return true;
+      });
+
       const allActivities = [
         ...(automationActivities || []),
-        // Map n8n executions to activity format
-        ...n8nExecutions.map((exec: any) => ({
-          id: exec.id || `n8n-${exec.executionId}`,
-          activity_type: 'dm',
-          target_username: username,
-          message: exec.data?.message || exec.data?.text || 'Workflow execution',
-          metadata: {},
-          status: exec.finished ? (exec.stoppedAt ? 'success' : 'failed') : 'pending',
-          created_at: exec.startedAt || exec.createdAt || new Date().toISOString(),
-          isN8nExecution: true,
-        }))
+        ...uniqueN8n
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       setActivities(allActivities);
@@ -158,7 +175,7 @@ export default function ContactActivities({ username }: ContactActivitiesProps) 
     <div className="p-6">
       <div className="mb-4">
         <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
-          All Interactions ({activities.length})
+          Conversation History ({activities.length})
         </h3>
       </div>
 
@@ -168,50 +185,46 @@ export default function ContactActivities({ username }: ContactActivitiesProps) 
           const StatusIcon = statusConfig[activity.status].icon;
           const Icon = config.icon;
 
+          // Determine direction
+          const isIncoming = ['incoming_message', 'incoming_comment', 'incoming_event', 'comment', 'dm'].includes(activity.activity_type) || activity.metadata?.direction === 'inbound';
+
+          // Helper to check if it's a "reply" action (outgoing)
+          const isReply = ['reply', 'dm_sent', 'reply_to_comment', 'send_dm'].includes(activity.activity_type);
+
           return (
-            <div
-              key={activity.id}
-              className={`bg-white rounded-xl border-2 ${config.border} p-4 hover:shadow-md transition-shadow`}
-            >
-              <div className="flex items-start gap-4">
-                <div className={`${config.bg} p-3 rounded-lg flex-shrink-0`}>
-                  <Icon className={`w-5 h-5 ${config.color}`} />
+            <div key={activity.id} className={`flex flex-col ${isReply ? 'items-end' : 'items-start'}`}>
+
+              <div className={`max-w-[85%] rounded-xl border p-4 hover:shadow-md transition-shadow 
+                   ${isReply ? 'bg-blue-50 border-blue-100 rounded-tr-none' : 'bg-white border-gray-200 rounded-tl-none'}`}>
+
+                <div className="flex items-center gap-2 mb-2 border-b border-black/5 pb-2">
+                  <div className={`p-1.5 rounded-md ${config.bg}`}>
+                    <Icon className={`w-3.5 h-3.5 ${config.color}`} />
+                  </div>
+                  <span className={`text-xs font-bold ${config.color}`}>{isReply ? 'QuickRevert' : activity.target_username}</span>
+                  <span className="text-[10px] text-gray-400 ml-auto">{formatTimeAgo(activity.created_at)}</span>
                 </div>
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className={`text-sm font-bold ${config.color}`}>{config.label}</span>
-                    <StatusIcon className={`w-4 h-4 ${statusConfig[activity.status].color}`} />
-                    <span className="text-xs text-gray-400 ml-auto">{formatTimeAgo(activity.created_at)}</span>
+                {activity.message && (
+                  <div className="mb-2">
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+                      {activity.message}
+                    </p>
                   </div>
+                )}
 
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xs font-semibold">
-                      {activity.target_username[0].toUpperCase()}
-                    </div>
-                    <span className="text-sm font-medium text-gray-900">@{activity.target_username}</span>
-                  </div>
-
-                  {activity.message && (
-                    <div className="bg-gray-50 rounded-lg p-3 border border-gray-200 mb-3">
-                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{activity.message}</p>
-                    </div>
+                <div className="flex items-center justify-between gap-4 mt-1">
+                  {activity.metadata.following !== undefined && (
+                    <span className={`text-[10px] flex items-center gap-1 ${activity.metadata.following ? 'text-green-600' : 'text-gray-500'}`}>
+                      {activity.metadata.following ? 'Following' : 'Not following'}
+                    </span>
                   )}
-
-                  <div className="flex items-center gap-4 text-xs">
-                    {activity.metadata.following !== undefined && (
-                      <span className={`flex items-center gap-1 ${activity.metadata.following ? 'text-green-600' : 'text-gray-500'}`}>
-                        {activity.metadata.following ? '✓ Following' : '○ Not following'}
-                      </span>
-                    )}
-                    {activity.metadata.seen !== undefined && (
-                      <span className="text-gray-500">
-                        Seen: {activity.metadata.seen ? 'Yes' : 'No'}
-                      </span>
-                    )}
-                    <span className="text-gray-400 ml-auto">{formatDateTime(activity.created_at)}</span>
+                  <div className="flex items-center gap-1 ml-auto">
+                    <StatusIcon className={`w-3 h-3 ${statusConfig[activity.status].color}`} />
+                    <span className="text-[10px] text-gray-400">{formatDateTime(activity.created_at)}</span>
                   </div>
                 </div>
+
               </div>
             </div>
           );

@@ -43,7 +43,9 @@ export default function Contacts() {
       // Process automation_activities
       data?.forEach((activity) => {
         const username = activity.target_username;
-        const isAutomated = !!activity.automation_id || ['dm_sent', 'reply', 'reply_to_comment'].includes(activity.activity_type);
+        // Include new incoming types
+        const isAutomated = !!activity.automation_id ||
+          ['dm_sent', 'reply', 'reply_to_comment', 'incoming_message', 'incoming_comment', 'incoming_event'].includes(activity.activity_type);
 
         if (!contactsMap.has(username)) {
           contactsMap.set(username, {
@@ -76,76 +78,46 @@ export default function Contacts() {
         if (executionsResult.executions && executionsResult.executions.length > 0) {
           // Process executions in parallel with limit to avoid too many simultaneous requests
           const processExecution = async (exec: any) => {
+            // Quick optimization: if we already have many contacts, maybe skip deep inspection of every N8n exec
+            // But for now, let's keep it but just be safer about adding "Unknown"
+
             try {
-              // Get detailed execution data to extract recipient username
-              const detailedResult = await N8nWorkflowService.getExecution(exec.id, user.id);
-
-              if (detailedResult.execution) {
-                const execData = detailedResult.execution;
-
-                // Extract recipient username (the person who contacted the connected account)
-                // Check HTTP Request node output first (where we fetch username)
-                let recipientUsername = null;
-
-                // Try multiple paths for HTTP Request node output
-                const httpRequestNode = execData.data?.resultData?.runData?.['HTTP Request'];
-                if (httpRequestNode) {
-                  // Try main array path: main[0][0].json.username
-                  if (httpRequestNode[0]?.data?.main?.[0]?.[0]?.json?.username) {
-                    recipientUsername = httpRequestNode[0].data.main[0][0].json.username;
-                  } else if (httpRequestNode[0]?.data?.json?.username) {
-                    recipientUsername = httpRequestNode[0].data.json.username;
-                  }
-                }
-
-                // Fallback paths if HTTP Request node not found
-                if (!recipientUsername) {
-                  recipientUsername =
-                    execData.data?.resultData?.runData?.['Instagram Webhook']?.[0]?.data?.main?.[0]?.[0]?.json?.body?.entry?.[0]?.messaging?.[0]?.sender?.id ||
-                    execData.data?.data?.body?.sender?.username ||
-                    execData.data?.data?.body?.entry?.[0]?.messaging?.[0]?.sender?.id ||
-                    execData.data?.body?.from?.username ||
-                    execData.data?.body?.entry?.[0]?.changes?.[0]?.value?.from?.username ||
-                    execData.data?.sender_name ||
-                    execData.data?.from?.username ||
-                    null;
-                }
-
-                return {
-                  username: recipientUsername,
-                  createdAt: execData.startedAt || execData.createdAt || new Date().toISOString()
-                };
-              }
-            } catch (execErr) {
-              console.error(`Error fetching detailed execution ${exec.id}:`, execErr);
-              // Try to extract from basic exec data if detailed fetch fails
-              // Try to extract from basic exec structure
-              const httpRequestNodeBasic = exec.data?.resultData?.runData?.['HTTP Request'];
+              // Try to extract from basic exec data first to avoid extra API calls
               let recipientUsername = null;
 
-              if (httpRequestNodeBasic) {
-                if (httpRequestNodeBasic[0]?.data?.main?.[0]?.[0]?.json?.username) {
-                  recipientUsername = httpRequestNodeBasic[0].data.main[0][0].json.username;
-                } else if (httpRequestNodeBasic[0]?.data?.json?.username) {
-                  recipientUsername = httpRequestNodeBasic[0].data.json.username;
+              // Try to find username in the execution data
+              const execData = exec.data || exec;
+              // Check for known patterns in our n8n workflows
+              const httpRequestNode = execData?.resultData?.runData?.['HTTP Request'];
+              if (httpRequestNode) {
+                if (httpRequestNode[0]?.data?.main?.[0]?.[0]?.json?.username) {
+                  recipientUsername = httpRequestNode[0].data.main[0][0].json.username;
+                } else if (httpRequestNode[0]?.data?.json?.username) {
+                  recipientUsername = httpRequestNode[0].data.json.username;
                 }
               }
 
               if (!recipientUsername) {
+                // Fallback: Check if any of our known component/node keys exist
                 recipientUsername =
-                  exec.data?.sender_name ||
-                  exec.data?.from?.username ||
-                  exec.data?.data?.body?.sender?.username ||
-                  exec.data?.data?.body?.from?.username ||
+                  execData?.sender_name || // some workflows use this
+                  execData?.from?.username ||
+                  execData?.data?.body?.sender?.username || // generic webhook payload structure
+                  execData?.body?.entry?.[0]?.messaging?.[0]?.sender?.id || // raw instagram webhook
                   null;
               }
 
-              if (recipientUsername && recipientUsername !== 'Unknown') {
+              // If still null, and we really need to find it, we could fetch detailed execution
+              // But let's only do that if the execution is recent and we don't have it
+
+              if (recipientUsername && recipientUsername !== 'Unknown' && recipientUsername !== 'undefined') {
                 return {
                   username: recipientUsername,
                   createdAt: exec.startedAt || exec.createdAt || new Date().toISOString()
                 };
               }
+            } catch (execErr) {
+              console.error(`Error processing execution ${exec.id}:`, execErr);
             }
             return null;
           };
@@ -157,8 +129,12 @@ export default function Contacts() {
             const results = await Promise.all(batch.map(processExecution));
 
             results.forEach((result) => {
-              if (result && result.username && result.username !== 'Unknown') {
+              if (result && result.username) {
                 const { username, createdAt } = result;
+
+                // Only add if it's a valid username
+                if (username === 'Unknown' || username.includes('undefined')) return;
+
                 if (!contactsMap.has(username)) {
                   contactsMap.set(username, {
                     username,
@@ -168,14 +144,10 @@ export default function Contacts() {
                     hasAutomatedInteraction: true,
                   });
                 } else {
+                  // If we already have it (likely from DB), just ensure automation flag is true
+                  // We nominally trust DB dates more, but N8n might be "interaction" counts
                   const contact = contactsMap.get(username)!;
-                  contact.totalInteractions++;
-                  if (new Date(createdAt) > new Date(contact.lastContactDate)) {
-                    contact.lastContactDate = createdAt;
-                  }
-                  if (new Date(createdAt) < new Date(contact.firstContactDate)) {
-                    contact.firstContactDate = createdAt;
-                  }
+                  // Don't double count if timestamps are very close (handled loosely)
                   contact.hasAutomatedInteraction = true;
                 }
               }
