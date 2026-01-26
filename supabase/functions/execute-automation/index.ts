@@ -294,18 +294,24 @@ async function executeAction(params: any) {
   };
 
   if (buttons.length > 0) {
+    // Switch to Generic Template to support Subtitles
     messagePayload.message = {
       attachment: {
         type: 'template',
         payload: {
-          template_type: 'button',
-          text: messageText,
-          buttons: buttons.slice(0, 3).map((btn: any) => {
-            if (btn.url) {
-              return { type: 'web_url', url: btn.url, title: btn.text };
+          template_type: 'generic',
+          elements: [
+            {
+              title: messageText,
+              subtitle: "Tap a button below", // Default subtitle as requested
+              buttons: buttons.slice(0, 3).map((btn: any) => {
+                if (btn.url) {
+                  return { type: 'web_url', url: btn.url, title: btn.text };
+                }
+                return { type: 'postback', title: btn.text, payload: btn.text.toUpperCase() };
+              }),
             }
-            return { type: 'postback', title: btn.text, payload: btn.text.toUpperCase() };
-          }),
+          ]
         },
       },
     };
