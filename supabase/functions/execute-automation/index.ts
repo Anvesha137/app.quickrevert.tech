@@ -16,6 +16,7 @@ interface EventData {
   from: {
     id: string;
     username: string;
+    name?: string; // Add name if available
   };
   timestamp: string;
 }
@@ -42,9 +43,87 @@ Deno.serve(async (req: Request) => {
 
     const { userId, instagramAccountId, triggerType, eventData }: ExecuteRequest = await req.json();
 
-    console.log('Executing automation for:', { userId, triggerType, from: eventData.from.username });
+    console.log('Processing automation request for:', { userId, triggerType, senderId: eventData.from.id });
 
-    // NEW: Log the incoming event
+    // 1. Fetch Instagram Account FIRST to get the access token
+    const { data: instagramAccount, error: accountError } = await supabase
+      .from('instagram_accounts')
+      .select('access_token, page_id')
+      .eq('id', instagramAccountId)
+      .single();
+
+    if (accountError || !instagramAccount) {
+      console.error('Instagram account not found or error:', accountError);
+      throw new Error('Instagram account not found');
+    }
+
+    // 2. Resolve Username if missing (Common in DMs)
+    if (!eventData.from.username) {
+      console.log('Username missing in payload. Fetching from Instagram API...');
+      try {
+        const userProfileUrl = `https://graph.instagram.com/v21.0/${eventData.from.id}?fields=username,name,profile_picture_url&access_token=${instagramAccount.access_token}`;
+        const userProfileRes = await fetch(userProfileUrl);
+
+        if (userProfileRes.ok) {
+          const userProfile = await userProfileRes.json();
+          eventData.from.username = userProfile.username;
+          if (userProfile.name) eventData.from.name = userProfile.name;
+          console.log('Resolved username:', eventData.from.username);
+        } else {
+          console.error('Failed to fetch user profile:', await userProfileRes.text());
+          // Fallback if needed, or just leave it as undefined/unknown
+          eventData.from.username = 'unknown_user';
+        }
+      } catch (err) {
+        console.error('Error fetching user profile:', err);
+        eventData.from.username = 'unknown_user';
+      }
+    }
+
+    // 3. Upsert Contact
+    try {
+      // Check if contact exists to get current interaction count
+      const { data: existingContact } = await supabase
+        .from('contacts')
+        .select('interaction_count, first_interaction_at')
+        .eq('user_id', userId)
+        .eq('instagram_account_id', instagramAccountId)
+        .eq('instagram_user_id', eventData.from.id)
+        .maybeSingle();
+
+      const newInteractionCount = (existingContact?.interaction_count || 0) + 1;
+
+      const contactData = {
+        user_id: userId,
+        instagram_account_id: instagramAccountId,
+        instagram_user_id: eventData.from.id,
+        username: eventData.from.username,
+        full_name: eventData.from.name || null,
+        // We might not get avatar unless we specifically fetched it or it was in payload (rarely in webhook)
+        // If we fetched it in step 2, we could add it here.
+        last_interaction_at: new Date().toISOString(),
+        interaction_count: newInteractionCount,
+        // preserve first_interaction_at if exists, else it uses default NOW() from DB or we can set it
+      };
+
+      const { error: contactError } = await supabase
+        .from('contacts')
+        .upsert(contactData, {
+          onConflict: 'user_id,instagram_account_id,instagram_user_id',
+          ignoreDuplicates: false
+        });
+
+      if (contactError) {
+        console.error('Error upserting contact:', contactError);
+      } else {
+        console.log('Contact upserted successfully');
+      }
+
+    } catch (contactErr) {
+      console.error('Unexpected error handling contact:', contactErr);
+    }
+
+    // 4. Log the incoming event
     try {
       const activityType = triggerType === 'post_comment' ? 'incoming_comment' :
         triggerType === 'user_directed_messages' ? 'incoming_message' :
@@ -56,7 +135,7 @@ Deno.serve(async (req: Request) => {
         user_id: userId,
         instagram_account_id: instagramAccountId,
         activity_type: activityType,
-        target_username: eventData.from.username,
+        target_username: eventData.from.username || eventData.from.id,
         message: messageContent,
         status: 'success', // It's a received event
         metadata: {
@@ -66,11 +145,9 @@ Deno.serve(async (req: Request) => {
       });
     } catch (logError) {
       console.error('Error logging incoming event:', logError);
-      // specific error handling if automation_id is required:
-      // If the table requires automation_id, this insert will fail. 
-      // We assume it is nullable based on the use case.
     }
 
+    // 5. Fetch and Execute Automations
     const { data: automations, error: automationError } = await supabase
       .from('automations')
       .select('*')
@@ -90,16 +167,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const { data: instagramAccount } = await supabase
-      .from('instagram_accounts')
-      .select('access_token, page_id')
-      .eq('id', instagramAccountId)
-      .single();
-
-    if (!instagramAccount) {
-      throw new Error('Instagram account not found');
-    }
-
+    // Matching logic (copied from original)
     const matchedAutomations = automations.filter(automation => {
       const config = automation.trigger_config || {};
 
