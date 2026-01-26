@@ -46,19 +46,33 @@ export default function Dashboard() {
 
       if (automationsError) throw automationsError;
 
+      // 1. Active Automations
       const activeAutomations = automations?.filter(a => a.status === 'active').length || 0;
 
+      // 2. Fetch Activities for DMs and Comments
+      // 2. Fetch Activities for DMs and Comments
+      // Fetching all fields to be consistent with RecentActivity and avoid any RLS column restrictions
       const { data: activities, error: activitiesError } = await supabase
         .from('automation_activities')
-        .select('activity_type, target_username, metadata')
+        .select('*')
         .eq('user_id', user!.id);
 
       if (activitiesError) throw activitiesError;
 
-      const dms = activities?.filter(a => a.activity_type === 'dm_sent') || [];
-      const comments = activities?.filter(a => a.activity_type === 'reply') || [];
-      const uniqueUsersSet = new Set(activities?.map(a => a.target_username) || []);
+      const dms = activities?.filter(a => ['dm', 'dm_sent', 'send_dm'].includes(a.activity_type)) || [];
+      const comments = activities?.filter(a => ['reply', 'comment', 'reply_to_comment'].includes(a.activity_type)) || [];
 
+      // 3. Unique Users (Source of Truth: Contacts Table)
+      const { count: uniqueUsersCount, error: contactsError } = await supabase
+        .from('contacts')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user!.id);
+
+      if (contactsError) console.error("Error fetching contacts count:", contactsError);
+
+      // 4. DM Open Rate (Placeholder/Heuristic)
+      // Since we don't reliably track 'read' events in a way that maps to 'dm_sent', 
+      // and the user accepts 0%, we will use the metadata.seen if available, else 0.
       const seenDms = dms.filter(dm => dm.metadata?.seen === true).length;
       const dmOpenRate = dms.length > 0 ? Math.round((seenDms / dms.length) * 100) : 0;
 
@@ -67,7 +81,7 @@ export default function Dashboard() {
         dmOpenRate,
         activeAutomations,
         commentReplies: comments.length,
-        uniqueUsers: uniqueUsersSet.size,
+        uniqueUsers: uniqueUsersCount || 0,
       });
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);

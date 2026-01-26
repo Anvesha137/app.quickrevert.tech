@@ -61,22 +61,39 @@ Deno.serve(async (req: Request) => {
     if (!eventData.from.username) {
       console.log('Username missing in payload. Fetching from Instagram API...');
       try {
-        const userProfileUrl = `https://graph.instagram.com/v21.0/${eventData.from.id}?fields=username,name,profile_picture_url&access_token=${instagramAccount.access_token}`;
+        const userProfileUrl = `https://graph.facebook.com/v21.0/${eventData.from.id}?fields=username,name,profile_picture_url&access_token=${instagramAccount.access_token}`;
+        console.log(`Fetching profile for ${eventData.from.id} from: ${userProfileUrl.replace(instagramAccount.access_token, 'REDACTED')}`);
+
         const userProfileRes = await fetch(userProfileUrl);
+        const resText = await userProfileRes.text();
+        console.log(`Profile API response (${userProfileRes.status}):`, resText);
 
         if (userProfileRes.ok) {
-          const userProfile = await userProfileRes.json();
-          eventData.from.username = userProfile.username;
+          const userProfile = JSON.parse(resText);
+          // Prefer username, fallback to name, then 'Instagram User'
+          eventData.from.username = userProfile.username || userProfile.name || 'Instagram User';
           if (userProfile.name) eventData.from.name = userProfile.name;
-          console.log('Resolved username:', eventData.from.username);
+          console.log('Resolved identity:', { username: eventData.from.username, name: eventData.from.name });
         } else {
-          console.error('Failed to fetch user profile:', await userProfileRes.text());
-          // Fallback if needed, or just leave it as undefined/unknown
-          eventData.from.username = 'unknown_user';
+          console.error('Failed to fetch user profile:', resText);
+          // Log debug info to DB since we can't see console logs
+          await supabase.from('automation_activities').insert({
+            user_id: userId,
+            instagram_account_id: instagramAccountId,
+            activity_type: 'debug_log',
+            target_username: 'system',
+            message: `Profile Fetch Failed: ${userProfileRes.status}`,
+            status: 'failed',
+            metadata: {
+              response: resText,
+              url: userProfileUrl.replace(instagramAccount.access_token, 'REDACTED')
+            }
+          });
+          eventData.from.username = 'Unknown';
         }
       } catch (err) {
         console.error('Error fetching user profile:', err);
-        eventData.from.username = 'unknown_user';
+        eventData.from.username = 'UnknownError';
       }
     }
 
@@ -269,7 +286,7 @@ async function executeAction(params: any) {
 
   messageText = messageText.replace('{{username}}', eventData.from.username);
 
-  const apiUrl = `https://graph.instagram.com/v21.0/${pageId || eventData.from.id}/messages`;
+  const apiUrl = `https://graph.facebook.com/v21.0/${pageId || eventData.from.id}/messages`;
 
   let messagePayload: any = {
     recipient: { id: eventData.from.id },

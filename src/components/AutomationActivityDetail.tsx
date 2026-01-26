@@ -104,9 +104,13 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
       setAutomation(automationData);
 
       // Fetch activities from automation_activities table
+      // JOIN with contacts to get the REAL resolved username
       const { data: activitiesData, error: activitiesError } = await supabase
         .from('automation_activities')
-        .select('*')
+        .select(`
+            *,
+            contact:contacts(username, instagram_user_id, full_name, avatar_url)
+        `)
         .eq('automation_id', automationId)
         .order('created_at', { ascending: false });
 
@@ -155,7 +159,7 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
                 return {
                   id: `n8n-${exec.id}`,
                   activity_type: 'dm',
-                  target_username: username,
+                  target_username: username, // N8n still uses payload, acceptable for now as backup
                   message: message,
                   metadata: { source: 'n8n' },
                   status: execDetail.finished ? (execDetail.stoppedAt ? 'success' : 'failed') : 'pending',
@@ -183,7 +187,6 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
 
       const uniqueN8n = n8nExecutions.filter(n8n => {
         const n8nTime = new Date(n8n.created_at).getTime();
-        // Check if any DB activity is within 5 seconds - if so, assume DB record covers it
         for (const dbTime of dbTimestamps) {
           if (Math.abs(dbTime - n8nTime) < 5000) return false;
         }
@@ -301,6 +304,17 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
                 // Helper to check if it's a "reply" action (outgoing)
                 const isReply = ['reply', 'dm_sent', 'reply_to_comment', 'send_dm'].includes(activity.activity_type);
 
+                // RESOLVE DISPLAY NAME (Source of Truth: Contact Table)
+                let displayName = 'Unknown';
+                // @ts-ignore - Supabase join
+                if (activity.contact) {
+                  // @ts-ignore
+                  displayName = activity.contact.username || activity.contact.full_name || activity.contact.instagram_user_id;
+                } else if (activity.target_username && activity.target_username !== 'system_managed') {
+                  // Fallback for legacy data or N8n objects
+                  displayName = activity.target_username;
+                }
+
                 return (
                   <div key={activity.id} className={`flex flex-col ${isReply ? 'items-end' : 'items-start'}`}>
 
@@ -315,9 +329,9 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
                           <p className={`text-xs font-bold ${config.color}`}>{config.label}</p>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <div className="w-4 h-4 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-[10px] font-bold">
-                              {(isReply ? 'QR' : activity.target_username[0])?.toUpperCase()}
+                              {(isReply ? 'QR' : displayName[0])?.toUpperCase()}
                             </div>
-                            <span className="text-xs font-semibold text-gray-900 truncate">@{isReply ? 'QuickRevert' : activity.target_username}</span>
+                            <span className="text-xs font-semibold text-gray-900 truncate">@{isReply ? 'QuickRevert' : displayName}</span>
                           </div>
                         </div>
                         <span className="text-[10px] text-gray-400 whitespace-nowrap ml-2">{formatTimeAgo(activity.created_at)}</span>

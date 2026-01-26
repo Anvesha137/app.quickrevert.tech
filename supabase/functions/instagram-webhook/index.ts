@@ -79,6 +79,7 @@ Deno.serve(async (req: Request) => {
                 timestamp: value.timestamp,
               };
             } else if (field === 'messages') {
+              // This might appear in 'changes' in some API versions, but usually it's in 'messaging' array
               triggerType = 'user_directed_messages';
               eventData = {
                 messageId: value.id,
@@ -111,6 +112,45 @@ Deno.serve(async (req: Request) => {
                   eventData,
                 }),
               });
+            }
+          }
+
+          // NEW: Handle 'messaging' array for DMs (standard Webhook structure for messages)
+          if (entry.messaging) {
+            for (const messageEvent of entry.messaging) {
+              const senderId = messageEvent.sender?.id;
+              const messageText = messageEvent.message?.text;
+              const messageId = messageEvent.message?.mid;
+              const timestamp = messageEvent.timestamp;
+
+              if (senderId && messageText) {
+                const triggerType = 'user_directed_messages';
+                const eventData = {
+                  messageId,
+                  messageText,
+                  from: {
+                    id: senderId,
+                    // proper username will be resolved in execute-automation
+                  },
+                  timestamp,
+                };
+
+                const supabaseExecutorUrl = `${supabaseUrl}/functions/v1/execute-automation`;
+
+                await fetch(supabaseExecutorUrl, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${supabaseServiceKey}`,
+                  },
+                  body: JSON.stringify({
+                    userId: instagramAccount.user_id,
+                    instagramAccountId: instagramAccount.id,
+                    triggerType,
+                    eventData,
+                  }),
+                });
+              }
             }
           }
         }

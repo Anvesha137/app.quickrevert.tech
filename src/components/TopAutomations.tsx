@@ -129,7 +129,7 @@ export default function TopAutomations() {
                   {automation.name}
                 </p>
                 <p className="text-xs text-gray-600 mt-0.5">
-                  {automation.activityCount} executions • {automation.successRate}% success rate
+                  {automation.successRate}% success rate
                 </p>
               </div>
             </div>

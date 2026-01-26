@@ -46,11 +46,27 @@ Deno.serve(async (req: Request) => {
             .order('created_at', { ascending: false })
             .limit(limit);
 
+        // 5. Last 5 Contacts
+        const { data: contacts, error: contactsError } = await supabase
+            .from('contacts')
+            .select('*')
+            .order('last_interaction_at', { ascending: false })
+            .limit(limit);
+
+        // 6. Last 5 Automation Activities
+        const { data: activities, error: actsError } = await supabase
+            .from('automation_activities')
+            .select('*')
+            .order('created_at', { ascending: false }) // Fixed column name
+            .limit(limit);
+
         return new Response(JSON.stringify({
             routes: routes || routeError,
             failures: failures || failError,
             workflows: workflows || wfError,
-            accounts: accounts || accError
+            accounts: accounts || accError,
+            contacts: contacts || contactsError,
+            activities: activities || actsError,
         }, null, 2), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
         });

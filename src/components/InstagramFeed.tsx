@@ -137,17 +137,7 @@ export default function InstagramFeed() {
   }
 
   if (!profile) {
-    return (
-      <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border-2 border-gray-200 p-8">
-        <div className="text-center py-12">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-pink-100 via-rose-100 to-orange-100 rounded-3xl mb-6 shadow-lg">
-            <Instagram size={40} className="text-pink-600" />
-          </div>
-          <h3 className="text-2xl font-bold text-gray-900 mb-3">No Instagram Connected</h3>
-          <p className="text-gray-600 mb-6 text-lg">Connect your Instagram account to see your posts and stats</p>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (
