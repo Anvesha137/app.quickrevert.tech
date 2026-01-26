@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MessageSquare, Reply, UserPlus, Mail, Send, CheckCircle2, XCircle, AlertCircle, Clock, Zap } from 'lucide-react';
+import { MessageSquare, Reply, UserPlus, Mail, Send, CheckCircle2, XCircle, AlertCircle, Clock, Zap, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { N8nWorkflowService } from '../lib/n8nService';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,6 +12,7 @@ interface Activity {
   metadata: {
     seen?: boolean;
     following?: boolean;
+    direction?: 'inbound' | 'outbound';
     [key: string]: unknown;
   };
   status: 'success' | 'failed' | 'pending';
@@ -38,7 +39,11 @@ const activityConfig = {
   follow_request: { icon: UserPlus, label: 'Follow Request', color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200' },
   dm: { icon: Mail, label: 'User DM', color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200' },
   dm_sent: { icon: Send, label: 'DM Sent', color: 'text-pink-600', bg: 'bg-pink-50', border: 'border-pink-200' },
-  story_reply: { icon: MessageSquare, label: 'Story Reply', color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-200' }
+  story_reply: { icon: MessageSquare, label: 'Story Reply', color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-200' },
+  // New types
+  incoming_message: { icon: ArrowDownLeft, label: 'Received Message', color: 'text-gray-700', bg: 'bg-gray-100', border: 'border-gray-200' },
+  incoming_comment: { icon: ArrowDownLeft, label: 'Received Comment', color: 'text-gray-700', bg: 'bg-gray-100', border: 'border-gray-200' },
+  incoming_event: { icon: ArrowDownLeft, label: 'Received Event', color: 'text-gray-700', bg: 'bg-gray-100', border: 'border-gray-200' },
 };
 
 const statusConfig = {
@@ -85,7 +90,7 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
 
   async function fetchAutomationAndActivities() {
     if (!user) return;
-    
+
     setLoading(true);
     try {
       const { data: automationData, error: automationError } = await supabase
@@ -127,195 +132,45 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
       let n8nExecutions: Activity[] = [];
       if (n8nWorkflowId) {
         try {
-          const executionsResult = await N8nWorkflowService.getExecutions(n8nWorkflowId, 100, user.id);
-          
+          const executionsResult = await N8nWorkflowService.getExecutions(n8nWorkflowId, 50, user.id);
+
           if (executionsResult.executions && executionsResult.executions.length > 0) {
-            // Fetch detailed execution data for each execution
-            const executionDetailsPromises = executionsResult.executions.map(async (exec: any) => {
-              try {
-                // Get detailed execution data using getExecution
-                const detailedResult = await N8nWorkflowService.getExecution(exec.id, user.id);
-                
-                if (detailedResult.execution) {
-                  const execData = detailedResult.execution;
-                  
-                  // Debug: Log execution data structure (remove in production if not needed)
-                  // console.log('Execution data structure:', {
-                  //   hasResultData: !!execData.data?.resultData,
-                  //   hasRunData: !!execData.data?.resultData?.runData,
-                  //   nodeNames: execData.data?.resultData?.runData ? Object.keys(execData.data.resultData.runData) : [],
-                  //   httpRequestData: execData.data?.resultData?.runData?.['HTTP Request']?.[0]?.data,
-                  //   webhookData: execData.data?.resultData?.runData?.['Instagram Webhook']?.[0]?.data
-                  // });
-                  
-                  // Extract recipient username from execution data
-                  // Check HTTP Request node output first (where we fetch username)
-                  let recipientUsername = 'Unknown';
-                  
-                  // Try multiple paths for HTTP Request node output
-                  const httpRequestNode = execData.data?.resultData?.runData?.['HTTP Request'];
-                  if (httpRequestNode) {
-                    // Try main array path
-                    if (httpRequestNode[0]?.data?.main?.[0]?.[0]?.json?.username) {
-                      recipientUsername = httpRequestNode[0].data.main[0][0].json.username;
-                    } else if (httpRequestNode[0]?.data?.json?.username) {
-                      recipientUsername = httpRequestNode[0].data.json.username;
-                    } else if (httpRequestNode[0]?.data?.main?.[0]?.[0]?.json?.id) {
-                      // If we got the ID, try to extract username from other fields
-                      const nodeData = httpRequestNode[0].data.main[0][0].json;
-                      recipientUsername = nodeData.username || nodeData.name || 'Unknown';
-                    }
-                  }
-                  
-                  // Fallback paths if HTTP Request node not found
-                  if (recipientUsername === 'Unknown') {
-                    recipientUsername = 
-                      execData.data?.resultData?.runData?.['Instagram Webhook']?.[0]?.data?.main?.[0]?.[0]?.json?.body?.entry?.[0]?.messaging?.[0]?.sender?.id ||
-                      execData.data?.data?.body?.sender?.username ||
-                      execData.data?.data?.body?.entry?.[0]?.messaging?.[0]?.sender?.id ||
-                      execData.data?.body?.from?.username ||
-                      execData.data?.body?.entry?.[0]?.changes?.[0]?.value?.from?.username ||
-                      execData.data?.sender_name ||
-                      execData.data?.from?.username ||
-                      'Unknown';
-                  }
-
-                  // Extract message text from webhook body
-                  // Primary path: $json.body.entry[0].messaging[0].message.text
-                  let message = 'Workflow execution';
-                  
-                  // Try to get message from Instagram Webhook node output
-                  const webhookNode = execData.data?.resultData?.runData?.['Instagram Webhook'];
-                  if (webhookNode) {
-                    const webhookData = webhookNode[0]?.data?.main?.[0]?.[0]?.json;
-                    // Primary path: body.entry[0].messaging[0].message.text
-                    if (webhookData?.body?.entry?.[0]?.messaging?.[0]?.message?.text) {
-                      message = webhookData.body.entry[0].messaging[0].message.text;
-                    } 
-                    // For comments: body.entry[0].changes[0].value.text
-                    else if (webhookData?.body?.entry?.[0]?.changes?.[0]?.value?.text) {
-                      message = webhookData.body.entry[0].changes[0].value.text;
-                    }
-                    // Also check direct body path
-                    else if (webhookData?.body?.entry?.[0]?.messaging?.[0]?.message?.text) {
-                      message = webhookData.body.entry[0].messaging[0].message.text;
-                    }
-                  }
-                  
-                  // Fallback paths - check other possible locations
-                  if (message === 'Workflow execution') {
-                    message = 
-                      execData.data?.resultData?.runData?.['Instagram Webhook']?.[0]?.data?.main?.[0]?.[0]?.json?.body?.entry?.[0]?.messaging?.[0]?.message?.text ||
-                      execData.data?.resultData?.runData?.['Instagram Webhook']?.[0]?.data?.main?.[0]?.[0]?.json?.body?.entry?.[0]?.changes?.[0]?.value?.text ||
-                      execData.data?.data?.body?.entry?.[0]?.messaging?.[0]?.message?.text ||
-                      execData.data?.data?.body?.entry?.[0]?.changes?.[0]?.value?.text ||
-                      execData.data?.data?.body?.text ||
-                      execData.data?.data?.body?.message ||
-                      execData.data?.message ||
-                      execData.data?.text ||
-                      'Workflow execution';
-                  }
-
-                  return {
-                    id: `n8n-${exec.id}`,
-                    activity_type: 'dm',
-                    target_username: recipientUsername,
-                    message: message,
-                    metadata: {},
-                  status: execData.finished ? (execData.stoppedAt ? 'success' : 'failed') : 'pending' as 'success' | 'failed' | 'pending',
-                  created_at: execData.startedAt || execData.createdAt || new Date().toISOString(),
-                  isN8nExecution: true,
-                  executionData: execData,
-                } as Activity;
-                }
-                // Return basic execution data if detailed execution data is not available
-                // Try to extract from basic exec structure
-                let basicUsername = 'Unknown';
-                let basicMessage = 'Workflow execution';
-                
-                if (exec.data?.resultData?.runData?.['HTTP Request']?.[0]?.data?.main?.[0]?.[0]?.json?.username) {
-                  basicUsername = exec.data.resultData.runData['HTTP Request'][0].data.main[0][0].json.username;
-                } else if (exec.data?.resultData?.runData?.['HTTP Request']?.[0]?.data?.json?.username) {
-                  basicUsername = exec.data.resultData.runData['HTTP Request'][0].data.json.username;
-                } else {
-                  basicUsername = exec.data?.sender_name || exec.data?.from?.username || 'Unknown';
-                }
-                
-                // Extract message from body.entry[0].messaging[0].message.text
-                const webhookDataBasic = exec.data?.resultData?.runData?.['Instagram Webhook']?.[0]?.data?.main?.[0]?.[0]?.json;
-                if (webhookDataBasic?.body?.entry?.[0]?.messaging?.[0]?.message?.text) {
-                  basicMessage = webhookDataBasic.body.entry[0].messaging[0].message.text;
-                } else if (webhookDataBasic?.body?.entry?.[0]?.changes?.[0]?.value?.text) {
-                  basicMessage = webhookDataBasic.body.entry[0].changes[0].value.text;
-                } else {
-                  basicMessage = exec.data?.message || exec.data?.text || 'Workflow execution';
-                }
-                
-                return {
-                  id: `n8n-${exec.id}`,
-                  activity_type: 'dm',
-                  target_username: basicUsername,
-                  message: basicMessage,
-                  metadata: {},
-                  status: exec.finished ? (exec.stoppedAt ? 'success' : 'failed') : 'pending' as 'success' | 'failed' | 'pending',
-                  created_at: exec.startedAt || exec.createdAt || new Date().toISOString(),
-                  isN8nExecution: true,
-                  executionData: exec,
-                } as Activity;
-              } catch (execErr) {
-                console.error(`Error fetching detailed execution ${exec.id}:`, execErr);
-                // Return basic execution data if detailed fetch fails
-                // Try to extract from basic exec structure
-                let basicUsername = 'Unknown';
-                let basicMessage = 'Workflow execution';
-                
-                if (exec.data?.resultData?.runData?.['HTTP Request']?.[0]?.data?.main?.[0]?.[0]?.json?.username) {
-                  basicUsername = exec.data.resultData.runData['HTTP Request'][0].data.main[0][0].json.username;
-                } else if (exec.data?.resultData?.runData?.['HTTP Request']?.[0]?.data?.json?.username) {
-                  basicUsername = exec.data.resultData.runData['HTTP Request'][0].data.json.username;
-                } else {
-                  basicUsername = exec.data?.sender_name || exec.data?.from?.username || 'Unknown';
-                }
-                
-                // Extract message from body.entry[0].messaging[0].message.text
-                const webhookDataError = exec.data?.resultData?.runData?.['Instagram Webhook']?.[0]?.data?.main?.[0]?.[0]?.json;
-                if (webhookDataError?.body?.entry?.[0]?.messaging?.[0]?.message?.text) {
-                  basicMessage = webhookDataError.body.entry[0].messaging[0].message.text;
-                } else if (webhookDataError?.body?.entry?.[0]?.changes?.[0]?.value?.text) {
-                  basicMessage = webhookDataError.body.entry[0].changes[0].value.text;
-                } else {
-                  basicMessage = exec.data?.message || exec.data?.text || 'Workflow execution';
-                }
-                
-                return {
-                  id: `n8n-${exec.id}`,
-                  activity_type: 'dm',
-                  target_username: basicUsername,
-                  message: basicMessage,
-                  metadata: {},
-                  status: exec.finished ? (exec.stoppedAt ? 'success' : 'failed') : 'pending' as 'success' | 'failed' | 'pending',
-                  created_at: exec.startedAt || exec.createdAt || new Date().toISOString(),
-                  isN8nExecution: true,
-                  executionData: exec,
-                } as Activity;
-              }
-            });
-
-            const executionDetails = await Promise.all(executionDetailsPromises);
-            n8nExecutions = executionDetails.filter((exec): exec is Activity => exec !== null);
+            const rawN8n = executionsResult.executions.map((exec: any) => ({
+              id: `n8n-${exec.id}`,
+              activity_type: 'dm',
+              target_username: 'Unknown', // Default, will filter mostly
+              message: exec.data?.message || exec.data?.text || 'Workflow execution',
+              metadata: { source: 'n8n' },
+              status: exec.finished ? (exec.stoppedAt ? 'success' : 'failed') : 'pending',
+              created_at: exec.startedAt || exec.createdAt || new Date().toISOString(),
+              isN8nExecution: true
+            }));
+            n8nExecutions = rawN8n;
           }
-        } catch (n8nError) {
-          console.error('Error fetching n8n executions:', n8nError);
+        } catch (e) {
+          console.error(e);
         }
       }
+
+      // Merge: Prefer DB activities. Only add N8n activity if it's significantly different timestamp
+      const dbTimestamps = new Set((activitiesData || []).map(a => new Date(a.created_at).getTime()));
+
+      const uniqueN8n = n8nExecutions.filter(n8n => {
+        const n8nTime = new Date(n8n.created_at).getTime();
+        // Check if any DB activity is within 5 seconds - if so, assume DB record covers it
+        for (const dbTime of dbTimestamps) {
+          if (Math.abs(dbTime - n8nTime) < 5000) return false;
+        }
+        return true;
+      });
 
       // Combine and sort all activities
       const allActivities = [
         ...(activitiesData || []),
-        ...n8nExecutions
+        ...uniqueN8n
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-      setActivities(allActivities);
+      setActivities(allActivities as Activity[]);
     } catch (error) {
       console.error('Error fetching automation activities:', error);
     } finally {
@@ -409,61 +264,57 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
               </h3>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-4">
               {activities.map((activity) => {
                 const config = activityConfig[activity.activity_type as keyof typeof activityConfig] || activityConfig.dm;
                 const StatusIcon = statusConfig[activity.status].icon;
                 const Icon = config.icon;
 
+                // Determine direction
+                const isIncoming = ['incoming_message', 'incoming_comment', 'incoming_event', 'comment', 'dm'].includes(activity.activity_type) || activity.metadata?.direction === 'inbound';
+                // Helper to check if it's a "reply" action (outgoing)
+                const isReply = ['reply', 'dm_sent', 'reply_to_comment', 'send_dm'].includes(activity.activity_type);
+
                 return (
-                  <div
-                    key={activity.id}
-                    className="bg-white rounded-xl border-2 border-gray-200 p-4 hover:shadow-lg hover:border-blue-300 transition-all"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className={`${config.bg} p-3 rounded-xl flex-shrink-0 shadow-sm`}>
-                        <Icon className={`w-6 h-6 ${config.color}`} />
+                  <div key={activity.id} className={`flex flex-col ${isReply ? 'items-end' : 'items-start'}`}>
+
+                    <div className={`max-w-[70%] rounded-xl border p-4 hover:shadow-lg transition-all 
+                        ${isReply ? 'bg-blue-50 border-blue-200 rounded-tr-none' : 'bg-white border-gray-200 rounded-tl-none'}`}>
+
+                      <div className="flex items-center gap-3 mb-3 border-b border-black/5 pb-2">
+                        <div className={`p-2 rounded-lg ${config.bg}`}>
+                          <Icon className={`w-4 h-4 ${config.color}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-bold ${config.color}`}>{config.label}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <div className="w-4 h-4 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-[10px] font-bold">
+                              {(isReply ? 'QR' : activity.target_username[0])?.toUpperCase()}
+                            </div>
+                            <span className="text-xs font-semibold text-gray-900 truncate">@{isReply ? 'QuickRevert' : activity.target_username}</span>
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-gray-400 whitespace-nowrap ml-2">{formatTimeAgo(activity.created_at)}</span>
                       </div>
 
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className={`text-sm font-bold ${config.color}`}>{config.label}</span>
-                          <div className={`flex items-center gap-1 px-2 py-1 rounded-full ${statusConfig[activity.status].bg}`}>
-                            <StatusIcon className={`w-3.5 h-3.5 ${statusConfig[activity.status].color}`} />
-                            <span className={`text-xs font-semibold ${statusConfig[activity.status].color} capitalize`}>
-                              {activity.status}
-                            </span>
-                          </div>
-                          <span className="text-xs text-gray-400 ml-auto font-medium">{formatTimeAgo(activity.created_at)}</span>
+                      {activity.message && (
+                        <div className="mb-3">
+                          <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+                            {activity.message}
+                          </p>
                         </div>
+                      )}
 
-                        <div className="flex items-center gap-2 mb-3">
-                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold shadow-sm">
-                            {activity.target_username[0].toUpperCase()}
-                          </div>
-                          <span className="text-sm font-semibold text-gray-900">@{activity.target_username}</span>
+                      <div className="flex items-center justify-between gap-4 mt-1 border-t border-black/5 pt-2">
+                        <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full ${statusConfig[activity.status].bg}`}>
+                          <StatusIcon className={`w-3 h-3 ${statusConfig[activity.status].color}`} />
+                          <span className={`text-[10px] font-semibold ${statusConfig[activity.status].color} capitalize`}>
+                            {activity.status}
+                          </span>
                         </div>
-
-                        {activity.message && (
-                          <div className="bg-gray-50 rounded-xl p-3 border border-gray-200 mb-3">
-                            <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{activity.message}</p>
-                          </div>
-                        )}
-
-                        <div className="flex items-center gap-4 text-xs">
-                          {activity.metadata.following !== undefined && (
-                            <span className={`flex items-center gap-1 font-medium ${activity.metadata.following ? 'text-green-600' : 'text-gray-500'}`}>
-                              {activity.metadata.following ? '✓ Following' : '○ Not following'}
-                            </span>
-                          )}
-                          {activity.metadata.seen !== undefined && (
-                            <span className="text-gray-500 font-medium">
-                              Seen: {activity.metadata.seen ? 'Yes' : 'No'}
-                            </span>
-                          )}
-                          <span className="text-gray-400 ml-auto font-medium">{formatDateTime(activity.created_at)}</span>
-                        </div>
+                        <span className="text-[10px] text-gray-400">{formatDateTime(activity.created_at)}</span>
                       </div>
+
                     </div>
                   </div>
                 );

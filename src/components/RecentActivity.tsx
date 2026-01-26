@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MessageSquare, Reply, UserPlus, Mail, Send, CheckCircle2, XCircle, AlertCircle, Clock, MessageCircle } from 'lucide-react';
+import { MessageSquare, Reply, UserPlus, Mail, Send, CheckCircle2, XCircle, AlertCircle, Clock, ArrowDownLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { N8nWorkflowService } from '../lib/n8nService';
@@ -12,6 +12,7 @@ interface Activity {
   metadata: {
     seen?: boolean;
     following?: boolean;
+    direction?: 'inbound' | 'outbound';
     [key: string]: unknown;
   };
   status: 'success' | 'failed' | 'pending';
@@ -24,8 +25,9 @@ const activityConfig = {
   follow_request: { icon: UserPlus, label: 'Follow Request', color: 'text-purple-600', bg: 'bg-purple-50' },
   dm: { icon: Mail, label: 'User DM', color: 'text-orange-600', bg: 'bg-orange-50' },
   dm_sent: { icon: Send, label: 'DM Sent', color: 'text-pink-600', bg: 'bg-pink-50' },
-  incoming_message: { icon: MessageCircle, label: 'Incoming Recall', color: 'text-indigo-600', bg: 'bg-indigo-50' },
-  incoming_comment: { icon: MessageSquare, label: 'Incoming Comment', color: 'text-indigo-600', bg: 'bg-indigo-50' }
+  incoming_message: { icon: ArrowDownLeft, label: 'Received Message', color: 'text-gray-700', bg: 'bg-gray-100' },
+  incoming_comment: { icon: ArrowDownLeft, label: 'Received Comment', color: 'text-gray-700', bg: 'bg-gray-100' },
+  incoming_event: { icon: ArrowDownLeft, label: 'Received Event', color: 'text-gray-700', bg: 'bg-gray-100' },
 };
 
 const statusConfig = {
@@ -40,9 +42,9 @@ function formatTimeAgo(date: string) {
   const diffInSeconds = Math.floor((now.getTime() - activityDate.getTime()) / 1000);
 
   if (diffInSeconds < 60) return 'Just now';
-  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} min ago`;
-  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
-  return `${Math.floor(diffInSeconds / 86400)} days ago`;
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+  return `${Math.floor(diffInSeconds / 86400)}d ago`;
 }
 
 export default function RecentActivity() {
@@ -67,38 +69,50 @@ export default function RecentActivity() {
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(7);
+        .limit(10); // Fetch a bit more to ensure we have enough after merging
 
       if (activitiesError) throw activitiesError;
 
       // Fetch n8n executions
-      let n8nExecutions: any[] = [];
+      let n8nExecutions: Activity[] = [];
       try {
-        const executionsResult = await N8nWorkflowService.getExecutions(undefined, 7, user.id);
+        const executionsResult = await N8nWorkflowService.getExecutions(undefined, 10, user.id);
         if (executionsResult.executions) {
-          n8nExecutions = executionsResult.executions.map((exec: any) => ({
-            id: exec.id || `n8n-${exec.executionId}`,
+          const rawN8n = executionsResult.executions.map((exec: any) => ({
+            id: `n8n-${exec.id}`,
             activity_type: 'dm',
-            target_username: exec.data?.sender_name || exec.data?.from?.username || 'Unknown',
+            target_username: 'Unknown',
             message: exec.data?.message || exec.data?.text || 'Workflow execution',
-            metadata: {},
-            status: exec.finished ? (exec.stoppedAt ? 'success' : 'failed') : 'pending',
+            metadata: { source: 'n8n' },
+            status: exec.finished ? (exec.stoppedAt ? 'success' : 'failed') : 'pending' as 'success' | 'failed' | 'pending',
             created_at: exec.startedAt || exec.createdAt || new Date().toISOString(),
             isN8nExecution: true,
           }));
+          n8nExecutions = rawN8n;
         }
       } catch (n8nError) {
         console.error('Error fetching n8n executions:', n8nError);
       }
 
+      // Merge: Prefer DB activities
+      const dbTimestamps = new Set((automationActivities || []).map(a => new Date(a.created_at).getTime()));
+
+      const uniqueN8n = n8nExecutions.filter(n8n => {
+        const n8nTime = new Date(n8n.created_at).getTime();
+        for (const dbTime of dbTimestamps) {
+          if (Math.abs(dbTime - n8nTime) < 5000) return false;
+        }
+        return true;
+      });
+
       // Combine and sort activities
       const allActivities = [
         ...(automationActivities || []),
-        ...n8nExecutions
+        ...uniqueN8n
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        .slice(0, 7);
+        .slice(0, 7); // keep original limit for display
 
-      setActivities(allActivities);
+      setActivities(allActivities as Activity[]);
     } catch (error) {
       console.error('Error fetching activities:', error);
     } finally {
@@ -151,6 +165,9 @@ export default function RecentActivity() {
           const StatusIcon = statusConfig[activity.status].icon;
           const Icon = config.icon;
 
+          // Basic direction check for styling
+          const isReply = ['reply', 'dm_sent', 'reply_to_comment', 'send_dm'].includes(activity.activity_type);
+
           return (
             <div key={activity.id} className="border-b border-gray-100 pb-4 last:border-0 last:pb-0">
               <div className="flex items-start gap-3">
@@ -163,12 +180,14 @@ export default function RecentActivity() {
                     <StatusIcon className={`w-3.5 h-3.5 ${statusConfig[activity.status].color}`} />
                   </div>
 
-                  <p className="text-xs text-gray-600 mb-1">
-                    <span className="font-medium text-gray-900">@{activity.target_username}</span>
-                  </p>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <p className="text-xs text-gray-600">
+                      <span className="font-medium text-gray-900">@{isReply ? 'QuickRevert' : activity.target_username}</span>
+                    </p>
+                  </div>
 
                   {activity.message && (
-                    <p className="text-sm text-gray-700 mt-2 bg-gray-50 rounded-lg p-2 border border-gray-100">
+                    <p className="text-sm text-gray-700 mt-2 bg-gray-50 rounded-lg p-2 border border-gray-100 line-clamp-2">
                       {activity.message}
                     </p>
                   )}
@@ -177,11 +196,6 @@ export default function RecentActivity() {
                     {activity.metadata.following !== undefined && (
                       <span className={`flex items-center gap-1 ${activity.metadata.following ? 'text-green-600' : 'text-gray-500'}`}>
                         {activity.metadata.following ? '✓ I am following' : '○ Not following'}
-                      </span>
-                    )}
-                    {activity.metadata.seen !== undefined && (
-                      <span className="text-gray-500">
-                        Seen: {activity.metadata.seen ? 'Yes' : 'No'}
                       </span>
                     )}
                     <span className="text-gray-400 ml-auto">{formatTimeAgo(activity.created_at)}</span>
