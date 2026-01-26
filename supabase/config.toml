@@ -63,3 +63,6 @@ verify_jwt = false
 
 [functions."get-executions"]
 verify_jwt = false
+
+[functions."webhook-meta"]
+verify_jwt = false

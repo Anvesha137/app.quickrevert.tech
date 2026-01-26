@@ -12,8 +12,9 @@
     "start": "vite --host"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.57.4",
+    "@supabase/supabase-js": "^2.91.1",
     "lucide-react": "^0.344.0",
+    "node-fetch": "^3.3.2",
     "qrcode.react": "^4.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

@@ -16,62 +16,64 @@ Deno.serve(async (req: Request) => {
         const n8nApiKey = Deno.env.get("X-N8N-API-KEY")!;
 
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
-        const WORKFLOW_ID = "pyJre9NR0QzGz7rl";
 
-        // 1. Fetch Workflow JSON from n8n
-        const res = await fetch(`${n8nBaseUrl}/api/v1/workflows/${WORKFLOW_ID}`, {
-            headers: { "X-N8N-API-KEY": n8nApiKey }
-        });
+        // 1. Get All Active Routes
+        const { data: routes } = await supabase
+            .from('automation_routes')
+            .select('n8n_workflow_id, account_id')
+            .eq('is_active', true);
 
-        if (!res.ok) throw new Error(`n8n API Error: ${res.status}`);
-        const n8nWf = await res.json();
+        if (!routes || routes.length === 0) return new Response(JSON.stringify({ msg: "No active routes to sync" }), { headers: corsHeaders });
 
-        // 2. Extract Webhook Path
-        let userPath = null;
-        if (n8nWf && n8nWf.nodes) {
-            const webhookNode = n8nWf.nodes.find((n: any) => n.type.includes('webhook'));
-            if (webhookNode) {
-                userPath = webhookNode.parameters?.path;
+        const results = [];
+
+        // 2. Iterate and Sync
+        for (const route of routes) {
+            const wfId = route.n8n_workflow_id;
+            try {
+                // A. Fetch from n8n
+                const res = await fetch(`${n8nBaseUrl}/api/v1/workflows/${wfId}`, {
+                    headers: { "X-N8N-API-KEY": n8nApiKey }
+                });
+
+                if (!res.ok) {
+                    results.push({ id: wfId, status: "Failed to fetch from n8n", code: res.status });
+                    continue;
+                }
+                const n8nWf = await res.json();
+
+                // B. Extract Path
+                let n8nPath = null;
+                if (n8nWf.nodes) {
+                    const webhookNode = n8nWf.nodes.find((n: any) => n.type.includes('webhook') || n.type.includes('Webhook'));
+                    if (webhookNode) n8nPath = webhookNode.parameters?.path;
+                }
+
+                if (!n8nPath) {
+                    results.push({ id: wfId, status: "No Webhook Node found in n8n" });
+                    continue;
+                }
+
+                // C. Update DB
+                const { error: updateError } = await supabase
+                    .from('n8n_workflows')
+                    .update({ webhook_path: n8nPath })
+                    .eq('n8n_workflow_id', wfId);
+
+                if (updateError) {
+                    results.push({ id: wfId, status: "DB Update Failed", error: updateError });
+                } else {
+                    results.push({ id: wfId, status: "Synced", old_path: "overwritten", new_path: n8nPath });
+                }
+
+            } catch (e: any) {
+                results.push({ id: wfId, status: "Error", error: e.message });
             }
         }
 
-        if (!userPath) throw new Error("Could not find Webhook Path in n8n workflow. Is the node present?");
-
-        // 3. Find Correct User & Account
-        const { data: acc } = await supabase.from('instagram_accounts').select('user_id, id, instagram_user_id').eq('status', 'active').limit(1).single();
-        if (!acc) throw new Error("No active account");
-
-        // 4. Update DB to match User's Path
-        const { error: wfError } = await supabase.from('n8n_workflows').upsert({
-            user_id: acc.user_id,
-            n8n_workflow_id: WORKFLOW_ID,
-            n8n_workflow_name: n8nWf.name,
-            webhook_path: userPath, // <--- SYNC WITH USER
-            instagram_account_id: acc.id,
-            template: 'manual_sync',
-            variables: {}
-        }, { onConflict: 'n8n_workflow_id' });
-
-        if (wfError) throw wfError;
-
-        // 5. Restore Route
-        await supabase.from('automation_routes').delete().eq('n8n_workflow_id', WORKFLOW_ID);
-
-        const { error: routeError } = await supabase.from('automation_routes').insert({
-            user_id: acc.user_id,
-            account_id: acc.instagram_user_id,
-            event_type: 'messaging',
-            sub_type: null,
-            n8n_workflow_id: WORKFLOW_ID,
-            is_active: true
-        });
-
-        if (routeError) throw routeError;
-
         return new Response(JSON.stringify({
-            success: true,
-            msg: `Synced! Connected Router to User Path: ${userPath}`,
-            path: userPath
+            summary: "Sync Complete",
+            details: results
         }, null, 2), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
         });

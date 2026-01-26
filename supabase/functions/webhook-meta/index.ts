@@ -149,7 +149,17 @@ async function processEvent(body: any) {
                     continue;
                 }
 
-                await routeAndTrigger({ platform: object, account_id, event_type: 'changes', sub_type: change.field, payload: change, event_id: eventId });
+                const legacyEntry = { id: account_id, time: Date.now(), changes: [change] };
+
+                await routeAndTrigger({
+                    platform: object,
+                    account_id,
+                    event_type: 'changes',
+                    sub_type: change.field,
+                    payload: change,
+                    entry: [legacyEntry],
+                    event_id: eventId
+                });
             }
         }
     }

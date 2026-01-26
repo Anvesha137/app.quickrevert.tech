@@ -67,16 +67,27 @@ Deno.serve(async (req: Request) => {
           if (delError) console.error("Cleanup Error:", delError);
 
           // B. INSERT THIS ROUTE (Wildcard)
+          // B. INSERT ROUTES (Messaging + Comments)
           const { error: insError } = await supabase
             .from('automation_routes')
-            .insert({
-              account_id: metaId,
-              user_id: user.id,
-              n8n_workflow_id: workflowId,
-              event_type: 'messaging',
-              sub_type: null, // WILDCARD (Matches everything)
-              is_active: true
-            });
+            .insert([
+              {
+                account_id: metaId,
+                user_id: user.id,
+                n8n_workflow_id: workflowId,
+                event_type: 'messaging',
+                sub_type: null, // WILDCARD (Matches everything)
+                is_active: true
+              },
+              {
+                account_id: metaId,
+                user_id: user.id,
+                n8n_workflow_id: workflowId,
+                event_type: 'changes',
+                sub_type: null, // WILDCARD (Matches everything)
+                is_active: true
+              }
+            ]);
 
           if (insError) console.error("Insert Error:", insError);
           else console.log("Route Active (Concurrent Mode)");

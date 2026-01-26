@@ -190,14 +190,25 @@ Deno.serve(async (req: Request) => {
       // Allow multiple automations to run for this account.
 
       // 2. Insert New Route
-      const { error: routeError } = await supabase.from('automation_routes').insert({
-        user_id: user.id,
-        account_id: instagramAccount.instagram_user_id, // Meta ID
-        event_type: eventType,
-        sub_type: subType,
-        n8n_workflow_id: n8nResult.id, // Correct Column
-        is_active: true
-      });
+      // 2. Insert New Routes (Messaging + Comments)
+      const { error: routeError } = await supabase.from('automation_routes').insert([
+        {
+          user_id: user.id,
+          account_id: instagramAccount.instagram_user_id, // Meta ID
+          event_type: 'messaging',
+          sub_type: null, // WILDCARD
+          n8n_workflow_id: n8nResult.id, // Correct Column
+          is_active: true
+        },
+        {
+          user_id: user.id,
+          account_id: instagramAccount.instagram_user_id, // Meta ID
+          event_type: 'changes',
+          sub_type: null, // WILDCARD
+          n8n_workflow_id: n8nResult.id,
+          is_active: true
+        }
+      ]);
 
       if (routeError) console.error("Auto-Route Error:", routeError);
     }
