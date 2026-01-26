@@ -19,6 +19,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Force production domain if user lands on the old vercel domain (post-OAuth redirects included)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const { hostname, pathname, search, hash } = window.location;
+      // Check if we are on the Vercel domain
+      if (hostname.includes('vercel.app')) {
+        const target = `https://app.quickrevert.tech${pathname}${search}${hash}`;
+        console.log("Redirecting to production domain:", target);
+        window.location.replace(target);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
