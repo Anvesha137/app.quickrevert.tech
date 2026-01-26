@@ -193,10 +193,55 @@ Deno.serve(async (req: Request) => {
           });
         }
 
-        // Create Button Action Nodes (Auto-generated)
+        // Create Button Action Nodes (Linked to User-Configured Actions)
         postbackButtons.forEach((b: any, index: number) => {
-          const btnText = `You selected: ${b.title}`; // Default placeholder logic
+          // Find if there is a specific action defined for this button (matching title)
+          // We skip the *first* action (index 0) as it's the main DM trigger
+          const linkedAction = actions.find((a: any, i: number) => a.type === 'send_dm' && a.title === b.title && i > 0);
+
+          let btnText = `You selected: ${b.title}`; // Default placeholder
+          let btnImage = "";
+          let btnSubtitle = "";
+
+          if (linkedAction) {
+            btnText = linkedAction.title; // Use the title (e.g. "Explore Now") or msg content
+            // Actually, title is the header. Message text is usually subtitle/template.
+            // Let's use subtitle/template for the text body if available, else title.
+            const bodyText = linkedAction.subtitle || linkedAction.messageTemplate || linkedAction.title;
+            btnText = bodyText;
+            btnImage = linkedAction.imageUrl || "";
+            // If the linked action has its OWN buttons, we should ideally handle them too (Recursion?)
+            // For V1, we just handle the text/image response.
+          }
+
           const recipientLogic = `"id": "{{ $json.body.payload.sender.id }}"`;
+
+          const jsonBodyObj: any = {
+            recipient: { id: `{{ $json.body.payload.sender.id }}` },
+            message: { text: btnText.replace(/"/g, '\\"') }
+          };
+
+          // Add Image/Generic Template if image exists
+          if (btnImage) {
+            // Complex structure needed for Image + Text (Generic Template)
+            // Start simple: If image, send as Generic Template
+            jsonBodyObj.message = {
+              attachment: {
+                type: "template",
+                payload: {
+                  template_type: "generic",
+                  elements: [
+                    {
+                      title: linkedAction?.title || b.title,
+                      image_url: btnImage,
+                      subtitle: btnText,
+                      buttons: [] // Could map next-level buttons here if we wanted
+                    }
+                  ]
+                }
+              }
+            };
+          }
 
           nodes.push({
             id: `act-btn-${index}`, name: `Send DM - ${b.title}`, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3,
@@ -206,10 +251,7 @@ Deno.serve(async (req: Request) => {
               url: `=https://graph.instagram.com/v24.0/me/messages`,
               authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
               sendBody: true, specifyBody: "json",
-              jsonBody: `={
-                  "recipient": { ${recipientLogic} },
-                  "message": { "text": "${btnText}" }
-                }`,
+              jsonBody: `=${JSON.stringify(jsonBodyObj, null, 2)}`,
               options: {}
             },
             credentials: { facebookGraphApi: { id: credentialId } }

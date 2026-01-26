@@ -139,10 +139,31 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
     if (field === 'action' && value === 'web_url' && newButtons[buttonIndex].url === 'calendar') {
       newButtons[buttonIndex].url = '';
     }
-    // If action is changed to postback, clear url
+    // If action is changed to postback, clear url AND auto-add a linked action
     if (field === 'action' && value === 'postback') {
       newButtons[buttonIndex].url = '';
+
+      // Auto-create a follow-up action for this button
+      const buttonText = newButtons[buttonIndex].text || `Button ${buttonIndex + 1}`;
+      const newAction: SendDmAction = {
+        type: 'send_dm',
+        title: buttonText,
+        imageUrl: '',
+        subtitle: '',
+        messageTemplate: '',
+        actionButtons: [],
+      };
+
+      // We need to update the actions list with BOTH the button update AND the new action
+      const updatedSourceAction = { ...action, actionButtons: newButtons };
+      const newActionsList = [...actions];
+      newActionsList[actionIndex] = updatedSourceAction;
+      newActionsList.push(newAction);
+
+      onActionsChange(newActionsList);
+      return; // Return early since we handled the update call
     }
+
     updateAction(actionIndex, {
       ...action,
       actionButtons: newButtons,
@@ -393,7 +414,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                     />
                     <p className="mt-1 text-xs text-gray-500">The title that appears at the top of the message card</p>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-900 mb-2">
                       Image URL
@@ -407,7 +428,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                     />
                     <p className="mt-1 text-xs text-gray-500">URL of the image to display in the message card</p>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-900 mb-2">
                       Subtitle
@@ -424,7 +445,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                     />
                     <p className="mt-1 text-xs text-gray-500">The main message text that appears below the title (optional)</p>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-900 mb-2">
                       Action Buttons ({(action as SendDmAction).actionButtons.length}/3)
