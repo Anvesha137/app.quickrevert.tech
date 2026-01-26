@@ -92,11 +92,156 @@ Deno.serve(async (req: Request) => {
       });
       nodeX += 300;
 
-      // 2. Actions (Directly connected)
+      let previousNode = "Worker Webhook"; // Connect directly to Webhook
+
+      // 1.5 Switch Node Logic (Exclusive for keyword_dm)
+      if (triggerType === 'keyword_dm') {
+        const keywordString = automationData?.trigger_config?.keyword || "";
+        const keywords = keywordString.split(',').map((k: string) => k.trim()).filter((k: string) => k);
+        const postbackButtons: any[] = [];
+
+        // Check for buttons in the Main DM Action (Frontend uses 'actionButtons')
+        const sendDmAction = actions.find((a: any) => a.type === 'send_dm');
+        if (sendDmAction && sendDmAction.actionButtons) {
+          sendDmAction.actionButtons.forEach((b: any) => {
+            // Frontend: { text, url, action? }
+            // We default to 'postback' if action is 'postback' OR if no URL is provided
+            const btnType = b.action || (b.url ? 'web_url' : 'postback');
+
+            if (btnType === 'postback') {
+              postbackButtons.push({
+                type: 'postback',
+                title: b.text,
+                payload: b.text // Use text as payload since frontend doesn't have specific payload field
+              });
+            }
+          });
+        }
+
+        // Build Switch Rules & Output Mapping
+        const rules: any[] = [];
+        const outputTargets: string[] = []; // Tracks which Node ID each rule points to
+
+        // A. Keywords -> Main Action
+        keywords.forEach((k: string, index: number) => {
+          rules.push({
+            conditions: {
+              options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
+              conditions: [{
+                id: `kw-${index}`,
+                leftValue: "={{ $json.body.entry[0].messaging[0].message.text }}",
+                rightValue: k,
+                operator: { type: "string", operation: "contains" }
+              }],
+              combinator: "and"
+            },
+            renameOutput: true,
+            outputKey: k
+          });
+          outputTargets.push("act-send-dm"); // Main Action
+        });
+
+        // B. Postbacks -> Specific Button Actions
+        postbackButtons.forEach((b: any, index: number) => {
+          rules.push({
+            conditions: {
+              options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
+              conditions: [{
+                id: `pb-${index}`,
+                leftValue: "={{ $json.body.entry[0].messaging[0].postback.payload }}",
+                rightValue: b.payload,
+                operator: { type: "string", operation: "equals", name: "filter.operator.equals" }
+              }],
+              combinator: "and"
+            },
+            renameOutput: true,
+            outputKey: b.title
+          });
+          outputTargets.push(`act-btn-${index}`); // New Button Node
+        });
+
+        // Add Switch Node
+        nodes.push({
+          id: "message-switch", name: "Message Switch",
+          type: "n8n-nodes-base.switch", typeVersion: 3.3,
+          position: [nodeX, 300],
+          parameters: { rules: { values: rules }, options: { ignoreCase: true } }
+        });
+        nodeX += 400; // Move right significantly
+
+        // Create Main Action Node (Configured by User)
+        // Note: Reusing the standard DM creation logic but manually placing it
+        if (sendDmAction) {
+          const text = sendDmAction.title || "Hello!";
+          // Recipient Logic for DM
+          const recipientLogic = `"id": "{{ $json.body.payload.sender.id }}"`;
+
+          nodes.push({
+            id: "act-send-dm", name: "Send DM", type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [nodeX, 200], // Upper track
+            parameters: {
+              method: "POST",
+              url: `=https://graph.instagram.com/v24.0/me/messages`,
+              authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
+              sendBody: true, specifyBody: "json",
+              jsonBody: `={
+                  "recipient": { ${recipientLogic} },
+                  "message": { "text": "${text.replace(/"/g, '\\"')}" }
+                }`,
+              options: {}
+            },
+            credentials: { facebookGraphApi: { id: credentialId } }
+          });
+        }
+
+        // Create Button Action Nodes (Auto-generated)
+        postbackButtons.forEach((b: any, index: number) => {
+          const btnText = `You selected: ${b.title}`; // Default placeholder logic
+          const recipientLogic = `"id": "{{ $json.body.payload.sender.id }}"`;
+
+          nodes.push({
+            id: `act-btn-${index}`, name: `Send DM - ${b.title}`, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3,
+            position: [nodeX, 400 + (index * 150)], // Lower tracks, stacked
+            parameters: {
+              method: "POST",
+              url: `=https://graph.instagram.com/v24.0/me/messages`,
+              authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
+              sendBody: true, specifyBody: "json",
+              jsonBody: `={
+                  "recipient": { ${recipientLogic} },
+                  "message": { "text": "${btnText}" }
+                }`,
+              options: {}
+            },
+            credentials: { facebookGraphApi: { id: credentialId } }
+          });
+        });
+
+        // Manual Connections for Branching
+        const connections: any = {
+          "Worker Webhook": { main: [[{ node: "Message Switch", type: "main", index: 0 }]] },
+          "Message Switch": { main: [] }
+        };
+
+        // Map Switch Outputs -> Target Nodes
+        // switchOutputs order corresponds to 'rules' array order
+        rules.forEach((_, i) => {
+          const targetId = outputTargets[i];
+          const targetNode = nodes.find(n => n.id === targetId);
+          if (targetNode) {
+            connections["Message Switch"].main.push([
+              { node: targetNode.name, type: "main", index: 0 }
+            ]);
+          } else {
+            connections["Message Switch"].main.push([]); // Empty branch if targets missing
+          }
+        });
+
+        return { name: finalWorkflowName, nodes, connections, settings: { saveExecutionProgress: true, timezone: "Asia/Kolkata" } };
+      }
+
+      // 2. Actions (Directly connected) - For non-keyword_dm triggers
       const sendDmAction = actions.find((a: any) => a.type === 'send_dm');
       const replyCommentAction = actions.find((a: any) => a.type === 'reply_to_comment');
-
-      let previousNode = "Worker Webhook"; // Connect directly to Webhook
 
       if (triggerType === 'comments' && replyCommentAction) {
         const text = replyCommentAction.text || "Thanks!";

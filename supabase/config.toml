@@ -66,3 +66,6 @@ verify_jwt = false
 
 [functions."webhook-meta"]
 verify_jwt = false
+
+[functions."debug-db"]
+verify_jwt = false

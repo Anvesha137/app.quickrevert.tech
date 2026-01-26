@@ -12,68 +12,45 @@ Deno.serve(async (req: Request) => {
     try {
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
         const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-        const n8nBaseUrl = Deno.env.get("N8N_BASE_URL")!;
-        const n8nApiKey = Deno.env.get("X-N8N-API-KEY")!;
-
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-        // 1. Get All Active Routes
-        const { data: routes } = await supabase
+        const limit = 5;
+
+        // 1. Last 5 Routes
+        const { data: routes, error: routeError } = await supabase
             .from('automation_routes')
-            .select('n8n_workflow_id, account_id')
-            .eq('is_active', true);
+            .select(`
+                id, account_id, event_type, n8n_workflow_id, is_active, created_at
+            `)
+            .order('created_at', { ascending: false })
+            .limit(limit);
 
-        if (!routes || routes.length === 0) return new Response(JSON.stringify({ msg: "No active routes to sync" }), { headers: corsHeaders });
+        // 2. Last 5 Failed Events
+        const { data: failures, error: failError } = await supabase
+            .from('failed_events')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(limit);
 
-        const results = [];
+        // 3. Last 5 Workflows
+        const { data: workflows, error: wfError } = await supabase
+            .from('n8n_workflows')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(limit);
 
-        // 2. Iterate and Sync
-        for (const route of routes) {
-            const wfId = route.n8n_workflow_id;
-            try {
-                // A. Fetch from n8n
-                const res = await fetch(`${n8nBaseUrl}/api/v1/workflows/${wfId}`, {
-                    headers: { "X-N8N-API-KEY": n8nApiKey }
-                });
-
-                if (!res.ok) {
-                    results.push({ id: wfId, status: "Failed to fetch from n8n", code: res.status });
-                    continue;
-                }
-                const n8nWf = await res.json();
-
-                // B. Extract Path
-                let n8nPath = null;
-                if (n8nWf.nodes) {
-                    const webhookNode = n8nWf.nodes.find((n: any) => n.type.includes('webhook') || n.type.includes('Webhook'));
-                    if (webhookNode) n8nPath = webhookNode.parameters?.path;
-                }
-
-                if (!n8nPath) {
-                    results.push({ id: wfId, status: "No Webhook Node found in n8n" });
-                    continue;
-                }
-
-                // C. Update DB
-                const { error: updateError } = await supabase
-                    .from('n8n_workflows')
-                    .update({ webhook_path: n8nPath })
-                    .eq('n8n_workflow_id', wfId);
-
-                if (updateError) {
-                    results.push({ id: wfId, status: "DB Update Failed", error: updateError });
-                } else {
-                    results.push({ id: wfId, status: "Synced", old_path: "overwritten", new_path: n8nPath });
-                }
-
-            } catch (e: any) {
-                results.push({ id: wfId, status: "Error", error: e.message });
-            }
-        }
+        // 4. Last 5 Instagram Accounts
+        const { data: accounts, error: accError } = await supabase
+            .from('instagram_accounts')
+            .select('id, username, instagram_user_id, user_id')
+            .order('created_at', { ascending: false })
+            .limit(limit);
 
         return new Response(JSON.stringify({
-            summary: "Sync Complete",
-            details: results
+            routes: routes || routeError,
+            failures: failures || failError,
+            workflows: workflows || wfError,
+            accounts: accounts || accError
         }, null, 2), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
         });

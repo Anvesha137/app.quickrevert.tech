@@ -48,17 +48,30 @@ Deno.serve(async (req: Request) => {
     const n8nBaseUrl = Deno.env.get("N8N_BASE_URL");
     const n8nApiKey = Deno.env.get("X-N8N-API-KEY");
 
-    // 2. ROUTE MANAGEMENT (The Critical Fix)
+    // 2. ROUTE MANAGEMENT (Multi-ID Fix)
     if (existingWf.instagram_account_id) {
-      const { data: acc } = await supabase.from('instagram_accounts').select('instagram_user_id').eq('id', existingWf.instagram_account_id).single();
+      // Fetch the specific account linked to this workflow
+      const { data: sourceAcc } = await supabase
+        .from('instagram_accounts')
+        .select('username, instagram_user_id')
+        .eq('id', existingWf.instagram_account_id)
+        .single();
 
-      if (acc) {
-        const metaId = acc.instagram_user_id;
+      if (sourceAcc) {
+        // Fetch ALL accounts with this username for this user (handles duplicates/ID changes)
+        // This ensures if Meta sends events to OD '1784...' but we stored '2540...', we catch both.
+        // We REMOVED user_id filter to catch IDs from previous/other accounts if the username matches.
+        const { data: allAccounts } = await supabase
+          .from('instagram_accounts')
+          .select('instagram_user_id')
+          .eq('username', sourceAcc.username);
+
+        const targetIds = allAccounts?.map((a: any) => a.instagram_user_id) || [sourceAcc.instagram_user_id];
+        const uniqueIds = [...new Set(targetIds)]; // Deduplicate
 
         if (shouldActivate) {
           // ACTIVATE:
-          // A. Clean up Previous Versions of THIS Workflow only
-          // Allow other workflows to exist concurrently (Multi-Tenancy)
+          // A. Clean up Previous Versions
           const { error: delError } = await supabase
             .from('automation_routes')
             .delete()
@@ -66,31 +79,35 @@ Deno.serve(async (req: Request) => {
 
           if (delError) console.error("Cleanup Error:", delError);
 
-          // B. INSERT THIS ROUTE (Wildcard)
-          // B. INSERT ROUTES (Messaging + Comments)
-          const { error: insError } = await supabase
-            .from('automation_routes')
-            .insert([
-              {
-                account_id: metaId,
-                user_id: user.id,
-                n8n_workflow_id: workflowId,
-                event_type: 'messaging',
-                sub_type: null, // WILDCARD (Matches everything)
-                is_active: true
-              },
-              {
-                account_id: metaId,
-                user_id: user.id,
-                n8n_workflow_id: workflowId,
-                event_type: 'changes',
-                sub_type: null, // WILDCARD (Matches everything)
-                is_active: true
-              }
-            ]);
+          // B. INSERT ROUTES (Messaging + Comments) FOR ALL IDs
+          const newRoutes = [];
+          for (const metaId of uniqueIds) {
+            newRoutes.push({
+              account_id: metaId,
+              user_id: user.id,
+              n8n_workflow_id: workflowId,
+              event_type: 'messaging',
+              sub_type: null,
+              is_active: true
+            });
+            newRoutes.push({
+              account_id: metaId,
+              user_id: user.id,
+              n8n_workflow_id: workflowId,
+              event_type: 'changes',
+              sub_type: null,
+              is_active: true
+            });
+          }
 
-          if (insError) console.error("Insert Error:", insError);
-          else console.log("Route Active (Concurrent Mode)");
+          if (newRoutes.length > 0) {
+            const { error: insError } = await supabase
+              .from('automation_routes')
+              .insert(newRoutes);
+
+            if (insError) console.error("Insert Error:", insError);
+            else console.log(`Routes Active for ${uniqueIds.length} IDs: ${uniqueIds.join(', ')}`);
+          }
 
         } else {
           // DEACTIVATE
