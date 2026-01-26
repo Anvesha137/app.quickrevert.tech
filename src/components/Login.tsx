@@ -4,13 +4,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { TermsOfServiceModal, PrivacyPolicyModal } from './LegalModals';
 
 export default function Login() {
-  const { signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
+  const { signInWithGoogle, signInWithEmail } = useAuth();
   const [loading, setLoading] = useState<'google' | 'email' | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isSignUp, setIsSignUp] = useState(false); // Default to Sign In
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
 
   // Modal States
   const [showTerms, setShowTerms] = useState(false);
@@ -35,23 +33,13 @@ export default function Login() {
       return;
     }
 
-    if (isSignUp && !fullName) {
-      setError('Please enter your full name');
-      return;
-    }
-
     try {
       setLoading('email');
       setError(null);
-
-      if (isSignUp) {
-        await signUpWithEmail(email, password, fullName);
-      } else {
-        await signInWithEmail(email, password);
-      }
+      await signInWithEmail(email, password);
     } catch (err: any) {
       console.error('Auth error:', err);
-      const errorMessage = err.message || err.error_description || `Failed to ${isSignUp ? 'sign up' : 'sign in'}. Please try again.`;
+      const errorMessage = err.message || err.error_description || 'Failed to sign in. Please try again.';
       setError(errorMessage);
       setLoading(null);
     }
@@ -70,23 +58,6 @@ export default function Login() {
 
         <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8">
           <form onSubmit={handleEmailSubmit} className="space-y-4">
-            {isSignUp && (
-              <div>
-                <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-2">
-                  Full Name
-                </label>
-                <input
-                  id="fullName"
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="John Doe"
-                  disabled={loading !== null}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                />
-              </div>
-            )}
-
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
                 Email
@@ -127,10 +98,8 @@ export default function Login() {
               ) : (
                 <Mail className="w-5 h-5" />
               )}
-              <span>{isSignUp ? 'Sign Up' : 'Sign In'} with Email</span>
+              <span>Sign In with Email</span>
             </button>
-
-            {/* Removed Sign Up Toggle as per request */}
           </form>
 
           <div className="relative my-6">
@@ -202,14 +171,13 @@ export default function Login() {
 
         <div className="mt-8 text-center">
           <p className="text-sm text-gray-600">
-            Need help? <a href="https://quickrevert.tech/contact" className="text-blue-600 hover:text-blue-700 font-medium">Contact support</a>
+            Need help? <a href="https://quickrevert.tech/contact" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 font-medium">Contact support</a>
           </p>
         </div>
       </div>
 
-      {/* Modals */}
       <TermsOfServiceModal isOpen={showTerms} onClose={() => setShowTerms(false)} />
       <PrivacyPolicyModal isOpen={showPrivacy} onClose={() => setShowPrivacy(false)} />
-    </div >
+    </div>
   );
 }
