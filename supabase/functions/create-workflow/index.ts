@@ -72,7 +72,8 @@ Deno.serve(async (req: Request) => {
     };
     const credentialId = await ensureCredential();
 
-    const finalWorkflowName = workflowName || `Instagram Automation - ${instagramAccount.username} (${instagramAccount.instagram_user_id}) - ${new Date().toISOString().split('T')[0]}`;
+    const userProvidedName = workflowName || `Instagram Automation - ${new Date().toISOString().split('T')[0]}`;
+    const finalWorkflowName = `[${instagramAccount.username}] ${userProvidedName}`;
     const webhookPath = `instagram-webhook-${userId}-${automationId || Date.now()}`;
 
     // --- BUILDERS ---
