@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { AutomationFormData, TriggerType, TriggerConfig, Action } from '../types/automation';
+import { AutomationFormData, TriggerType, TriggerConfig, Action, ReplyToCommentAction, SendDmAction } from '../types/automation';
 import { N8nWorkflowService } from '../lib/n8nService';
 import BasicInfo from './automation-steps/BasicInfo';
 import TriggerSelection from './automation-steps/TriggerSelection';
@@ -23,7 +23,7 @@ export default function AutomationCreate() {
     triggerConfig: null,
     actions: [],
   });
-  
+
   useEffect(() => {
     checkInstagramAccount();
   }, [user]);
@@ -65,25 +65,25 @@ export default function AutomationCreate() {
       alert('You must be logged in to create an automation');
       return;
     }
-    
+
     if (!formData.name.trim()) {
       console.error('Automation name is required');
       alert('Please provide a name for your automation');
       return;
     }
-    
+
     if (!formData.triggerType) {
       console.error('Trigger type is required');
       alert('Please select a trigger type');
       return;
     }
-    
+
     if (!formData.triggerConfig) {
       console.error('Trigger configuration is required');
       alert('Please configure your trigger');
       return;
     }
-    
+
     if (formData.actions.length === 0) {
       console.error('At least one action is required');
       alert('Please add at least one action to your automation');
@@ -101,7 +101,7 @@ export default function AutomationCreate() {
         actions: formData.actions,
         status: 'inactive',
       });
-      
+
       // First, save the automation to Supabase
       const { data: automationData, error: automationError } = await supabase
         .from('automations')
@@ -122,15 +122,15 @@ export default function AutomationCreate() {
       // After successfully saving to Supabase, create the corresponding N8N workflow
       try {
         // Fetch Instagram account details
-          const { data: instagramAccount } = await supabase
-            .from('instagram_accounts')
+        const { data: instagramAccount } = await supabase
+          .from('instagram_accounts')
           .select('id, instagram_user_id, username')
-            .eq('user_id', user.id)
-            .eq('status', 'active')
+          .eq('user_id', user.id)
+          .eq('status', 'active')
           .order('connected_at', { ascending: false })
           .limit(1)
           .maybeSingle();
-              
+
         if (!instagramAccount) {
           console.warn('No active Instagram account found for user. Workflow will not be created.');
           alert('Warning: Automation saved but no Instagram account found. Please connect an Instagram account to create workflows.');
@@ -140,7 +140,14 @@ export default function AutomationCreate() {
 
         // Create workflow using the service
         const workflowName = `${formData.name.trim()} - ${new Date().toISOString().split('T')[0]}`;
-        
+
+        const replyAction = formData.actions.find(a => a.type === 'reply_to_comment') as ReplyToCommentAction | undefined;
+        const replyMessage = replyAction?.replyTemplates?.[0] || 'Thanks for your comment!';
+
+        const dmAction = formData.actions.find(a => a.type === 'send_dm') as SendDmAction | undefined;
+        const dmTitle = dmAction?.title || 'Hi there!';
+        const dmImage = dmAction?.imageUrl || '';
+
         const result = await N8nWorkflowService.createWorkflow({
           template: 'instagram_automation_v1',
           instagramAccountId: instagramAccount.id,
@@ -148,12 +155,15 @@ export default function AutomationCreate() {
           automationId: automationData.id,
           variables: {
             brandName: 'QuickRevert',
+            replyMessage: replyMessage,
+            dmTitle: dmTitle,
+            dmImageUrl: dmImage,
           },
           autoActivate: false,
         }, user.id);
 
         console.log('N8N workflow created successfully:', result);
-        
+
         // The workflow mapping is already stored by the backend function
         // No need to store it again here
       } catch (n8nError: any) {
@@ -203,22 +213,20 @@ export default function AutomationCreate() {
               return (
                 <div key={step.id} className="flex flex-col items-center relative">
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${
-                      isCompleted
-                        ? 'bg-blue-600 text-white'
-                        : isActive
+                    className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${isCompleted
+                      ? 'bg-blue-600 text-white'
+                      : isActive
                         ? 'bg-blue-600 text-white'
                         : isPast
-                        ? 'bg-blue-100 text-blue-600'
-                        : 'bg-white border-2 border-gray-300 text-gray-400'
-                    }`}
+                          ? 'bg-blue-100 text-blue-600'
+                          : 'bg-white border-2 border-gray-300 text-gray-400'
+                      }`}
                   >
                     {isCompleted ? <Check size={20} /> : index + 1}
                   </div>
                   <span
-                    className={`mt-2 text-sm font-medium ${
-                      isActive ? 'text-blue-600' : isPast ? 'text-gray-900' : 'text-gray-500'
-                    }`}
+                    className={`mt-2 text-sm font-medium ${isActive ? 'text-blue-600' : isPast ? 'text-gray-900' : 'text-gray-500'
+                      }`}
                   >
                     {step.name}
                   </span>
@@ -250,8 +258,8 @@ export default function AutomationCreate() {
                 } else {
                   defaultConfig = { messageType: 'all' };
                 }
-                setFormData({ 
-                  ...formData, 
+                setFormData({
+                  ...formData,
                   triggerType,
                   triggerConfig: defaultConfig
                 });
@@ -274,8 +282,8 @@ export default function AutomationCreate() {
                 } else {
                   defaultConfig = { messageType: 'all' };
                 }
-                setFormData({ 
-                  ...formData, 
+                setFormData({
+                  ...formData,
                   triggerType,
                   triggerConfig: defaultConfig
                 });
