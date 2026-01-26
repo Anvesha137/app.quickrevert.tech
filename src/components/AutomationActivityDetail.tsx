@@ -3,6 +3,7 @@ import { MessageSquare, Reply, UserPlus, Mail, Send, CheckCircle2, XCircle, Aler
 import { supabase } from '../lib/supabase';
 import { N8nWorkflowService } from '../lib/n8nService';
 import { useAuth } from '../contexts/AuthContext';
+import { extractN8nExecutionData } from '../lib/n8nHelpers';
 
 interface Activity {
   id: string;
@@ -132,23 +133,48 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
       let n8nExecutions: Activity[] = [];
       if (n8nWorkflowId) {
         try {
-          const executionsResult = await N8nWorkflowService.getExecutions(n8nWorkflowId, 50, user.id);
+          const executionsResult = await N8nWorkflowService.getExecutions(n8nWorkflowId, 100, user.id);
 
           if (executionsResult.executions && executionsResult.executions.length > 0) {
-            const rawN8n = executionsResult.executions.map((exec: any) => ({
-              id: `n8n-${exec.id}`,
-              activity_type: 'dm',
-              target_username: 'Unknown', // Default, will filter mostly
-              message: exec.data?.message || exec.data?.text || 'Workflow execution',
-              metadata: { source: 'n8n' },
-              status: exec.finished ? (exec.stoppedAt ? 'success' : 'failed') : 'pending',
-              created_at: exec.startedAt || exec.createdAt || new Date().toISOString(),
-              isN8nExecution: true
-            }));
-            n8nExecutions = rawN8n;
+            // Fetch detailed execution data for each execution
+            const executionDetailsPromises = executionsResult.executions.map(async (exec: any) => {
+              try {
+                // Get detailed execution data using getExecution
+                let execDetail = exec;
+                try {
+                  const detailedResult = await N8nWorkflowService.getExecution(exec.id, user.id);
+                  if (detailedResult.execution) {
+                    execDetail = detailedResult.execution;
+                  }
+                } catch (detailErr) {
+                  // fall back to basic
+                }
+
+                const { username, message } = extractN8nExecutionData(execDetail);
+
+                return {
+                  id: `n8n-${exec.id}`,
+                  activity_type: 'dm',
+                  target_username: username,
+                  message: message,
+                  metadata: { source: 'n8n' },
+                  status: execDetail.finished ? (execDetail.stoppedAt ? 'success' : 'failed') : 'pending',
+                  created_at: execDetail.startedAt || execDetail.createdAt || new Date().toISOString(),
+                  isN8nExecution: true,
+                  executionData: execDetail,
+                } as Activity;
+
+              } catch (execErr) {
+                console.error(`Error processing execution ${exec.id}:`, execErr);
+                return null;
+              }
+            });
+
+            const executionDetails = await Promise.all(executionDetailsPromises);
+            n8nExecutions = executionDetails.filter((exec): exec is Activity => exec !== null);
           }
-        } catch (e) {
-          console.error(e);
+        } catch (n8nError) {
+          console.error('Error fetching n8n executions:', n8nError);
         }
       }
 

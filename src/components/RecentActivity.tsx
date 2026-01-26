@@ -3,6 +3,7 @@ import { MessageSquare, Reply, UserPlus, Mail, Send, CheckCircle2, XCircle, Aler
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { N8nWorkflowService } from '../lib/n8nService';
+import { extractN8nExecutionData } from '../lib/n8nHelpers';
 
 interface Activity {
   id: string;
