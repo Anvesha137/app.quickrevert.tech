@@ -18,7 +18,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const url = new URL(req.url);
-    
+
     if (req.method === 'GET') {
       const mode = url.searchParams.get('hub.mode');
       const token = url.searchParams.get('hub.verify_token');
@@ -49,7 +49,7 @@ Deno.serve(async (req: Request) => {
       if (payload.object === 'instagram') {
         for (const entry of payload.entry) {
           const instagramUserId = entry.id;
-          
+
           const { data: instagramAccount, error: accountError } = await supabase
             .from('instagram_accounts')
             .select('id, user_id')
@@ -74,7 +74,7 @@ Deno.serve(async (req: Request) => {
               eventData = {
                 commentId: value.id,
                 commentText: value.text,
-                postId: value.media?.id,
+                postId: value.media?.id || (payload as any).payload?.value?.media?.id,
                 from: value.from,
                 timestamp: value.timestamp,
               };
@@ -97,7 +97,7 @@ Deno.serve(async (req: Request) => {
 
             if (triggerType) {
               const supabaseExecutorUrl = `${supabaseUrl}/functions/v1/execute-automation`;
-              
+
               await fetch(supabaseExecutorUrl, {
                 method: 'POST',
                 headers: {

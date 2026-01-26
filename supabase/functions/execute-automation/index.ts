@@ -104,6 +104,15 @@ Deno.serve(async (req: Request) => {
       const config = automation.trigger_config || {};
 
       if (triggerType === 'post_comment') {
+        // 1. Post Filter
+        if (config.postsType === 'specific') {
+          const allowedPosts = config.specificPosts || [];
+          if (!eventData.postId || !allowedPosts.includes(eventData.postId)) {
+            return false;
+          }
+        }
+
+        // 2. Comment Content Filter
         if (config.commentsType === 'keywords' && config.keywords && eventData.commentText) {
           const text = eventData.commentText.toLowerCase();
           return config.keywords.some((keyword: string) => text.includes(keyword.toLowerCase()));

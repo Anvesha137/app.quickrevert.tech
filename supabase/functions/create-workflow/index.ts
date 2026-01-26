@@ -379,7 +379,8 @@ Deno.serve(async (req: Request) => {
 
           const conditions = specificPosts.map((id: string, index: number) => ({
             id: `post-${index}`,
-            leftValue: "={{ $json.body.entry[0].changes[0].value.media.id }}",
+            // Robust path matching standard Meta and User observed structure
+            leftValue: "={{ $json.body.entry?.[0]?.changes?.[0]?.value?.media?.id || $json.body.payload?.value?.media?.id }}",
             rightValue: id,
             operator: { type: "string", operation: "equals" }
           }));
@@ -472,6 +473,7 @@ Deno.serve(async (req: Request) => {
           // Instagram Graph API Webhook structure for Comments
           commentIdPath = "{{ $json.body.entry[0].changes[0].value.id }}";
           senderIdPath = "{{ $json.body.entry[0].changes[0].value.from.id }}";
+          // User verified path: {{ $json.body.entry[0].changes[0].value.from.username }}
           usernamePath = "{{ $json.body.entry[0].changes[0].value.from.username }}";
         } else {
           // Default to DM structure (user_directed_messages / keyword_dm)
@@ -485,7 +487,8 @@ Deno.serve(async (req: Request) => {
         if (action.type === 'reply_to_comment') {
           nodeName = `Reply to Comment ${index + 1}`;
           // Fix 1: Add username mention and use user's text
-          const userText = action.text || "Thanks!";
+          // Fix 1: Add username mention and use user's text
+          const userText = action.replyTemplates?.[0] || action.text || "Thanks!";
           // We use the usernamePath we defined earlier
           const replyText = `@${usernamePath} ${userText}`;
 
