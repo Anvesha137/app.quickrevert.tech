@@ -303,7 +303,7 @@ async function executeAction(params: any) {
           elements: [
             {
               title: messageText,
-              subtitle: "Tap a button below", // Default subtitle as requested
+              subtitle: "Powered by Quickrevert.tech", // ALWAYS this subtitle
               buttons: buttons.slice(0, 3).map((btn: any) => {
                 if (btn.url) {
                   return { type: 'web_url', url: btn.url, title: btn.text };
