@@ -453,6 +453,42 @@ Deno.serve(async (req: Request) => {
           previousNode = "Comment Switch";
           nodeX += 300;
         }
+        // 1.7 Loop Protection Switch (Exclusive for post_comment)
+        // Debug Log
+        console.log('Building Workflow. Trigger Type:', triggerType, 'Account ID:', instagramAccount.instagram_user_id);
+
+        // Prevent infinite loops by checking if the commenter is the account owner
+        // We also check for 'comment' just in case? No, strict schema.
+        if (triggerType === 'post_comment') {
+          const rules = [
+            {
+              conditions: {
+                options: { caseSensitive: true, leftValue: "", typeValidation: "strict", version: 1 },
+                conditions: [
+                  {
+                    id: "loop-check-1",
+                    leftValue: "={{ $json.body.payload.value.from.id }}",
+                    rightValue: instagramAccount.instagram_user_id,
+                    operator: { type: "string", operation: "equals" }
+                  }
+                ],
+                combinator: "and"
+              }
+            }
+          ];
+
+          nodes.push({
+            id: "loop-protection-switch", name: "Loop Protection Switch",
+            type: "n8n-nodes-base.if", typeVersion: 2, // Using If node type
+            position: [nodeX, 300],
+            parameters: { conditions: { options: { caseSensitive: true, leftValue: "", typeValidation: "strict", version: 1 }, conditions: rules[0].conditions.conditions, combinator: "and" } }
+          });
+
+          // IMPORTANT: The user wants to continue ONLY if the condition is FALSE (Commenter != Owner)
+          // logic handled in wiring below
+          previousNode = "Loop Protection Switch";
+          nodeX += 300;
+        }
       }
 
       // 2. Actions Generation (Iterate through all configured actions)
@@ -609,6 +645,15 @@ Deno.serve(async (req: Request) => {
               switchConnections.push([{ node: target, type: "main", index: 0 }]);
             }
             connections[source] = { main: switchConnections };
+          } else if (source === "Loop Protection Switch") {
+            // Special Loop Protection: Connect FALSE output (index 1) to next node
+            // TRUE output (index 0) goes nowhere (STOP)
+            connections[source] = {
+              main: [
+                [], // True (Match) -> Stop
+                [{ node: target, type: "main", index: 0 }] // False (No Match) -> Continue
+              ]
+            };
           } else {
             // Standard linear connection
             connections[source] = { main: [[{ node: target, type: "main", index: 0 }]] };
