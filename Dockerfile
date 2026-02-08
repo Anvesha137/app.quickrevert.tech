@@ -14,8 +14,11 @@ RUN npm install
 COPY . .
 
 # Set environment variables and build the application
-ENV VITE_SUPABASE_URL=https://unwijhqoqvwztpbahlly.supabase.co
-ENV VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVud2lqaHFvcXZ3enRwYmFobGx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1OTg1NjgsImV4cCI6MjA4MzE3NDU2OH0.XxljpvAbv1kR0yWdRBDimBCkvXG0fnmQ0g-e4kJcowY
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
 
 # Build the application
 RUN npm run build
