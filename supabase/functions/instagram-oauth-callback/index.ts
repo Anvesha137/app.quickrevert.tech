@@ -70,11 +70,15 @@ Deno.serve(async (req: Request) => {
     longTokenUrl.searchParams.set('client_secret', instagramClientSecret);
     longTokenUrl.searchParams.set('access_token', shortLivedToken);
 
-    const longTokenResponse = await fetch(longTokenUrl.toString());
+    const longTokenResponse = await fetch(longTokenUrl.toString(), {
+      method: 'POST',
+    });
     const longTokenData = await longTokenResponse.json();
 
     if (!longTokenData.access_token) {
-      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Failed to get long-lived token')}`, 302);
+      console.error('Failed to get long-lived token:', longTokenData);
+      const errorMessage = longTokenData.error?.message || 'Failed to get long-lived token';
+      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent(errorMessage)}`, 302);
     }
 
     const accessToken = longTokenData.access_token;
