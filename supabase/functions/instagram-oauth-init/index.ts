@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
       .replace(/\//g, '_')
       .replace(/=/g, '');
 
-    const authUrl = new URL("https://www.facebook.com/v21.0/dialog/oauth");
+    const authUrl = new URL("https://www.instagram.com/oauth/authorize");
     authUrl.searchParams.set("client_id", INSTAGRAM_CLIENT_ID);
     authUrl.searchParams.set("redirect_uri", INSTAGRAM_REDIRECT_URI);
     authUrl.searchParams.set("response_type", "code");
@@ -59,11 +59,9 @@ Deno.serve(async (req) => {
     authUrl.searchParams.set(
       "scope",
       [
-        "pages_show_list",
-        "instagram_basic",
-        "instagram_manage_comments",
-        "instagram_manage_messages",
-        "pages_read_engagement"
+        "instagram_business_basic",
+        "instagram_business_manage_messages",
+        "instagram_business_manage_comments",
       ].join(",")
     );
 
