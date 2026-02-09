@@ -65,22 +65,17 @@ Deno.serve(async (req: Request) => {
     const shortLivedToken = tokenData.access_token;
     const instagramUserId = tokenData.user_id;
 
-    console.log('Exchanging short-lived token for long-lived token via POST...');
-    const longTokenUrl = 'https://graph.instagram.com/v22.0/access_token';
-    const longTokenBody = new URLSearchParams();
-    longTokenBody.append('grant_type', 'ig_exchange_token');
-    longTokenBody.append('client_secret', instagramClientSecret);
-    longTokenBody.append('access_token', shortLivedToken); // Ensure this is the USER access token
-    longTokenBody.append('client_id', INSTAGRAM_CLIENT_ID);
+    console.log('Exchanging short-lived token for long-lived token via GET...');
+    const longTokenUrl = new URL('https://graph.instagram.com/v22.0/access_token');
+    longTokenUrl.searchParams.set('grant_type', 'ig_exchange_token');
+    longTokenUrl.searchParams.set('client_secret', instagramClientSecret);
+    longTokenUrl.searchParams.set('access_token', shortLivedToken);
+    longTokenUrl.searchParams.set('client_id', INSTAGRAM_CLIENT_ID);
 
-    console.log('Long-lived token request URL:', longTokenUrl);
-    // Be careful logging secrets, but we need to know if they are present
-    console.log('Client Secret length:', instagramClientSecret ? instagramClientSecret.length : 0);
-    console.log('Short-lived token length:', shortLivedToken ? shortLivedToken.length : 0);
+    console.log('Long-lived token request URL:', longTokenUrl.toString());
 
-    const longTokenResponse = await fetch(longTokenUrl, {
-      method: 'POST',
-      body: longTokenBody,
+    const longTokenResponse = await fetch(longTokenUrl.toString(), {
+      method: 'GET',
     });
 
     const responseText = await longTokenResponse.text();
