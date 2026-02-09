@@ -65,19 +65,38 @@ Deno.serve(async (req: Request) => {
     const shortLivedToken = tokenData.access_token;
     const instagramUserId = tokenData.user_id;
 
-    const longTokenUrl = new URL('https://graph.instagram.com/access_token');
-    longTokenUrl.searchParams.set('grant_type', 'ig_exchange_token');
-    longTokenUrl.searchParams.set('client_secret', instagramClientSecret);
-    longTokenUrl.searchParams.set('access_token', shortLivedToken);
+    console.log('Exchanging short-lived token for long-lived token via POST...');
+    const longTokenUrl = 'https://graph.instagram.com/v22.0/access_token';
+    const longTokenBody = new URLSearchParams();
+    longTokenBody.append('grant_type', 'ig_exchange_token');
+    longTokenBody.append('client_secret', instagramClientSecret);
+    longTokenBody.append('access_token', shortLivedToken); // Ensure this is the USER access token
+    longTokenBody.append('client_id', INSTAGRAM_CLIENT_ID);
 
-    const longTokenResponse = await fetch(longTokenUrl.toString(), {
+    console.log('Long-lived token request URL:', longTokenUrl);
+    // Be careful logging secrets, but we need to know if they are present
+    console.log('Client Secret length:', instagramClientSecret ? instagramClientSecret.length : 0);
+    console.log('Short-lived token length:', shortLivedToken ? shortLivedToken.length : 0);
+
+    const longTokenResponse = await fetch(longTokenUrl, {
       method: 'POST',
+      body: longTokenBody,
     });
-    const longTokenData = await longTokenResponse.json();
+
+    const responseText = await longTokenResponse.text();
+    console.log('Long-lived token raw response:', responseText);
+
+    let longTokenData;
+    try {
+      longTokenData = JSON.parse(responseText);
+    } catch (e) {
+      console.error('Failed to parse response JSON:', e);
+      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Invalid JSON response from Instagram')}`, 302);
+    }
 
     if (!longTokenData.access_token) {
       console.error('Failed to get long-lived token:', longTokenData);
-      const errorMessage = longTokenData.error?.message || 'Failed to get long-lived token';
+      const errorMessage = `IG Error: ${responseText}`;
       return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent(errorMessage)}`, 302);
     }
 
