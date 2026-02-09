@@ -65,14 +65,13 @@ Deno.serve(async (req: Request) => {
     const shortLivedToken = tokenData.access_token;
     const instagramUserId = tokenData.user_id;
 
-    console.log('Exchanging short-lived token for long-lived token via GET...');
-    const longTokenUrl = new URL('https://graph.instagram.com/v22.0/access_token');
+    console.log('Exchanging short-lived token for long-lived token...');
+    const longTokenUrl = new URL('https://graph.instagram.com/access_token');
     longTokenUrl.searchParams.set('grant_type', 'ig_exchange_token');
     longTokenUrl.searchParams.set('client_secret', instagramClientSecret);
     longTokenUrl.searchParams.set('access_token', shortLivedToken);
-    longTokenUrl.searchParams.set('client_id', INSTAGRAM_CLIENT_ID);
 
-    console.log('Long-lived token request URL:', longTokenUrl.toString());
+    console.log('Long-lived token request URL (token hidden)');
 
     const longTokenResponse = await fetch(longTokenUrl.toString(), {
       method: 'GET',
