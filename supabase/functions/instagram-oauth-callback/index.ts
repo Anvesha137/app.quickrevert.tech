@@ -45,88 +45,63 @@ Deno.serve(async (req: Request) => {
     const instagramClientSecret = Deno.env.get("INSTAGRAM_CLIENT_SECRET");
     if (!instagramClientSecret) return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Instagram client secret not configured')}`, 302);
 
-    const tokenFormData = new URLSearchParams();
-    tokenFormData.append('client_id', INSTAGRAM_CLIENT_ID);
-    tokenFormData.append('client_secret', instagramClientSecret);
-    tokenFormData.append('grant_type', 'authorization_code');
-    tokenFormData.append('redirect_uri', INSTAGRAM_REDIRECT_URI);
-    tokenFormData.append('code', code);
+    // 1. Exchange code for User Access Token (Facebook Graph API)
+    console.log('Exchanging code for Facebook User Access Token...');
+    const tokenUrl = new URL('https://graph.facebook.com/v21.0/oauth/access_token');
+    tokenUrl.searchParams.set('client_id', INSTAGRAM_CLIENT_ID);
+    tokenUrl.searchParams.set('redirect_uri', INSTAGRAM_REDIRECT_URI);
+    tokenUrl.searchParams.set('client_secret', instagramClientSecret);
+    tokenUrl.searchParams.set('code', code);
 
-    const tokenResponse = await fetch('https://api.instagram.com/oauth/access_token', {
-      method: 'POST',
-      body: tokenFormData,
-    });
+    const tokenResponse = await fetch(tokenUrl.toString(), { method: 'GET' });
     const tokenData = await tokenResponse.json();
 
-    if (!tokenData.access_token || !tokenData.user_id) {
-      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent(tokenData.error_message || 'Token exchange failed')}`, 302);
+    if (tokenData.error) {
+      console.error('Failed to get user access token:', tokenData.error);
+      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent(tokenData.error.message || 'Token exchange failed')}`, 302);
     }
 
-    const shortLivedToken = tokenData.access_token;
-    const instagramUserId = tokenData.user_id;
+    const userAccessToken = tokenData.access_token;
+    console.log('Got User Access Token');
 
-    console.log('Exchanging short-lived token for long-lived token...');
-    const longTokenUrl = new URL('https://graph.instagram.com/access_token');
-    longTokenUrl.searchParams.set('grant_type', 'ig_exchange_token');
-    longTokenUrl.searchParams.set('client_secret', instagramClientSecret);
-    longTokenUrl.searchParams.set('access_token', shortLivedToken);
+    // 2. Fetch Pages to find connected Instagram Business Account
+    console.log('Fetching Pages...');
+    const pagesUrl = `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,profile_picture_url},picture&access_token=${userAccessToken}`;
+    const pagesResponse = await fetch(pagesUrl);
+    const pagesData = await pagesResponse.json();
 
-    console.log('Long-lived token request URL (token hidden)');
-
-    const longTokenResponse = await fetch(longTokenUrl.toString(), {
-      method: 'GET',
-    });
-
-    const responseText = await longTokenResponse.text();
-    console.log('Long-lived token raw response:', responseText);
-
-    let longTokenData;
-    try {
-      longTokenData = JSON.parse(responseText);
-    } catch (e) {
-      console.error('Failed to parse response JSON:', e);
-      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Invalid JSON response from Instagram')}`, 302);
+    if (pagesData.error) {
+      console.error('Failed to fetch pages:', pagesData.error);
+      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Failed to fetch Facebook Pages')}`, 302);
     }
 
-    if (!longTokenData.access_token) {
-      console.error('Failed to get long-lived token:', longTokenData);
-      const errorMessage = `IG Error: ${responseText}`;
-      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent(errorMessage)}`, 302);
-    }
-
-    const accessToken = longTokenData.access_token;
-    const tokenExpiresAt = new Date(Date.now() + (longTokenData.expires_in || 5184000) * 1000).toISOString();
-
-    const profileRes = await fetch(`https://graph.instagram.com/me?fields=id,username,account_type,media_count,profile_picture_url&access_token=${accessToken}`);
-    const profileData = await profileRes.json();
-
-    if (!profileRes.ok) {
-      console.error('Failed to fetch Instagram profile:', profileData);
-      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Failed to retrieve Instagram profile data')}`, 302);
-    }
-
-    if (!profileData || !profileData.username) {
-      console.error('Instagram profile data missing username:', profileData);
-      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Could not retrieve Instagram username')}`, 302);
-    }
-
+    let foundBusinessAccount = null;
+    let pageAccessToken = null;
     let pageId = null;
-    try {
-      const pagesRes = await fetch(`https://graph.facebook.com/v21.0/me/accounts?access_token=${accessToken}`);
-      const pagesData = await pagesRes.json();
-      if (pagesData.data && pagesData.data.length > 0) {
-        const page = pagesData.data[0];
-        pageId = page.id;
 
-        const igBusinessRes = await fetch(`https://graph.facebook.com/v21.0/${page.id}?fields=instagram_business_account&access_token=${accessToken}`);
-        const igBusinessData = await igBusinessRes.json();
-        if (igBusinessData.instagram_business_account) {
-          console.log('Instagram Business Account found:', igBusinessData.instagram_business_account.id);
+    if (pagesData.data && Array.isArray(pagesData.data)) {
+      for (const page of pagesData.data) {
+        if (page.instagram_business_account) {
+          foundBusinessAccount = page.instagram_business_account;
+          pageAccessToken = page.access_token;
+          pageId = page.id;
+          console.log(`Found Instagram Business Account: ${foundBusinessAccount.id} on Page: ${page.name}`);
+          break; // Stop at the first one for now
         }
       }
-    } catch (pageError) {
-      console.warn('Could not fetch Facebook Page info:', pageError);
     }
+
+    if (!foundBusinessAccount) {
+      console.warn('No Instagram Business Account found on any Page.');
+      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('No Instagram Business Account connected to your Facebook Pages. Please ensure you have converted your Instagram account to Business/Creator and linked it to a Facebook Page.')}`, 302);
+    }
+
+    // 3. We have everything we need.
+    const instagramBusinessId = foundBusinessAccount.id;
+    const username = foundBusinessAccount.username;
+    const profilePictureUrl = foundBusinessAccount.profile_picture_url || foundBusinessAccount.profile_picture?.data?.url; // profile_picture_url field might safely return it if requested, but nested struct is possible.
+    // Actually `instagram_business_account{id,username,profile_picture_url}` request should return `profile_picture_url` directly if valid.
+
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
@@ -134,38 +109,47 @@ Deno.serve(async (req: Request) => {
       .from("instagram_accounts")
       .select("id")
       .eq("user_id", userId)
-      .eq("instagram_user_id", instagramUserId)
+      .eq("instagram_business_id", instagramBusinessId) // match on business id
       .maybeSingle();
+
+    const timestamp = new Date().toISOString();
+    // Start with a long expiry, Page tokens are effectively long-lived (never expire unless password change/revoked) for most cases, or valid for 60 days. simpler to just set a far future or handle validation logic elsewhere.
 
     if (existingAccount) {
       await supabase.from("instagram_accounts").update({
-        access_token: accessToken,
-        token_expires_at: tokenExpiresAt,
-        username: profileData.username,
-        profile_picture_url: profileData.profile_picture_url,
+        instagram_user_id: instagramBusinessId, // Legacy column support
+        username: username,
+        access_token: pageAccessToken, // Storing PAGE ACCESS TOKEN as primary token
+        page_access_token: pageAccessToken,
         page_id: pageId,
+        instagram_business_id: instagramBusinessId,
+        profile_picture_url: profilePictureUrl,
         status: "active",
-        last_synced_at: new Date().toISOString(),
+        last_synced_at: timestamp,
+        token_expires_at: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString() // ~60 days
       }).eq("id", existingAccount.id);
     } else {
       await supabase.from("instagram_accounts").insert({
         user_id: userId,
-        instagram_user_id: instagramUserId,
-        username: profileData.username,
-        access_token: accessToken,
-        token_expires_at: tokenExpiresAt,
-        profile_picture_url: profileData.profile_picture_url,
+        instagram_user_id: instagramBusinessId, // Legacy column
+        instagram_business_id: instagramBusinessId,
+        username: username,
+        access_token: pageAccessToken, // Storing PAGE ACCESS TOKEN
+        page_access_token: pageAccessToken,
         page_id: pageId,
+        profile_picture_url: profilePictureUrl,
         status: "active",
-        connected_at: new Date().toISOString(),
-        last_synced_at: new Date().toISOString(),
+        connected_at: timestamp,
+        last_synced_at: timestamp,
+        token_expires_at: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString()
       });
     }
 
-    return Response.redirect(`${frontendUrl}/connect-accounts?instagram_connected=true&username=${encodeURIComponent(profileData.username)}`, 302);
+    return Response.redirect(`${frontendUrl}/connect-accounts?instagram_connected=true&username=${encodeURIComponent(username)}`, 302);
 
   } catch (error: any) {
     const frontendUrl = (Deno.env.get("FRONTEND_URL") || "http://localhost:5173").replace(/\/$/, '');
+    console.error('Unexpected error:', error);
     return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent(error.message || 'Unknown error')}`, 302);
   }
 });
