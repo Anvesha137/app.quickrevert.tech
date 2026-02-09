@@ -1,3 +1,4 @@
+
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -63,7 +64,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const shortLivedToken = tokenData.access_token;
-    const instagramUserId = tokenData.user_id;
+    // const instagramUserId = tokenData.user_id; // Legacy ID
 
     const longTokenUrl = new URL('https://graph.instagram.com/access_token');
     longTokenUrl.searchParams.set('grant_type', 'ig_exchange_token');
@@ -74,6 +75,7 @@ Deno.serve(async (req: Request) => {
     const longTokenData = await longTokenResponse.json();
 
     if (!longTokenData.access_token) {
+      console.error("Long token failed:", longTokenData);
       return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Failed to get long-lived token')}`, 302);
     }
 
@@ -93,52 +95,38 @@ Deno.serve(async (req: Request) => {
       return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Could not retrieve Instagram username')}`, 302);
     }
 
-    let pageId = null;
-    try {
-      const pagesRes = await fetch(`https://graph.facebook.com/v21.0/me/accounts?access_token=${accessToken}`);
-      const pagesData = await pagesRes.json();
-      if (pagesData.data && pagesData.data.length > 0) {
-        const page = pagesData.data[0];
-        pageId = page.id;
-
-        const igBusinessRes = await fetch(`https://graph.facebook.com/v21.0/${page.id}?fields=instagram_business_account&access_token=${accessToken}`);
-        const igBusinessData = await igBusinessRes.json();
-        if (igBusinessData.instagram_business_account) {
-          console.log('Instagram Business Account found:', igBusinessData.instagram_business_account.id);
-        }
-      }
-    } catch (pageError) {
-      console.warn('Could not fetch Facebook Page info:', pageError);
-    }
+    // THIS ID is likely the App-Scoped ID (Basic Display), NOT the Business ID.
+    // However, since we are forced to use Basic Display, we save this.
+    // WARNING: This ID usually does NOT match the Webhook ID.
+    const finalInstagramUserId = profileData.id;
+    console.log(`Resolved Basic Instagram ID: ${finalInstagramUserId}`);
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     const { data: existingAccount } = await supabase
       .from("instagram_accounts")
       .select("id")
-      .eq("user_id", userId)
-      .eq("instagram_user_id", instagramUserId)
+      .eq("instagram_user_id", finalInstagramUserId)
       .maybeSingle();
 
     if (existingAccount) {
       await supabase.from("instagram_accounts").update({
+        user_id: userId,
         access_token: accessToken,
         token_expires_at: tokenExpiresAt,
         username: profileData.username,
         profile_picture_url: profileData.profile_picture_url,
-        page_id: pageId,
         status: "active",
         last_synced_at: new Date().toISOString(),
       }).eq("id", existingAccount.id);
     } else {
       await supabase.from("instagram_accounts").insert({
         user_id: userId,
-        instagram_user_id: instagramUserId,
+        instagram_user_id: finalInstagramUserId,
         username: profileData.username,
         access_token: accessToken,
         token_expires_at: tokenExpiresAt,
         profile_picture_url: profileData.profile_picture_url,
-        page_id: pageId,
         status: "active",
         connected_at: new Date().toISOString(),
         last_synced_at: new Date().toISOString(),

@@ -46,6 +46,17 @@ Deno.serve(async (req: Request) => {
       const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+      // DEBUG: Log raw payload to failed_events
+      try {
+        await supabase.from('failed_events').insert({
+          event_id: 'debug-' + Date.now(),
+          payload: payload,
+          error_message: 'DEBUG: Webhook Received - ' + (payload.entry?.[0]?.id || 'unknown_id'),
+        });
+      } catch (e) {
+        console.error('Debug log failed', e);
+      }
+
       if (payload.object === 'instagram') {
         for (const entry of payload.entry) {
           const instagramUserId = entry.id;
@@ -59,6 +70,14 @@ Deno.serve(async (req: Request) => {
 
           if (accountError || !instagramAccount) {
             console.error('Instagram account not found:', instagramUserId);
+            // DEBUG: Log specific failure
+            try {
+              await supabase.from('failed_events').insert({
+                event_id: 'error-' + instagramUserId,
+                payload: payload,
+                error_message: `Instagram account not found for ID: ${instagramUserId}. Error: ${accountError?.message}`,
+              });
+            } catch (e) { }
             continue;
           }
 

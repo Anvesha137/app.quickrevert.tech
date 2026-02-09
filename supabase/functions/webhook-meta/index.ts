@@ -49,6 +49,20 @@ serve(async (req) => {
 
             const json = JSON.parse(body);
 
+            // DEBUG: Log raw payload to failed_events
+            try {
+                const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+                const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+                const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+                await supabase.from('failed_events').insert({
+                    event_id: 'debug-meta-' + Date.now(),
+                    payload: json,
+                    error_message: 'DEBUG: Meta Webhook Received'
+                });
+            } catch (e) {
+                console.error('Debug log failed', e);
+            }
+
             // Async processing to allow immediate 200 OK
             // @ts-ignore
             if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
@@ -209,17 +223,31 @@ async function processEvent(body: any) {
                 msg.contact_ids = contactIds;
                 if (resolvedUsername) msg.sender_name = resolvedUsername; // Legacy compat
 
+                // FLAGGING BASIC DISPLAY TOKEN
+                // This informs N8n to NOT try to use the Graph API for replies if not supported.
+                msg.is_basic_display = true;
+
                 const legacyEntry = { id: account_id, time: Date.now(), messaging: [msg] };
 
-                await routeAndTrigger({
-                    platform: object,
-                    account_id,
-                    event_type: 'messaging',
-                    sub_type,
-                    payload: msg,
-                    entry: [legacyEntry],
-                    event_id: eventId
-                });
+                // FIX: Use the Internal UUID (accountsData[0].id) for routing, NOT the Instagram ID (entry.id)
+                // automation_routes.account_id is a UUID foreign key.
+                const internalAccountId = accountsData?.[0]?.id;
+
+                if (internalAccountId) {
+                    await routeAndTrigger({
+                        platform: object,
+                        account_id: internalAccountId, // Pass UUID
+                        event_type: 'messaging',
+                        sub_type,
+                        payload: msg,
+                        entry: [legacyEntry],
+                        event_id: eventId,
+                        is_basic_display: true
+                    });
+                } else {
+                    console.error("No Internal Account ID found for routing.");
+                    await logFailedEvent({ event_id: eventId, payload: msg }, "No Internal Account ID found (accountsData empty)");
+                }
             }
         }
         if (entry.changes) {
@@ -428,15 +456,14 @@ async function routeAndTrigger(normalized: any) {
 
             if (webhookPath) {
                 targetUrl = `${N8N_BASE_URL}/webhook/${webhookPath}`;
-                console.log(`Triggering Workflow via Webhook: ${route.n8n_workflow_id} -> ${webhookPath}`);
+                // console.log(`Triggering Workflow via Webhook: ${route.n8n_workflow_id} -> ${webhookPath}`);
             } else {
-                console.log(`Triggering Workflow via Execute (No Path): ${route.n8n_workflow_id}`);
+                // console.log(`Triggering Workflow via Execute (No Path): ${route.n8n_workflow_id}`);
             }
 
+            await logFailedEvent({ ...normalized, event_id: `debug-n8n-attempt-${Date.now()}` }, `DEBUG: Attempting ${targetUrl}`);
+
             // Headers: Execute needs API Key, Webhook might not (but good to verify)
-            // If using Webhook Node, we usually don't need X-N8N-API-KEY, but sending it doesn't hurt? 
-            // Actually, for Webhook, we send simple Content-Type.
-            // For Execute, we need API Key.
             const headers: any = { "Content-Type": "application/json" };
             if (!webhookPath) headers["X-N8N-API-KEY"] = N8N_API_KEY;
 
@@ -445,10 +472,13 @@ async function routeAndTrigger(normalized: any) {
                 headers: headers,
                 body: JSON.stringify(normalized)
             });
+
+            await logFailedEvent({ ...normalized, event_id: `debug-n8n-response-${Date.now()}` }, `DEBUG: N8n Responded ${res.status} ${res.statusText}`);
+
             if (!res.ok) throw new Error(`n8n responded with ${res.status}: ${await res.text()}`);
         } catch (err) {
             console.error(`Failed to trigger workflow ${route.n8n_workflow_id}`, err);
-            await logFailedEvent(normalized, err instanceof Error ? err.message : String(err));
+            await logFailedEvent(normalized, `N8N ERROR: ${err instanceof Error ? err.message : String(err)}`);
         }
     }
 }

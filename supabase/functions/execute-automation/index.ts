@@ -250,7 +250,95 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    return new Response(JSON.stringify({ success: true, executed: matchedAutomations.length }), {
+    // 6. N8N Workflow Execution
+    try {
+      // Fetch active routes/workflows for this user and trigger type
+      const { data: n8nWorkflows, error: n8nError } = await supabase
+        .from('n8n_workflows')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .eq('trigger_type', triggerType);
+
+      if (n8nError) {
+        console.error('Error fetching n8n workflows:', n8nError);
+      } else if (n8nWorkflows && n8nWorkflows.length > 0) {
+        console.log(`Found ${n8nWorkflows.length} active n8n workflows for trigger: ${triggerType}`);
+
+        for (const workflow of n8nWorkflows) {
+          if (!workflow.webhook_url) {
+            console.warn(`Workflow ${workflow.name} has no webhook URL`);
+            continue;
+          }
+
+          console.log(`Triggering n8n workflow: ${workflow.name} (${workflow.webhook_url})`);
+
+          // Send event data to n8n
+          const n8nPayload = {
+            userId,
+            instagramAccountId,
+            triggerType,
+            eventData,
+            workflowId: workflow.id,
+            timestamp: new Date().toISOString()
+          };
+
+          try {
+            // FIRE AND FORGET - Don't await the result to avoid blocking
+            fetch(workflow.webhook_url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(n8nPayload)
+            }).then(async (res) => {
+              const status = res.ok ? 'success' : 'failed';
+              console.log(`n8n trigger ${status}: ${res.status}`);
+
+              // Log to activities
+              const { error: logError } = await supabase.from('automation_activities').insert({
+                user_id: userId,
+                instagram_account_id: instagramAccountId,
+                activity_type: 'n8n_trigger',
+                target_username: eventData.from.username,
+                message: `Triggered workflow: ${workflow.name}`,
+                status: status,
+                metadata: {
+                  workflow_id: workflow.id,
+                  response_status: res.status,
+                  webhook_url: workflow.webhook_url
+                }
+              });
+              if (logError) console.error('Failed to log n8n activity', logError);
+
+            }).catch(err => {
+              console.error('Failed to trigger n8n webhook:', err);
+              supabase.from('automation_activities').insert({
+                user_id: userId,
+                instagram_account_id: instagramAccountId,
+                activity_type: 'n8n_trigger',
+                target_username: eventData.from.username,
+                message: `Failed to trigger workflow: ${workflow.name}`,
+                status: 'failed',
+                metadata: { error: err.message, workflow_id: workflow.id }
+              });
+            });
+
+          } catch (e) {
+            console.error('Error initiating n8n request:', e);
+          }
+        }
+      } else {
+        console.log(`No active n8n workflows found for trigger: ${triggerType}`);
+      }
+
+    } catch (n8nMainError) {
+      console.error('Unexpected error in n8n execution block:', n8nMainError);
+    }
+
+    return new Response(JSON.stringify({
+      success: true,
+      executed: matchedAutomations.length,
+      n8n_triggered: true
+    }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
