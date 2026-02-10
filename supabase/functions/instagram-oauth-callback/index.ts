@@ -105,7 +105,8 @@ Deno.serve(async (req: Request) => {
 
     if (!longTokenData.access_token) {
       console.error('Failed to get long-lived token:', longTokenData);
-      const errorMessage = `IG Error: ${responseText}`;
+      // Using a simple error message for the user, full details are in the logs
+      const errorMessage = 'Failed to get long-lived token (Check logs)';
       return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent(errorMessage)}`, 302);
     }
 
