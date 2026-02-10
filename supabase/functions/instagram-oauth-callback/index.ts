@@ -1,4 +1,3 @@
-
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -46,6 +45,8 @@ Deno.serve(async (req: Request) => {
     const instagramClientSecret = Deno.env.get("INSTAGRAM_CLIENT_SECRET");
     if (!instagramClientSecret) return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Instagram client secret not configured')}`, 302);
 
+    // Step 1: Exchange authorization code for short-lived token
+    console.log('Exchanging authorization code for access token...');
     const tokenFormData = new URLSearchParams();
     tokenFormData.append('client_id', INSTAGRAM_CLIENT_ID);
     tokenFormData.append('client_secret', instagramClientSecret);
@@ -59,83 +60,87 @@ Deno.serve(async (req: Request) => {
     });
     const tokenData = await tokenResponse.json();
 
+    console.log('Token response status:', tokenResponse.status);
+    console.log('Token response:', JSON.stringify(tokenData, null, 2));
+
     if (!tokenData.access_token || !tokenData.user_id) {
-      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent(tokenData.error_message || 'Token exchange failed')}`, 302);
+      const errorMsg = tokenData.error_message || tokenData.error?.message || JSON.stringify(tokenData);
+      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Token exchange failed: ' + errorMsg)}`, 302);
     }
 
     const shortLivedToken = tokenData.access_token;
-    // const instagramUserId = tokenData.user_id; // Legacy ID
+    const instagramUserId = tokenData.user_id;
 
-    const longTokenUrl = new URL('https://graph.instagram.com/access_token');
-    longTokenUrl.searchParams.set('grant_type', 'ig_exchange_token');
-    longTokenUrl.searchParams.set('client_secret', instagramClientSecret);
-    longTokenUrl.searchParams.set('access_token', shortLivedToken);
+    console.log('Short-lived token received, user_id:', instagramUserId);
 
-    const longTokenResponse = await fetch(longTokenUrl.toString());
-    const longTokenData = await longTokenResponse.json();
-
-    if (!longTokenData.access_token) {
-      console.error("Long token failed:", longTokenData);
-      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Failed to get long-lived token')}`, 302);
-    }
-
-    const accessToken = longTokenData.access_token;
-    const tokenExpiresAt = new Date(Date.now() + (longTokenData.expires_in || 5184000) * 1000).toISOString();
-
-    const profileRes = await fetch(`https://graph.instagram.com/me?fields=id,username,account_type,media_count,profile_picture_url&access_token=${accessToken}`);
+    // Step 2: Fetch profile using the user_id (NOT /me endpoint)
+    console.log('Fetching Instagram profile...');
+    const profileRes = await fetch(`https://graph.instagram.com/${instagramUserId}?fields=id,username&access_token=${shortLivedToken}`);
     const profileData = await profileRes.json();
 
-    if (!profileRes.ok) {
-      console.error('Failed to fetch Instagram profile:', profileData);
-      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Failed to retrieve Instagram profile data')}`, 302);
+    console.log('Profile response status:', profileRes.status);
+    console.log('Profile data:', JSON.stringify(profileData, null, 2));
+
+    if (!profileRes.ok || profileData.error) {
+      const errorMsg = profileData.error?.message || JSON.stringify(profileData);
+      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Profile fetch failed: ' + errorMsg)}`, 302);
     }
 
-    if (!profileData || !profileData.username) {
-      console.error('Instagram profile data missing username:', profileData);
-      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Could not retrieve Instagram username')}`, 302);
+    if (!profileData.username) {
+      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Instagram username not found in profile')}`, 302);
     }
 
-    // THIS ID is likely the App-Scoped ID (Basic Display), NOT the Business ID.
-    // However, since we are forced to use Basic Display, we save this.
-    // WARNING: This ID usually does NOT match the Webhook ID.
-    const finalInstagramUserId = profileData.id;
-    console.log(`Resolved Basic Instagram ID: ${finalInstagramUserId}`);
+    // Use short-lived token (expires in 1 hour)
+    // Note: Instagram Graph API with Instagram Login doesn't support programmatic long-lived token exchange
+    const accessToken = shortLivedToken;
+    const tokenExpiresAt = new Date(Date.now() + 3600 * 1000).toISOString(); // 1 hour
 
+    console.log('Saving to database...');
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     const { data: existingAccount } = await supabase
       .from("instagram_accounts")
       .select("id")
-      .eq("instagram_user_id", finalInstagramUserId)
+      .eq("instagram_user_id", instagramUserId)
       .maybeSingle();
 
     if (existingAccount) {
-      await supabase.from("instagram_accounts").update({
+      const { error: updateError } = await supabase.from("instagram_accounts").update({
         user_id: userId,
         access_token: accessToken,
         token_expires_at: tokenExpiresAt,
         username: profileData.username,
-        profile_picture_url: profileData.profile_picture_url,
         status: "active",
         last_synced_at: new Date().toISOString(),
       }).eq("id", existingAccount.id);
+
+      if (updateError) {
+        console.error('Database update error:', updateError);
+        return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Database update failed')}`, 302);
+      }
     } else {
-      await supabase.from("instagram_accounts").insert({
+      const { error: insertError } = await supabase.from("instagram_accounts").insert({
         user_id: userId,
-        instagram_user_id: finalInstagramUserId,
+        instagram_user_id: instagramUserId,
         username: profileData.username,
         access_token: accessToken,
         token_expires_at: tokenExpiresAt,
-        profile_picture_url: profileData.profile_picture_url,
         status: "active",
         connected_at: new Date().toISOString(),
         last_synced_at: new Date().toISOString(),
       });
+
+      if (insertError) {
+        console.error('Database insert error:', insertError);
+        return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Database insert failed')}`, 302);
+      }
     }
 
+    console.log('Success! Redirecting...');
     return Response.redirect(`${frontendUrl}/connect-accounts?instagram_connected=true&username=${encodeURIComponent(profileData.username)}`, 302);
 
   } catch (error: any) {
+    console.error('Unexpected error:', error);
     const frontendUrl = (Deno.env.get("FRONTEND_URL") || "http://localhost:5173").replace(/\/$/, '');
     return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent(error.message || 'Unknown error')}`, 302);
   }
