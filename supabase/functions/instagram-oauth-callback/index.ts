@@ -64,19 +64,49 @@ Deno.serve(async (req: Request) => {
     }
 
     const shortLivedToken = tokenData.access_token;
-    // const instagramUserId = tokenData.user_id; // Legacy ID
+    const instagramUserId = tokenData.user_id;
+    console.log('=== TOKEN EXCHANGE DEBUG START ===');
+    console.log('Short-lived token received:', shortLivedToken ? 'YES' : 'NO');
+    console.log('Short-lived token length:', shortLivedToken?.length);
+    console.log('Instagram User ID:', instagramUserId);
 
+    console.log('Exchanging short-lived token for long-lived token...');
     const longTokenUrl = new URL('https://graph.instagram.com/access_token');
     longTokenUrl.searchParams.set('grant_type', 'ig_exchange_token');
     longTokenUrl.searchParams.set('client_secret', instagramClientSecret);
     longTokenUrl.searchParams.set('access_token', shortLivedToken);
 
-    const longTokenResponse = await fetch(longTokenUrl.toString());
-    const longTokenData = await longTokenResponse.json();
+    console.log('Request URL:', longTokenUrl.origin + longTokenUrl.pathname);
+    console.log('Request method: GET');
+    console.log('Parameters:', {
+      grant_type: 'ig_exchange_token',
+      client_secret: instagramClientSecret ? `${instagramClientSecret.substring(0, 4)}...` : 'MISSING',
+      access_token: shortLivedToken ? `${shortLivedToken.substring(0, 10)}...` : 'MISSING'
+    });
+
+    const longTokenResponse = await fetch(longTokenUrl.toString(), {
+      method: 'GET',
+    });
+
+    console.log('Response status:', longTokenResponse.status);
+    console.log('Response headers:', Object.fromEntries(longTokenResponse.headers.entries()));
+
+    const responseText = await longTokenResponse.text();
+    console.log('Response body:', responseText);
+    console.log('=== TOKEN EXCHANGE DEBUG END ===');
+
+    let longTokenData;
+    try {
+      longTokenData = JSON.parse(responseText);
+    } catch (e) {
+      console.error('Failed to parse response JSON:', e);
+      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Invalid JSON response from Instagram')}`, 302);
+    }
 
     if (!longTokenData.access_token) {
-      console.error("Long token failed:", longTokenData);
-      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Failed to get long-lived token')}`, 302);
+      console.error('Failed to get long-lived token:', longTokenData);
+      const errorMessage = `IG Error: ${responseText}`;
+      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent(errorMessage)}`, 302);
     }
 
     const accessToken = longTokenData.access_token;
