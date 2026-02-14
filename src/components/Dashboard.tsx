@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import { MessageSquare, Eye, Zap, MessageCircle, Users, X, TrendingUp } from 'lucide-react';
+import { MessageSquare, Zap, MessageCircle, Users, X, TrendingUp } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import KPICard from './KPICard';
 import InstagramFeed from './InstagramFeed';
@@ -14,19 +13,19 @@ interface DashboardStats {
   uniqueUsers: number;
   followersCount?: number | null;
   initialFollowersCount?: number | null;
+  followersLastUpdated?: string | null;
 }
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { displayName } = useTheme();
-  const userName = displayName?.split(' ')[0] || user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'User';
   const [stats, setStats] = useState<DashboardStats>({
     dmsTriggered: 0,
     activeAutomations: 0,
     commentReplies: 0,
     uniqueUsers: 0,
     followersCount: null,
-    initialFollowersCount: null
+    initialFollowersCount: null,
+    followersLastUpdated: null
   });
   const [loading, setLoading] = useState(true);
   const [showAnnouncement, setShowAnnouncement] = useState(true);
@@ -44,7 +43,7 @@ export default function Dashboard() {
       // 0. Check Instagram Connection
       const { data: instagram } = await supabase
         .from('instagram_accounts')
-        .select('id, followers_count, initial_followers_count')
+        .select('id, followers_count, initial_followers_count, followers_last_updated')
         .eq('user_id', user!.id)
         .limit(1);
 
@@ -87,7 +86,8 @@ export default function Dashboard() {
         commentReplies: comments.length,
         uniqueUsers: uniqueUsersCount || 0,
         followersCount: instaAccount?.followers_count,
-        initialFollowersCount: instaAccount?.initial_followers_count
+        initialFollowersCount: instaAccount?.initial_followers_count,
+        followersLastUpdated: instaAccount?.followers_last_updated
       });
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
@@ -98,7 +98,8 @@ export default function Dashboard() {
         commentReplies: 0,
         uniqueUsers: 0,
         followersCount: null,
-        initialFollowersCount: null
+        initialFollowersCount: null,
+        followersLastUpdated: null
       });
     } finally {
       setLoading(false);
@@ -146,7 +147,7 @@ export default function Dashboard() {
       case 1: // Connect Instagram
         return instagramConnected ? 100 : 0;
       case 2: // Unlock Analytics (Has any activity/users)
-        return (stats.followersCount !== null && stats.followersCount !== undefined) ? 100 : 0;
+        return stats.followersLastUpdated ? 100 : 0;
       case 3: // Create Automation
         return stats.activeAutomations > 0 ? 100 : 0;
       case 4: // Test Automation (Has triggered DMs/Comments)
@@ -158,12 +159,12 @@ export default function Dashboard() {
 
   const steps = [
     { id: 1, title: 'Connect Instagram', desc: 'Link your Business/Creator account.' },
-    { id: 2, title: 'Unlock Analytics', desc: 'Enable performance insights.' },
+    { id: 2, title: 'Unlock Advance Analytics', desc: 'Enable performance insights (Updates every 12h).' },
     { id: 3, title: 'Create Automation', desc: 'Set a trigger and activate it.' },
     { id: 4, title: 'Test Automation', desc: 'Run a quick test to confirm it works.' },
   ];
 
-  const showAnalytics = stats.followersCount !== null && stats.followersCount !== undefined;
+  const showAnalytics = !!stats.followersLastUpdated;
 
   return (
     <div className="flex-1 overflow-auto bg-gradient-to-br from-gray-50 via-white to-blue-50/30">

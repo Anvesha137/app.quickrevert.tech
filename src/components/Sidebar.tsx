@@ -2,7 +2,6 @@ import {
   LayoutDashboard,
   Zap,
   Users,
-  Activity,
   CreditCard,
   Link2,
   Settings as SettingsIcon,
