@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, Zap, X, LogOut, ExternalLink, ArrowUpCircle } from 'lucide-react';
+import { Menu, X, LogOut, ExternalLink, ArrowUpCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { navigation } from './Sidebar';
@@ -86,10 +86,7 @@ export default function MobileNav() {
                     <div className="p-4">
                         <div className="flex items-center justify-between mb-8">
                             <div className="flex items-center gap-3">
-                                <div className={`w-10 h-10 bg-gradient-to-br ${getGradientClass()} rounded-xl flex items-center justify-center shadow-lg`}>
-                                    <Zap className="w-6 h-6 text-white" />
-                                </div>
-                                <span className="text-xl font-bold text-gray-900 tracking-tight">QuickRevert</span>
+                                <img src="/full_logo.png" alt="QuickRevert" className="h-8 w-auto object-contain" />
                             </div>
                             <button
                                 onClick={() => setIsOpen(false)}
@@ -140,8 +137,8 @@ export default function MobileNav() {
                                                 to={item.path}
                                                 onClick={() => setIsOpen(false)}
                                                 className={`group w-full flex items-center gap-3 px-4 py-4 rounded-xl text-base font-semibold transition-all duration-200 ${isActive
-                                                        ? `bg-gradient-to-r ${getGradientClass()} text-white shadow-md`
-                                                        : 'text-gray-700 bg-gray-50 hover:bg-gray-100'
+                                                    ? `bg-gradient-to-r ${getGradientClass()} text-white shadow-md`
+                                                    : 'text-gray-700 bg-gray-50 hover:bg-gray-100'
                                                     }`}
                                             >
                                                 <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-gray-500'}`} />

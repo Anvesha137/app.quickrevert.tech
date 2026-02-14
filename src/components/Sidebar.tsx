@@ -39,17 +39,7 @@ export default function Sidebar() {
     return gradients[colorPalette] || gradients.default;
   };
 
-  const getLogoGradientClass = () => {
-    const gradients: Record<string, string> = {
-      default: 'from-blue-500 via-blue-600 to-cyan-600',
-      sunset: 'from-orange-500 via-orange-600 to-amber-600',
-      forest: 'from-emerald-500 via-emerald-600 to-green-600',
-      lavender: 'from-violet-500 via-violet-600 to-purple-600',
-      rose: 'from-pink-500 via-pink-600 to-rose-600',
-      slate: 'from-slate-500 via-slate-600 to-gray-600',
-    };
-    return gradients[colorPalette] || gradients.default;
-  };
+
 
   const getShadowClass = () => {
     const shadows: Record<string, string> = {
@@ -96,11 +86,8 @@ export default function Sidebar() {
   return (
     <aside className="hidden md:flex fixed left-0 top-0 h-full w-64 bg-gradient-to-b from-gray-50 to-white border-r border-gray-200 flex-col shadow-lg z-50">
       <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 bg-gradient-to-br ${getLogoGradientClass()} rounded-xl flex items-center justify-center shadow-lg`}>
-            <Zap className="w-6 h-6 text-white" />
-          </div>
-          <span className="text-xl font-bold text-gray-900 tracking-tight">QuickRevert</span>
+        <div className="flex items-center justify-center w-full">
+          <img src="/full_logo.png" alt="QuickRevert" className="h-8 w-auto object-contain" />
         </div>
       </div>
 
@@ -115,8 +102,8 @@ export default function Sidebar() {
                 <Link
                   to={item.path}
                   className={`group w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all duration-200 ${isActive
-                      ? `bg-gradient-to-r ${getGradientClass()} text-white shadow-md ${getShadowClass()}`
-                      : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                    ? `bg-gradient-to-r ${getGradientClass()} text-white shadow-md ${getShadowClass()}`
+                    : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                     }`}
                 >
                   <Icon className={`w-5 h-5 transition-transform group-hover:scale-110 ${isActive ? 'text-white' : 'text-gray-500'}`} />
