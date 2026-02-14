@@ -188,12 +188,11 @@ export default function Dashboard() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Hello, {displayName?.split(' ')[0] || 'Creator'}! 👋</h1>
             <p className="text-gray-600 flex items-center gap-2">
-              Here determines your growth today.
               <a
                 href="https://quickrevert.tech/contact"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-700 font-medium hover:underline lg:hidden"
+                className="text-green-600 hover:text-green-700 font-medium hover:underline lg:hidden"
               >
                 Contact Support
               </a>
@@ -206,7 +205,7 @@ export default function Dashboard() {
             className="hidden lg:flex items-center gap-3 bg-white px-6 py-3 rounded-xl shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer"
           >
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-sm font-medium text-gray-700">Contact Support</span>
+            <span className="text-sm font-medium text-green-600">Contact Support</span>
           </a>
         </div>
 

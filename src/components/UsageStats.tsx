@@ -102,8 +102,8 @@ export default function UsageStats() {
                     Upgrade to Pro
                 </button>
 
-                <a href="mailto:support@quickrevert.tech" className="flex items-center justify-center gap-2 w-full py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-bold rounded shadow-sm transition-all border border-slate-700">
-                    <MessageCircle className="w-4 h-4 text-gray-300" />
+                <a href="mailto:support@quickrevert.tech" className="flex items-center justify-center gap-2 w-full py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded shadow-sm transition-all border border-green-600">
+                    <MessageCircle className="w-4 h-4 text-white" />
                     Support/Feedback
                 </a>
             </div>
