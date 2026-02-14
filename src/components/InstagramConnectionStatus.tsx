@@ -74,7 +74,7 @@ export default function InstagramConnectionStatus() {
       bgColor: 'bg-green-100',
       borderColor: 'border-green-200',
       bgGradient: 'from-green-50 to-emerald-50',
-      title: `@${account.username} is active and ready for automations`,
+      title: 'Instagram connected',
       message: ''
     },
     expired: {
@@ -83,8 +83,8 @@ export default function InstagramConnectionStatus() {
       bgColor: 'bg-yellow-100',
       borderColor: 'border-yellow-200',
       bgGradient: 'from-yellow-50 to-amber-50',
-      title: 'Instagram Connection Expired',
-      message: `@${account.username} needs reconnection to continue automations`
+      title: 'Connection Expired',
+      message: 'Please reconnect'
     },
     revoked: {
       icon: XCircle,
@@ -92,29 +92,22 @@ export default function InstagramConnectionStatus() {
       bgColor: 'bg-red-100',
       borderColor: 'border-red-200',
       bgGradient: 'from-red-50 to-rose-50',
-      title: 'Instagram Connection Revoked',
-      message: `@${account.username} access has been revoked`
+      title: 'Connection Revoked',
+      message: 'Access revoked'
     }
   };
 
   const status = statusConfig[account.status] || statusConfig.revoked; // Default to revoked status if unknown status
-  const Icon = status.icon;
 
   return (
     <div className={`bg-gradient-to-r ${status.bgGradient} border-2 ${status.borderColor} rounded-2xl p-6 shadow-sm`}>
-      <div className="flex items-center gap-3">
-        <div className={`p-2 rounded-full ${status.bgColor}`}>
-          <Icon className={status.color} size={24} />
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <Instagram className="text-pink-600" size={24} />
+          <span className="font-bold text-gray-900 text-lg">@{account.username}</span>
         </div>
-
-        <div className="flex items-center gap-2 mr-2">
-          <Instagram className="text-pink-600" size={20} />
-          <span className="font-medium text-gray-800">@{account.username}</span>
-        </div>
-
-        <div>
-          <h3 className="font-bold text-gray-900">{status.title}</h3>
-          {status.message && <p className="text-gray-600 text-sm">{status.message}</p>}
+        <div className="ml-8">
+          <h3 className="font-medium text-gray-600 text-sm">{status.title}</h3>
         </div>
       </div>
     </div>
