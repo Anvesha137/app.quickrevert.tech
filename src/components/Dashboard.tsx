@@ -31,7 +31,6 @@ export default function Dashboard() {
     followersLastUpdated: null
   });
   const [loading, setLoading] = useState(true);
-  const [showAnnouncement, setShowAnnouncement] = useState(true);
   const [instagramConnected, setInstagramConnected] = useState(false);
   const [activatingAnalytics, setActivatingAnalytics] = useState(false);
 
@@ -169,25 +168,6 @@ export default function Dashboard() {
 
   return (
     <div className="flex-1 overflow-auto bg-gradient-to-br from-gray-50 via-white to-blue-50/30">
-      {/* Release Announcement Banner */}
-      {showAnnouncement && (
-        <div className="sticky top-0 z-50 bg-[#ffd147] text-gray-900 px-4 py-1 flex items-center justify-between shadow-sm">
-          <div className="flex items-center gap-2 mx-auto">
-            <span className="text-lg">🚀</span>
-            <span className="font-bold">Big News! New Products Page is live.</span>
-            <button className="bg-black/5 hover:bg-black/10 px-3 py-1 rounded-full text-sm font-semibold transition-colors ml-2">
-              Try it →
-            </button>
-          </div>
-          <button
-            onClick={() => setShowAnnouncement(false)}
-            className="text-gray-600 hover:text-gray-900 p-1 hover:bg-black/5 rounded-full transition-colors"
-          >
-            <X size={18} />
-          </button>
-        </div>
-      )}
-
       <div className="max-w-7xl mx-auto p-8">
         {/* Pro Upgrade Banner */}
         <div className="bg-gradient-to-r from-red-600 to-red-400 text-white rounded-2xl p-6 mb-8 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg shadow-red-100">
