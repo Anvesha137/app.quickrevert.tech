@@ -118,72 +118,183 @@ export default function Dashboard() {
   };
 
   const handleUnlockAnalytics = async () => {
-    // ... (existing code)
+    if (!instagramConnected) return;
+    try {
+      setActivatingAnalytics(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      // Get Instagram Object again or use state if available (better fetch fresh)
+      const { data: instagram } = await supabase.from('instagram_accounts').select('id').eq('user_id', user!.id).single();
+      if (!instagram) return;
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-analytics-workflow`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          userId: user!.id,
+          instagramAccountId: instagram.id
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to activate analytics');
+
+      // Refresh stats
+      await fetchDashboardStats();
+    } catch (error) {
+      console.error('Error unlocking analytics:', error);
+    } finally {
+      setActivatingAnalytics(false);
+    }
   };
 
-  // ... (existing helper functions)
+  const getProgress = (step: number) => {
+    switch (step) {
+      case 1: // Connect Instagram
+        return instagramConnected ? 100 : 0;
+      case 2: // Unlock Analytics (Has any activity/users)
+        return stats.followersLastUpdated ? 100 : 0;
+      case 3: // Create Automation
+        return stats.activeAutomations > 0 ? 100 : 0;
+      case 4: // Test Automation (Has triggered DMs/Comments)
+        return (stats.dmsTriggered > 0 || stats.commentReplies > 0) ? 100 : 0;
+      default:
+        return 0;
+    }
+  };
 
+  const steps = [
+    { id: 1, title: 'Connect Instagram', desc: 'Link your Business/Creator account.' },
+    { id: 2, title: 'Unlock Advance Analytics', desc: 'Enable performance insights (Updates every 12h).' },
+    { id: 3, title: 'Create Automation', desc: 'Set a trigger and activate it.' },
+    { id: 4, title: 'Test Automation', desc: 'Run a quick test to confirm it works.' },
+  ];
+
+  const showAnalytics = !!stats.followersLastUpdated;
   const currentMonthShort = new Date().toLocaleString('default', { month: 'short' });
 
-  // ... (existing render code)
+  return (
+    <div className="flex-1 overflow-auto bg-gradient-to-br from-gray-50 via-white to-blue-50/30">
+      {/* Release Announcement Banner */}
+      {showAnnouncement && (
+        <div className="sticky top-0 z-50 bg-[#ffd147] text-gray-900 px-4 py-1 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-2 mx-auto">
+            <span className="text-lg">🚀</span>
+            <span className="font-bold">Big News! New Products Page is live.</span>
+            <button className="bg-black/5 hover:bg-black/10 px-3 py-1 rounded-full text-sm font-semibold transition-colors ml-2">
+              Try it →
+            </button>
+          </div>
+          <button
+            onClick={() => setShowAnnouncement(false)}
+            className="text-gray-600 hover:text-gray-900 p-1 hover:bg-black/5 rounded-full transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
 
-  <div className={`grid grid-cols-1 md:grid-cols-2 ${showAnalytics ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-5 mb-10`}>
-    <KPICard
-      title="DMs Triggered"
-      value={loading ? '-' : `${stats.dmsTriggered}/1000 in ${currentMonthShort}`}
-      icon={MessageSquare}
-      iconColor="text-blue-600"
-      iconBgColor="bg-gradient-to-br from-blue-50 to-blue-100"
-    />
-    <KPICard
-      title="Active Automations"
-      value={loading ? '-' : (stats.activeAutomations || 0).toString()}
-      icon={Zap}
-      iconColor="text-amber-600"
-      iconBgColor="bg-gradient-to-br from-amber-50 to-amber-100"
-    />
-    {/* 
+      <div className="max-w-7xl mx-auto p-8">
+        {/* Pro Upgrade Banner */}
+        <div className="bg-gradient-to-r from-red-600 to-red-400 text-white rounded-2xl p-6 mb-8 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg shadow-red-100">
+          <div>
+            <h2 className="text-xl font-bold mb-1">Unlock Pro Power!</h2>
+            <p className="text-red-50">Get unlimited automations, contacts & advanced analytics.</p>
+          </div>
+          <button className="bg-white text-red-600 px-6 py-2.5 rounded-xl font-bold hover:bg-red-50 transition-colors shadow-sm whitespace-nowrap">
+            Upgrade to Pro
+          </button>
+        </div>
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Hello, {displayName?.split(' ')[0] || 'Creator'}! 👋</h1>
+            <p className="text-gray-600 flex items-center gap-2">
+              Here determines your growth today.
+              <a
+                href="https://quickrevert.tech/contact"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-700 font-medium hover:underline lg:hidden"
+              >
+                Contact Support
+              </a>
+            </p>
+          </div>
+          <a
+            href="https://quickrevert.tech/contact"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden lg:flex items-center gap-3 bg-white px-6 py-3 rounded-xl shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer"
+          >
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="text-sm font-medium text-gray-700">Contact Support</span>
+          </a>
+        </div>
+
+        <div className="mb-8">
+          <InstagramConnectionStatus />
+        </div>
+
+        <div className={`grid grid-cols-1 md:grid-cols-2 ${showAnalytics ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-5 mb-10`}>
+          <KPICard
+            title="DMs Triggered"
+            value={loading ? '-' : `${stats.dmsTriggered}/1000 in ${currentMonthShort}`}
+            icon={MessageSquare}
+            iconColor="text-blue-600"
+            iconBgColor="bg-gradient-to-br from-blue-50 to-blue-100"
+          />
+          <KPICard
+            title="Active Automations"
+            value={loading ? '-' : (stats.activeAutomations || 0).toString()}
+            icon={Zap}
+            iconColor="text-amber-600"
+            iconBgColor="bg-gradient-to-br from-amber-50 to-amber-100"
+          />
+          {/* 
             Replaced "Comment Replies" with something else? 
             Actually user only asked for "DMs Triggered" and "Unique Users Contacted" cards to change.
             I will keep Comment Replies as simple count or remove it?
             The user said "value ... shud be 0/1000 DM ... also 0/1000 contacts ... here as well".
             "Contacts" usually maps to the card "Unique Users Contacted".
           */}
-    <KPICard
-      title="Comments Processed"
-      value={loading ? '-' : `${stats.commentReplies}/1000 in ${currentMonthShort}`}
-      icon={MessageCircle}
-      iconColor="text-rose-600"
-      iconBgColor="bg-gradient-to-br from-rose-50 to-rose-100"
-    />
-    <KPICard
-      title="Contacts (Usage)"
-      value={loading ? '-' : `${stats.uniqueUsers}/1000 in ${currentMonthShort}`}
-      icon={Users}
-      iconColor="text-cyan-600"
-      iconBgColor="bg-gradient-to-br from-cyan-50 to-cyan-100"
-    />
-    {showAnalytics && (
-      <>
-        <KPICard
-          title="Current Followers"
-          value={loading ? '-' : (stats.followersCount || 0).toLocaleString()}
-          icon={Users}
-          iconColor="text-purple-600"
-          iconBgColor="bg-gradient-to-br from-purple-50 to-purple-100"
-        />
-        <KPICard
-          title="Followers Gained"
-          value={loading ? '-' : ((stats.followersCount || 0) - (stats.initialFollowersCount || 0)).toLocaleString()}
-          icon={TrendingUp}
-          iconColor="text-emerald-600"
-          iconBgColor="bg-gradient-to-br from-emerald-50 to-emerald-100"
-        />
-      </>
-    )}
-  </div>
+          <KPICard
+            title="Comments Processed"
+            value={loading ? '-' : `${stats.commentReplies}/1000 in ${currentMonthShort}`}
+            icon={MessageCircle}
+            iconColor="text-rose-600"
+            iconBgColor="bg-gradient-to-br from-rose-50 to-rose-100"
+          />
+          <KPICard
+            title="Contacts (Usage)"
+            value={loading ? '-' : `${stats.uniqueUsers}/1000 in ${currentMonthShort}`}
+            icon={Users}
+            iconColor="text-cyan-600"
+            iconBgColor="bg-gradient-to-br from-cyan-50 to-cyan-100"
+          />
+          {showAnalytics && (
+            <>
+              <KPICard
+                title="Current Followers"
+                value={loading ? '-' : (stats.followersCount || 0).toLocaleString()}
+                icon={Users}
+                iconColor="text-purple-600"
+                iconBgColor="bg-gradient-to-br from-purple-50 to-purple-100"
+              />
+              <KPICard
+                title="Followers Gained"
+                value={loading ? '-' : ((stats.followersCount || 0) - (stats.initialFollowersCount || 0)).toLocaleString()}
+                icon={TrendingUp}
+                iconColor="text-emerald-600"
+                iconBgColor="bg-gradient-to-br from-emerald-50 to-emerald-100"
+              />
+            </>
+          )}
+        </div>
 
-  {/* Usage Graph Section */ }
+        {/* Usage Graph Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <div className="lg:col-span-2">
             <UsageGraph />
