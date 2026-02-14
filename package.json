@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.91.1",
+    "date-fns": "^4.1.0",
     "lucide-react": "^0.344.0",
     "node-fetch": "^3.3.2",
     "qrcode.react": "^4.2.0",

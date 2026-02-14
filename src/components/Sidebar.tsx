@@ -83,8 +83,8 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="hidden md:flex fixed left-0 top-0 h-full w-64 bg-gradient-to-b from-gray-50 to-white border-r border-gray-200 flex-col shadow-lg z-50">
-      <div className="pt-8 pb-4 px-4 border-b border-gray-200 flex flex-col items-start">
+    <aside className="hidden md:flex fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 flex-col shadow-lg z-50">
+      <div className="pt-8 pb-4 px-4 border-b border-gray-200 flex flex-col items-start bg-white">
         <div className="flex items-center gap-0 mb-0 w-full justify-center">
           <div className="w-14 h-14 flex items-center justify-center overflow-hidden">
             <img src="/Logo.png" alt="QuickRevert" className="w-full h-full object-contain scale-150" />
@@ -94,34 +94,38 @@ export default function Sidebar() {
         <p className="text-[10px] text-gray-500 font-medium tracking-wide w-full text-center">Intelligent Responses | Zero Wait Time | 24x7</p>
       </div>
 
-      <nav className="flex-1 p-4">
-        <ul className="space-y-1.5">
-          {navigation.map((item) => {
-            const Icon = item.icon;
-            const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+      <div className="flex-1 flex flex-col bg-slate-900 overflow-y-auto">
+        <nav className="p-4">
+          <ul className="space-y-1.5">
+            {navigation.map((item) => {
+              const Icon = item.icon;
+              const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
 
-            return (
-              <li key={item.id}>
-                <Link
-                  to={item.path}
-                  className={`group w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all duration-200 ${isActive
-                    ? `bg-gradient-to-r ${getGradientClass()} text-white shadow-md ${getShadowClass()}`
-                    : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-                    }`}
-                >
-                  <Icon className={`w-5 h-5 transition-transform group-hover:scale-110 ${isActive ? 'text-white' : 'text-gray-500'}`} />
-                  {item.name}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
+              return (
+                <li key={item.id}>
+                  <Link
+                    to={item.path}
+                    className={`group w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all duration-200 ${isActive
+                      ? `bg-blue-600 text-white shadow-md shadow-blue-900/20`
+                      : 'text-gray-400 hover:bg-slate-800 hover:text-white'
+                      }`}
+                  >
+                    <Icon className={`w-5 h-5 transition-transform group-hover:scale-110 ${isActive ? 'text-white' : 'text-gray-500 group-hover:text-white'}`} />
+                    {item.name}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
 
-      <UsageStats />
+        <div className="mt-auto">
+          <UsageStats />
+        </div>
+      </div>
 
-      <div className="p-4 border-t border-gray-200 bg-gray-50/50">
-        <div className="bg-white rounded-xl p-3 mb-3 shadow-sm border border-gray-100">
+      <div className="p-4 border-t border-gray-200 bg-white">
+        <div className="bg-gray-50 rounded-xl p-3 mb-3 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3 mb-3">
             {user?.user_metadata?.avatar_url ? (
               <img

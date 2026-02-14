@@ -44,9 +44,9 @@ export default function UsageGraph() {
                     const dateKey = format(new Date(activity.executed_at), 'yyyy-MM-dd');
                     if (dataMap.has(dateKey)) {
                         const entry = dataMap.get(dateKey);
-                        if (activity.activity_type === 'send_dm') {
+                        if (['dm', 'dm_sent', 'send_dm', 'user_directed_messages'].includes(activity.activity_type)) {
                             entry.dms += 1;
-                        } else if (activity.activity_type === 'incoming_comment') {
+                        } else if (['incoming_comment', 'reply_to_comment', 'comment', 'reply', 'post_comment'].includes(activity.activity_type)) {
                             entry.comments += 1;
                         }
                     }
