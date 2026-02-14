@@ -203,10 +203,10 @@ export default function Dashboard() {
             href="https://quickrevert.tech/contact"
             target="_blank"
             rel="noopener noreferrer"
-            className="hidden lg:flex items-center gap-3 bg-white px-6 py-3 rounded-xl shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer"
+            className="hidden lg:flex items-center gap-3 bg-green-600 px-6 py-3 rounded-xl shadow-sm border border-green-600 hover:bg-green-700 transition-colors cursor-pointer"
           >
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-sm font-medium text-green-600">Contact Support</span>
+            <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+            <span className="text-sm font-medium text-white">Contact Support</span>
           </a>
         </div>
 
