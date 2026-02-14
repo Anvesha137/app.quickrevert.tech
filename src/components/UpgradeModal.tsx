@@ -34,6 +34,7 @@ export default function UpgradeModal() {
             });
 
             if (error) throw error;
+            if (data?.error) throw new Error(data.error);
 
             const options = {
                 key: import.meta.env.VITE_RAZORPAY_KEY_ID, // Enter the Key ID generated from the Dashboard

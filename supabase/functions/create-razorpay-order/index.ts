@@ -15,9 +15,20 @@ serve(async (req) => {
     const { planType } = await req.json()
 
     // Initialize Razorpay
+    const key_id = Deno.env.get('RAZORPAY_KEY_ID');
+    const key_secret = Deno.env.get('RAZORPAY_KEY_SECRET');
+
+    if (!key_id || !key_secret) {
+      console.error("Missing Razorpay keys");
+      return new Response(
+        JSON.stringify({ error: "Server misconfiguration: Missing Razorpay keys" }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      );
+    }
+
     const razorpay = new Razorpay({
-      key_id: Deno.env.get('RAZORPAY_KEY_ID') ?? '',
-      key_secret: Deno.env.get('RAZORPAY_KEY_SECRET') ?? '',
+      key_id,
+      key_secret,
     });
 
     // Calculate Amount
@@ -32,13 +43,22 @@ serve(async (req) => {
       receipt: `receipt_${Date.now()}`,
     };
 
-    const order = await razorpay.orders.create(options);
+    try {
+      const order = await razorpay.orders.create(options);
+      return new Response(
+        JSON.stringify(order),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    } catch (rzpError) {
+      console.error("Razorpay API Error:", rzpError);
+      return new Response(
+        JSON.stringify({ error: `Razorpay Error: ${rzpError.message || JSON.stringify(rzpError)}` }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      )
+    }
 
-    return new Response(
-      JSON.stringify(order),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
   } catch (error) {
+    console.error("General Error:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
