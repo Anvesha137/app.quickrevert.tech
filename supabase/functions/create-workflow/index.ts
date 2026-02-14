@@ -103,6 +103,118 @@ Deno.serve(async (req: Request) => {
       const triggerType = bodyTriggerType || automationData?.trigger_type || "user_dm";
       const actions = automationData?.actions || [];
 
+      // 0. Analytics Workflow (Special Case)
+      if (bodyTriggerType === 'enable_analytics') {
+        const nodes = [
+          {
+            "parameters": {
+              "rule": {
+                "interval": [
+                  {
+                    "field": "hours",
+                    "hoursInterval": 12
+                  }
+                ]
+              }
+            },
+            "id": "schedule-trigger",
+            "name": "Every 12 Hours",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1.2,
+            "position": [-160, -32]
+          },
+          {
+            "parameters": {
+              "url": "https://graph.instagram.com/me",
+              "authentication": "predefinedCredentialType",
+              "nodeCredentialType": "facebookGraphApi",
+              "sendQuery": true,
+              "queryParameters": {
+                "parameters": [
+                  {
+                    "name": "fields",
+                    "value": "followers_count,media_count,username,follows_count"
+                  }
+                ]
+              },
+              "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [64, -32],
+            "id": "get-insta-stats",
+            "name": "Get Instagram Stats",
+            "credentials": {
+              "facebookGraphApi": {
+                "id": credentialId
+              }
+            }
+          },
+          {
+            "parameters": {
+              "method": "PATCH",
+              "url": `${supabaseUrl}/rest/v1/instagram_accounts?id=eq.${instagramAccount.id}`,
+              "headers": {
+                "parameters": [
+                  {
+                    "name": "apikey",
+                    "value": supabaseServiceKey
+                  },
+                  {
+                    "name": "Authorization",
+                    "value": `Bearer ${supabaseServiceKey}`
+                  },
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "Prefer",
+                    "value": "return=minimal"
+                  }
+                ]
+              },
+              "sendBody": true,
+              "specifyBody": "json",
+              "jsonBody": "={\n  \"followers_count\": {{ $json.followers_count }}\n}",
+              "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [288, -32],
+            "id": "update-supabase",
+            "name": "Update Supabase"
+          }
+        ];
+
+        const connections = {
+          "Every 12 Hours": {
+            "main": [
+              [
+                {
+                  "node": "Get Instagram Stats",
+                  "type": "main",
+                  "index": 0
+                }
+              ]
+            ]
+          },
+          "Get Instagram Stats": {
+            "main": [
+              [
+                {
+                  "node": "Update Supabase",
+                  "type": "main",
+                  "index": 0
+                }
+              ]
+            ]
+          }
+        };
+
+        return { name: `[Analytics] ${instagramAccount.username}`, nodes, connections, settings: { saveExecutionProgress: true, timezone: "Asia/Kolkata" } };
+      }
+
       const nodes: any[] = [];
       let nodeX = -300; // Start closer to center
       const connections: any = {};
