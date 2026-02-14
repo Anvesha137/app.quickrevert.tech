@@ -103,18 +103,23 @@ export default function Dashboard() {
       <div className="max-w-7xl mx-auto p-8">
         <div className="mb-10">
           <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-2 tracking-tight">
-                Welcome back, {userName}!
+            <div className="mt-1">
+              <h1 className="text-[28px] font-bold text-gray-900 mb-2 tracking-tight">
+                Hello, {userName}👋
               </h1>
               <p className="text-lg text-gray-600">
                 Your automations are running smoothly. Here's what's happening today.
               </p>
             </div>
-            <div className="hidden lg:flex items-center gap-3 bg-white px-6 py-3 rounded-xl shadow-sm border border-gray-200">
+            <a
+              href="https://quickrevert.tech/contact"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden lg:flex items-center gap-3 bg-white px-6 py-3 rounded-xl shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer"
+            >
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-sm font-medium text-gray-700">All Systems Operational</span>
-            </div>
+              <span className="text-sm font-medium text-gray-700">Contact Support</span>
+            </a>
           </div>
         </div>
 

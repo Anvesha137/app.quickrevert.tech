@@ -85,10 +85,14 @@ export default function Sidebar() {
 
   return (
     <aside className="hidden md:flex fixed left-0 top-0 h-full w-64 bg-gradient-to-b from-gray-50 to-white border-r border-gray-200 flex-col shadow-lg z-50">
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center justify-center w-full">
-          <img src="/full_logo.png" alt="QuickRevert" className="h-8 w-auto object-contain" />
+      <div className="pt-8 pb-4 px-4 border-b border-gray-200 flex flex-col items-start">
+        <div className="flex items-center gap-0 mb-0 w-full justify-center">
+          <div className="w-16 h-16 flex items-center justify-center overflow-hidden">
+            <img src="/Logo.png" alt="QuickRevert" className="w-full h-full object-contain scale-150" />
+          </div>
+          <span className="text-[28px] font-bold text-gray-900 tracking-tight -mt-3">QuickRevert</span>
         </div>
+        <p className="text-[10px] text-gray-500 font-medium tracking-wide w-full text-center">Intelligent Responses | Zero Wait Time | 24x7</p>
       </div>
 
       <nav className="flex-1 p-4">
