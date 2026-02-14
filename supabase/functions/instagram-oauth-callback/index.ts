@@ -7,7 +7,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const INSTAGRAM_CLIENT_ID = "1487967782460775";
+const INSTAGRAM_CLIENT_ID = Deno.env.get("INSTAGRAM_CLIENT_ID") || "1487967782460775";
 const INSTAGRAM_REDIRECT_URI = Deno.env.get("INSTAGRAM_REDIRECT_URI")!;
 
 Deno.serve(async (req: Request) => {
@@ -45,7 +45,6 @@ Deno.serve(async (req: Request) => {
     const instagramClientSecret = Deno.env.get("INSTAGRAM_CLIENT_SECRET");
     if (!instagramClientSecret) return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Instagram client secret not configured')}`, 302);
 
-    // Step 1: Exchange authorization code for short-lived token
     console.log('Exchanging authorization code for access token...');
     const tokenFormData = new URLSearchParams();
     tokenFormData.append('client_id', INSTAGRAM_CLIENT_ID);
@@ -61,7 +60,6 @@ Deno.serve(async (req: Request) => {
     const tokenData = await tokenResponse.json();
 
     console.log('Token response status:', tokenResponse.status);
-    console.log('Token response:', JSON.stringify(tokenData, null, 2));
 
     if (!tokenData.access_token || !tokenData.user_id) {
       const errorMsg = tokenData.error_message || tokenData.error?.message || JSON.stringify(tokenData);
@@ -71,31 +69,76 @@ Deno.serve(async (req: Request) => {
     const shortLivedToken = tokenData.access_token;
     const instagramUserId = tokenData.user_id;
 
-    console.log('Short-lived token received, user_id:', instagramUserId);
+    console.log('Short-lived token received for Instagram user_id:', instagramUserId);
+    console.log('Exchanging for long-lived token...');
 
-    // Step 2: Fetch profile using the user_id (NOT /me endpoint)
+    const longLivedTokenUrl = `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${instagramClientSecret}&access_token=${shortLivedToken}`;
+    const longLivedTokenRes = await fetch(longLivedTokenUrl);
+    const longLivedTokenData = await longLivedTokenRes.json();
+
+    console.log('Long-lived token response status:', longLivedTokenRes.status);
+
+    if (!longLivedTokenRes.ok || !longLivedTokenData.access_token) {
+      const errorMsg = longLivedTokenData.error?.message || 'Failed to exchange for long-lived token';
+      console.error('Long-lived token exchange failed:', errorMsg);
+      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent(errorMsg)}`, 302);
+    }
+
+    const accessToken = longLivedTokenData.access_token;
+    const tokenExpiresAt = new Date(Date.now() + (longLivedTokenData.expires_in || 5184000) * 1000).toISOString();
+
+    console.log('Long-lived token received, expires in:', longLivedTokenData.expires_in, 'seconds');
+
+    // 3. Fetch Instagram profile (for username and profile picture)
+    // We still need this for the UI, even if the ID is wrong for webhooks.
+    const profileUrl = `https://graph.instagram.com/me?fields=id,username,profile_picture_url&access_token=${accessToken}`;
     console.log('Fetching Instagram profile...');
-    const profileRes = await fetch(`https://graph.instagram.com/${instagramUserId}?fields=id,username&access_token=${shortLivedToken}`);
+
+    const profileRes = await fetch(profileUrl);
     const profileData = await profileRes.json();
 
     console.log('Profile response status:', profileRes.status);
-    console.log('Profile data:', JSON.stringify(profileData, null, 2));
 
     if (!profileRes.ok || profileData.error) {
-      const errorMsg = profileData.error?.message || JSON.stringify(profileData);
-      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Profile fetch failed: ' + errorMsg)}`, 302);
+      const errorMsg = profileData.error?.message || 'Failed to fetch profile';
+      console.error('Profile fetch failed:', errorMsg);
+      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent(errorMsg)}`, 302);
     }
 
-    if (!profileData.username) {
-      return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Instagram username not found in profile')}`, 302);
+    const username = profileData.username || `user_${instagramUserId}`;
+    const profilePictureUrl = profileData.profile_picture_url || null;
+
+    // 4. Fetch the Instagram Business Account ID (IGBA) linked to the user's Page
+    // standard /me endpoint returns the User ID, which is WRONG for webhooks.
+    // We must find the Page that this Instagram account is connected to.
+
+    console.log('Fetching Pages to find linked Instagram Business Account...');
+    const pagesUrl = `https://graph.facebook.com/v19.0/me/accounts?fields=instagram_business_account,name&access_token=${accessToken}`;
+    const pagesRes = await fetch(pagesUrl);
+    const pagesData = await pagesRes.json();
+
+    let igbaId = null;
+    let pageName = null;
+
+    if (pagesData.data) {
+      for (const page of pagesData.data) {
+        if (page.instagram_business_account) {
+          igbaId = page.instagram_business_account.id;
+          pageName = page.name;
+          console.log(`✅ Found Linked Instagram Business ID: ${igbaId} (Page: ${pageName})`);
+          break;
+        }
+      }
     }
 
-    // Use short-lived token (expires in 1 hour)
-    // Note: Instagram Graph API with Instagram Login doesn't support programmatic long-lived token exchange
-    const accessToken = shortLivedToken;
-    const tokenExpiresAt = new Date(Date.now() + 3600 * 1000).toISOString(); // 1 hour
+    if (!igbaId) {
+      console.warn("⚠️ No linked Instagram Business Account found in Pages. Fallback to User ID (might cause webhook mismatch).");
+      // Fallback to the ID we got from the token exchange or /me
+      igbaId = profileData.id || instagramUserId;
+    }
 
-    console.log('Saving to database...');
+    console.log('Final Instagram Business Account ID:', igbaId);
+
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     const { data: existingAccount } = await supabase
@@ -104,40 +147,84 @@ Deno.serve(async (req: Request) => {
       .eq("instagram_user_id", instagramUserId)
       .maybeSingle();
 
+    const accountData = {
+      user_id: userId,
+      instagram_user_id: instagramUserId,
+      instagram_business_id: igbaId,
+      username: username,
+      profile_picture_url: profilePictureUrl,
+      access_token: accessToken,
+      token_expires_at: tokenExpiresAt,
+      status: "active",
+      last_synced_at: new Date().toISOString(),
+    };
+
     if (existingAccount) {
-      const { error: updateError } = await supabase.from("instagram_accounts").update({
-        user_id: userId,
-        access_token: accessToken,
-        token_expires_at: tokenExpiresAt,
-        username: profileData.username,
-        status: "active",
-        last_synced_at: new Date().toISOString(),
-      }).eq("id", existingAccount.id);
+      const { error: updateError } = await supabase
+        .from("instagram_accounts")
+        .update(accountData)
+        .eq("id", existingAccount.id);
 
       if (updateError) {
         console.error('Database update error:', updateError);
-        return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Database update failed')}`, 302);
+        return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Database update failed: ' + updateError.message)}`, 302);
       }
+
+      console.log('Account updated successfully');
     } else {
-      const { error: insertError } = await supabase.from("instagram_accounts").insert({
-        user_id: userId,
-        instagram_user_id: instagramUserId,
-        username: profileData.username,
-        access_token: accessToken,
-        token_expires_at: tokenExpiresAt,
-        status: "active",
-        connected_at: new Date().toISOString(),
-        last_synced_at: new Date().toISOString(),
-      });
+      const { error: insertError } = await supabase
+        .from("instagram_accounts")
+        .insert({
+          ...accountData,
+          connected_at: new Date().toISOString(),
+        });
 
       if (insertError) {
         console.error('Database insert error:', insertError);
-        return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Database insert failed')}`, 302);
+        return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Database insert failed: ' + insertError.message)}`, 302);
       }
+
+      console.log('New account created successfully');
     }
 
-    console.log('Success! Redirecting...');
-    return Response.redirect(`${frontendUrl}/connect-accounts?instagram_connected=true&username=${encodeURIComponent(profileData.username)}`, 302);
+    // ✅ CRITICAL: Subscribe webhooks using Page-scoped IGBA ID
+    console.log('🔔 Subscribing webhooks for IGBA:', igbaId);
+    try {
+      const webhookUrl = `https://graph.instagram.com/v21.0/${igbaId}/subscribed_apps`;
+
+      const subscribeRes = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          subscribed_fields: 'messages,messaging_postbacks,message_reactions',
+          access_token: accessToken
+        })
+      });
+
+      const subscribeData = await subscribeRes.json();
+      console.log('Webhook subscription response:', JSON.stringify(subscribeData, null, 2));
+
+      if (!subscribeRes.ok) {
+        console.error('⚠️  Webhook subscription failed (non-fatal):', subscribeData);
+        await supabase.from('failed_events').insert({
+          event_id: 'webhook-subscribe-fail-' + Date.now(),
+          payload: {
+            igbaId,
+            instagramUserId,
+            error: subscribeData
+          },
+          error_message: 'Webhook subscription failed during OAuth'
+        });
+      } else {
+        console.log('✅ Webhooks subscribed successfully for IGBA:', igbaId);
+      }
+    } catch (webhookError: any) {
+      console.error('⚠️  Webhook subscription error (non-fatal):', webhookError);
+    }
+
+    return Response.redirect(`${frontendUrl}/connect-accounts?instagram_connected=true&username=${encodeURIComponent(username)}`, 302);
 
   } catch (error: any) {
     console.error('Unexpected error:', error);

@@ -12,7 +12,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 
-const navigation = [
+export const navigation = [
   { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
   { id: 'automations', name: 'Automations', icon: Zap, path: '/automation' },
   { id: 'contacts', name: 'Contacts', icon: Users, path: '/contacts' },
@@ -94,7 +94,7 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="fixed left-0 top-0 h-full w-64 bg-gradient-to-b from-gray-50 to-white border-r border-gray-200 flex flex-col shadow-lg">
+    <aside className="hidden md:flex fixed left-0 top-0 h-full w-64 bg-gradient-to-b from-gray-50 to-white border-r border-gray-200 flex-col shadow-lg z-50">
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 bg-gradient-to-br ${getLogoGradientClass()} rounded-xl flex items-center justify-center shadow-lg`}>
@@ -114,11 +114,10 @@ export default function Sidebar() {
               <li key={item.id}>
                 <Link
                   to={item.path}
-                  className={`group w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                    isActive
+                  className={`group w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all duration-200 ${isActive
                       ? `bg-gradient-to-r ${getGradientClass()} text-white shadow-md ${getShadowClass()}`
                       : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-                  }`}
+                    }`}
                 >
                   <Icon className={`w-5 h-5 transition-transform group-hover:scale-110 ${isActive ? 'text-white' : 'text-gray-500'}`} />
                   {item.name}

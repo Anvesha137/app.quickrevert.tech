@@ -29,8 +29,8 @@ if (!supabaseUrl || !supabaseServiceKey) {
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// The account ID we just found/fixed
-const ACCOUNT_ID = '256b1404-f6fa-45da-894c-da707102caa7';
+// The account ID for blr.food.finds (newly connected)
+const ACCOUNT_ID = '1d0e01c8-dad5-4256-8cca-71e58712758a';
 
 (async () => {
     console.log(`Checking Routes for Account ID: ${ACCOUNT_ID}...`);

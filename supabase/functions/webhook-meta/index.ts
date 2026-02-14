@@ -103,20 +103,124 @@ async function processEvent(body: any) {
     const object = body.object;
     const entries = body.entry || [];
 
+    // DEBUG: Log full webhook payload
+    console.log("[WEBHOOK DEBUG] Full payload:", JSON.stringify(body, null, 2));
+    console.log("[WEBHOOK DEBUG] Number of entries:", entries.length);
+
     for (const entry of entries) {
-        const account_id = entry.id;
+        const account_id = String(entry.id); // ✅ CRITICAL: Convert to string for DB comparison!
+
+        // DEBUG: Log entry details
+        console.log("[WEBHOOK DEBUG] Entry ID:", account_id, "Type:", typeof account_id);
+        console.log("[WEBHOOK DEBUG] Full entry:", JSON.stringify(entry, null, 2));
 
         // FETCH ALL ACCOUNT DETAILS (access_token, user_id)
-        // Multiple dashboard users might have connected the same IG account.
-        const { data: accountsData, error: accountsError } = await supabase
-            .from('instagram_accounts')
-            .select('id, access_token, user_id')
-            .eq('instagram_user_id', account_id);
+        // ✅ CRITICAL: Webhooks send IGBA ID in entry.id, so check BOTH fields!
+        // ✅ CRITICAL FIX: Look up by instagram_business_id (Page-scoped IGBA ID)
+        console.log(`[ACCOUNT LOOKUP] Searching for account with IGBA ID: ${account_id}`);
 
-        if (accountsError || !accountsData || accountsData.length === 0) {
-            console.error(`Account Lookup Failed or Empty for ${account_id}`, accountsError);
+        // 🔥 CRITICAL FIX: Handle type mismatch - convert both to text for comparison
+        // The webhook sends a string, but the DB column might be bigint
+        // 🔥 NEW SELF-HEALING LOOKUP LOGIC
+        // 1. Initial Lookup handling type mismatches
+        let { data: accountsData, error: accountsError } = await supabase
+            .from('instagram_accounts')
+            .select('id, access_token, user_id, instagram_user_id, instagram_business_id, username')
+            .or(`instagram_business_id.eq.${account_id},instagram_user_id.eq.${account_id}`)
+            .eq('status', 'active');
+
+        // 2. Self-Healing: If lookup failed, try to find by USERNAME via Graph API
+        if (!accountsData || accountsData.length === 0) {
+            console.log(`❌ Initial Lookup Failed for ${account_id}. Attempting Advanced Self-Healing via Candidate Tokens...`);
+
+            try {
+                // Fetch potential candidates (accounts where ID might be wrong)
+                // We check active accounts. We can't check ALL if there are 500+, 
+                // so maybe we order by created_at desc (newest first)?
+                const { data: candidates } = await supabase
+                    .from('instagram_accounts')
+                    .select('id, username, access_token')
+                    .eq('status', 'active')
+                    .not('access_token', 'is', null)
+                    .order('created_at', { ascending: false })
+                    .limit(20); // Check 20 most recent accounts to avoid timeout
+
+                if (candidates && candidates.length > 0) {
+                    for (const candidate of candidates) {
+                        // Try to query the unknown ID using THIS candidate's token
+                        // If this token owns the ID, it should work (or at least return data)
+                        const graphUrl = `https://graph.instagram.com/${account_id}?fields=username&access_token=${candidate.access_token}`;
+                        // console.log(`🔍 Probe ${candidate.username}...`); 
+
+                        try {
+                            const graphRes = await fetch(graphUrl);
+                            const graphData = await graphRes.json();
+
+                            if (graphData.username) {
+                                console.log(`✅ Token for candidate [${candidate.username}] successfully resolved ID ${account_id} to username: ${graphData.username}`);
+
+                                // Check if it matches the candidate
+                                if (graphData.username === candidate.username) {
+                                    console.log(`🎯 MATCH CONFIRMED! Updating ID for ${candidate.username}...`);
+
+                                    await supabase
+                                        .from('instagram_accounts')
+                                        .update({ instagram_business_id: account_id })
+                                        .eq('id', candidate.id);
+
+                                    // Success! Fetch the updated record
+                                    const { data: healedData } = await supabase
+                                        .from('instagram_accounts')
+                                        .select('id, access_token, user_id, instagram_user_id, instagram_business_id, username')
+                                        .eq('id', candidate.id);
+
+                                    if (healedData) {
+                                        accountsData = healedData;
+                                        console.log(`✅ Self-Healing Successful. Proceeding with account.`);
+                                    }
+                                    break; // Stop looking
+                                } else {
+                                    console.warn(`⚠️ Token worked but username mismatch: Candidate=${candidate.username}, Res=${graphData.username}`);
+                                }
+                            }
+                        } catch (err) {
+                            // Ignore errors for wrong tokens
+                        }
+                    }
+                } else {
+                    console.warn(`⚠️ No candidate tokens available for self-healing.`);
+                }
+            } catch (healErr) {
+                console.error("Advanced self-healing exception:", healErr);
+            }
+        }
+
+        console.log(`[QUERY RESULT] Data:`, JSON.stringify(accountsData));
+
+        if (!accountsData || accountsData.length === 0) {
+            console.error(`❌ Final Account Lookup Failed for ${account_id} (even after self-healing)`);
             // We can't fetch profile without token, but we should still try to route?
             // Without account data, we can't upsert contacts or enrich with confident username.
+
+            // Log failure
+            await logFailedEvent({
+                event_id: "unknown",
+                payload: entry
+            }, "No Internal Account ID found (accountsData empty)");
+            continue;
+        } else {
+            console.log(`✅ Found ${accountsData.length} account(s) for execution.`);
+
+            // Auto-Correction for existing accounts if ID was matched via user_id but business_id is wrong
+            for (const account of accountsData) {
+                if (String(account.instagram_business_id) !== account_id) {
+                    console.log(`🔄 Auto-correcting stored Business ID for ${account.username} to ${account_id}`);
+                    await supabase
+                        .from('instagram_accounts')
+                        .update({ instagram_business_id: account_id })
+                        .eq('id', account.id);
+                }
+            }
         }
 
         // RATE LIMITING CHECK
@@ -234,6 +338,50 @@ async function processEvent(body: any) {
                 const internalAccountId = accountsData?.[0]?.id;
 
                 if (internalAccountId) {
+                    // 🔥 CRITICAL FIX: Call execute-automation for dashboard automations
+                    // This triggers automations created in the dashboard (automations table)
+                    for (const account of accountsData) {
+                        try {
+                            const executeUrl = `${SUPABASE_URL}/functions/v1/execute-automation`;
+                            console.log(`Calling execute-automation for user ${account.user_id}`);
+
+                            const executeResponse = await fetch(executeUrl, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                                },
+                                body: JSON.stringify({
+                                    userId: account.user_id,
+                                    instagramAccountId: account.id,
+                                    triggerType: 'user_directed_messages',
+                                    eventData: {
+                                        messageId: msg.message?.mid,
+                                        messageText: msg.message?.text,
+                                        from: {
+                                            id: msg.sender?.id,
+                                            username: resolvedUsername || msg.sender?.id,
+                                            name: profileName
+                                        },
+                                        timestamp: msg.timestamp
+                                    }
+                                })
+                            });
+
+                            if (!executeResponse.ok) {
+                                const errorText = await executeResponse.text();
+                                console.error(`execute-automation failed: ${errorText}`);
+                                await logFailedEvent({ event_id: eventId, payload: msg }, `execute-automation failed: ${errorText}`);
+                            } else {
+                                console.log('✅ execute-automation called successfully');
+                            }
+                        } catch (execError: any) {
+                            console.error('Error calling execute-automation:', execError);
+                            await logFailedEvent({ event_id: eventId, payload: msg }, `execute-automation error: ${execError.message}`);
+                        }
+                    }
+
+                    // Also route to n8n workflows via automation_routes (existing system)
                     await routeAndTrigger({
                         platform: object,
                         account_id: internalAccountId, // Pass UUID
@@ -253,8 +401,6 @@ async function processEvent(body: any) {
         if (entry.changes) {
             for (const change of entry.changes) {
                 // IDEMPOTENCY CHECK (For changes/comments)
-                // Changes might not have a clear global ID, so checking value + time might be needed.
-                // For simple comments, 'value.id' is the comment ID.
                 const eventId = change.value?.id || await hashPayload(change);
 
                 if (await isDuplicate(eventId, account_id)) {
@@ -262,15 +408,63 @@ async function processEvent(body: any) {
                     continue;
                 }
 
-                // Similar fallback logic for Comments? 
-                // For now, keep as is or apply same fix?
-                // Focusing on DM fix first as per user request.
-
                 const legacyEntry = { id: account_id, time: Date.now(), changes: [change] };
 
+                // FIX: Use internal UUID (same as DM routing)
+                const internalAccountId = accountsData?.[0]?.id;
+
+                if (!internalAccountId) {
+                    console.error("No Internal Account ID found for comment routing.");
+                    await logFailedEvent({ event_id: eventId, payload: change }, "No Internal Account ID found for changes");
+                    continue;
+                }
+
+                // 🔥 CRITICAL FIX: Call execute-automation for dashboard automations (comments)
+                if (change.field === 'comments' && accountsData && accountsData.length > 0) {
+                    for (const account of accountsData) {
+                        try {
+                            const executeUrl = `${SUPABASE_URL}/functions/v1/execute-automation`;
+                            console.log(`Calling execute-automation for comment on user ${account.user_id}`);
+
+                            const executeResponse = await fetch(executeUrl, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                                },
+                                body: JSON.stringify({
+                                    userId: account.user_id,
+                                    instagramAccountId: account.id,
+                                    triggerType: 'post_comment',
+                                    eventData: {
+                                        commentId: change.value?.id,
+                                        commentText: change.value?.text,
+                                        postId: change.value?.media?.id,
+                                        from: {
+                                            id: change.value?.from?.id,
+                                            username: change.value?.from?.username || change.value?.from?.id
+                                        },
+                                        timestamp: change.value?.timestamp
+                                    }
+                                })
+                            });
+
+                            if (!executeResponse.ok) {
+                                const errorText = await executeResponse.text();
+                                console.error(`execute-automation (comment) failed: ${errorText}`);
+                            } else {
+                                console.log('✅ execute-automation (comment) called successfully');
+                            }
+                        } catch (execError: any) {
+                            console.error('Error calling execute-automation for comment:', execError);
+                        }
+                    }
+                }
+
+                // Also route to n8n workflows via automation_routes (existing system)
                 await routeAndTrigger({
                     platform: object,
-                    account_id,
+                    account_id: internalAccountId, // UUID, not Instagram ID
                     event_type: 'changes',
                     sub_type: change.field,
                     payload: change,

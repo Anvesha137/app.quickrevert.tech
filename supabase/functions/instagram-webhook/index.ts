@@ -155,20 +155,43 @@ Deno.serve(async (req: Request) => {
                 };
 
                 const supabaseExecutorUrl = `${supabaseUrl}/functions/v1/execute-automation`;
+                console.log(`Calling execute-automation: ${supabaseExecutorUrl}`, { triggerType, eventData });
 
-                await fetch(supabaseExecutorUrl, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${supabaseServiceKey}`,
-                  },
-                  body: JSON.stringify({
-                    userId: instagramAccount.user_id,
-                    instagramAccountId: instagramAccount.id,
-                    triggerType,
-                    eventData,
-                  }),
-                });
+                try {
+                  const execResponse = await fetch(supabaseExecutorUrl, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${supabaseServiceKey}`,
+                    },
+                    body: JSON.stringify({
+                      userId: instagramAccount.user_id,
+                      instagramAccountId: instagramAccount.id,
+                      triggerType,
+                      eventData,
+                    }),
+                  });
+
+                  if (!execResponse.ok) {
+                    const err = await execResponse.text();
+                    console.error(`Execute-automation failed (${execResponse.status}):`, err);
+                    // Log specific failure
+                    await supabase.from('failed_events').insert({
+                      event_id: 'exec-fail-' + Date.now(),
+                      payload: { status: execResponse.status, error: err, body: eventData },
+                      error_message: `Execute Automation Failed: ${execResponse.status}`
+                    });
+                  } else {
+                    console.log('Execute-automation called successfully');
+                  }
+                } catch (fetchErr) {
+                  console.error('Failed to call execute-automation:', fetchErr);
+                  await supabase.from('failed_events').insert({
+                    event_id: 'fetch-fail-' + Date.now(),
+                    payload: { error: fetchErr.message },
+                    error_message: `Fetch Failed: ${fetchErr.message}`
+                  });
+                }
               }
             }
           }

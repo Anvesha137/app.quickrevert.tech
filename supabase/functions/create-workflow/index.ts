@@ -75,10 +75,31 @@ Deno.serve(async (req: Request) => {
 
     const userProvidedName = workflowName || `Instagram Automation - ${new Date().toISOString().split('T')[0]}`;
     const finalWorkflowName = `[${instagramAccount.username}] ${userProvidedName}`;
-    const webhookPath = `instagram-webhook-${userId}-${automationId || Date.now()}`;
+    // --- CHECK FOR EXISTING WORKFLOW ---
+    let existingWorkflowId: string | null = null;
+    let existingVibePath: string | null = null;
+
+    if (automationId) {
+      const { data: existing } = await supabase
+        .from('n8n_workflows')
+        .select('n8n_workflow_id, webhook_path')
+        .eq('automation_id', automationId)
+        .maybeSingle();
+
+      if (existing) {
+        existingWorkflowId = existing.n8n_workflow_id;
+        existingVibePath = existing.webhook_path;
+        console.log(`Found existing workflow for automation ${automationId}: ${existingWorkflowId}`);
+      }
+    }
+
+    // Reuse path if existing
+    const webhookPath = existingVibePath || `instagram-webhook-${userId}-${automationId || Date.now()}`;
 
     // --- BUILDERS ---
+    // --- BUILDERS ---
     const buildWorkflow = () => {
+
       const triggerType = bodyTriggerType || automationData?.trigger_type || "user_dm";
       const actions = automationData?.actions || [];
 
@@ -96,8 +117,10 @@ Deno.serve(async (req: Request) => {
 
       let previousNode = "Worker Webhook";
 
-      // 1.5 Switch Node Logic (Exclusive for keyword_dm)
-      const isKeywordTrigger = triggerType === 'user_directed_messages' && automationData?.trigger_config?.messageType === 'keywords';
+      // 1.5 Switch Node Logic (Exclusive for keyword_dm and story_reply)
+      const isKeywordTrigger =
+        (triggerType === 'user_directed_messages' && automationData?.trigger_config?.messageType === 'keywords') ||
+        (triggerType === 'story_reply' && automationData?.trigger_config?.storiesType === 'keywords');
 
       if (isKeywordTrigger) {
         const keywords = Array.isArray(automationData?.trigger_config?.keywords)
@@ -536,19 +559,31 @@ Deno.serve(async (req: Request) => {
           });
 
           // Connect to previous node
-          if (previousNode) {
-            connections[previousNode] = {
-              main: [[{ node: nodeName, type: "main", index: 0 }]]
-            };
-          }
+          if (triggerType === 'post_comment') {
+            // Parallel connection for Loop Protection Switch
+            if (!connections[previousNode]) {
+              connections[previousNode] = { main: [[], []] }; // Output 0: Continue, Output 1: Stop
+            }
+            connections[previousNode].main[0].push({ node: nodeName, type: "main", index: 0 });
 
-          previousNode = nodeName;
-          nodeX += 300;
+            // Do NOT update previousNode, so all actions connect to the Switch
+            nodeX += 300;
+          } else {
+            // Sequential connection for other triggers
+            if (previousNode) {
+              connections[previousNode] = {
+                main: [[{ node: nodeName, type: "main", index: 0 }]]
+              };
+            }
+            previousNode = nodeName;
+            nodeX += 300;
+          }
         }
       });
 
-      // Final wiring for loop protection switch
-      if (nodes.find(n => n.name === "Loop Protection Switch")) {
+      // Final wiring for loop protection switch (ONLY for non-post_comment triggers or if handled differently)
+      // For post_comment, we handled connections inside the loop above.
+      if (triggerType !== 'post_comment' && nodes.find(n => n.name === "Loop Protection Switch")) {
         // Find the first action node
         const firstActionNode = nodes.find(n =>
           n.name !== "Worker Webhook" &&

@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
         "instagram_business_basic",
         "instagram_business_manage_messages",
         "instagram_business_manage_comments",
-      ].join(",")
+      ].join(" ")  // FIXED: IG Business Login expects space-separated scopes
     );
 
     return new Response(JSON.stringify({ authUrl: authUrl.toString() }), {

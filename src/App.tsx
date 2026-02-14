@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import MobileNav from './components/MobileNav';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import Automations from './components/Automations';
@@ -34,16 +35,17 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Sidebar />
+      <MobileNav />
       <ErrorBoundary>
         <Routes>
-          <Route path="/" element={<div className="ml-64 flex-1"><Dashboard /></div>} />
+          <Route path="/" element={<div className="ml-0 md:ml-64 pb-20 md:pb-0 flex-1"><Dashboard /></div>} />
           <Route path="/dashboard" element={<Navigate to="/" replace />} />
-          <Route path="/automation" element={<div className="ml-64 flex-1"><Automations /></div>} />
-          <Route path="/automation/create" element={<div className="ml-64 flex-1"><AutomationCreate /></div>} />
+          <Route path="/automation" element={<div className="ml-0 md:ml-64 pb-20 md:pb-0 flex-1"><Automations /></div>} />
+          <Route path="/automation/create" element={<div className="ml-0 md:ml-64 pb-20 md:pb-0 flex-1"><AutomationCreate /></div>} />
           <Route path="/contacts" element={<Contacts />} />
           <Route path="/activity" element={<ActivityLog />} />
           <Route path="/billing" element={<Billing />} />
-          <Route path="/connect-accounts" element={<div className="ml-64 flex-1"><ConnectedAccounts /></div>} />
+          <Route path="/connect-accounts" element={<div className="ml-0 md:ml-64 pb-20 md:pb-0 flex-1"><ConnectedAccounts /></div>} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </ErrorBoundary>

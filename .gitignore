@@ -72,3 +72,20 @@ tsc
 .supabase
 .bolt
 bolt.json
+
+# Block all root-level scripts and data dumps
+/*.js
+/*.ts
+/*.sql
+/*.json
+
+# Allowlist key configuration files
+!/eslint.config.js
+!/postcss.config.js
+!/tailwind.config.js
+!/vite.config.ts
+!/package.json
+!/package-lock.json
+!/tsconfig.json
+!/tsconfig.app.json
+!/tsconfig.node.json

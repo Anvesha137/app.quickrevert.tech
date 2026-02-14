@@ -48,77 +48,74 @@ Deno.serve(async (req: Request) => {
     const n8nBaseUrl = Deno.env.get("N8N_BASE_URL");
     const n8nApiKey = Deno.env.get("X-N8N-API-KEY");
 
-    // 2. ROUTE MANAGEMENT (Multi-ID Fix)
-    if (existingWf.instagram_account_id) {
-      // Fetch the specific account linked to this workflow
-      const { data: sourceAcc } = await supabase
-        .from('instagram_accounts')
-        .select('username, instagram_user_id')
-        .eq('id', existingWf.instagram_account_id)
-        .single();
+    // 2. ROUTE MANAGEMENT - FIXED: Create routes for ALL user's Instagram accounts
+    // This ensures scalability - works for any user with any number of accounts
 
-      if (sourceAcc) {
-        // Fetch ALL accounts with this username for this user (handles duplicates/ID changes)
-        // This ensures if Meta sends events to OD '1784...' but we stored '2540...', we catch both.
-        // We REMOVED user_id filter to catch IDs from previous/other accounts if the username matches.
-        const { data: allAccounts } = await supabase
-          .from('instagram_accounts')
-          .select('instagram_user_id')
-          .eq('username', sourceAcc.username);
+    // Fetch ALL Instagram accounts for this user
+    const { data: userAccounts, error: accountsError } = await supabase
+      .from('instagram_accounts')
+      .select('id, username, instagram_user_id')
+      .eq('user_id', user.id)
+      .eq('status', 'active');
 
-        const targetIds = allAccounts?.map((a: any) => a.instagram_user_id) || [sourceAcc.instagram_user_id];
-        const uniqueIds = [...new Set(targetIds)]; // Deduplicate
+    if (accountsError) {
+      console.error("Error fetching user accounts:", accountsError);
+    }
 
-        if (shouldActivate) {
-          // ACTIVATE:
-          // A. Clean up Previous Versions
-          const { error: delError } = await supabase
-            .from('automation_routes')
-            .delete()
-            .eq('n8n_workflow_id', workflowId);
+    const accountMappings = userAccounts || [];
+    console.log(`Found ${accountMappings.length} active Instagram accounts for user`);
 
-          if (delError) console.error("Cleanup Error:", delError);
+    if (shouldActivate) {
+      // ACTIVATE:
+      // A. Clean up Previous Versions
+      const { error: delError } = await supabase
+        .from('automation_routes')
+        .delete()
+        .eq('n8n_workflow_id', workflowId);
 
-          // B. INSERT ROUTES (Messaging + Comments) FOR ALL IDs
-          const newRoutes = [];
-          for (const metaId of uniqueIds) {
-            newRoutes.push({
-              account_id: metaId,
-              user_id: user.id,
-              n8n_workflow_id: workflowId,
-              event_type: 'messaging',
-              sub_type: null,
-              is_active: true
-            });
-            newRoutes.push({
-              account_id: metaId,
-              user_id: user.id,
-              n8n_workflow_id: workflowId,
-              event_type: 'changes',
-              sub_type: null,
-              is_active: true
-            });
-          }
+      if (delError) console.error("Cleanup Error:", delError);
 
-          if (newRoutes.length > 0) {
-            const { error: insError } = await supabase
-              .from('automation_routes')
-              .insert(newRoutes);
-
-            if (insError) console.error("Insert Error:", insError);
-            else console.log(`Routes Active for ${uniqueIds.length} IDs: ${uniqueIds.join(', ')}`);
-          }
-
-        } else {
-          // DEACTIVATE
-          const { error: delError } = await supabase
-            .from('automation_routes')
-            .delete()
-            .eq('n8n_workflow_id', workflowId);
-
-          if (delError) console.error("Deactivation Error:", delError);
-        }
+      // B. INSERT ROUTES (Messaging + Comments) FOR ALL User's Accounts
+      const newRoutes = [];
+      for (const account of accountMappings) {
+        newRoutes.push({
+          account_id: account.id,
+          user_id: user.id,
+          n8n_workflow_id: workflowId,
+          event_type: 'messaging',
+          sub_type: 'message',
+          is_active: true
+        });
+        newRoutes.push({
+          account_id: account.id,
+          user_id: user.id,
+          n8n_workflow_id: workflowId,
+          event_type: 'changes',
+          sub_type: null,
+          is_active: true
+        });
       }
+
+      if (newRoutes.length > 0) {
+        const { error: insError } = await supabase
+          .from('automation_routes')
+          .insert(newRoutes);
+
+        if (insError) console.error("Insert Error:", insError);
+        else console.log(`✅ Routes created for ${accountMappings.length} accounts`);
+      } else {
+        console.log("⚠️ No active Instagram accounts found - no routes created");
+      }
+
+    } else {
+      // DEACTIVATE
+      const { error: delError } = await supabase
+        .from('automation_routes')
+        .delete()
+        .eq('n8n_workflow_id', workflowId);
+
+      if (delError) console.error("Deactivation Error:", delError);
+      else console.log("Routes deactivated");
     }
 
     // 3. N8N ACTIVATION
@@ -133,6 +130,19 @@ Deno.serve(async (req: Request) => {
         console.error(`n8n ${action} failed`, e);
         // Don't fail the request if n8n is down, routing is what matters
       }
+    }
+
+    // 4. CRITICAL: Update is_active in n8n_workflows table
+    // This ensures execute-automation and other systems see the workflow as active
+    const { error: updateError } = await supabase
+      .from('n8n_workflows')
+      .update({ is_active: shouldActivate })
+      .eq('n8n_workflow_id', workflowId);
+
+    if (updateError) {
+      console.error('Failed to update workflow is_active status:', updateError);
+    } else {
+      console.log(`✅ Workflow ${workflowId} is_active set to ${shouldActivate}`);
     }
 
     return new Response(JSON.stringify({ success: true, active: shouldActivate }), {

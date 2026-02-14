@@ -16,7 +16,7 @@ interface EventData {
   from: {
     id: string;
     username: string;
-    name?: string; // Add name if available
+    name?: string;
   };
   timestamp: string;
 }
@@ -29,6 +29,11 @@ interface ExecuteRequest {
 }
 
 Deno.serve(async (req: Request) => {
+  console.log("═══════════════════════════════════════");
+  console.log("🎯 EXECUTE-AUTOMATION CALLED");
+  console.log("Time:", new Date().toISOString());
+  console.log("═══════════════════════════════════════");
+
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       status: 200,
@@ -41,28 +46,41 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { userId, instagramAccountId, triggerType, eventData }: ExecuteRequest = await req.json();
+    const requestBody = await req.json();
+    console.log("📦 Full request body:");
+    console.log(JSON.stringify(requestBody, null, 2));
 
-    console.log('Processing automation request for:', { userId, triggerType, senderId: eventData.from.id });
+    const { userId, instagramAccountId, triggerType, eventData }: ExecuteRequest = requestBody;
 
-    // 1. Fetch Instagram Account FIRST to get the access token
+    console.log("📋 Parsed values:");
+    console.log("  userId:", userId);
+    console.log("  instagramAccountId:", instagramAccountId);
+    console.log("  triggerType:", triggerType);
+    console.log("  eventData.from.id:", eventData.from.id);
+    console.log("  eventData.messageText:", eventData.messageText);
+
+    // 1. Fetch Instagram Account
+    console.log("\n🔍 STEP 1: Fetching Instagram account...");
     const { data: instagramAccount, error: accountError } = await supabase
       .from('instagram_accounts')
-      .select('access_token, page_id')
+      .select('access_token, instagram_user_id')
       .eq('id', instagramAccountId)
       .single();
 
     if (accountError || !instagramAccount) {
-      console.error('Instagram account not found or error:', accountError);
+      console.error('❌ Instagram account error:', accountError);
       throw new Error('Instagram account not found');
     }
 
-    // 2. Resolve Username if missing (Common in DMs)
-    if (!eventData.from.username) {
-      console.log('Username missing in payload. Fetching from Instagram API...');
+    console.log("✅ Account found:", instagramAccount.instagram_user_id);
+
+    // 2. Resolve Username if missing
+    if (!eventData.from.username || eventData.from.username === eventData.from.id) {
+      console.log('\n🔍 STEP 2: Resolving username from Instagram API...');
       try {
-        const userProfileUrl = `https://graph.facebook.com/v21.0/${eventData.from.id}?fields=username,name,profile_picture_url&access_token=${instagramAccount.access_token}`;
-        console.log(`Fetching profile for ${eventData.from.id} from: ${userProfileUrl.replace(instagramAccount.access_token, 'REDACTED')}`);
+        // ✅ FIXED: Use Instagram Platform API
+        const userProfileUrl = `https://graph.instagram.com/v21.0/${eventData.from.id}?fields=username,name,profile_picture_url&access_token=${instagramAccount.access_token}`;
+        console.log(`Fetching profile for ${eventData.from.id}`);
 
         const userProfileRes = await fetch(userProfileUrl);
         const resText = await userProfileRes.text();
@@ -70,36 +88,24 @@ Deno.serve(async (req: Request) => {
 
         if (userProfileRes.ok) {
           const userProfile = JSON.parse(resText);
-          // Prefer username, fallback to name, then 'Instagram User'
           eventData.from.username = userProfile.username || userProfile.name || 'Instagram User';
           if (userProfile.name) eventData.from.name = userProfile.name;
-          console.log('Resolved identity:', { username: eventData.from.username, name: eventData.from.name });
+          console.log('✅ Resolved identity:', { username: eventData.from.username, name: eventData.from.name });
         } else {
-          console.error('Failed to fetch user profile:', resText);
-          // Log debug info to DB since we can't see console logs
-          await supabase.from('automation_activities').insert({
-            user_id: userId,
-            instagram_account_id: instagramAccountId,
-            activity_type: 'debug_log',
-            target_username: 'system',
-            message: `Profile Fetch Failed: ${userProfileRes.status}`,
-            status: 'failed',
-            metadata: {
-              response: resText,
-              url: userProfileUrl.replace(instagramAccount.access_token, 'REDACTED')
-            }
-          });
+          console.error('❌ Failed to fetch user profile:', resText);
           eventData.from.username = 'Unknown';
         }
       } catch (err) {
-        console.error('Error fetching user profile:', err);
+        console.error('❌ Error fetching user profile:', err);
         eventData.from.username = 'UnknownError';
       }
+    } else {
+      console.log('\n✅ STEP 2: Username already provided:', eventData.from.username);
     }
 
     // 3. Upsert Contact
+    console.log('\n🔍 STEP 3: Upserting contact...');
     try {
-      // Check if contact exists to get current interaction count
       const { data: existingContact } = await supabase
         .from('contacts')
         .select('interaction_count, first_interaction_at')
@@ -116,11 +122,8 @@ Deno.serve(async (req: Request) => {
         instagram_user_id: eventData.from.id,
         username: eventData.from.username,
         full_name: eventData.from.name || null,
-        // We might not get avatar unless we specifically fetched it or it was in payload (rarely in webhook)
-        // If we fetched it in step 2, we could add it here.
         last_interaction_at: new Date().toISOString(),
         interaction_count: newInteractionCount,
-        // preserve first_interaction_at if exists, else it uses default NOW() from DB or we can set it
       };
 
       const { error: contactError } = await supabase
@@ -131,16 +134,16 @@ Deno.serve(async (req: Request) => {
         });
 
       if (contactError) {
-        console.error('Error upserting contact:', contactError);
+        console.error('❌ Contact upsert error:', contactError);
       } else {
-        console.log('Contact upserted successfully');
+        console.log('✅ Contact upserted successfully');
       }
-
     } catch (contactErr) {
-      console.error('Unexpected error handling contact:', contactErr);
+      console.error('❌ Unexpected error handling contact:', contactErr);
     }
 
     // 4. Log the incoming event
+    console.log('\n🔍 STEP 4: Logging incoming event...');
     try {
       const activityType = triggerType === 'post_comment' ? 'incoming_comment' :
         triggerType === 'user_directed_messages' ? 'incoming_message' :
@@ -154,17 +157,24 @@ Deno.serve(async (req: Request) => {
         activity_type: activityType,
         target_username: eventData.from.username || eventData.from.id,
         message: messageContent,
-        status: 'success', // It's a received event
+        status: 'success',
         metadata: {
           ...eventData,
           direction: 'inbound'
         }
       });
+      console.log('✅ Event logged successfully');
     } catch (logError) {
-      console.error('Error logging incoming event:', logError);
+      console.error('❌ Error logging incoming event:', logError);
     }
 
-    // 5. Fetch and Execute Automations
+    // 5. Fetch Automations
+    console.log('\n🔍 STEP 5: Fetching automations...');
+    console.log("  Query conditions:");
+    console.log("    user_id =", userId);
+    console.log("    trigger_type =", triggerType);
+    console.log("    status = 'active'");
+
     const { data: automations, error: automationError } = await supabase
       .from('automations')
       .select('*')
@@ -173,70 +183,129 @@ Deno.serve(async (req: Request) => {
       .eq('status', 'active');
 
     if (automationError) {
+      console.error('❌ Automation fetch error:', automationError);
       throw automationError;
     }
 
+    console.log(`✅ Found ${automations?.length || 0} active automation(s)`);
+
+    if (automations && automations.length > 0) {
+      automations.forEach((auto, i) => {
+        console.log(`\n  Automation ${i + 1}:`);
+        console.log("    ID:", auto.id);
+        console.log("    Config:", JSON.stringify(auto.trigger_config, null, 2));
+        console.log("    Actions:", auto.actions?.length || 0);
+      });
+    }
+
     if (!automations || automations.length === 0) {
-      console.log('No active automations found');
-      return new Response(JSON.stringify({ success: true, message: 'No automations to execute' }), {
+      console.log('⚠️  No active automations found - returning early');
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'No automations to execute',
+        debug: { userId, triggerType, foundAutomations: 0 }
+      }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Matching logic (copied from original)
-    const matchedAutomations = automations.filter(automation => {
+    // 6. Filter Matching Automations
+    console.log('\n🔍 STEP 6: Filtering matching automations...');
+
+    const matchedAutomations = automations.filter((automation, index) => {
+      console.log(`\n  Checking automation ${index + 1} (ID: ${automation.id})...`);
       const config = automation.trigger_config || {};
+      console.log("    Config:", JSON.stringify(config, null, 2));
 
       if (triggerType === 'post_comment') {
-        // 1. Post Filter
         if (config.postsType === 'specific') {
           const allowedPosts = config.specificPosts || [];
           if (!eventData.postId || !allowedPosts.includes(eventData.postId)) {
+            console.log("    ❌ NO MATCH: Post not in allowed list");
             return false;
           }
         }
 
-        // 2. Comment Content Filter
         if (config.commentsType === 'keywords' && config.keywords && eventData.commentText) {
           const text = eventData.commentText.toLowerCase();
-          return config.keywords.some((keyword: string) => text.includes(keyword.toLowerCase()));
+          const matched = config.keywords.some((keyword: string) => text.includes(keyword.toLowerCase()));
+          console.log(`    ${matched ? '✅ MATCH' : '❌ NO MATCH'}: Keyword matching`);
+          return matched;
         }
-        return config.commentsType === 'all';
+
+        const matchAll = config.commentsType === 'all';
+        console.log(`    ${matchAll ? '✅ MATCH' : '❌ NO MATCH'}: Trigger on all comments`);
+        return matchAll;
       }
 
       if (triggerType === 'user_directed_messages') {
-        if (config.messageType === 'keywords' && config.keywords && eventData.messageText) {
-          const text = eventData.messageText.toLowerCase();
-          return config.keywords.some((keyword: string) => text.includes(keyword.toLowerCase()));
+        console.log("    Message type:", config.messageType);
+
+        if (config.messageType === 'all') {
+          console.log("    ✅ MATCH: Triggers on ALL messages");
+          return true;
         }
-        return config.messageType === 'all';
+
+        if (config.messageType === 'keywords') {
+          console.log("    Keywords:", config.keywords);
+          console.log("    Message text:", eventData.messageText);
+
+          if (!config.keywords || !eventData.messageText) {
+            console.log("    ❌ NO MATCH: Missing keywords or message text");
+            return false;
+          }
+
+          const text = eventData.messageText.toLowerCase();
+          const matched = config.keywords.some((keyword: string) => {
+            const match = text.includes(keyword.toLowerCase());
+            console.log(`      '${keyword}' in '${text}': ${match}`);
+            return match;
+          });
+
+          console.log(`    ${matched ? '✅ MATCH' : '❌ NO MATCH'}: Keyword matching`);
+          return matched;
+        }
+
+        console.log("    ❌ NO MATCH: Unknown messageType");
+        return false;
       }
 
       if (triggerType === 'story_reply') {
-        return config.storiesType === 'all';
+        const matchAll = config.storiesType === 'all';
+        console.log(`    ${matchAll ? '✅ MATCH' : '❌ NO MATCH'}: Story reply`);
+        return matchAll;
       }
 
+      console.log("    ❌ NO MATCH: Unknown trigger type");
       return false;
     });
 
-    console.log(`Found ${matchedAutomations.length} matching automations`);
+    console.log(`\n✅ ${matchedAutomations.length} automation(s) matched`);
+
+    // 7. Execute Actions
+    console.log('\n🚀 STEP 7: Executing actions...');
 
     for (const automation of matchedAutomations) {
+      console.log(`\n  Processing automation ${automation.id}...`);
+      console.log("    Actions count:", automation.actions?.length || 0);
+
       for (const action of automation.actions || []) {
+        console.log(`\n    Executing action: ${action.type}`);
         try {
           await executeAction({
             action,
             eventData,
             accessToken: instagramAccount.access_token,
-            pageId: instagramAccount.page_id,
+            instagramUserId: instagramAccount.instagram_user_id,
             supabase,
             automationId: automation.id,
             userId,
             instagramAccountId,
           });
-        } catch (actionError) {
-          console.error('Error executing action:', actionError);
+          console.log("      ✅ Action executed successfully");
+        } catch (actionError: any) {
+          console.error('      ❌ Action execution failed:', actionError.message);
           await logActivity(supabase, {
             userId,
             automationId: automation.id,
@@ -250,9 +319,11 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // 6. N8N Workflow Execution
+    // 8. N8N Workflow Execution
+    console.log('\n🔍 STEP 8: Triggering N8N workflows...');
     try {
-      // Fetch active routes/workflows for this user and trigger type
+      const n8nBaseUrl = Deno.env.get('N8N_BASE_URL') || 'https://n8n.quickrevert.tech';
+
       const { data: n8nWorkflows, error: n8nError } = await supabase
         .from('n8n_workflows')
         .select('*')
@@ -261,20 +332,25 @@ Deno.serve(async (req: Request) => {
         .eq('trigger_type', triggerType);
 
       if (n8nError) {
-        console.error('Error fetching n8n workflows:', n8nError);
+        console.error('❌ Error fetching n8n workflows:', n8nError);
       } else if (n8nWorkflows && n8nWorkflows.length > 0) {
-        console.log(`Found ${n8nWorkflows.length} active n8n workflows for trigger: ${triggerType}`);
+        console.log(`✅ Found ${n8nWorkflows.length} active n8n workflows`);
 
         for (const workflow of n8nWorkflows) {
-          if (!workflow.webhook_url) {
-            console.warn(`Workflow ${workflow.name} has no webhook URL`);
+          let targetUrl = workflow.webhook_url;
+
+          if (!targetUrl && workflow.webhook_path) {
+            targetUrl = `${n8nBaseUrl}/webhook/${workflow.webhook_path}`;
+          }
+
+          if (!targetUrl) {
+            console.warn(`⚠️  Workflow ${workflow.name} has no webhook URL`);
             continue;
           }
 
-          console.log(`Triggering n8n workflow: ${workflow.name} (${workflow.webhook_url})`);
+          console.log(`  Triggering: ${workflow.name} → ${targetUrl}`);
 
-          // Send event data to n8n
-          const n8nPayload = {
+          let n8nPayload: any = {
             userId,
             instagramAccountId,
             triggerType,
@@ -283,18 +359,38 @@ Deno.serve(async (req: Request) => {
             timestamp: new Date().toISOString()
           };
 
+          if (triggerType === 'user_directed_messages') {
+            n8nPayload = {
+              object: "instagram",
+              entry: [
+                {
+                  id: instagramAccount.instagram_user_id || "unknown_ig_id",
+                  messaging: [
+                    {
+                      sender: { id: eventData.from.id },
+                      recipient: { id: instagramAccount.instagram_user_id || "unknown_ig_id" },
+                      timestamp: eventData.timestamp || Date.now(),
+                      message: {
+                        mid: eventData.messageId,
+                        text: eventData.messageText
+                      }
+                    }
+                  ]
+                }
+              ]
+            };
+          }
+
           try {
-            // FIRE AND FORGET - Don't await the result to avoid blocking
-            fetch(workflow.webhook_url, {
+            fetch(targetUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(n8nPayload)
             }).then(async (res) => {
               const status = res.ok ? 'success' : 'failed';
-              console.log(`n8n trigger ${status}: ${res.status}`);
+              console.log(`  N8N response: ${res.status} (${status})`);
 
-              // Log to activities
-              const { error: logError } = await supabase.from('automation_activities').insert({
+              await supabase.from('automation_activities').insert({
                 user_id: userId,
                 instagram_account_id: instagramAccountId,
                 activity_type: 'n8n_trigger',
@@ -307,10 +403,8 @@ Deno.serve(async (req: Request) => {
                   webhook_url: workflow.webhook_url
                 }
               });
-              if (logError) console.error('Failed to log n8n activity', logError);
-
             }).catch(err => {
-              console.error('Failed to trigger n8n webhook:', err);
+              console.error('  ❌ N8N trigger failed:', err);
               supabase.from('automation_activities').insert({
                 user_id: userId,
                 instagram_account_id: instagramAccountId,
@@ -321,18 +415,21 @@ Deno.serve(async (req: Request) => {
                 metadata: { error: err.message, workflow_id: workflow.id }
               });
             });
-
           } catch (e) {
-            console.error('Error initiating n8n request:', e);
+            console.error('  ❌ Error initiating n8n request:', e);
           }
         }
       } else {
-        console.log(`No active n8n workflows found for trigger: ${triggerType}`);
+        console.log(`ℹ️  No active n8n workflows found`);
       }
-
     } catch (n8nMainError) {
-      console.error('Unexpected error in n8n execution block:', n8nMainError);
+      console.error('❌ Unexpected error in n8n execution:', n8nMainError);
     }
+
+    console.log("\n═══════════════════════════════════════");
+    console.log("✅ EXECUTION COMPLETE");
+    console.log(`   Matched: ${matchedAutomations.length} automations`);
+    console.log("═══════════════════════════════════════\n");
 
     return new Response(JSON.stringify({
       success: true,
@@ -342,8 +439,12 @@ Deno.serve(async (req: Request) => {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
-  } catch (error) {
-    console.error('Error in execute-automation:', error);
+  } catch (error: any) {
+    console.error("\n❌❌❌ FATAL ERROR ❌❌❌");
+    console.error("Error:", error);
+    console.error("Stack:", error.stack);
+    console.error("═══════════════════════════════════════\n");
+
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -352,7 +453,7 @@ Deno.serve(async (req: Request) => {
 });
 
 async function executeAction(params: any) {
-  const { action, eventData, accessToken, pageId, supabase, automationId, userId, instagramAccountId } = params;
+  const { action, eventData, accessToken, instagramUserId, supabase, automationId, userId, instagramAccountId } = params;
 
   let messageText = '';
   let buttons: any[] = [];
@@ -369,63 +470,51 @@ async function executeAction(params: any) {
       messageText = action.messageTemplate || '';
       buttons = action.actionButtons || [];
       break;
-
   }
 
   messageText = messageText.replace('{{username}}', eventData.from.username);
 
-  const apiUrl = `https://graph.facebook.com/v21.0/${pageId || eventData.from.id}/messages`;
+  // ✅ FIXED: Use Instagram Platform API
+  const apiUrl = `https://graph.instagram.com/v21.0/me/messages`;
 
   let messagePayload: any = {
     recipient: { id: eventData.from.id },
-    messaging_type: 'RESPONSE',
+    message: {}
   };
 
   if (buttons.length > 0) {
-    // Switch to Generic Template to support Subtitles
+    // Instagram Platform API uses quick_replies
     messagePayload.message = {
-      attachment: {
-        type: 'template',
-        payload: {
-          template_type: 'generic',
-          elements: [
-            {
-              title: messageText,
-              subtitle: "Powered by Quickrevert.tech", // ALWAYS this subtitle
-              buttons: buttons.slice(0, 3).map((btn: any) => {
-                if (btn.url) {
-                  return { type: 'web_url', url: btn.url, title: btn.text };
-                }
-                return { type: 'postback', title: btn.text, payload: btn.text.toUpperCase() };
-              }),
-            }
-          ]
-        },
-      },
+      text: messageText,
+      quick_replies: buttons.slice(0, 13).map((btn: any) => ({
+        content_type: 'text',
+        title: btn.text.substring(0, 20), // Max 20 chars
+        payload: btn.url || btn.text.toUpperCase()
+      }))
     };
   } else {
     messagePayload.message = { text: messageText };
   }
 
-  console.log('Sending message:', JSON.stringify(messagePayload));
+  console.log('      Sending message payload:', JSON.stringify(messagePayload, null, 2));
 
-  const response = await fetch(apiUrl, {
+  // ✅ FIXED: Access token in URL params
+  const response = await fetch(`${apiUrl}?access_token=${accessToken}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
     },
     body: JSON.stringify(messagePayload),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('Instagram API error:', errorText);
+    console.error('      Instagram API error:', errorText);
     throw new Error(`Instagram API error: ${response.status} - ${errorText}`);
   }
 
   const result = await response.json();
-  console.log('Message sent successfully:', result);
+  console.log('      Message sent successfully:', result);
 
   await logActivity(supabase, {
     userId,
