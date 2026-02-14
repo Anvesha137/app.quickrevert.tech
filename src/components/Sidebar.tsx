@@ -83,15 +83,15 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="hidden md:flex fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 flex-col shadow-lg z-50">
-      <div className="pt-8 pb-4 px-4 border-b border-gray-200 flex flex-col items-start bg-white">
+    <aside className="hidden md:flex fixed left-0 top-0 h-full w-64 bg-slate-900 border-r border-slate-800 flex-col shadow-lg z-50">
+      <div className="pt-8 pb-4 px-4 border-b border-slate-800 flex flex-col items-start bg-slate-900">
         <div className="flex items-center gap-0 mb-0 w-full justify-center">
           <div className="w-14 h-14 flex items-center justify-center overflow-hidden">
             <img src="/Logo.png" alt="QuickRevert" className="w-full h-full object-contain scale-150" />
           </div>
-          <span className="text-2xl font-bold text-gray-900 tracking-tight -mt-2">QuickRevert</span>
+          <span className="text-2xl font-bold text-white tracking-tight -mt-2">QuickRevert</span>
         </div>
-        <p className="text-[10px] text-gray-500 font-medium tracking-wide w-full text-center">Intelligent Responses | Zero Wait Time | 24x7</p>
+        <p className="text-[10px] text-slate-400 font-medium tracking-wide w-full text-center">Intelligent Responses | Zero Wait Time | 24x7</p>
       </div>
 
       <div className="flex-1 flex flex-col bg-slate-900 overflow-y-auto">
@@ -124,8 +124,8 @@ export default function Sidebar() {
         </div>
       </div>
 
-      <div className="p-4 border-t border-gray-200 bg-white">
-        <div className="bg-gray-50 rounded-xl p-3 mb-3 shadow-sm border border-gray-100">
+      <div className="p-4 border-t border-slate-800 bg-slate-900">
+        <div className="bg-slate-800 rounded-xl p-3 mb-3 shadow-sm border border-slate-700">
           <div className="flex items-center gap-3 mb-3">
             {user?.user_metadata?.avatar_url ? (
               <img
@@ -139,13 +139,13 @@ export default function Sidebar() {
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-gray-900 truncate">{getUserName()}</p>
-              <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+              <p className="text-sm font-bold text-white truncate">{getUserName()}</p>
+              <p className="text-xs text-slate-400 truncate">{user?.email}</p>
             </div>
           </div>
           <button
             onClick={handleSignOut}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all border border-gray-200 hover:border-red-200"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-300 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition-all border border-slate-600 hover:border-red-900/30"
           >
             <LogOut className="w-4 h-4" />
             Sign Out
