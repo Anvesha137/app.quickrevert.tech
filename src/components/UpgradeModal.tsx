@@ -78,7 +78,7 @@ export default function UpgradeModal() {
 
         } catch (error) {
             console.error('Payment failed:', error);
-            alert('Failed to initiate payment. Please try again.');
+            alert(`Failed to initiate payment: ${error.message || JSON.stringify(error)}`);
         } finally {
             setLoading(false);
         }
@@ -118,8 +118,8 @@ export default function UpgradeModal() {
                         <button
                             onClick={() => setBillingCycle('annual')}
                             className={`flex-1 py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-all duration-300 ${billingCycle === 'annual'
-                                    ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
-                                    : 'text-gray-500 hover:text-gray-700'
+                                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
+                                : 'text-gray-500 hover:text-gray-700'
                                 }`}
                         >
                             Annual
@@ -130,8 +130,8 @@ export default function UpgradeModal() {
                         <button
                             onClick={() => setBillingCycle('monthly')}
                             className={`flex-1 py-3 px-4 rounded-lg transition-all duration-300 ${billingCycle === 'monthly'
-                                    ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
-                                    : 'text-gray-500 hover:text-gray-700'
+                                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
+                                : 'text-gray-500 hover:text-gray-700'
                                 }`}
                         >
                             Monthly
