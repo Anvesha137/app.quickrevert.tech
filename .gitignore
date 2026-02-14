@@ -78,6 +78,7 @@ bolt.json
 /*.ts
 /*.sql
 /*.json
+/*.cjs
 
 # Allowlist key configuration files
 !/eslint.config.js

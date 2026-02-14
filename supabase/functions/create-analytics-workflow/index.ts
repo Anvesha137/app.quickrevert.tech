@@ -16,7 +16,7 @@ serve(async (req) => {
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
         const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         const n8nBaseUrl = Deno.env.get("N8N_BASE_URL")!;
-        const n8nApiKey = Deno.env.get("N8N_API_KEY")!;
+        const n8nApiKey = Deno.env.get("X-N8N-API-KEY")!;
 
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -45,32 +45,29 @@ serve(async (req) => {
 
         // 4. Construct Workflow JSON
         const workflowName = `[Analytics] ${username}`;
+        const webhookPath = `analytics-${userId}-${Date.now()}`;
+        const webhookUrl = `${n8nBaseUrl}/webhook/${webhookPath}`;
 
         const n8nWorkflowJSON = {
             name: workflowName,
             nodes: [
                 {
                     "parameters": {
-                        "rule": {
-                            "interval": [
-                                {
-                                    "field": "hours",
-                                    "hoursInterval": 12
-                                }
-                            ]
-                        }
+                        "httpMethod": "POST",
+                        "path": webhookPath,
+                        "options": {}
                     },
-                    "id": "schedule-trigger",
-                    "name": "Every 12 Hours",
-                    "type": "n8n-nodes-base.scheduleTrigger",
-                    "typeVersion": 1.2,
-                    "position": [-160, -32]
+                    "id": "webhook-node",
+                    "name": "Start Trigger",
+                    "type": "n8n-nodes-base.webhook",
+                    "typeVersion": 2.1,
+                    "position": [-320, -48]
                 },
                 {
                     "parameters": {
                         "url": "https://graph.instagram.com/me",
-                        "authentication": "genericCredentialType",
-                        "genericAuthType": "httpHeaderAuth",
+                        "authentication": "predefinedCredentialType",
+                        "nodeCredentialType": "facebookGraphApi",
                         "sendQuery": true,
                         "queryParameters": {
                             "parameters": [
@@ -84,69 +81,163 @@ serve(async (req) => {
                     },
                     "type": "n8n-nodes-base.httpRequest",
                     "typeVersion": 4.3,
-                    "position": [64, -32],
-                    "id": "get-insta-stats",
-                    "name": "Get Instagram Stats",
+                    "position": [-96, -48],
+                    "id": "get-initial-stats",
+                    "name": "Get Instagram Stats1",
                     "credentials": {
-                        "httpHeaderAuth": {
-                            "id": credentialId,
-                            "name": "insta"
+                        "facebookGraphApi": {
+                            "id": credentialId
                         }
                     }
                 },
+                // ADDED: Save Initial Stats to Supabase
                 {
                     "parameters": {
                         "method": "PATCH",
                         "url": `${supabaseUrl}/rest/v1/instagram_accounts?id=eq.${instagramAccountId}`,
                         "headers": {
                             "parameters": [
-                                {
-                                    "name": "apikey",
-                                    "value": supabaseServiceKey
-                                },
-                                {
-                                    "name": "Authorization",
-                                    "value": `Bearer ${supabaseServiceKey}`
-                                },
-                                {
-                                    "name": "Content-Type",
-                                    "value": "application/json"
-                                },
-                                {
-                                    "name": "Prefer",
-                                    "value": "return=minimal"
-                                }
+                                { "name": "apikey", "value": supabaseServiceKey },
+                                { "name": "Authorization", "value": `Bearer ${supabaseServiceKey}` },
+                                { "name": "Content-Type", "value": "application/json" },
+                                { "name": "Prefer", "value": "return=minimal" }
                             ]
                         },
                         "sendBody": true,
                         "specifyBody": "json",
-                        "jsonBody": "={\n  \"followers_count\": {{ $json.followers_count }}\n}",
+                        "jsonBody": "={\n  \"initial_followers_count\": {{ $json.followers_count }},\n  \"followers_count\": {{ $json.followers_count }},\n  \"followers_last_updated\": \"{{ new Date().toISOString() }}\"\n}",
                         "options": {}
                     },
                     "type": "n8n-nodes-base.httpRequest",
                     "typeVersion": 4.3,
-                    "position": [288, -32],
-                    "id": "update-supabase",
-                    "name": "Update Supabase"
+                    "position": [128, -148],
+                    "id": "save-initial",
+                    "name": "Save Initial Stats"
+                },
+                {
+                    "parameters": {
+                        "amount": 12,
+                        "unit": "hours"
+                    },
+                    "type": "n8n-nodes-base.wait",
+                    "typeVersion": 1.1,
+                    "position": [128, -48],
+                    "id": "wait-12h",
+                    "name": "Wait 12 Hours"
+                },
+                {
+                    "parameters": {
+                        "url": "https://graph.instagram.com/me",
+                        "authentication": "predefinedCredentialType",
+                        "nodeCredentialType": "facebookGraphApi",
+                        "sendQuery": true,
+                        "queryParameters": {
+                            "parameters": [
+                                {
+                                    "name": "fields",
+                                    "value": "followers_count,media_count,username,follows_count"
+                                }
+                            ]
+                        },
+                        "options": {}
+                    },
+                    "type": "n8n-nodes-base.httpRequest",
+                    "typeVersion": 4.3,
+                    "position": [352, -48],
+                    "id": "get-updated-stats",
+                    "name": "updated followers",
+                    "credentials": {
+                        "facebookGraphApi": {
+                            "id": credentialId
+                        }
+                    }
+                },
+                // ADDED: Save Updated Stats to Supabase
+                {
+                    "parameters": {
+                        "method": "PATCH",
+                        "url": `${supabaseUrl}/rest/v1/instagram_accounts?id=eq.${instagramAccountId}`,
+                        "headers": {
+                            "parameters": [
+                                { "name": "apikey", "value": supabaseServiceKey },
+                                { "name": "Authorization", "value": `Bearer ${supabaseServiceKey}` },
+                                { "name": "Content-Type", "value": "application/json" },
+                                { "name": "Prefer", "value": "return=minimal" }
+                            ]
+                        },
+                        "sendBody": true,
+                        "specifyBody": "json",
+                        "jsonBody": "={\n  \"followers_count\": {{ $json.followers_count }},\n  \"followers_last_updated\": \"{{ new Date().toISOString() }}\"\n}",
+                        "options": {}
+                    },
+                    "type": "n8n-nodes-base.httpRequest",
+                    "typeVersion": 4.3,
+                    "position": [576, -48],
+                    "id": "save-updated",
+                    "name": "Save Updated Stats"
                 }
             ],
             connections: {
-                "Every 12 Hours": {
+                "Start Trigger": {
                     "main": [
                         [
                             {
-                                "node": "Get Instagram Stats",
+                                "node": "Get Instagram Stats1",
                                 "type": "main",
                                 "index": 0
                             }
                         ]
                     ]
                 },
-                "Get Instagram Stats": {
+                "Get Instagram Stats1": {
                     "main": [
                         [
                             {
-                                "node": "Update Supabase",
+                                "node": "Save Initial Stats",
+                                "type": "main",
+                                "index": 0
+                            }
+                        ]
+                    ]
+                },
+                "Save Initial Stats": {
+                    "main": [
+                        [
+                            {
+                                "node": "Wait 12 Hours",
+                                "type": "main",
+                                "index": 0
+                            }
+                        ]
+                    ]
+                },
+                "Wait 12 Hours": {
+                    "main": [
+                        [
+                            {
+                                "node": "updated followers",
+                                "type": "main",
+                                "index": 0
+                            }
+                        ]
+                    ]
+                },
+                "updated followers": {
+                    "main": [
+                        [
+                            {
+                                "node": "Save Updated Stats",
+                                "type": "main",
+                                "index": 0
+                            }
+                        ]
+                    ]
+                },
+                "Save Updated Stats": {
+                    "main": [
+                        [
+                            {
+                                "node": "Wait 12 Hours",
                                 "type": "main",
                                 "index": 0
                             }
@@ -184,14 +275,26 @@ serve(async (req) => {
             headers: { "X-N8N-API-KEY": n8nApiKey }
         });
 
-        // 7. Register in Database
+        // 7. Trigger the Webhook to START the process immediately
+        // Wait a brief moment to ensure activation propagates
+        await new Promise(r => setTimeout(r, 1000));
+
+        // Trigger via Production URL since we activated it
+        const triggerRes = await fetch(webhookUrl, {
+            method: "POST",
+            body: JSON.stringify({ action: "init" })
+        });
+
+        console.log(`Webhook Triggered: ${triggerRes.status}`);
+
+        // 8. Register in Database
         const { error: dbError } = await supabase.from("n8n_workflows").insert({
             user_id: userId,
             n8n_workflow_id: n8nResult.id,
             n8n_workflow_name: n8nResult.name,
             instagram_account_id: instagramAccountId,
-            template: 'analytics_v1',
-            webhook_path: null // No webhook for scheduled workflows
+            template: 'analytics_v2', // version 2
+            webhook_path: webhookPath
         });
 
         if (dbError) console.error("Database Insert Error:", dbError);
