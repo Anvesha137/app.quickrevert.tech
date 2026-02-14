@@ -1,16 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import Pricing from './components/Pricing';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
-import MobileNav from './components/MobileNav';
-import Sidebar from './components/Sidebar';
-import Dashboard from './components/Dashboard';
-import Automations from './components/Automations';
-import AutomationCreate from './components/AutomationCreate';
-import ConnectedAccounts from './components/ConnectedAccounts';
-import Contacts from './components/Contacts';
-import Billing from './components/Billing';
-import Settings from './components/Settings';
 import Login from './components/Login';
 import ErrorBoundary from './components/ErrorBoundary';
 

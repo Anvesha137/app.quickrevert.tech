@@ -3,13 +3,16 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Crown, MessageCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useUpgradeModal } from '../contexts/UpgradeModalContext';
 
 export default function UsageStats() {
     const { user } = useAuth();
+    const { openModal } = useUpgradeModal();
     const [counts, setCounts] = useState({
         dms: 0,
         comments: 0
     });
+    // ... (rest of imports/setup)
     const [loading, setLoading] = useState(true);
 
     const LIMIT = 1000;
@@ -91,10 +94,13 @@ export default function UsageStats() {
             </div>
 
             <div className="space-y-2">
-                <Link to="/pricing" className="flex items-center justify-center gap-2 w-full py-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white text-sm font-bold rounded shadow-sm transition-all border border-blue-600">
+                <button
+                    onClick={openModal}
+                    className="flex items-center justify-center gap-2 w-full py-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white text-sm font-bold rounded shadow-sm transition-all border border-blue-600"
+                >
                     <Crown className="w-4 h-4 text-yellow-300" />
                     Upgrade to Pro
-                </Link>
+                </button>
 
                 <a href="mailto:support@quickrevert.tech" className="flex items-center justify-center gap-2 w-full py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-bold rounded shadow-sm transition-all border border-slate-700">
                     <MessageCircle className="w-4 h-4 text-gray-300" />

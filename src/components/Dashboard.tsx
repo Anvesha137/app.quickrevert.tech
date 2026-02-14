@@ -6,7 +6,8 @@ import { supabase } from '../lib/supabase';
 import KPICard from './KPICard';
 import InstagramFeed from './InstagramFeed';
 import InstagramConnectionStatus from './InstagramConnectionStatus';
-import UsageGraph from './UsageGraph'; // Added import for UsageGraph
+
+import { useUpgradeModal } from '../contexts/UpgradeModalContext';
 
 interface DashboardStats {
   dmsTriggered: number;
@@ -21,6 +22,7 @@ interface DashboardStats {
 export default function Dashboard() {
   const { user } = useAuth();
   const { displayName } = useTheme();
+  const { openModal } = useUpgradeModal();
   const [stats, setStats] = useState<DashboardStats>({
     dmsTriggered: 0,
     activeAutomations: 0,
@@ -71,8 +73,8 @@ export default function Dashboard() {
 
       if (activitiesError) throw activitiesError;
 
-      const dms = activities?.filter(a => ['dm', 'dm_sent', 'send_dm'].includes(a.activity_type)) || [];
-      const comments = activities?.filter(a => ['reply', 'comment', 'reply_to_comment'].includes(a.activity_type)) || [];
+      const dms = activities?.filter(a => ['dm', 'dm_sent', 'send_dm', 'user_directed_messages'].includes(a.activity_type)) || [];
+      const comments = activities?.filter(a => ['reply', 'comment', 'reply_to_comment', 'incoming_comment', 'post_comment'].includes(a.activity_type)) || [];
 
       // 3. Unique Users (Source of Truth: Contacts Table)
       const { count: uniqueUsersCount, error: contactsError } = await supabase
@@ -175,7 +177,10 @@ export default function Dashboard() {
             <h2 className="text-xl font-bold mb-1">Unlock Pro Power!</h2>
             <p className="text-red-50">Get unlimited automations, contacts & advanced analytics.</p>
           </div>
-          <button className="bg-white text-red-600 px-6 py-2.5 rounded-xl font-bold hover:bg-red-50 transition-colors shadow-sm whitespace-nowrap">
+          <button
+            onClick={openModal}
+            className="bg-white text-red-600 px-6 py-2.5 rounded-xl font-bold hover:bg-red-50 transition-colors shadow-sm whitespace-nowrap"
+          >
             Upgrade to Pro
           </button>
         </div>
@@ -259,14 +264,7 @@ export default function Dashboard() {
         </div>
 
         {/* Usage Graph Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          <div className="lg:col-span-2">
-            <UsageGraph />
-          </div>
-          <div className="lg:col-span-1 hidden lg:block">
-            {/* Can be used for extra widgets or left empty for now */}
-          </div>
-        </div>
+
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
           {/* Onboarding Steps (Left) */}
