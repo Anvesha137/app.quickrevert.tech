@@ -278,6 +278,16 @@ export default function Dashboard() {
           )}
         </div>
 
+        {/* Usage Graph Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <div className="lg:col-span-2">
+            <UsageGraph />
+          </div>
+          <div className="lg:col-span-1 hidden lg:block">
+            {/* Can be used for extra widgets or left empty for now */}
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
           {/* Onboarding Steps (Left) */}
           <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">

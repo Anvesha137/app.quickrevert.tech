@@ -29,7 +29,7 @@ export default function UsageStats() {
                     .from('automation_activities')
                     .select('*', { count: 'exact', head: true })
                     .eq('user_id', user.id)
-                    .eq('activity_type', 'send_dm')
+                    .in('activity_type', ['dm', 'dm_sent', 'send_dm', 'user_directed_messages'])
                     .gte('executed_at', startOfMonthIso);
 
                 // Fetch Comment count
@@ -37,7 +37,7 @@ export default function UsageStats() {
                     .from('automation_activities')
                     .select('*', { count: 'exact', head: true })
                     .eq('user_id', user.id)
-                    .eq('activity_type', 'incoming_comment')
+                    .in('activity_type', ['incoming_comment', 'reply_to_comment', 'comment', 'reply', 'post_comment'])
                     .gte('executed_at', startOfMonthIso);
 
                 if (!dmError && !commentError) {
