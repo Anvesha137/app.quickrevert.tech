@@ -34,9 +34,7 @@ export default function UsageGraph() {
                 const { data: activities, error } = await supabase
                     .from('automation_activities')
                     .select('activity_type, executed_at')
-                    .eq('user_id', user.id)
-                    .gte('executed_at', start.toISOString())
-                    .lte('executed_at', end.toISOString());
+                    .eq('user_id', user.id);
 
                 if (error) throw error;
 
