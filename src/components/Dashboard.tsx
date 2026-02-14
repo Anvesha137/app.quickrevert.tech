@@ -72,18 +72,10 @@ export default function Dashboard() {
 
       if (activitiesError) throw activitiesError;
 
-      const dms = activities?.filter(a => ['dm', 'dm_sent', 'send_dm', 'user_directed_messages'].includes(a.activity_type)) || [];
-      const comments = activities?.filter(a => ['reply', 'comment', 'reply_to_comment', 'incoming_comment', 'post_comment'].includes(a.activity_type)) || [];
+      const dms = activities?.filter(a => ['dm', 'dm_sent', 'send_dm'].includes(a.activity_type)) || [];
+      const comments = activities?.filter(a => ['reply', 'comment', 'reply_to_comment'].includes(a.activity_type)) || [];
 
-      // Calculate Monthly Counts
-      const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const currentMonthName = now.toLocaleString('default', { month: 'short' });
-
-      const dmsThisMonth = dms.filter(a => new Date(a.executed_at) >= startOfMonth).length;
-      const commentsThisMonth = comments.filter(a => new Date(a.executed_at) >= startOfMonth).length;
-
-      // 3. Unique Users (Source of Truth: Contacts Table) - KEEPING for internal use if needed, but UI wants Usage Stats
+      // 3. Unique Users (Source of Truth: Contacts Table)
       const { count: uniqueUsersCount, error: contactsError } = await supabase
         .from('contacts')
         .select('*', { count: 'exact', head: true })
@@ -92,10 +84,10 @@ export default function Dashboard() {
       if (contactsError) console.error("Error fetching contacts count:", contactsError);
 
       setStats({
-        dmsTriggered: dmsThisMonth, // Showing Monthly Usage
+        dmsTriggered: dms.length,
         activeAutomations,
-        commentReplies: commentsThisMonth, // Showing Monthly Usage for Comments
-        uniqueUsers: commentsThisMonth, // Mapping "Unique Users Contacted" card to match Sidebar "Contacts" Usage
+        commentReplies: comments.length,
+        uniqueUsers: uniqueUsersCount || 0,
         followersCount: instaAccount?.followers_count,
         initialFollowersCount: instaAccount?.initial_followers_count,
         followersLastUpdated: instaAccount?.followers_last_updated
@@ -174,7 +166,6 @@ export default function Dashboard() {
   ];
 
   const showAnalytics = !!stats.followersLastUpdated;
-  const currentMonthShort = new Date().toLocaleString('default', { month: 'short' });
 
   return (
     <div className="flex-1 overflow-auto bg-gradient-to-br from-gray-50 via-white to-blue-50/30">
@@ -241,7 +232,7 @@ export default function Dashboard() {
         <div className={`grid grid-cols-1 md:grid-cols-2 ${showAnalytics ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-5 mb-10`}>
           <KPICard
             title="DMs Triggered"
-            value={loading ? '-' : `${stats.dmsTriggered}/1000 in ${currentMonthShort}`}
+            value={loading ? '-' : (stats.dmsTriggered || 0).toLocaleString()}
             icon={MessageSquare}
             iconColor="text-blue-600"
             iconBgColor="bg-gradient-to-br from-blue-50 to-blue-100"
@@ -253,23 +244,16 @@ export default function Dashboard() {
             iconColor="text-amber-600"
             iconBgColor="bg-gradient-to-br from-amber-50 to-amber-100"
           />
-          {/* 
-            Replaced "Comment Replies" with something else? 
-            Actually user only asked for "DMs Triggered" and "Unique Users Contacted" cards to change.
-            I will keep Comment Replies as simple count or remove it?
-            The user said "value ... shud be 0/1000 DM ... also 0/1000 contacts ... here as well".
-            "Contacts" usually maps to the card "Unique Users Contacted".
-          */}
           <KPICard
-            title="Comments Processed"
-            value={loading ? '-' : `${stats.commentReplies}/1000 in ${currentMonthShort}`}
+            title="Comment Replies"
+            value={loading ? '-' : (stats.commentReplies || 0).toLocaleString()}
             icon={MessageCircle}
             iconColor="text-rose-600"
             iconBgColor="bg-gradient-to-br from-rose-50 to-rose-100"
           />
           <KPICard
-            title="Contacts (Usage)"
-            value={loading ? '-' : `${stats.uniqueUsers}/1000 in ${currentMonthShort}`}
+            title="Unique Users Contacted"
+            value={loading ? '-' : (stats.uniqueUsers || 0).toLocaleString()}
             icon={Users}
             iconColor="text-cyan-600"
             iconBgColor="bg-gradient-to-br from-cyan-50 to-cyan-100"
@@ -365,7 +349,7 @@ export default function Dashboard() {
         <div className="mb-8">
           <InstagramFeed />
         </div>
-      </div >
-    </div >
+      </div>
+    </div>
   );
 }

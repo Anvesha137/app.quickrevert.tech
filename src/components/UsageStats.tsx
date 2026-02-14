@@ -25,29 +25,25 @@ export default function UsageStats() {
                 const startOfMonthIso = startOfMonth.toISOString();
 
                 // Fetch DM count
-                const { data: dmData, error: dmError } = await supabase
+                const { count: dmCount, error: dmError } = await supabase
                     .from('automation_activities')
-                    .select('executed_at')
+                    .select('*', { count: 'exact', head: true })
                     .eq('user_id', user.id)
-                    .in('activity_type', ['dm', 'dm_sent', 'send_dm', 'user_directed_messages']);
+                    .in('activity_type', ['dm', 'dm_sent', 'send_dm', 'user_directed_messages'])
+                    .gte('executed_at', startOfMonthIso);
 
                 // Fetch Comment count
-                const { data: commentData, error: commentError } = await supabase
+                const { count: commentCount, error: commentError } = await supabase
                     .from('automation_activities')
-                    .select('executed_at')
+                    .select('*', { count: 'exact', head: true })
                     .eq('user_id', user.id)
-                    .in('activity_type', ['incoming_comment', 'reply_to_comment', 'comment', 'reply', 'post_comment']);
+                    .in('activity_type', ['incoming_comment', 'reply_to_comment', 'comment', 'reply', 'post_comment'])
+                    .gte('executed_at', startOfMonthIso);
 
                 if (!dmError && !commentError) {
-                    const now = new Date();
-                    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-                    const dmsThisMonth = dmData?.filter(item => new Date(item.executed_at) >= startOfMonth).length || 0;
-                    const commentsThisMonth = commentData?.filter(item => new Date(item.executed_at) >= startOfMonth).length || 0;
-
                     setCounts({
-                        dms: dmsThisMonth,
-                        comments: commentsThisMonth
+                        dms: dmCount || 0,
+                        comments: commentCount || 0
                     });
                 }
             } catch (error) {
