@@ -2,13 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 
 // ...
 
-// 1. Create Order
-console.log("Initializing local Supabase client with key:", supabaseAnonKey?.substring(0, 10) + "...");
-const localSupabase = createClient(supabaseUrl, supabaseAnonKey);
 
-const { data, error } = await localSupabase.functions.invoke('create-razorpay-order', {
-    body: { planType: billingCycle }
-});
 import { X, CheckCircle2, Sparkles } from 'lucide-react';
 import { useUpgradeModal } from '../contexts/UpgradeModalContext';
 import { useAuth } from '../contexts/AuthContext';
