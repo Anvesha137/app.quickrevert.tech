@@ -1,8 +1,5 @@
+import { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
-
-// ...
-
-
 import { X, CheckCircle2, Sparkles } from 'lucide-react';
 import { useUpgradeModal } from '../contexts/UpgradeModalContext';
 import { useAuth } from '../contexts/AuthContext';
