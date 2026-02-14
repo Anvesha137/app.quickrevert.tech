@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { MessageSquare, Zap, MessageCircle, Users, X, TrendingUp } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import KPICard from './KPICard';
 import InstagramFeed from './InstagramFeed';
@@ -18,6 +19,7 @@ interface DashboardStats {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { displayName } = useTheme();
   const [stats, setStats] = useState<DashboardStats>({
     dmsTriggered: 0,
     activeAutomations: 0,
@@ -198,7 +200,7 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Hello, {user?.user_metadata?.first_name || 'Creator'}! 👋</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Hello, {displayName?.split(' ')[0] || 'Creator'}! 👋</h1>
             <p className="text-gray-600 flex items-center gap-2">
               Here determines your growth today.
               <a
