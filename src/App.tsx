@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import Pricing from './components/Pricing';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import MobileNav from './components/MobileNav';
@@ -13,8 +14,10 @@ import Settings from './components/Settings';
 import Login from './components/Login';
 import ErrorBoundary from './components/ErrorBoundary';
 
+
 function AppContent() {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -29,6 +32,17 @@ function AppContent() {
 
   if (!user) {
     return <Login />;
+  }
+
+  // Standalone pages (no sidebar)
+  if (location.pathname === '/pricing') {
+    return (
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/pricing" element={<Pricing />} />
+        </Routes>
+      </ErrorBoundary>
+    );
   }
 
   return (
@@ -51,6 +65,7 @@ function AppContent() {
     </div>
   );
 }
+
 
 import { isSupabaseConfigured } from './lib/supabase';
 

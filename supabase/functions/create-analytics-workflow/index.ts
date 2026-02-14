@@ -30,18 +30,49 @@ serve(async (req) => {
 
         console.log(`Creating Analytics Workflow for User: ${userId}, IG Account: ${instagramAccountId}`);
 
-        // 2. Use Shared Credential (as requested for all users)
-        const credentialId = "hCnOS0fdlwyo2fxv";
-
         // 3. Fetch Instagram Username (for naming)
         const { data: igAccount, error: igError } = await supabase
             .from("instagram_accounts")
-            .select("username")
+            .select("*")
             .eq("id", instagramAccountId)
             .single();
 
         if (igError) throw new Error("Failed to fetch IG Account: " + igError.message);
         const username = igAccount.username;
+
+        // 2. Ensure Credential Exists
+        const ensureCredential = async () => {
+            const credName = `Instagram - ${igAccount.username} (${igAccount.instagram_user_id})`;
+            const credType = "facebookGraphApi";
+            try {
+                const listRes = await fetch(`${n8nBaseUrl}/api/v1/credentials`, { headers: { "X-N8N-API-KEY": n8nApiKey } });
+                if (listRes.ok) {
+                    const listData = await listRes.json();
+                    const existing = listData.data.find((c: any) => c.name === credName);
+                    if (existing) {
+                        await fetch(`${n8nBaseUrl}/api/v1/credentials/${existing.id}`, {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey },
+                            body: JSON.stringify({ data: { accessToken: igAccount.access_token } })
+                        });
+                        return existing.id;
+                    }
+                }
+            } catch (e) {
+                console.warn("Cred search failed", e);
+            }
+
+            const createRes = await fetch(`${n8nBaseUrl}/api/v1/credentials`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey },
+                body: JSON.stringify({ name: credName, type: credType, data: { accessToken: igAccount.access_token } })
+            });
+
+            if (!createRes.ok) throw new Error("Cred creation failed");
+            return (await createRes.json()).id;
+        };
+
+        const credentialId = await ensureCredential();
 
         // 4. Construct Workflow JSON
         const workflowName = `[Analytics] ${username}`;
