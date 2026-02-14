@@ -70,10 +70,10 @@ export default function InstagramConnectionStatus() {
   const statusConfig = {
     active: {
       icon: CheckCircle,
-      color: 'text-green-600',
-      bgColor: 'bg-green-100',
-      borderColor: 'border-green-200',
-      bgGradient: 'from-green-50 to-emerald-50',
+      color: 'text-blue-600',
+      bgColor: 'bg-blue-100',
+      borderColor: 'border-blue-200',
+      bgGradient: 'from-blue-50 to-indigo-50',
       title: 'Instagram connected',
       message: ''
     },
