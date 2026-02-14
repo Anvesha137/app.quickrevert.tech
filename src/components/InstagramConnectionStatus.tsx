@@ -73,7 +73,7 @@ export default function InstagramConnectionStatus() {
       color: 'text-white',
       bgColor: 'bg-white/20',
       borderColor: 'border-transparent',
-      bgGradient: 'from-blue-600 to-indigo-600',
+      bgGradient: 'from-blue-600 via-indigo-600 to-indigo-700',
       title: 'Instagram connected',
       message: '',
       textColor: 'text-white',
