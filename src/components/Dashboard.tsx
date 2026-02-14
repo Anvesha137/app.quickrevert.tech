@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MessageSquare, Eye, Zap, MessageCircle, Users } from 'lucide-react';
+import { MessageSquare, Eye, Zap, MessageCircle, Users, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
@@ -25,6 +25,7 @@ export default function Dashboard() {
     uniqueUsers: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [showAnnouncement, setShowAnnouncement] = useState(true);
 
   useEffect(() => {
     if (user) {
@@ -88,7 +89,36 @@ export default function Dashboard() {
 
   return (
     <div className="flex-1 overflow-auto bg-gradient-to-br from-gray-50 via-white to-blue-50/30">
+      {/* Release Announcement Banner */}
+      {showAnnouncement && (
+        <div className="sticky top-0 z-50 bg-[#ff6b00] text-white px-4 py-1 flex items-center justify-between shadow-sm shadow-orange-100">
+          <div className="flex items-center gap-2 mx-auto">
+            <span className="text-lg">🚀</span>
+            <span className="font-bold">Big News! New Products Page is live.</span>
+            <button className="bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full text-sm font-semibold transition-colors ml-2">
+              Try it →
+            </button>
+          </div>
+          <button
+            onClick={() => setShowAnnouncement(false)}
+            className="text-white/80 hover:text-white p-1 hover:bg-white/10 rounded-full transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto p-8">
+        {/* Pro Upgrade Banner */}
+        <div className="bg-gradient-to-r from-red-600 to-rose-600 text-white rounded-2xl p-6 mb-8 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg shadow-red-100">
+          <div>
+            <h2 className="text-xl font-bold mb-1">Unlock Pro Power!</h2>
+            <p className="text-red-100">Get unlimited automations, contacts & advanced analytics.</p>
+          </div>
+          <button className="bg-white text-red-600 px-6 py-2.5 rounded-xl font-bold hover:bg-red-50 transition-colors shadow-sm whitespace-nowrap">
+            Upgrade to Pro
+          </button>
+        </div>
         <div className="mb-10">
           <div className="flex items-center justify-between mb-6">
             <div className="mt-1">
