@@ -8,6 +8,7 @@ import {
   LogOut
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
+import UsageStats from './UsageStats';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -116,6 +117,8 @@ export default function Sidebar() {
           })}
         </ul>
       </nav>
+
+      <UsageStats />
 
       <div className="p-4 border-t border-gray-200 bg-gray-50/50">
         <div className="bg-white rounded-xl p-3 mb-3 shadow-sm border border-gray-100">

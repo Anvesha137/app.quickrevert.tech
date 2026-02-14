@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import KPICard from './KPICard';
 import InstagramFeed from './InstagramFeed';
 import InstagramConnectionStatus from './InstagramConnectionStatus';
+import UsageGraph from './UsageGraph'; // Added import for UsageGraph
 
 interface DashboardStats {
   dmsTriggered: number;

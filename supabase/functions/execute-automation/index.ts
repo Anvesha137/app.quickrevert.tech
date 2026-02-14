@@ -103,6 +103,41 @@ Deno.serve(async (req: Request) => {
       console.log('\n✅ STEP 2: Username already provided:', eventData.from.username);
     }
 
+    // --- USAGE LIMIT CHECK START ---
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+    const startOfMonthIso = startOfMonth.toISOString();
+    const USAGE_LIMIT = 1000;
+
+    if (triggerType === 'post_comment') {
+      console.log('\n🔍 CHECK: Verifying monthly comment automation limit...');
+      const { count, error: countError } = await supabase
+        .from('automation_activities')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('activity_type', 'incoming_comment')
+        .gte('executed_at', startOfMonthIso);
+
+      if (countError) {
+        console.error('❌ Error checking usage limit:', countError);
+      } else {
+        console.log(`   Current monthly usage: ${count}/${USAGE_LIMIT}`);
+        if ((count || 0) >= USAGE_LIMIT) {
+          console.warn('⚠️ Monthly comment automation limit reached. Skipping execution.');
+          return new Response(JSON.stringify({
+            success: false,
+            message: 'Monthly comment automation limit reached',
+            limit_reached: true
+          }), {
+            status: 200, // Return 200 to acknowledge webhook but stop processing
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+    }
+    // --- USAGE LIMIT CHECK END ---
+
     // 3. Upsert Contact
     console.log('\n🔍 STEP 3: Upserting contact...');
     try {
@@ -467,6 +502,34 @@ async function executeAction(params: any) {
       break;
 
     case 'send_dm':
+      // --- DM USAGE LIMIT CHECK ---
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+
+      const { count, error: countError } = await supabase
+        .from('automation_activities')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('activity_type', 'send_dm')
+        .gte('executed_at', startOfMonth.toISOString());
+
+      if (!countError && (count || 0) >= 1000) {
+        console.warn(`⚠️ Monthly DM limit reached (${count}/1000). Skipping DM action.`);
+        await logActivity(supabase, {
+          userId,
+          automationId,
+          instagramAccountId,
+          activityType: 'send_dm_skipped',
+          targetUsername: eventData.from.username,
+          status: 'skipped',
+          message: 'Monthly DM limit reached',
+          metadata: { limit: 1000, current: count }
+        });
+        return; // Skip this action
+      }
+      // -----------------------------
+
       messageText = action.messageTemplate || '';
       buttons = action.actionButtons || [];
       break;
