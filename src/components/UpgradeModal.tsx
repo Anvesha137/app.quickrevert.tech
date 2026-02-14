@@ -92,7 +92,9 @@ export default function UpgradeModal() {
 
         } catch (error) {
             console.error('Payment failed:', error);
-            alert(`Failed to initiate payment: ${error.message || JSON.stringify(error)}`);
+            const keyUsed = import.meta.env.VITE_SUPABASE_ANON_KEY || 'N/A';
+            const urlUsed = import.meta.env.VITE_SUPABASE_URL || 'N/A';
+            alert(`Payment Failed.\n\nError: ${error.message || JSON.stringify(error)}\n\nDebug Info:\nURL: ${urlUsed}\nKey (first 20 chars): ${keyUsed.substring(0, 20)}...`);
         } finally {
             setLoading(false);
         }
