@@ -117,7 +117,7 @@ export default function Dashboard() {
       const { data: instagram } = await supabase.from('instagram_accounts').select('id').eq('user_id', user!.id).single();
       if (!instagram) return;
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-workflow`, {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-analytics-workflow`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -125,9 +125,7 @@ export default function Dashboard() {
         },
         body: JSON.stringify({
           userId: user!.id,
-          instagramAccountId: instagram.id,
-          triggerType: 'enable_analytics',
-          autoActivate: true
+          instagramAccountId: instagram.id
         }),
       });
 

@@ -75,3 +75,6 @@ verify_jwt = false
 
 [functions."execute-automation"]
 verify_jwt = false
+
+[functions."create-analytics-workflow"]
+verify_jwt = false
