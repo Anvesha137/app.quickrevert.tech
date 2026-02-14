@@ -28,6 +28,19 @@ export default function UpgradeModal() {
     const handleUpgrade = async () => {
         setLoading(true);
         try {
+            console.log("Checking environment variables...");
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+            const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+            const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
+
+            if (!supabaseUrl || supabaseUrl.includes('placeholder') ||
+                !supabaseAnonKey || supabaseAnonKey.includes('placeholder') ||
+                !razorpayKey) {
+                alert(`Configuration Error: Missing Environment Variables.\n\nURL: ${supabaseUrl}\nKey: ${supabaseAnonKey ? '...present' : 'MISSING'}\nRazorpay: ${razorpayKey ? '...present' : 'MISSING'}`);
+                setLoading(false);
+                return;
+            }
+
             // 1. Create Order
             const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
                 body: { planType: billingCycle }
