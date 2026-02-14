@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MessageSquare, Zap, MessageCircle, Users, X, TrendingUp } from 'lucide-react';
+import { MessageSquare, Zap, MessageCircle, Users, X, TrendingUp, Crown } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
@@ -179,8 +179,9 @@ export default function Dashboard() {
           </div>
           <button
             onClick={openModal}
-            className="bg-white text-red-600 px-6 py-2.5 rounded-xl font-bold hover:bg-red-50 transition-colors shadow-sm whitespace-nowrap"
+            className="bg-white text-red-600 px-6 py-2.5 rounded-xl font-bold hover:bg-red-50 transition-colors shadow-sm whitespace-nowrap flex items-center gap-2"
           >
+            <Crown className="w-5 h-5 fill-red-600" />
             Upgrade to Pro
           </button>
         </div>
