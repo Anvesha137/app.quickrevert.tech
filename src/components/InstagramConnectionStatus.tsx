@@ -69,13 +69,16 @@ export default function InstagramConnectionStatus() {
 
   const statusConfig = {
     active: {
-      icon: CheckCircle,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-100',
-      borderColor: 'border-blue-200',
-      bgGradient: 'from-blue-50 to-indigo-50',
+      icon: CheckCircle, // Not used but kept for type consistency
+      color: 'text-white',
+      bgColor: 'bg-white/20',
+      borderColor: 'border-transparent',
+      bgGradient: 'from-blue-600 to-indigo-600',
       title: 'Instagram connected',
-      message: ''
+      message: '',
+      textColor: 'text-white',
+      subTextColor: 'text-blue-100',
+      iconClass: 'text-white'
     },
     expired: {
       icon: AlertCircle,
@@ -84,7 +87,10 @@ export default function InstagramConnectionStatus() {
       borderColor: 'border-yellow-200',
       bgGradient: 'from-yellow-50 to-amber-50',
       title: 'Connection Expired',
-      message: 'Please reconnect'
+      message: 'Please reconnect',
+      textColor: 'text-gray-900',
+      subTextColor: 'text-gray-600',
+      iconClass: 'text-pink-600'
     },
     revoked: {
       icon: XCircle,
@@ -93,7 +99,10 @@ export default function InstagramConnectionStatus() {
       borderColor: 'border-red-200',
       bgGradient: 'from-red-50 to-rose-50',
       title: 'Connection Revoked',
-      message: 'Access revoked'
+      message: 'Access revoked',
+      textColor: 'text-gray-900',
+      subTextColor: 'text-gray-600',
+      iconClass: 'text-pink-600'
     }
   };
 
@@ -103,11 +112,11 @@ export default function InstagramConnectionStatus() {
     <div className={`bg-gradient-to-r ${status.bgGradient} border-2 ${status.borderColor} rounded-2xl p-6 shadow-sm`}>
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
-          <Instagram className="text-pink-600" size={24} />
-          <span className="font-bold text-gray-900 text-lg">@{account.username}</span>
+          <Instagram className={status.iconClass} size={24} />
+          <span className={`font-bold text-lg ${status.textColor}`}>@{account.username}</span>
         </div>
         <div className="ml-8">
-          <h3 className="font-medium text-gray-600 text-sm">{status.title}</h3>
+          <h3 className={`font-medium text-sm ${status.subTextColor}`}>{status.title}</h3>
         </div>
       </div>
     </div>
