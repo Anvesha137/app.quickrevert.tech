@@ -16,7 +16,6 @@ export const navigation = [
   { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
   { id: 'automations', name: 'Automations', icon: Zap, path: '/automation' },
   { id: 'contacts', name: 'Contacts', icon: Users, path: '/contacts' },
-  { id: 'activity', name: 'Activity Log', icon: Activity, path: '/activity' },
   { id: 'billing', name: 'Billing', icon: CreditCard, path: '/billing' },
   { id: 'connected', name: 'Connected Accounts', icon: Link2, path: '/connect-accounts' },
   { id: 'settings', name: 'Settings', icon: SettingsIcon, path: '/settings' },
@@ -87,10 +86,10 @@ export default function Sidebar() {
     <aside className="hidden md:flex fixed left-0 top-0 h-full w-64 bg-gradient-to-b from-gray-50 to-white border-r border-gray-200 flex-col shadow-lg z-50">
       <div className="pt-8 pb-4 px-4 border-b border-gray-200 flex flex-col items-start">
         <div className="flex items-center gap-0 mb-0 w-full justify-center">
-          <div className="w-16 h-16 flex items-center justify-center overflow-hidden">
+          <div className="w-14 h-14 flex items-center justify-center overflow-hidden">
             <img src="/Logo.png" alt="QuickRevert" className="w-full h-full object-contain scale-150" />
           </div>
-          <span className="text-[28px] font-bold text-gray-900 tracking-tight -mt-3">QuickRevert</span>
+          <span className="text-2xl font-bold text-gray-900 tracking-tight -mt-2">QuickRevert</span>
         </div>
         <p className="text-[10px] text-gray-500 font-medium tracking-wide w-full text-center">Intelligent Responses | Zero Wait Time | 24x7</p>
       </div>

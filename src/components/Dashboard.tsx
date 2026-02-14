@@ -4,14 +4,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import KPICard from './KPICard';
-import RecentActivity from './RecentActivity';
-import TopAutomations from './TopAutomations';
 import InstagramFeed from './InstagramFeed';
 import InstagramConnectionStatus from './InstagramConnectionStatus';
 
 interface DashboardStats {
   dmsTriggered: number;
-  dmOpenRate: number;
   activeAutomations: number;
   commentReplies: number;
   uniqueUsers: number;
@@ -23,7 +20,6 @@ export default function Dashboard() {
   const userName = displayName?.split(' ')[0] || user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'User';
   const [stats, setStats] = useState<DashboardStats>({
     dmsTriggered: 0,
-    dmOpenRate: 0,
     activeAutomations: 0,
     commentReplies: 0,
     uniqueUsers: 0,
@@ -70,15 +66,8 @@ export default function Dashboard() {
 
       if (contactsError) console.error("Error fetching contacts count:", contactsError);
 
-      // 4. DM Open Rate (Placeholder/Heuristic)
-      // Since we don't reliably track 'read' events in a way that maps to 'dm_sent', 
-      // and the user accepts 0%, we will use the metadata.seen if available, else 0.
-      const seenDms = dms.filter(dm => dm.metadata?.seen === true).length;
-      const dmOpenRate = dms.length > 0 ? Math.round((seenDms / dms.length) * 100) : 0;
-
       setStats({
         dmsTriggered: dms.length,
-        dmOpenRate,
         activeAutomations,
         commentReplies: comments.length,
         uniqueUsers: uniqueUsersCount || 0,
@@ -88,7 +77,6 @@ export default function Dashboard() {
       // Reset stats to default values on error to prevent undefined values
       setStats({
         dmsTriggered: 0,
-        dmOpenRate: 0,
         activeAutomations: 0,
         commentReplies: 0,
         uniqueUsers: 0,
@@ -104,7 +92,7 @@ export default function Dashboard() {
         <div className="mb-10">
           <div className="flex items-center justify-between mb-6">
             <div className="mt-1">
-              <h1 className="text-[28px] font-bold text-gray-900 mb-2 tracking-tight">
+              <h1 className="text-2xl font-bold text-gray-900 mb-2 tracking-tight">
                 Hello, {userName}👋
               </h1>
               <p className="text-lg text-gray-600">
@@ -127,20 +115,13 @@ export default function Dashboard() {
           <InstagramConnectionStatus />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5 mb-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
           <KPICard
             title="DMs Triggered"
             value={loading ? '-' : (stats.dmsTriggered || 0).toLocaleString()}
             icon={MessageSquare}
             iconColor="text-blue-600"
             iconBgColor="bg-gradient-to-br from-blue-50 to-blue-100"
-          />
-          <KPICard
-            title="DM Open Rate"
-            value={loading ? '-' : `${stats.dmOpenRate || 0}%`}
-            icon={Eye}
-            iconColor="text-emerald-600"
-            iconBgColor="bg-gradient-to-br from-emerald-50 to-emerald-100"
           />
           <KPICard
             title="Active Automations"
@@ -165,10 +146,7 @@ export default function Dashboard() {
           />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <RecentActivity />
-          <TopAutomations />
-        </div>
+
 
         <div className="mb-8">
           <InstagramFeed />

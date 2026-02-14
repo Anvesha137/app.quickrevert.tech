@@ -8,7 +8,6 @@ import Automations from './components/Automations';
 import AutomationCreate from './components/AutomationCreate';
 import ConnectedAccounts from './components/ConnectedAccounts';
 import Contacts from './components/Contacts';
-import ActivityLog from './components/ActivityLog';
 import Billing from './components/Billing';
 import Settings from './components/Settings';
 import Login from './components/Login';
@@ -43,7 +42,7 @@ function AppContent() {
           <Route path="/automation" element={<div className="ml-0 md:ml-64 pb-20 md:pb-0 flex-1"><Automations /></div>} />
           <Route path="/automation/create" element={<div className="ml-0 md:ml-64 pb-20 md:pb-0 flex-1"><AutomationCreate /></div>} />
           <Route path="/contacts" element={<Contacts />} />
-          <Route path="/activity" element={<ActivityLog />} />
+
           <Route path="/billing" element={<Billing />} />
           <Route path="/connect-accounts" element={<div className="ml-0 md:ml-64 pb-20 md:pb-0 flex-1"><ConnectedAccounts /></div>} />
           <Route path="/settings" element={<Settings />} />
