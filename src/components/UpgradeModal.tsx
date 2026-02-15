@@ -229,7 +229,7 @@ export default function UpgradeModal() {
                                 </p>
                                 <div className="flex items-center justify-center gap-2">
                                     <span className="text-5xl font-extrabold text-gray-900">
-                                        ₹{billingCycle === 'annual' ? '599' : '899'}
+                                        ₹{billingCycle === 'annual' ? '599' : '1'}
                                     </span>
                                     {billingCycle === 'annual' && (
                                         <span className="text-xl text-gray-400 font-semibold line-through decoration-2">
@@ -239,7 +239,7 @@ export default function UpgradeModal() {
                                     <span className="text-xl text-gray-500 font-medium">/mo</span>
                                 </div>
                                 <p className="text-violet-600 font-medium text-sm mt-2">
-                                    Total payable: ₹{billingCycle === 'annual' ? '7,188' : '2,697'}
+                                    Total payable: ₹{billingCycle === 'annual' ? '7,188' : '1'}
                                 </p>
                             </div>
 

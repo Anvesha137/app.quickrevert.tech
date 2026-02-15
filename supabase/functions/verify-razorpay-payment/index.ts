@@ -118,7 +118,7 @@ serve(async (req) => {
                ${email}, 
                ${packageName}, 
                ${couponCode || null}, 
-               ${planType === 'annual' ? 7188 : 2697}, 
+               ${planType === 'annual' ? 7188 : 1}, 
                'PaidCustomer',
                NOW()
              )
