@@ -40,20 +40,26 @@ serve(async (req) => {
     // Let's DO NOTHING for now to be safe, or just update username.
 
     await neonClient.queryObject`
-             INSERT INTO users (
-               id,
-               username, 
-               email, 
-               status
-             ) VALUES (
-               ${userId},
-               ${instagramHandle || fullName || email.split('@')[0]}, 
-               ${email}, 
-               'Pending'
-             )
-             ON CONFLICT (email) DO UPDATE SET
-               username = COALESCE(EXCLUDED.username, users.username);
-           `;
+      INSERT INTO users (
+        id,
+        username, 
+        email, 
+        status,
+        deleted,
+        last_active
+      ) VALUES (
+        ${userId},
+        ${instagramHandle || fullName || email.split('@')[0]}, 
+        ${email}, 
+        'Pending',
+        FALSE,
+        NOW()
+      )
+      ON CONFLICT (email) DO UPDATE SET
+        username = COALESCE(EXCLUDED.username, users.username),
+        deleted = FALSE,
+        last_active = NOW();
+    `;
 
     // Also Insert into Onboardings if not exists?
     // The user schema has onboardings table too.

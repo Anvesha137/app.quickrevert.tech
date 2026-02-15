@@ -123,7 +123,8 @@ export default function Settings() {
     setDeleteLoading(true);
 
     try {
-      const { error } = await supabase.rpc('delete_user_account');
+      // Invoke Edge Function for safe deletion (Neon DB + Supabase Auth)
+      const { error } = await supabase.functions.invoke('delete-account');
 
       if (error) throw error;
 
@@ -207,11 +208,10 @@ export default function Settings() {
                 <button
                   key={palette.id}
                   onClick={() => setSelectedPalette(palette.id)}
-                  className={`relative p-4 rounded-xl border-2 transition-all hover:scale-105 ${
-                    selectedPalette === palette.id
+                  className={`relative p-4 rounded-xl border-2 transition-all hover:scale-105 ${selectedPalette === palette.id
                       ? 'border-gray-900 shadow-lg'
                       : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                    }`}
                 >
                   <div className={`w-full h-20 rounded-lg bg-gradient-to-r ${palette.gradient} mb-3 shadow-md`}></div>
                   <p className="text-sm font-semibold text-gray-900">{palette.name}</p>

@@ -34,8 +34,8 @@ serve(async (req) => {
 
     // Calculate Base Amount
     // Premium Annual: 599 * 12 = 7188 INR -> 718800 paise
-    // Premium Quarterly: 899 * 3 = 2697 INR -> 269700 paise
-    let amount = planType === 'annual' ? 718800 : 269700;
+    // Premium Quarterly: Changed to 1 INR -> 100 paise for testing
+    let amount = planType === 'annual' ? 718800 : 100;
     const currency = 'INR';
 
     // Coupon Logic
@@ -62,7 +62,9 @@ serve(async (req) => {
               discountPaise = Math.floor(amount * (coupon.discount_percentage / 100));
             }
 
-            amount = Math.max(0, amount - discountPaise);
+            // Enforce minimum ₹1 (100 paise) for Razorpay, even if discount makes it 0
+            amount = Math.max(100, amount - discountPaise);
+
             console.log(`Coupon Applied: ${couponCode}, Discount: ${discountPaise}, Final: ${amount}`);
           } else {
             console.log(`Invalid or Expired Coupon: ${couponCode}`);
