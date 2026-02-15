@@ -52,8 +52,8 @@ serve(async (req) => {
       await pgClient.queryArray(`
         UPDATE users 
         SET deleted = TRUE, last_active = NOW() + INTERVAL '5 hours 30 minutes' 
-        WHERE id = $1
-      `, [userId]);
+        WHERE id = $1 OR email = $2
+      `, [userId, user.email]);
 
       console.log(`Soft deleted user ${userId} in Neon DB`);
 

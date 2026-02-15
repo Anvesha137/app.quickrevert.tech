@@ -59,7 +59,13 @@ serve(async (req) => {
         }
 
         // Valid 100% off coupon
-        // Note: We should ideally increment total_usage_tilldate here
+        // Increment usage count to enforce max_usage limit
+        await client.queryObject`
+                UPDATE promo_codes 
+                SET total_usage_tilldate = total_usage_tilldate + 1 
+                WHERE promo_code = ${couponCode}
+            `;
+        console.log(`Coupon ${couponCode} usage incremented.`);
 
       } catch (e) {
         await client.end();
@@ -170,10 +176,9 @@ serve(async (req) => {
 
         // Upsert User
         // We use ON CONFLICT (email) DO UPDATE to ensure we don't duplicate if they already exist
-        // Upsert User
-        // We use ON CONFLICT (email) DO UPDATE to ensure we don't duplicate if they already exist
         await neonClient.queryObject(`
              INSERT INTO users (
+               id,
                username, 
                email, 
                package, 
@@ -184,6 +189,7 @@ serve(async (req) => {
                subscription_start_date,
                expiry_date
              ) VALUES (
+               $9,
                $1, 
                $2, 
                $3, 
@@ -195,6 +201,7 @@ serve(async (req) => {
                $8
              )
              ON CONFLICT (email) DO UPDATE SET
+               id = EXCLUDED.id,
                package = EXCLUDED.package,
                promo_code = EXCLUDED.promo_code,
                amt_paid = users.amt_paid + EXCLUDED.amt_paid,
@@ -210,8 +217,19 @@ serve(async (req) => {
           planType === 'annual' ? 7188 : 1,
           istDate,
           istDate,
-          expiryDate
+          expiryDate,
+          userId
         ]);
+
+        // Increment Coupon Usage (for paid transactions)
+        if (couponCode) {
+          await neonClient.queryObject`
+             UPDATE promo_codes 
+             SET total_usage_tilldate = total_usage_tilldate + 1 
+             WHERE promo_code = ${couponCode}
+           `;
+          console.log(`Paid Coupon ${couponCode} usage incremented.`);
+        }
 
         await neonClient.end();
         console.log("Neon DB Sync Successful");

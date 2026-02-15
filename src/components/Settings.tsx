@@ -131,7 +131,7 @@ export default function Settings() {
       await supabase.auth.signOut();
     } catch (error) {
       console.error('Error deleting account:', error);
-      alert('Failed to delete account. Please contact support.');
+      alert(`Failed to delete account: ${error.message || JSON.stringify(error)}`);
     } finally {
       setDeleteLoading(false);
       setShowDeleteConfirm(false);
@@ -209,8 +209,8 @@ export default function Settings() {
                   key={palette.id}
                   onClick={() => setSelectedPalette(palette.id)}
                   className={`relative p-4 rounded-xl border-2 transition-all hover:scale-105 ${selectedPalette === palette.id
-                      ? 'border-gray-900 shadow-lg'
-                      : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-gray-900 shadow-lg'
+                    : 'border-gray-200 hover:border-gray-300'
                     }`}
                 >
                   <div className={`w-full h-20 rounded-lg bg-gradient-to-r ${palette.gradient} mb-3 shadow-md`}></div>
