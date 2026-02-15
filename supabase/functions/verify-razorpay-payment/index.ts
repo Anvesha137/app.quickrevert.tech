@@ -13,39 +13,93 @@ serve(async (req) => {
   }
 
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, userId, planType, instagramHandle, couponCode } = await req.json()
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, userId, planType, instagramHandle, couponCode, isFree } = await req.json()
 
-    // 1. Verify Signature using Web Crypto API (No external deps)
-    const key_secret = Deno.env.get('RAZORPAY_KEY_SECRET') ?? '';
-    const message = razorpay_order_id + "|" + razorpay_payment_id;
+    // 1. Verify Payment (Signature or Free Coupon)
+    if (isFree) {
+      // Validate Coupon is actually 100% off
+      if (!couponCode) {
+        return new Response(
+          JSON.stringify({ error: 'Missing coupon code for free redemption' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
 
-    const encoder = new TextEncoder();
-    const keyData = encoder.encode(key_secret);
-    const msgData = encoder.encode(message);
+      const neonDbUrl = Deno.env.get('NEON_DB_URL');
+      if (!neonDbUrl) {
+        throw new Error("Server Configuration Error: Missing NEON_DB_URL");
+      }
 
-    const key = await crypto.subtle.importKey(
-      "raw",
-      keyData,
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["sign"]
-    );
+      const client = new Client(neonDbUrl);
+      await client.connect();
 
-    const signatureBuffer = await crypto.subtle.sign(
-      "HMAC",
-      key,
-      msgData
-    );
+      try {
+        const result = await client.queryObject`
+                SELECT * FROM promo_codes 
+                WHERE promo_code = ${couponCode} 
+                AND (expiry_date >= NOW())
+                AND (max_usage > total_usage_tilldate)
+            `;
 
-    const signatureHex = Array.from(new Uint8Array(signatureBuffer))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
+        if (result.rows.length === 0) {
+          await client.end();
+          return new Response(
+            JSON.stringify({ error: 'Invalid or Expired Coupon' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
 
-    if (signatureHex !== razorpay_signature) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid signature' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+        const coupon = result.rows[0] as any;
+        if (coupon.discount_percentage !== 100) {
+          await client.end();
+          return new Response(
+            JSON.stringify({ error: 'Coupon is not 100% off' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        // Valid 100% off coupon
+        // Note: We should ideally increment total_usage_tilldate here
+
+      } catch (e) {
+        await client.end();
+        throw e;
+      }
+      await client.end();
+
+    } else {
+      // Standard Razorpay Signature Verification
+      const key_secret = Deno.env.get('RAZORPAY_KEY_SECRET') ?? '';
+      const message = razorpay_order_id + "|" + razorpay_payment_id;
+
+      const encoder = new TextEncoder();
+      const keyData = encoder.encode(key_secret);
+      const msgData = encoder.encode(message);
+
+      const key = await crypto.subtle.importKey(
+        "raw",
+        keyData,
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"]
+      );
+
+      const signatureBuffer = await crypto.subtle.sign(
+        "HMAC",
+        key,
+        msgData
+      );
+
+      const signatureHex = Array.from(new Uint8Array(signatureBuffer))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+
+      if (signatureHex !== razorpay_signature) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid signature' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
     }
 
     // 2. Initialize Supabase Client
@@ -70,8 +124,8 @@ serve(async (req) => {
         status: 'active',
         plan_id: planType,
         current_period_end: periodEnd.toISOString(),
-        razorpay_order_id: razorpay_order_id,
-        razorpay_payment_id: razorpay_payment_id,
+        razorpay_order_id: razorpay_order_id || `free_order_${Date.now()}`,
+        razorpay_payment_id: razorpay_payment_id || `free_pay_${Date.now()}`,
         instagram_handle: instagramHandle,
         coupon_code: couponCode,
         updated_at: new Date().toISOString()

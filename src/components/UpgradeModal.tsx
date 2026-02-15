@@ -98,6 +98,31 @@ export default function UpgradeModal() {
 
             if (data?.error) throw new Error(data.error);
 
+            if (data?.free) {
+                // Free Upgrade Flow
+                console.log("Free upgrade detected. Verifying directly...");
+                const { error: verifyError } = await supabase.functions.invoke('verify-razorpay-payment', {
+                    body: {
+                        isFree: true,
+                        userId: user?.id,
+                        planType: billingCycle,
+                        instagramHandle: instagramHandle,
+                        couponCode: couponCode
+                    }
+                });
+
+                if (verifyError) {
+                    console.error("Free Upgrade Verification Error:", verifyError);
+                    alert(`Upgrade failed: ${verifyError.message || JSON.stringify(verifyError)}`);
+                    return;
+                }
+
+                // Success! Show celebration
+                closeModal();
+                openCelebration();
+                return;
+            }
+
             const options = {
                 key: import.meta.env.VITE_RAZORPAY_KEY_ID, // Enter the Key ID generated from the Dashboard
                 amount: data.amount,

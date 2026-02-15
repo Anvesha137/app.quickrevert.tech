@@ -57,13 +57,25 @@ serve(async (req) => {
           if (result.rows.length > 0) {
             const coupon = result.rows[0] as any;
             // Apply Discount (Percentage based)
+            // Apply Discount (Percentage based)
             let discountPaise = 0;
             if (coupon.discount_percentage > 0) {
               discountPaise = Math.floor(amount * (coupon.discount_percentage / 100));
             }
 
-            // Enforce minimum ₹1 (100 paise) for Razorpay, even if discount makes it 0
-            amount = Math.max(100, amount - discountPaise);
+            let finalAmount = amount - discountPaise;
+
+            if (finalAmount <= 0) {
+              console.log(`Coupon Applied: ${couponCode}, 100% OFF. Returning free status.`);
+              await client.end();
+              return new Response(
+                JSON.stringify({ free: true, amount: 0 }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            }
+
+            // Enforce minimum ₹1 (100 paise) for Razorpay if not free
+            amount = Math.max(100, finalAmount);
 
             console.log(`Coupon Applied: ${couponCode}, Discount: ${discountPaise}, Final: ${amount}`);
           } else {
