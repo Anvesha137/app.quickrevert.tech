@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+
 import { X, CheckCircle2, Sparkles } from 'lucide-react';
 import { useUpgradeModal } from '../contexts/UpgradeModalContext';
+import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -45,12 +45,32 @@ export default function UpgradeModal() {
             }
 
             // 1. Create Order
-            console.log("Initializing local Supabase client with key:", supabaseAnonKey?.substring(0, 10) + "...");
-            const localSupabase = createClient(supabaseUrl, supabaseAnonKey);
-
-            const { data, error } = await localSupabase.functions.invoke('create-razorpay-order', {
-                body: { planType: billingCycle }
+            // 1. Create Order
+            console.log("Initiating Request via Fetch...");
+            const response = await fetch(`${supabaseUrl}/functions/v1/create-razorpay-order`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${supabaseAnonKey}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ planType: billingCycle })
             });
+
+            const responseText = await response.text();
+            console.log("Response Status:", response.status);
+            console.log("Response Body:", responseText);
+
+            if (!response.ok) {
+                // If not 2xx, throw with status and body
+                throw new Error(`HTTP Error ${response.status}: ${responseText}`);
+            }
+
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (e) {
+                throw new Error(`Invalid JSON Response: ${responseText}`);
+            }
 
             if (error) throw error;
             if (data?.error) throw new Error(data.error);
