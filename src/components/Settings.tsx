@@ -124,9 +124,10 @@ export default function Settings() {
 
     try {
       // Invoke Edge Function for safe deletion (Neon DB + Supabase Auth)
-      const { error } = await supabase.functions.invoke('delete-account');
+      const { data, error } = await supabase.functions.invoke('delete-account');
 
       if (error) throw error;
+      if (data && data.error) throw new Error(data.error);
 
       await supabase.auth.signOut();
     } catch (error) {

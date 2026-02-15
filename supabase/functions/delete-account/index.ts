@@ -66,9 +66,14 @@ serve(async (req) => {
     }
 
     // 3. Delete from Supabase (Hard Delete) using Admin Client
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!serviceRoleKey) {
+      throw new Error("Server Misconfiguration: Missing SUPABASE_SERVICE_ROLE_KEY");
+    }
+
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      serviceRoleKey
     );
 
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
@@ -82,9 +87,11 @@ serve(async (req) => {
     );
 
   } catch (error) {
+    console.error("Delete Account Error:", error);
+    // Return 200 with error property so client can parse the message
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      JSON.stringify({ error: error.message || "Unknown server error", details: JSON.stringify(error) }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
   }
 });
