@@ -14,16 +14,18 @@ declare global {
 export default function UpgradeModal() {
     const { isOpen, closeModal } = useUpgradeModal();
     const { user } = useAuth();
-    const [billingCycle, setBillingCycle] = useState<'annual' | 'monthly'>('annual');
+    const [billingCycle, setBillingCycle] = useState<'annual' | 'quarterly'>('annual');
     const [loading, setLoading] = useState(false);
 
     if (!isOpen) return null;
 
     const features = [
-        'Unlimited Automation',
-        'Collect & Export Leads',
-        'Comment Re-triggers',
-        'Follower Growth Tools',
+        'Unlimited Auto DM',
+        'Unlimited Comment automation',
+        'Unlimited keyword triggers / post',
+        'Live* & Story automation',
+        'Analytics dashboard',
+        'Ask to follow'
     ];
 
     const handleUpgrade = async () => {
@@ -44,7 +46,6 @@ export default function UpgradeModal() {
                 return;
             }
 
-            // 1. Create Order
             // 1. Create Order
             console.log("Initiating Request via Fetch...");
             const response = await fetch(`${supabaseUrl}/functions/v1/create-razorpay-order`, {
@@ -79,7 +80,7 @@ export default function UpgradeModal() {
                 amount: data.amount,
                 currency: data.currency,
                 name: "QuickRevert",
-                description: `Pro Plan - ${billingCycle === 'annual' ? 'Annual' : 'Monthly'}`,
+                description: `Premium Plan - ${billingCycle === 'annual' ? 'Annual' : 'Quarterly'}`,
                 image: "/Logo.png",
                 order_id: data.id,
                 handler: async function (response: any) {
@@ -99,7 +100,7 @@ export default function UpgradeModal() {
                         return;
                     }
 
-                    alert("Upgrade successful! Welcome to Pro.");
+                    alert("Upgrade successful! Welcome to Premium.");
                     closeModal();
                     window.location.reload(); // Refresh to update limits
                 },
@@ -138,9 +139,9 @@ export default function UpgradeModal() {
                         <X size={24} />
                     </button>
                     <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                        Upgrade to <span className="text-violet-600">Pro</span>
+                        Upgrade to <span className="text-violet-600">Premium</span>
                     </h2>
-                    <p className="text-gray-500 text-sm mt-1">Unlock specific pro features & remove limits</p>
+                    <p className="text-gray-500 text-sm mt-1">For creators and brands ready to scale.</p>
                 </div>
 
                 <div className="px-8 py-4">
@@ -165,17 +166,17 @@ export default function UpgradeModal() {
                         >
                             Annual
                             <span className="bg-green-500 text-white text-[10px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">
-                                Save 40%
+                                Save 33%
                             </span>
                         </button>
                         <button
-                            onClick={() => setBillingCycle('monthly')}
-                            className={`flex-1 py-3 px-4 rounded-lg transition-all duration-300 ${billingCycle === 'monthly'
+                            onClick={() => setBillingCycle('quarterly')}
+                            className={`flex-1 py-3 px-4 rounded-lg transition-all duration-300 ${billingCycle === 'quarterly'
                                 ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
                                 : 'text-gray-500 hover:text-gray-700'
                                 }`}
                         >
-                            Monthly
+                            Quarterly
                         </button>
                     </div>
 
@@ -184,7 +185,7 @@ export default function UpgradeModal() {
                         <div className="bg-green-50 border border-green-100 rounded-lg py-2.5 px-4 text-center mb-6">
                             <p className="text-green-700 text-sm font-semibold flex items-center justify-center gap-2">
                                 <Sparkles className="w-4 h-4" />
-                                You save <span className="underline decoration-green-300 decoration-2">₹2,400</span> per year with this plan!
+                                You save <span className="underline decoration-green-300 decoration-2">₹3,600</span> per year with this plan!
                             </p>
                         </div>
                     )}
@@ -192,24 +193,22 @@ export default function UpgradeModal() {
                     {/* Pricing Card */}
                     <div className="bg-violet-50/50 border border-violet-100 rounded-2xl p-6 text-center mb-6">
                         <p className="text-gray-500 font-medium text-sm mb-1">
-                            Billed {billingCycle === 'annual' ? 'Annually' : 'Monthly'}
+                            Billed {billingCycle === 'annual' ? 'Annually' : 'Quarterly'}
                         </p>
                         <div className="flex items-center justify-center gap-2">
                             <span className="text-5xl font-extrabold text-gray-900">
-                                ₹{billingCycle === 'annual' ? '599' : '999'}
+                                ₹{billingCycle === 'annual' ? '599' : '899'}
                             </span>
                             {billingCycle === 'annual' && (
                                 <span className="text-xl text-gray-400 font-semibold line-through decoration-2">
-                                    ₹999
+                                    ₹899
                                 </span>
                             )}
                             <span className="text-xl text-gray-500 font-medium">/mo</span>
                         </div>
-                        {billingCycle === 'annual' && (
-                            <p className="text-violet-600 font-medium text-sm mt-2">
-                                Total payable: ₹7,188
-                            </p>
-                        )}
+                        <p className="text-violet-600 font-medium text-sm mt-2">
+                            Total payable: ₹{billingCycle === 'annual' ? '7,188' : '2,697'}
+                        </p>
                     </div>
 
                     {/* CTA Button */}
@@ -218,7 +217,7 @@ export default function UpgradeModal() {
                         disabled={loading}
                         className="w-full bg-blue-600 hover:bg-blue-700 text-white text-lg font-bold py-4 rounded-xl shadow-lg shadow-blue-600/20 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
                     >
-                        {loading ? 'Processing...' : 'Upgrade Now'}
+                        {loading ? 'Processing...' : 'Start Premium'}
                     </button>
 
                     {/* Footer */}

@@ -32,9 +32,9 @@ serve(async (req) => {
     });
 
     // Calculate Amount
-    // Annual: 599 * 12 = 7188 INR -> 718800 paise
-    // Monthly: 999 INR -> 99900 paise
-    const amount = planType === 'annual' ? 718800 : 99900;
+    // Premium Annual: 599 * 12 = 7188 INR -> 718800 paise
+    // Premium Quarterly: 899 * 3 = 2697 INR -> 269700 paise
+    const amount = planType === 'annual' ? 718800 : 269700;
     const currency = 'INR';
 
     const options = {

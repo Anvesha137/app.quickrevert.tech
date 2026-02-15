@@ -35,7 +35,8 @@ serve(async (req) => {
     if (planType === 'annual') {
       periodEnd.setFullYear(now.getFullYear() + 1);
     } else {
-      periodEnd.setMonth(now.getMonth() + 1);
+      // Quarterly
+      periodEnd.setMonth(now.getMonth() + 3);
     }
 
     // Upsert subscription
