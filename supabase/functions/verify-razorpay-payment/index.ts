@@ -85,54 +85,53 @@ serve(async (req) => {
       )
     }
 
-    // 4. (Optional) Sync to Neon DB (Internal Dashboard)
+    // 4. Sync to Neon DB (Internal Dashboard)
     const neonDbUrl = Deno.env.get('NEON_DB_URL');
     if (neonDbUrl) {
       try {
-        // We need to import Client dynamically or ensure it's at top of file
-        // For simplicity and to avoid top-level await issues in some environments,
-        // we'll assume the import is handled or use a basic fetch if Neon supports HTTP (it does via drivers).
-        // But here let's try the postgres client if we can duplicate the import.
-        // Since we can't easily add import at top right now without reading whole file, 
-        // I will reply to the user to add it manually or rely on Supabase for now.
-        // actually, I can just use the tool to add the import at the top.
-
-        // Placeholder for Neon Sync logging
         console.log("Syncing to Neon DB...");
-
-        // Importing here inside the function body is not standard in Deno/ESM usually.
-        // We will handle the import in a separate tool call.
-
         const neonClient = new Client(neonDbUrl);
         await neonClient.connect();
 
-        // Assuming a table 'external_subscriptions' or similar exists in Neon
-        // Or just logging it for now.
-        // Let's try to insert into a generic 'leads' or 'sales' table if it exists
-        // For now, let's just Log and maybe try a safe insert.
+        // Fetch user email from Supabase
+        const { data: { user: userData }, error: userError } = await supabaseClient.auth.admin.getUserById(userId);
+        const email = userData?.email || '';
 
-        // Example: Insert into a 'sales' table in Neon
+        // Determine Package Name
+        let packageName = 'Premium'; // Default
+        if (planType === 'quarterly') packageName = 'Premium Quarterly';
+        if (planType === 'annual') packageName = 'Premium Annual';
+
+        // Upsert User
+        // We use ON CONFLICT (email) DO UPDATE to ensure we don't duplicate if they already exist (e.g. from login sync)
         await neonClient.queryObject`
-             INSERT INTO sales (
-               user_id, 
-               plan_type, 
-               razorpay_order_id, 
-               razorpay_payment_id, 
-               instagram_handle, 
-               coupon_code, 
-               sale_date
+             INSERT INTO users (
+               username, 
+               email, 
+               package, 
+               promo_code, 
+               amt_paid,
+               status,
+               joining_date
              ) VALUES (
-               ${userId}, 
-               ${planType}, 
-               ${razorpay_order_id}, 
-               ${razorpay_payment_id}, 
                ${instagramHandle}, 
-               ${couponCode}, 
+               ${email}, 
+               ${packageName}, 
+               ${couponCode || null}, 
+               ${planType === 'annual' ? 7188 : 2697}, 
+               'PaidCustomer',
                NOW()
              )
+             ON CONFLICT (email) DO UPDATE SET
+               package = EXCLUDED.package,
+               promo_code = EXCLUDED.promo_code,
+               amt_paid = users.amt_paid + EXCLUDED.amt_paid,
+               status = 'PaidCustomer',
+               username = EXCLUDED.username;
            `;
 
         await neonClient.end();
+        console.log("Neon DB Sync Successful");
 
       } catch (neonError) {
         console.error("Neon Sync Failed:", neonError);

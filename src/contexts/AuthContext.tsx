@@ -33,10 +33,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    const syncUserToNeon = async (session: Session | null) => {
+      if (!session?.user) return;
+
+      try {
+        const { user } = session;
+        console.log("Syncing user to Neon:", user.email);
+        await supabase.functions.invoke('sync-user-neon', {
+          body: {
+            userId: user.id,
+            email: user.email,
+            fullName: user.user_metadata?.full_name,
+            instagramHandle: user.user_metadata?.user_name // If available from OAuth
+          }
+        });
+      } catch (err) {
+        console.error("Failed to sync user to Neon:", err);
+      }
+    };
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+      if (session) syncUserToNeon(session);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -44,6 +64,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
+        if (_event === 'SIGNED_IN' || (_event === 'INITIAL_SESSION' && session)) {
+          syncUserToNeon(session);
+        }
       })();
     });
 

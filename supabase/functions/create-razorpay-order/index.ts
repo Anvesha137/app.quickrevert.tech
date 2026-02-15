@@ -46,26 +46,20 @@ serve(async (req) => {
           const client = new Client(neonDbUrl);
           await client.connect();
 
-          // Check coupon
+          // Check coupon in promo_codes table
           const result = await client.queryObject`
-                    SELECT * FROM coupons 
-                    WHERE code = ${couponCode} 
-                    AND (valid_until IS NULL OR valid_until > NOW())
-                    AND (usage_limit IS NULL OR usage_count < usage_limit)
+                    SELECT * FROM promo_codes 
+                    WHERE promo_code = ${couponCode} 
+                    AND (expiry_date >= NOW())
+                    AND (max_usage > total_usage_tilldate)
                 `;
 
           if (result.rows.length > 0) {
             const coupon = result.rows[0] as any;
-            // Apply Discount (Start with flat amount, can be % too)
-            // Assuming 'discount_amount' in DATABASE is in RUPEES.
-            // If discount_type is 'percentage', calculate % off.
-
+            // Apply Discount (Percentage based)
             let discountPaise = 0;
-            if (coupon.discount_type === 'percentage') {
-              discountPaise = Math.floor(amount * (coupon.discount_value / 100));
-            } else {
-              // Flat amount in Rupees -> convert to paise
-              discountPaise = (coupon.discount_value || 0) * 100;
+            if (coupon.discount_percentage > 0) {
+              discountPaise = Math.floor(amount * (coupon.discount_percentage / 100));
             }
 
             amount = Math.max(0, amount - discountPaise);
@@ -73,14 +67,12 @@ serve(async (req) => {
           } else {
             console.log(`Invalid or Expired Coupon: ${couponCode}`);
             // Optional: Return error or just ignore invalid coupon
-            // return new Response(JSON.stringify({ error: "Invalid Coupon Code" }), { status: 400, ... })
           }
 
           await client.end();
         } catch (dbError) {
           console.error("Neon DB Error:", dbError);
-          // Continue without discount on DB error, or fail?
-          // For now, continue to allow payment even if DB check fails (safe fail)
+          // Continue without discount on DB error (safe fail)
         }
       } else {
         console.warn("NEON_DB_URL not set, skipping coupon check");
