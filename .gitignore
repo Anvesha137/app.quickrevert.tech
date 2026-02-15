@@ -79,7 +79,7 @@ bolt.json
 /*.sql
 /*.json
 /*.cjs
-
+/*.ps1
 # Allowlist key configuration files
 !/eslint.config.js
 !/postcss.config.js
