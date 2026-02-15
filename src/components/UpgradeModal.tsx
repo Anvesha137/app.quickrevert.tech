@@ -125,7 +125,8 @@ export default function UpgradeModal() {
                     });
 
                     if (verifyError) {
-                        alert("Payment verification failed. Please contact support.");
+                        console.error("Payment Verification Error:", verifyError);
+                        alert(`Payment verification failed: ${verifyError.message || JSON.stringify(verifyError)}`);
                         return;
                     }
 
