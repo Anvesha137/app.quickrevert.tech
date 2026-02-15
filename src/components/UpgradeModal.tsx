@@ -72,7 +72,6 @@ export default function UpgradeModal() {
                 throw new Error(`Invalid JSON Response: ${responseText}`);
             }
 
-            if (error) throw error;
             if (data?.error) throw new Error(data.error);
 
             const options = {
