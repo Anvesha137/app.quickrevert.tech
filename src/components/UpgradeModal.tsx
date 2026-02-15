@@ -30,9 +30,11 @@ export default function UpgradeModal() {
         setLoading(true);
         try {
             console.log("Checking environment variables...");
-            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-            const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-            const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
+            const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
+            const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+            const razorpayKey = (import.meta.env.VITE_RAZORPAY_KEY_ID || '').trim();
+
+            console.log(`Debug - Key Length: ${supabaseAnonKey.length}`);
 
             if (!supabaseUrl || supabaseUrl.includes('placeholder') ||
                 !supabaseAnonKey || supabaseAnonKey.includes('placeholder') ||
