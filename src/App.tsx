@@ -15,6 +15,7 @@ import Billing from './components/Billing';
 import Settings from './components/Settings';
 import Pricing from './components/Pricing';
 import UpgradeModal from './components/UpgradeModal';
+import CelebrationModal from './components/CelebrationModal';
 
 
 function AppContent() {

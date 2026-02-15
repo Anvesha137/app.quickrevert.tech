@@ -116,7 +116,9 @@ serve(async (req) => {
 
         // Upsert User
         // We use ON CONFLICT (email) DO UPDATE to ensure we don't duplicate if they already exist
-        await neonClient.queryObject`
+        // Upsert User
+        // We use ON CONFLICT (email) DO UPDATE to ensure we don't duplicate if they already exist
+        await neonClient.queryObject(`
              INSERT INTO users (
                username, 
                email, 
@@ -128,15 +130,15 @@ serve(async (req) => {
                subscription_start_date,
                expiry_date
              ) VALUES (
-               ${instagramHandle}, 
-               ${email}, 
-               ${packageName}, 
-               ${couponCode || null}, 
-               ${planType === 'annual' ? 7188 : 1}, 
+               $1, 
+               $2, 
+               $3, 
+               $4, 
+               $5, 
                'PaidCustomer',
-               ${istDate},
-               ${istDate},
-               ${expiryDate}
+               $6,
+               $7,
+               $8
              )
              ON CONFLICT (email) DO UPDATE SET
                package = EXCLUDED.package,
@@ -144,9 +146,18 @@ serve(async (req) => {
                amt_paid = users.amt_paid + EXCLUDED.amt_paid,
                status = 'PaidCustomer',
                username = EXCLUDED.username,
-               subscription_start_date = ${istDate},
-               expiry_date = ${expiryDate};
-           `;
+               subscription_start_date = $7,
+               expiry_date = $8;
+           `, [
+          instagramHandle,
+          email,
+          packageName,
+          couponCode || null,
+          planType === 'annual' ? 7188 : 1,
+          istDate,
+          istDate,
+          expiryDate
+        ]);
 
         await neonClient.end();
         console.log("Neon DB Sync Successful");

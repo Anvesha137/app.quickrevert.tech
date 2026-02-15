@@ -1,5 +1,6 @@
 import { useRef, useEffect } from 'react';
-import confetti from 'canvas-confetti';
+import * as canvasConfetti from 'canvas-confetti';
+const confetti = (canvasConfetti as any).default || canvasConfetti;
 import { useUpgradeModal } from '../contexts/UpgradeModalContext';
 import { Sparkles, CheckCircle2 } from 'lucide-react';
 
