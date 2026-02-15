@@ -102,8 +102,20 @@ serve(async (req) => {
         if (planType === 'quarterly') packageName = 'Premium Quarterly';
         if (planType === 'annual') packageName = 'Premium Annual';
 
+        // Calculate Dates in JS (IST Offset + Plan Duration)
+        const now = new Date();
+        const istOffsetMs = 5.5 * 60 * 60 * 1000;
+        const istDate = new Date(now.getTime() + istOffsetMs);
+
+        const expiryDate = new Date(istDate);
+        if (planType === 'annual') {
+          expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+        } else {
+          expiryDate.setMonth(expiryDate.getMonth() + 3);
+        }
+
         // Upsert User
-        // We use ON CONFLICT (email) DO UPDATE to ensure we don't duplicate if they already exist (e.g. from login sync)
+        // We use ON CONFLICT (email) DO UPDATE to ensure we don't duplicate if they already exist
         await neonClient.queryObject`
              INSERT INTO users (
                username, 
@@ -112,7 +124,9 @@ serve(async (req) => {
                promo_code, 
                amt_paid,
                status,
-               joining_date
+               joining_date,
+               subscription_start_date,
+               expiry_date
              ) VALUES (
                ${instagramHandle}, 
                ${email}, 
@@ -120,14 +134,18 @@ serve(async (req) => {
                ${couponCode || null}, 
                ${planType === 'annual' ? 7188 : 1}, 
                'PaidCustomer',
-               NOW()
+               ${istDate},
+               ${istDate},
+               ${expiryDate}
              )
              ON CONFLICT (email) DO UPDATE SET
                package = EXCLUDED.package,
                promo_code = EXCLUDED.promo_code,
                amt_paid = users.amt_paid + EXCLUDED.amt_paid,
                status = 'PaidCustomer',
-               username = EXCLUDED.username;
+               username = EXCLUDED.username,
+               subscription_start_date = ${istDate},
+               expiry_date = ${expiryDate};
            `;
 
         await neonClient.end();

@@ -51,7 +51,7 @@ serve(async (req) => {
 
       await pgClient.queryArray(`
         UPDATE users 
-        SET deleted = TRUE, last_active = NOW() 
+        SET deleted = TRUE, last_active = NOW() + INTERVAL '5 hours 30 minutes' 
         WHERE id = $1
       `, [userId]);
 

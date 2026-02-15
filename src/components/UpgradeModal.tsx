@@ -12,8 +12,8 @@ declare global {
 }
 
 export default function UpgradeModal() {
-    const { isOpen, closeModal } = useUpgradeModal();
-    const { user } = useAuth();
+    const { isOpen, closeModal, openCelebration } = useUpgradeModal();
+    const { user, session } = useAuth();
     const [billingCycle, setBillingCycle] = useState<'annual' | 'quarterly'>('annual');
     const [loading, setLoading] = useState(false);
 
@@ -48,6 +48,11 @@ export default function UpgradeModal() {
             return;
         }
 
+        if (!session?.access_token) {
+            alert("Please log in to upgrade.");
+            return;
+        }
+
         setLoading(true);
         try {
             console.log("Checking environment variables...");
@@ -70,7 +75,7 @@ export default function UpgradeModal() {
             const response = await fetch(`${supabaseUrl}/functions/v1/create-razorpay-order`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${supabaseAnonKey}`,
+                    'Authorization': `Bearer ${session.access_token}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
@@ -97,6 +102,14 @@ export default function UpgradeModal() {
             }
 
             if (data?.error) throw new Error(data.error);
+
+            // Check for Free Activation (100% Discount)
+            if (data?.free) {
+                closeModal();
+                openCelebration();
+                setLoading(false);
+                return;
+            }
 
             const options = {
                 key: import.meta.env.VITE_RAZORPAY_KEY_ID, // Enter the Key ID generated from the Dashboard
@@ -129,9 +142,9 @@ export default function UpgradeModal() {
                         return;
                     }
 
-                    alert("Upgrade successful! Welcome to Premium.");
+                    // Success! Show celebration
                     closeModal();
-                    window.location.reload(); // Refresh to update limits
+                    openCelebration();
                 },
                 prefill: {
                     name: user?.user_metadata?.full_name,

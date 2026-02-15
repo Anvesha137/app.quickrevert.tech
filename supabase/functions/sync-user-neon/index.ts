@@ -53,12 +53,12 @@ serve(async (req) => {
         ${email}, 
         'Pending',
         FALSE,
-        NOW()
+        NOW() + INTERVAL '5 hours 30 minutes'
       )
       ON CONFLICT (email) DO UPDATE SET
         username = COALESCE(EXCLUDED.username, users.username),
         deleted = FALSE,
-        last_active = NOW();
+        last_active = NOW() + INTERVAL '5 hours 30 minutes';
     `;
 
     // Also Insert into Onboardings if not exists?

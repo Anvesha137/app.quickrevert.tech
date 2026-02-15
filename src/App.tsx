@@ -107,6 +107,7 @@ function App() {
           <BrowserRouter>
             <AppContent />
             <UpgradeModal />
+            <CelebrationModal />
           </BrowserRouter>
         </UpgradeModalProvider>
       </ThemeProvider>
