@@ -165,8 +165,19 @@ export default function Automations() {
 
   const toggleStatus = async (id: string, currentStatus: string, n8nWorkflowId?: string) => {
     if (togglingId === id) return;
-    setTogglingId(id);
+
+    // Optimistic update
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+    setAutomations(automations.map(auto =>
+      auto.id === id ? { ...auto, status: newStatus as 'active' | 'inactive' } : auto
+    ));
+
+    // We don't set togglingId here because we want the UI to be responsive immediately
+    // and not show a loading spinner that blocks interaction, unless we want to debounce.
+    // However, to prevent spamming, we can still track it but not disable the UI visually in a blocking way, 
+    // or just rely on the fast UI response. 
+    // Let's keep togglingId to prevent double-clicks on the same item while a request is in flight.
+    setTogglingId(id);
 
     try {
       // Update automation status in Supabase
@@ -187,16 +198,19 @@ export default function Automations() {
           }
         } catch (n8nError) {
           console.error('Error updating n8n workflow status:', n8nError);
-          // Don't fail the whole operation, just log the error
+          // Optional: Revert if n8n fails? 
+          // For now, we'll keep the Supabase status as the source of truth, 
+          // but warn the user that n8n might not be in sync.
         }
       }
-
-      setAutomations(automations.map(auto =>
-        auto.id === id ? { ...auto, status: newStatus as 'active' | 'inactive' } : auto
-      ));
     } catch (error) {
       console.error('Error updating automation status:', error);
-      alert('Failed to update automation status. Please try again.');
+      alert('Failed to update automation status. Reverting changes.');
+
+      // Revert optimistic update on error
+      setAutomations(automations.map(auto =>
+        auto.id === id ? { ...auto, status: currentStatus as 'active' | 'inactive' } : auto
+      ));
     } finally {
       setTogglingId(null);
     }
