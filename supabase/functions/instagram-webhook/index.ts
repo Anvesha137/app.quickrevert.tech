@@ -281,6 +281,66 @@ Deno.serve(async (req: Request) => {
                 }
               }
 
+              // Handle quick_reply (treat as postback for workflow compatibility)
+              if (messageEvent.message?.quick_reply) {
+                const postbackPayload = messageEvent.message.quick_reply.payload;
+                const postbackTitle = messageEvent.message.text;
+
+                console.log(`📍 Quick Reply received: payload="${postbackPayload}", title="${postbackTitle}"`);
+
+                const { data: n8nWorkflows, error: n8nError } = await supabase
+                  .from('n8n_workflows')
+                  .select('*')
+                  .eq('user_id', instagramAccount.user_id)
+                  .eq('is_active', true);
+
+                if (!n8nError && n8nWorkflows && n8nWorkflows.length > 0) {
+                  const n8nBaseUrl = Deno.env.get('N8N_BASE_URL') || 'https://n8n.quickrevert.tech';
+
+                  for (const workflow of n8nWorkflows) {
+                    let targetUrl = workflow.webhook_url;
+                    if (!targetUrl && workflow.webhook_path) {
+                      targetUrl = `${n8nBaseUrl}/webhook/${workflow.webhook_path}`;
+                    }
+
+                    if (!targetUrl) continue;
+
+                    console.log(`  Triggering n8n workflow (via quick_reply): ${workflow.name} → ${targetUrl}`);
+
+                    const n8nPayload = {
+                      body: {
+                        platform: "instagram",
+                        account_id: instagramAccount.id,
+                        event_type: "messaging",
+                        sub_type: "message", // Preserve message type for QR
+                        entry: [{
+                          id: instagramUserId,
+                          messaging: [{
+                            sender: messageEvent.sender,
+                            recipient: messageEvent.recipient,
+                            timestamp: messageEvent.timestamp,
+                            message: messageEvent.message // Include original message object
+                          }]
+                        }]
+                      }
+                    };
+
+                    try {
+                      const n8nResponse = await fetch(targetUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(n8nPayload)
+                      });
+
+                      const responseText = await n8nResponse.text();
+                      console.log(`  N8N response: ${n8nResponse.status} - ${responseText}`);
+                    } catch (n8nErr: any) {
+                      console.error(`  ❌ N8N trigger failed for quick_reply:`, n8nErr);
+                    }
+                  }
+                }
+              }
+
               // Handle postback events (button clicks)
               if (messageEvent.postback) {
                 const postbackPayload = messageEvent.postback.payload;
