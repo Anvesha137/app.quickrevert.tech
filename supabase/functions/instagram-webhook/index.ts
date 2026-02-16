@@ -370,24 +370,26 @@ Deno.serve(async (req: Request) => {
 
                     console.log(`  Triggering n8n workflow: ${workflow.name} → ${targetUrl}`);
 
-                    // CORRECTED PAYLOAD STRUCTURE - N8n wraps in body automatically
+                    // CORRECTED PAYLOAD STRUCTURE - Match quick_reply structure for n8n rules
                     const n8nPayload = {
-                      platform: "instagram",
-                      account_id: instagramAccount.id,
-                      event_type: "messaging",
-                      sub_type: "postback",
-                      entry: [{
-                        id: instagramUserId,
-                        messaging: [{
-                          sender: messageEvent.sender,
-                          recipient: messageEvent.recipient,
-                          timestamp: messageEvent.timestamp,
-                          postback: {
-                            payload: postbackPayload,
-                            title: postbackTitle
-                          }
+                      body: {
+                        platform: "instagram",
+                        account_id: instagramAccount.id,
+                        event_type: "messaging",
+                        sub_type: "postback",
+                        entry: [{
+                          id: instagramUserId,
+                          messaging: [{
+                            sender: messageEvent.sender,
+                            recipient: messageEvent.recipient,
+                            timestamp: messageEvent.timestamp,
+                            postback: {
+                              payload: postbackPayload,
+                              title: postbackTitle
+                            }
+                          }]
                         }]
-                      }]
+                      }
                     };
 
                     console.log('📤 Sending to n8n:', JSON.stringify(n8nPayload, null, 2));

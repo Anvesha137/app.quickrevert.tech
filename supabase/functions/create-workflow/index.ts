@@ -231,6 +231,7 @@ Deno.serve(async (req: Request) => {
       nodeX += 300;
 
       let previousNode = "Worker Webhook";
+      let triggerAnchorNode = "Worker Webhook";
       let postbackEntryNode = null; // Node to connect postback flows to
       let postbackNodeX = -300;
       let postbackNodeY = 600;
@@ -244,57 +245,33 @@ Deno.serve(async (req: Request) => {
           name: "Event Type Switch",
           type: "n8n-nodes-base.switch",
           typeVersion: 3.3,
-          position: [nodeX, 300],
+          position: [nodeX, 32],
           parameters: {
             rules: {
               values: [
                 {
                   conditions: {
                     options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
-                    conditions: [
-                      {
-                        id: "is-comment",
-                        leftValue: "={{ $json.body.sub_type }}",
-                        rightValue: "comments",
-                        operator: { type: "string", operation: "equals" }
-                      }
-                    ],
+                    conditions: [{ id: "is-comment", leftValue: "={{ $json.body.sub_type }}", rightValue: "comments", operator: { type: "string", operation: "equals" } }],
                     combinator: "and"
                   },
-                  renameOutput: true,
-                  outputKey: "Trigger Event"
+                  renameOutput: true, outputKey: "Trigger Event"
                 },
                 {
                   conditions: {
                     options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
-                    conditions: [
-                      {
-                        id: "is-postback",
-                        leftValue: "={{ $json.body.sub_type }}",
-                        rightValue: "postback",
-                        operator: { type: "string", operation: "equals" }
-                      }
-                    ],
+                    conditions: [{ id: "is-postback", leftValue: "={{ $json.body.sub_type }}", rightValue: "postback", operator: { type: "string", operation: "equals" } }],
                     combinator: "and"
                   },
-                  renameOutput: true,
-                  outputKey: "Button Click"
+                  renameOutput: true, outputKey: "Button Click"
                 },
                 {
                   conditions: {
                     options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
-                    conditions: [
-                      {
-                        id: "is-message",
-                        leftValue: "={{ $json.body.sub_type }}",
-                        rightValue: "message",
-                        operator: { type: "string", operation: "equals" }
-                      }
-                    ],
+                    conditions: [{ id: "is-message", leftValue: "={{ $json.body.sub_type }}", rightValue: "message", operator: { type: "string", operation: "equals" } }],
                     combinator: "and"
                   },
-                  renameOutput: true,
-                  outputKey: "message"
+                  renameOutput: true, outputKey: "message"
                 }
               ]
             },
@@ -302,41 +279,88 @@ Deno.serve(async (req: Request) => {
           }
         });
 
-        // Loop Protection Switch
-        // User JSON has it separate, connected to "Trigger Event" (index 0)
+        connections["Worker Webhook"] = { main: [[{ node: "Event Type Switch", type: "main", index: 0 }]] };
+
+        // Initial Anchor
+        let triggerChainAnchor = "Event Type Switch";
+        let triggerChainOutputIndex = 0;
+        nodeX += 250;
+
+        const triggerConfig = automationData?.trigger_config || {};
+
+        // 1. Post Filter Switch
+        const specificPosts = triggerConfig.postsType === 'specific' ? (triggerConfig.specificPosts || []) : [];
+        if (specificPosts.length > 0) {
+          const postRules = [{
+            conditions: {
+              options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
+              conditions: specificPosts.map((id: string, i: number) => ({
+                id: `post-${i}`,
+                leftValue: "={{ $json.body.entry?.[0]?.changes?.[0]?.value?.media?.id || $json.body.payload?.value?.media?.id }}",
+                rightValue: id,
+                operator: { type: "string", operation: "equals" }
+              })),
+              combinator: "or"
+            }
+          }];
+          nodes.push({
+            id: "post-filter-switch", name: "Post Filter Switch", type: "n8n-nodes-base.switch", typeVersion: 3.3,
+            position: [nodeX, -64],
+            parameters: { rules: { values: postRules }, options: { ignoreCase: true } }
+          });
+          if (!connections[triggerChainAnchor]) connections[triggerChainAnchor] = { main: [] };
+          connections[triggerChainAnchor].main[triggerChainOutputIndex] = [{ node: "Post Filter Switch", type: "main", index: 0 }];
+          triggerChainAnchor = "Post Filter Switch";
+          triggerChainOutputIndex = 0;
+          nodeX += 250;
+        }
+
+        // 2. Comment Switch (Keywords)
+        const keywords = triggerConfig.commentsType === 'keywords' ? (triggerConfig.keywords || []) : [];
+        if (keywords.length > 0) {
+          const kwRules = [{
+            conditions: {
+              options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
+              conditions: keywords.map((k: string, i: number) => ({
+                id: `comment-kw-${i}`,
+                leftValue: "={{ $json.body.entry?.[0]?.changes?.[0]?.value?.text }}",
+                rightValue: k,
+                operator: { type: "string", operation: "contains" }
+              })),
+              combinator: "or"
+            }
+          }];
+          nodes.push({
+            id: "comment-switch", name: "Comment Switch", type: "n8n-nodes-base.switch", typeVersion: 3.3,
+            position: [nodeX, -64],
+            parameters: { rules: { values: kwRules }, options: { ignoreCase: true } }
+          });
+          if (!connections[triggerChainAnchor]) connections[triggerChainAnchor] = { main: [] };
+          connections[triggerChainAnchor].main[triggerChainOutputIndex] = [{ node: "Comment Switch", type: "main", index: 0 }];
+          triggerChainAnchor = "Comment Switch";
+          triggerChainOutputIndex = 0;
+          nodeX += 250;
+        }
+
+        // 3. Loop Protection Switch
         const instagramUsername = instagramAccount.username;
         nodes.push({
-          id: "loop-protection-switch",
-          name: "Loop Protection Switch",
-          type: "n8n-nodes-base.switch",
-          typeVersion: 3.4,
-          position: [nodeX + 300, 100], // Upper branch
+          id: "loop-protection-switch", name: "Loop Protection Switch1", type: "n8n-nodes-base.switch", typeVersion: 3.4,
+          position: [nodeX, -64],
           parameters: {
             rules: {
               values: [
                 {
                   conditions: {
                     options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 3 },
-                    conditions: [
-                      {
-                        id: "loop-check-1",
-                        leftValue: "={{ $json.body.entry?.[0]?.changes?.[0]?.value?.from?.username }}",
-                        rightValue: instagramUsername,
-                        operator: { type: "string", operation: "notEquals", name: "filter.operator.notEquals" }
-                      }
-                    ],
+                    conditions: [{ id: "loop-check-1", leftValue: "={{ $json.body.entry?.[0]?.changes?.[0]?.value?.from?.username }}", rightValue: instagramUsername, operator: { type: "string", operation: "notEquals", name: "filter.operator.notEquals" } }],
                     combinator: "and"
                   }
                 },
                 {
                   conditions: {
                     options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 3 },
-                    conditions: [{
-                      id: "dummy-condition",
-                      leftValue: "",
-                      rightValue: "",
-                      operator: { type: "string", operation: "equals", name: "filter.operator.equals" }
-                    }],
+                    conditions: [{ id: "dummy-condition", leftValue: "", rightValue: "", operator: { type: "string", operation: "equals", name: "filter.operator.equals" } }],
                     combinator: "and"
                   }
                 }
@@ -345,54 +369,13 @@ Deno.serve(async (req: Request) => {
             options: { ignoreCase: true }
           }
         });
+        if (!connections[triggerChainAnchor]) connections[triggerChainAnchor] = { main: [] };
+        connections[triggerChainAnchor].main[triggerChainOutputIndex] = [{ node: "Loop Protection Switch1", type: "main", index: 0 }];
 
-        // Add Specific Post & Keyword Filtering Conditions
-        // Access config from automationData
-        const triggerConfig = automationData?.trigger_config || {};
-        const loopConditions = nodes[nodes.length - 1].parameters.rules.values[0].conditions.conditions;
+        // NO manual connection of Event Type Switch index 1/2 here - handled later in Postback generation
 
-        if (triggerConfig.postsType === 'specific' && triggerConfig.specificPosts && triggerConfig.specificPosts.length > 0) {
-          // If specific posts, check if media.id is IN the list
-          const postIdsRegex = triggerConfig.specificPosts.join("|");
-          loopConditions.push({
-            id: "post-id-check",
-            leftValue: "={{ $json.body.entry?.[0]?.changes?.[0]?.value?.media?.id }}",
-            rightValue: postIdsRegex,
-            operator: { type: "string", operation: "regex", name: "filter.operator.regex" }
-          });
-        }
-
-        if (triggerConfig.commentsType === 'keywords' && triggerConfig.keywords && triggerConfig.keywords.length > 0) {
-          const keywordsRegex = triggerConfig.keywords.map((k: string) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join("|");
-          loopConditions.push({
-            id: "keyword-check",
-            leftValue: "={{ $json.body.entry?.[0]?.changes?.[0]?.value?.text }}",
-            rightValue: keywordsRegex,
-            operator: { type: "string", operation: "regex", name: "filter.operator.regex" }
-          });
-        }
-
-
-
-        // Connect Webhook to Event Type Switch
-        connections["Worker Webhook"] = {
-          main: [[{ node: "Event Type Switch", type: "main", index: 0 }]]
-        };
-
-        // Connect Event Type Switch to Loop Protection and Button Branch
-        const sendDmAction = actions.find((a: any) => a.type === 'send_dm');
-        const teaserBtnText = sendDmAction?.teaserBtnText || "Yes, send me link";
-
-        connections["Event Type Switch"] = {
-          main: [
-            [{ node: "Loop Protection Switch", type: "main", index: 0 }], // Index 0: Trigger Event
-            [{ node: "Button Action Switch", type: "main", index: 0 }],   // Index 1: Button Click
-            [{ node: "Button Action Switch", type: "main", index: 0 }]    // Index 2: message
-          ]
-        };
-
-
-        previousNode = "Loop Protection Switch"; // Use this as anchor for Trigger flow
+        previousNode = "Loop Protection Switch1"; // Anchor for Trigger flow
+        triggerAnchorNode = "Loop Protection Switch1";
         nodeX += 600;
       }
 
@@ -628,9 +611,13 @@ Deno.serve(async (req: Request) => {
             position: [nodeX, 300],
             parameters: { rules: { values: rules }, options: { ignoreCase: true } }
           });
-          connections[previousNode] = {
-            main: [[{ node: "Post Filter Switch", type: "main", index: 0 }]]
-          };
+
+          // Connect from previous anchor
+          if (!connections[previousNode]) connections[previousNode] = { main: [] };
+          const outputIndex = (previousNode === "Event Type Switch") ? 0 : 0;
+          if (!connections[previousNode].main[outputIndex]) connections[previousNode].main[outputIndex] = [];
+          connections[previousNode].main[outputIndex].push({ node: "Post Filter Switch", type: "main", index: 0 });
+
           previousNode = "Post Filter Switch";
           nodeX += 300;
         }
@@ -664,15 +651,22 @@ Deno.serve(async (req: Request) => {
             position: [nodeX, 300],
             parameters: { rules: { values: rules }, options: { ignoreCase: true } }
           });
-          connections[previousNode] = {
-            main: [[{ node: "Comment Switch", type: "main", index: 0 }]]
-          };
+
+          // Connect from previous anchor
+          if (!connections[previousNode]) connections[previousNode] = { main: [] };
+          const outputIndex = (previousNode === "Event Type Switch") ? 0 : 0;
+          if (!connections[previousNode].main[outputIndex]) connections[previousNode].main[outputIndex] = [];
+
+          // Connect ALL keyword outputs to the switch initially (wait, the switch itself is connected TO the next node)
+          // We connect previous node TO the Comment Switch
+          connections[previousNode].main[outputIndex].push({ node: "Comment Switch", type: "main", index: 0 });
+
           previousNode = "Comment Switch";
           nodeX += 300;
         }
       }
 
-      // 1.7 Loop Protection Switch (Username-based) - OLD LOGIC (Disabled for Ask to Follow)
+      // 1.7 Loop Protection Switch (Username-based)
       if (!hasAskToFollow && triggerType === 'post_comment') {
         console.log("--- ADDING USERNAME-BASED LOOP PROTECTION SWITCH ---");
         const instagramUsername = instagramAccount.username;
@@ -681,22 +675,13 @@ Deno.serve(async (req: Request) => {
         const rules = [
           {
             conditions: {
-              options: {
-                caseSensitive: false,
-                leftValue: "",
-                typeValidation: "strict",
-                version: 3
-              },
+              options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 3 },
               conditions: [
                 {
                   id: "loop-check-1",
                   leftValue: "={{ $json.body.entry?.[0]?.changes?.[0]?.value?.from?.username }}",
                   rightValue: instagramUsername,
-                  operator: {
-                    type: "string",
-                    operation: "notEquals",
-                    name: "filter.operator.notEquals"
-                  }
+                  operator: { type: "string", operation: "notEquals", name: "filter.operator.notEquals" }
                 }
               ],
               combinator: "and"
@@ -704,22 +689,13 @@ Deno.serve(async (req: Request) => {
           },
           {
             conditions: {
-              options: {
-                caseSensitive: false,
-                leftValue: "",
-                typeValidation: "strict",
-                version: 3
-              },
+              options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 3 },
               conditions: [
                 {
                   id: "dummy-condition",
                   leftValue: "",
                   rightValue: "",
-                  operator: {
-                    type: "string",
-                    operation: "equals",
-                    name: "filter.operator.equals"
-                  }
+                  operator: { type: "string", operation: "equals", name: "filter.operator.equals" }
                 }
               ],
               combinator: "and"
@@ -727,30 +703,34 @@ Deno.serve(async (req: Request) => {
           }
         ];
 
-
         nodes.push({
-          id: "loop-protection-switch",
-          name: "Loop Protection Switch",
-          type: "n8n-nodes-base.switch",
-          typeVersion: 3.4,
+          id: "loop-protection-switch", name: "Loop Protection Switch",
+          type: "n8n-nodes-base.switch", typeVersion: 3.4,
           position: [nodeX, 304],
-          parameters: {
-            rules: { values: rules },
-            options: { ignoreCase: true }
-          }
+          parameters: { rules: { values: rules }, options: { ignoreCase: true } }
         });
 
         // Connect previous node to loop protection switch
         if (!connections[previousNode]) connections[previousNode] = { main: [] };
-        if (!connections[previousNode].main[0]) connections[previousNode].main[0] = [];
-        connections[previousNode].main[0].push({ node: "Loop Protection Switch", type: "main", index: 0 });
 
+        // If the previous node is Comment Switch, we need to connect ALL its keyword outputs to Loop Protection
+        if (previousNode === "Comment Switch") {
+          const keywordCount = Array.isArray(automationData?.trigger_config?.keywords) ? automationData.trigger_config.keywords.length : 1;
+          for (let k = 0; k < keywordCount; k++) {
+            if (!connections[previousNode].main[k]) connections[previousNode].main[k] = [];
+            connections[previousNode].main[k].push({ node: "Loop Protection Switch", type: "main", index: 0 });
+          }
+        } else {
+          const outputIndex = (previousNode === "Event Type Switch") ? 0 : 0;
+          if (!connections[previousNode].main[outputIndex]) connections[previousNode].main[outputIndex] = [];
+          connections[previousNode].main[outputIndex].push({ node: "Loop Protection Switch", type: "main", index: 0 });
+        }
 
         previousNode = "Loop Protection Switch";
         nodeX += 300;
       }
 
-      const triggerAnchorNode = previousNode; // Snapshot for parallel connections (Reply + Teaser)
+      triggerAnchorNode = previousNode; // Snapshot for parallel connections (Reply + Teaser)
 
       // 2. Actions Generation
       console.log(`--- GENERATING ACTIONS for Trigger: ${triggerType} ---`);
@@ -777,7 +757,33 @@ Deno.serve(async (req: Request) => {
 
         if (action.type === 'reply_to_comment') {
           nodeName = `Reply to Comment ${index + 1}`;
-          const userText = action.replyTemplates?.[0] || action.text || "Thanks!";
+          const replyTemplates = action.replyTemplates || [action.text || "Thanks!"];
+
+          let anchorNodeForReply = triggerAnchorNode;
+          let anchorOutputIndexForReply = (triggerAnchorNode === "Loop Protection Switch") ? 0 : 0;
+
+          if (replyTemplates.length > 1) {
+            const codeNodeName = `Pick Random Reply ${index + 1}`;
+            nodes.push({
+              id: `reply-pick-${index}`, name: codeNodeName, type: "n8n-nodes-base.code", typeVersion: 2,
+              position: [nodeX, 150],
+              parameters: {
+                jsCode: `const templates = ${JSON.stringify(replyTemplates)};\nreturn { json: { reply: templates[Math.floor(Math.random() * templates.length)] } };`
+              }
+            });
+
+            // Connect anchor to Code Node
+            if (!connections[anchorNodeForReply]) connections[anchorNodeForReply] = { main: [] };
+            if (!connections[anchorNodeForReply].main[anchorOutputIndexForReply]) connections[anchorNodeForReply].main[anchorOutputIndexForReply] = [];
+            connections[anchorNodeForReply].main[anchorOutputIndexForReply].push({ node: codeNodeName, type: "main", index: 0 });
+
+            // Update anchor for the HTTP node
+            anchorNodeForReply = codeNodeName;
+            anchorOutputIndexForReply = 0;
+            nodeX += 250;
+          }
+
+          const userText = replyTemplates.length > 1 ? "{{ $json.reply }}" : (replyTemplates[0] || "Thanks!");
           const replyText = `@${usernamePath} ${userText}`;
           nodeParams = {
             method: "POST",
@@ -787,6 +793,21 @@ Deno.serve(async (req: Request) => {
             jsonBody: `=${JSON.stringify({ message: replyText }, null, 2)}`,
             options: {}
           };
+
+          // Connect the Reply node to its anchor
+          nodes.push({
+            id: `act-${index}`, name: nodeName, type: nodeType, typeVersion: 4.3,
+            position: [nodeX, -160],
+            parameters: nodeParams,
+            credentials: { facebookGraphApi: { id: credentialId } }
+          });
+
+          if (!connections[anchorNodeForReply]) connections[anchorNodeForReply] = { main: [] };
+          if (!connections[anchorNodeForReply].main[anchorOutputIndexForReply]) connections[anchorNodeForReply].main[anchorOutputIndexForReply] = [];
+          connections[anchorNodeForReply].main[anchorOutputIndexForReply].push({ node: nodeName, type: "main", index: 0 });
+
+          nodeX += 300;
+          return; // Node pushed, manual connection done
         } else if (action.type === 'send_dm') {
           // START NEW LOGIC
           if (action.askToFollow) {
@@ -845,7 +866,7 @@ Deno.serve(async (req: Request) => {
 
             const teaserNodeName = `Send Teaser DM ${index + 1}`;
             nodes.push({
-              id: `teaser-dm-${index}`, name: teaserNodeName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [nodeX, 300],
+              id: `teaser-dm-${index}`, name: teaserNodeName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [nodeX, 32],
               parameters: { method: "POST", url: "https://graph.instagram.com/v24.0/me/messages", authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi", sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify(teaserJsonBody, null, 2)}`, options: {} },
               credentials: { facebookGraphApi: { id: credentialId } }
             });
@@ -992,42 +1013,43 @@ Deno.serve(async (req: Request) => {
               options: {}
             };
           }
+        }
 
 
 
-          if (Object.keys(nodeParams).length > 0) {
-            nodes.push({
-              id: `act-${index}`,
-              name: nodeName,
-              type: nodeType,
-              typeVersion: 4.3,
-              position: [nodeX, 300],
-              parameters: nodeParams,
-              credentials: { facebookGraphApi: { id: credentialId } }
-            });
+        if (Object.keys(nodeParams).length > 0) {
+          nodes.push({
+            id: `act-${index}`,
+            name: nodeName,
+            type: nodeType,
+            typeVersion: 4.3,
+            position: [nodeX, 300],
+            parameters: nodeParams,
+            credentials: { facebookGraphApi: { id: credentialId } }
+          });
 
-            // Connect to previous node
-            if (triggerType === 'post_comment') {
-              // Parallel connection for Loop Protection Switch
-              if (!connections[previousNode]) {
-                connections[previousNode] = { main: [[], []] }; // Output 0: Continue, Output 1: Stop
-              }
-              connections[previousNode].main[0].push({ node: nodeName, type: "main", index: 0 });
-
-              // Do NOT update previousNode, so all actions connect to the Switch
-              nodeX += 300;
-            } else {
-              // Sequential connection for other triggers
-              if (previousNode) {
-                connections[previousNode] = {
-                  main: [[{ node: nodeName, type: "main", index: 0 }]]
-                };
-              }
-              previousNode = nodeName;
-              nodeX += 300;
+          // Connect to previous node
+          if (triggerType === 'post_comment') {
+            // Parallel connection for Loop Protection Switch
+            if (!connections[previousNode]) {
+              connections[previousNode] = { main: [[], []] }; // Output 0: Continue, Output 1: Stop
             }
+            connections[previousNode].main[0].push({ node: nodeName, type: "main", index: 0 });
+
+            // Do NOT update previousNode, so all actions connect to the Switch
+            nodeX += 300;
+          } else {
+            // Sequential connection for other triggers
+            if (previousNode) {
+              connections[previousNode] = {
+                main: [[{ node: nodeName, type: "main", index: 0 }]]
+              };
+            }
+            previousNode = nodeName;
+            nodeX += 300;
           }
-        });
+        }
+      });
 
       // --- 3. POSTBACK BRANCH GENERATION (Ask to Follow) ---
       if (postbackActions.length > 0) {
@@ -1041,12 +1063,14 @@ Deno.serve(async (req: Request) => {
           const recipientId = "{{ $json.body.entry?.[0]?.messaging?.[0]?.sender?.id }}"; // Same
 
           // 3.1 Button Action Switch
-          // Payloads: SEND_LINK (Teaser), CHECK_FOLLOW (AskRetry), VISIT_PROFILE (AskRetry)
+          const teaserBtnText = action.teaserBtnText || "Yes, send me link";
+          const payloadPath = "={{ $json.body.entry?.[0]?.messaging?.[0]?.postback?.payload || $json.body.entry?.[0]?.messaging?.[0]?.message?.quick_reply?.payload }}";
+
           const switchRules = [
             {
               conditions: {
                 options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
-                conditions: [{ id: "check", leftValue: "={{ $json.body.entry?.[0]?.messaging?.[0]?.postback?.payload }}", rightValue: "CHECK_FOLLOW", operator: { type: "string", operation: "equals" } }],
+                conditions: [{ id: "check", leftValue: payloadPath, rightValue: "CHECK_FOLLOW", operator: { type: "string", operation: "equals" } }],
                 combinator: "and"
               },
               renameOutput: true, outputKey: "Check Follow"
@@ -1054,18 +1078,18 @@ Deno.serve(async (req: Request) => {
             {
               conditions: {
                 options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
-                conditions: [{ id: "visit", leftValue: "={{ $json.body.entry?.[0]?.messaging?.[0]?.postback?.payload }}", rightValue: "VISIT_PROFILE", operator: { type: "string", operation: "equals" } }],
+                conditions: [{ id: "send", leftValue: payloadPath, rightValue: "SEND_LINK", operator: { type: "string", operation: "equals" } }],
                 combinator: "and"
               },
-              renameOutput: true, outputKey: "Visit Profile"
+              renameOutput: true, outputKey: "Send Link"
             },
             {
               conditions: {
                 options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
-                conditions: [{ id: "send", leftValue: "={{ $json.body.entry?.[0]?.messaging?.[0]?.postback?.payload }}", rightValue: "SEND_LINK", operator: { type: "string", operation: "equals" } }],
+                conditions: [{ id: "qr-check", leftValue: "={{ $json.body.entry?.[0]?.messaging?.[0]?.message?.text }}", rightValue: teaserBtnText, operator: { type: "string", operation: "equals" } }],
                 combinator: "and"
               },
-              renameOutput: true, outputKey: "Send Link"
+              renameOutput: true, outputKey: "qr"
             }
           ];
 
@@ -1080,8 +1104,8 @@ Deno.serve(async (req: Request) => {
           if (!connections["Event Type Switch"]) connections["Event Type Switch"] = { main: [[], [], []] };
           if (!connections["Event Type Switch"].main[1]) connections["Event Type Switch"].main[1] = [];
           if (!connections["Event Type Switch"].main[2]) connections["Event Type Switch"].main[2] = [];
-          connections["Event Type Switch"].main[1].push({ node: switchName, type: "main", index: 0 }); // Postback Click
-          connections["Event Type Switch"].main[2].push({ node: switchName, type: "main", index: 0 }); // Message (Quick Reply Click)
+          connections["Event Type Switch"].main[1].push({ node: switchName, type: "main", index: 0 }); // Postback Click (SEND_LINK/CHECK_FOLLOW)
+          connections["Event Type Switch"].main[2].push({ node: switchName, type: "main", index: 0 }); // Message (Quick Reply Click - "qr")
 
           postbackNodeX += 250;
 
@@ -1099,10 +1123,11 @@ Deno.serve(async (req: Request) => {
             credentials: { facebookGraphApi: { id: credentialId } }
           });
 
-          // Connect Switch (Check Follow) AND (Send Link) to Fetch Context
+          // Connect Switch (Check Follow, Send Link, qr) to Fetch Context
           if (!connections[switchName]) connections[switchName] = { main: [[], [], []] };
           connections[switchName].main[0].push({ node: fetchName, type: "main", index: 0 }); // Check Follow
-          connections[switchName].main[2].push({ node: fetchName, type: "main", index: 0 }); // Send Link
+          connections[switchName].main[1].push({ node: fetchName, type: "main", index: 0 }); // Send Link
+          connections[switchName].main[2].push({ node: fetchName, type: "main", index: 0 }); // qr
 
           postbackNodeX += 250;
 
@@ -1178,14 +1203,13 @@ return { json: { userId, username, isFollowing } };`
           });
 
           // 3.6 ASK (False Branch) - Use Quick Replies
-          const notFollowingText = action.askToFollowMessage || "Oops! Looks like you haven't followed me yet 👀\n\nIt would mean a lot if you could visit my profile and hit that follow button 😊.";
-          const followBtnText = action.askToFollowBtnText || "I'm following ✅";
-          const askBtn = action.askToFollowBtnText || "I'm following ✅";
+          const notFollowingText = action.askToFollowMessage || "Oops! Looks like you haven't followed me yet 👀";
+          const askBtn = action.askToFollowBtnText || "followed"; // Match user "want" JSON example "followed"
 
           const askPayload = {
             recipient: { id: recipientId },
             message: {
-              text: `${notFollowingText}\n\nPlease follow first at: https://www.instagram.com/${instagramAccount.username}/\n\nThen tap below 😊`,
+              text: `${notFollowingText}\n\nPlease follow first here: https://www.instagram.com/${instagramAccount.username}/\n\nThen tap below 😊`,
               quick_replies: [
                 { content_type: "text", title: askBtn, payload: "CHECK_FOLLOW" }
               ]
@@ -1202,20 +1226,6 @@ return { json: { userId, username, isFollowing } };`
 
           // Connect Is Following
           connections[ifName] = { main: [[{ node: rewardName, type: "main", index: 0 }], [{ node: askName, type: "main", index: 0 }]] };
-
-          // 3.7 Send Profile Link (Visit Profile)
-          const profileLinkName = `Send Profile Link ${index + 1}`;
-          nodes.push({
-            id: `send-profile-${index}`, name: profileLinkName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3,
-            position: [postbackNodeX + 300, postbackNodeY + 200],
-            parameters: { method: "POST", url: `https://graph.instagram.com/v24.0/me/messages`, authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi", sendBody: true, specifyBody: "json", jsonBody: `={ "recipient": { "id": "${recipientId}" }, "message": { "text": "Visit my profile here: https://instagram.com/${instagramAccount.username}\\n\\nAfter you follow, tap '${followBtnText.replace(/"/g, '\\"')}' button! 😊" } }`, options: {} },
-            credentials: { facebookGraphApi: { id: credentialId } }
-          });
-
-          // Connect Switch (Visit Profile) to Profile Link
-          connections[switchName].main[1].push({ node: profileLinkName, type: "main", index: 0 });
-
-          postbackNodeX += 300;
         });
       }
 

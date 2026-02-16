@@ -98,7 +98,24 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
     }
   };
 
-  // addReplyTemplate and removeReplyTemplate removed as we restricted to 1 template
+  const addReplyTemplate = (actionIndex: number) => {
+    const action = actions[actionIndex] as ReplyToCommentAction;
+    if (action.replyTemplates.length >= 10) return;
+    updateAction(actionIndex, {
+      ...action,
+      replyTemplates: [...action.replyTemplates, ''],
+    });
+  };
+
+  const removeReplyTemplate = (actionIndex: number, templateIndex: number) => {
+    const action = actions[actionIndex] as ReplyToCommentAction;
+    if (action.replyTemplates.length <= 1) return;
+    const newTemplates = action.replyTemplates.filter((_, i) => i !== templateIndex);
+    updateAction(actionIndex, {
+      ...action,
+      replyTemplates: newTemplates,
+    });
+  };
 
   const updateReplyTemplate = (actionIndex: number, templateIndex: number, value: string) => {
     const action = actions[actionIndex] as ReplyToCommentAction;
@@ -241,7 +258,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-900 mb-2">
-                      Reply Template <span className="text-red-500">*</span>
+                      Reply Templates <span className="text-red-500">*</span>
                     </label>
                     <div className="space-y-3">
                       {(action as ReplyToCommentAction).replyTemplates.map((template, templateIndex) => (
@@ -252,14 +269,28 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                             onChange={(e) => updateReplyTemplate(index, templateIndex, e.target.value)}
                             placeholder="e.g., Check your DMs 👋"
                             className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          // If index > 0, we shouldn't render it technically based on requirement, but array might have old data. 
-                          // We heavily restricted adding, so this map will usually have 1 item.
                           />
+                          {(action as ReplyToCommentAction).replyTemplates.length > 1 && (
+                            <button
+                              onClick={() => removeReplyTemplate(index, templateIndex)}
+                              className="p-2.5 text-gray-400 hover:text-red-600 transition-colors"
+                            >
+                              <X size={20} />
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
+                    {(action as ReplyToCommentAction).replyTemplates.length < 10 && (
+                      <button
+                        onClick={() => addReplyTemplate(index)}
+                        className="mt-3 text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 transition-colors"
+                      >
+                        <Plus size={16} />
+                        Add another reply
+                      </button>
+                    )}
                   </div>
-                  {/* Action Buttons section removed */}
                 </div>
               )}
 
