@@ -1,166 +1,318 @@
-import { Check, MessageCircle, CreditCard, Calendar } from 'lucide-react';
-import { useThemeColors } from '../hooks/useThemeColors';
+import { useState, useEffect } from 'react';
+import { Check, MessageCircle, CreditCard, Calendar, Zap, Users, Download, Crown, ChevronDown, Plus, TrendingUp, Sparkles } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
+import { useUpgradeModal } from '../contexts/UpgradeModalContext';
 
-interface Plan {
-  id: string;
-  name: string;
-  description: string;
-  price: string;
-  billingNote: string;
-  duration: string;
-  features: string[];
-  isCurrent?: boolean;
-  isPopular?: boolean;
-  ctaText: string;
-  ctaAction?: () => void;
+interface SubscriptionData {
+  plan_id: string;
+  status: string;
+  current_period_end: string;
+}
+
+interface BillingStats {
+  dmsSent: number;
+  contactsEngaged: number;
+  automationsActive: number;
 }
 
 export default function Billing() {
-  const { gradientClass } = useThemeColors();
+  const { user } = useAuth();
+  const { openModal } = useUpgradeModal();
+  const [loading, setLoading] = useState(true);
+  const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
+  const [stats, setStats] = useState<BillingStats>({
+    dmsSent: 0,
+    contactsEngaged: 0,
+    automationsActive: 0
+  });
 
-  const plans: Plan[] = [
-    {
-      id: 'starter',
-      name: 'Starter',
-      description: 'Core automation features to get started',
-      price: '₹399',
-      billingNote: 'Billed quarterly (₹1197)',
-      duration: 'per month',
-      features: [
-        'Auto DM on Comment',
-        'Keyword Triggers',
-        'Story Reply DMs',
-        'Smart Follow Request DMs',
-        'Interactive DM Buttons',
-        'CRM + Analytics Dashboard',
-        'Unique Contact Tracking',
-        'Activity Log with Filtering',
-        'Button Click Analytics',
-        'Engagement Metrics',
-        'QR Code Connection',
-        'Meta OAuth Connect',
-        'Secure Account Linking',
-        'Email Support',
-      ],
-      ctaText: 'Get Started',
-    },
-    {
-      id: 'professional',
-      name: 'Professional',
-      description: 'All Standard features with custom solutions',
-      price: '₹499',
-      billingNote: 'Billed quarterly (₹1497)',
-      duration: 'per month',
-      features: [
-        'All Starter features included',
-        'Custom DM Workflow Design',
-        'Tailored Automation Rules',
-        'Custom Integration Development',
-        'Dedicated Account Manager',
-        'Priority Email Support',
-        'Phone Support Available',
-        'Custom Training Sessions',
-      ],
-      isPopular: true,
-      ctaText: 'Get Started',
-    },
-    {
-      id: 'enterprise',
-      name: 'Enterprise',
-      description: 'Tailored solutions for large organizations with complex requirements',
-      price: 'Custom',
-      billingNote: 'Contact us for pricing',
-      duration: '',
-      features: [
-        'Unlimited interactions',
-        'Dedicated account manager',
-        'Custom integrations',
-        'SLA guarantees',
-        'On-premise deployment',
-        'White-label options',
-      ],
-      ctaText: 'Contact Sales',
-    },
-  ];
+  useEffect(() => {
+    if (user) {
+      fetchBillingData();
+    }
+  }, [user]);
 
-  interface BillingHistoryItem {
-    id: string;
-    date: string;
-    description: string;
-    amount: string;
-    status: 'paid' | 'pending' | 'failed';
-    invoiceUrl?: string;
+  const fetchBillingData = async () => {
+    try {
+      setLoading(true);
+
+      // 1. Fetch Subscription
+      const { data: subData } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', user!.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      setSubscription(subData);
+
+      // 2. Fetch Usage Stats
+      const { data: activities } = await supabase
+        .from('automation_activities')
+        .select('activity_type')
+        .eq('user_id', user!.id);
+
+      const dms = activities?.filter(a => ['dm', 'dm_sent', 'send_dm', 'user_directed_messages'].includes(a.activity_type)) || [];
+
+      const { count: contactsCount } = await supabase
+        .from('contacts')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user!.id);
+
+      const { count: automationsCount } = await supabase
+        .from('automations')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user!.id)
+        .eq('status', 'active');
+
+      setStats({
+        dmsSent: dms.length,
+        contactsEngaged: contactsCount || 0,
+        automationsActive: automationsCount || 0
+      });
+
+    } catch (error) {
+      console.error('Error fetching billing data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getPlanName = (id?: string) => {
+    if (!id) return 'Free';
+    if (id === 'annual') return 'Premium Annual';
+    if (id === 'quarterly') return 'Premium Quarterly';
+    return id.toUpperCase();
+  };
+
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return 'N/A';
+    return new Date(dateStr).toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="ml-0 md:ml-64 min-h-screen bg-[#0a0a0c] flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
   }
 
-  const billingHistory: BillingHistoryItem[] = [
-    // Empty for now
-  ];
-
   return (
-    <div className="ml-64 min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50/30">
-      <div className="max-w-7xl mx-auto px-6 py-10">
-        <div className="mb-10">
-          <h1 className="text-5xl font-bold text-gray-900 mb-3 tracking-tight">Plan & Billing</h1>
-          <p className="text-xl text-gray-600">Choose the perfect plan to grow your Instagram automation</p>
+    <div className="ml-0 md:ml-64 min-h-screen bg-[#0a0a0c] text-white p-8 font-sans">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex justify-between items-start mb-8">
+          <div>
+            <h1 className="text-4xl font-bold mb-2">Plan & Subscription</h1>
+            <p className="text-gray-400">Manage your subscription, payment methods, and invoices.</p>
+          </div>
+          <button
+            onClick={openModal}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 shadow-lg shadow-blue-600/20"
+          >
+            Upgrade Plan
+          </button>
         </div>
 
+        {/* Section 1: Growth Plan Card */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <div className="lg:col-span-2 bg-[#141417] border border-gray-800 rounded-3xl p-8 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/5 blur-[80px] rounded-full -mr-20 -mt-20"></div>
 
-
-        <div className="bg-white/80 backdrop-blur-sm rounded-3xl border-2 border-gray-200 shadow-xl p-10">
-          <div className="flex items-center gap-4 mb-8">
-            <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${gradientClass} flex items-center justify-center shadow-lg`}>
-              <CreditCard className="w-7 h-7 text-white" />
+            <div className="flex items-start justify-between mb-6 relative">
+              <div className="flex gap-4">
+                <div className="w-14 h-14 bg-gradient-to-br from-green-500/20 to-green-600/10 rounded-2xl flex items-center justify-center border border-green-500/20">
+                  <Zap className="w-7 h-7 text-green-500" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold">{getPlanName(subscription?.plan_id)}</h3>
+                  <div className="flex items-baseline gap-1 mt-1">
+                    <span className="text-3xl font-bold">₹{subscription?.plan_id === 'annual' ? '599' : '999'}</span>
+                    <span className="text-gray-400">/month</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 px-4 py-1.5 bg-green-500/10 border border-green-500/20 rounded-full text-green-500 text-sm font-semibold">
+                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                Active
+              </div>
             </div>
-            <div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-1">Billing History</h2>
-              <p className="text-base text-gray-600">View your past transactions and invoices</p>
+
+            <div className="grid grid-cols-2 gap-8 mb-8 relative">
+              <div>
+                <p className="text-gray-500 text-sm mb-1">Next billing date</p>
+                <p className="font-semibold">{formatDate(subscription?.current_period_end)}</p>
+              </div>
+              <div>
+                <p className="text-gray-500 text-sm mb-1">Billing Cycle</p>
+                <p className="font-semibold capitalize">{subscription?.plan_id || 'Monthly'}</p>
+              </div>
+            </div>
+
+            <div className="flex gap-4 relative">
+              <button onClick={openModal} className="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-xl transition-colors font-semibold">Change Plan</button>
+              <button className="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-xl transition-colors font-semibold">Update Payment Method</button>
             </div>
           </div>
 
-          {billingHistory.length === 0 ? (
-            <div className="text-center py-16">
-              <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center mx-auto mb-6 shadow-lg">
-                <Calendar className="w-12 h-12 text-gray-400" />
+          {/* Payment Method Preview (Simplified as requested) */}
+          <div className="bg-[#141417] border border-gray-800 rounded-3xl p-8 flex flex-col justify-between">
+            <div className="space-y-4">
+              <div className="bg-[#1c1c21] p-4 rounded-2xl border border-gray-800">
+                <div className="flex justify-between items-center mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-6 bg-blue-600 rounded flex items-center justify-center text-[10px] font-bold">VISA</div>
+                    <span className="font-medium text-gray-300">•••• •••• •••• 4832</span>
+                  </div>
+                  <ChevronDown className="w-5 h-5 text-gray-500" />
+                </div>
+                <p className="text-xs text-gray-500">Billing Address:</p>
+                <p className="text-sm text-gray-400 font-medium">Mumbai, India</p>
               </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-3">No billing history</h3>
-              <p className="text-base text-gray-600 max-w-md mx-auto">
-                Your billing history will appear here once you upgrade to a paid plan.
-              </p>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-4 px-4 text-sm font-bold text-gray-700">Date</th>
-                    <th className="text-left py-4 px-4 text-sm font-bold text-gray-700">Description</th>
-                    <th className="text-left py-4 px-4 text-sm font-bold text-gray-700">Amount</th>
-                    <th className="text-left py-4 px-4 text-sm font-bold text-gray-700">Status</th>
-                    <th className="text-left py-4 px-4 text-sm font-bold text-gray-700">Invoice</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {billingHistory.map((item, index) => (
-                    <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-4 px-4 text-sm text-gray-900">Date</td>
-                      <td className="py-4 px-4 text-sm text-gray-900">Description</td>
-                      <td className="py-4 px-4 text-sm text-gray-900">Amount</td>
-                      <td className="py-4 px-4">
-                        <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold">
-                          Paid
-                        </span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <button className="text-blue-600 hover:text-blue-700 text-sm font-semibold">
-                          Download
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="flex gap-3 mt-6">
+              <button className="flex-1 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-xl text-xs font-bold transition-colors">Update Card</button>
+              <button className="flex-1 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-xl text-xs font-bold transition-colors">Add New</button>
             </div>
-          )}
+          </div>
+        </div>
+
+        {/* Section 2: Usage & Payment method detail */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          {/* Usage Stats (Left) */}
+          <div className="bg-[#141417] border border-gray-800 rounded-3xl p-8">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold">Usage This Month</h3>
+              <div className="flex gap-4 text-xs font-medium text-gray-500">
+                <div className="flex items-center gap-1.5 px-3 py-1 bg-gray-800/50 rounded-lg">Filter: All <ChevronDown className="w-3 h-3" /></div>
+                <div className="flex items-center gap-1.5 px-3 py-1 bg-gray-800/50 rounded-lg">Year: 2026 <ChevronDown className="w-3 h-3" /></div>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <div className="flex justify-between items-end mb-2">
+                  <span className="text-sm text-gray-400">DMs Sent: <span className="text-white font-medium">{stats.dmsSent.toLocaleString()} / 3,000</span></span>
+                  <span className="text-lg font-bold">₹{subscription?.plan_id === 'annual' ? '599' : '999'} <Check className="inline-block w-4 h-4 text-green-500 ml-1" /></span>
+                </div>
+                <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-600 rounded-full" style={{ width: `${(stats.dmsSent / 3000) * 100}%` }}></div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-6 pt-4 border-t border-gray-800">
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Contacts Engaged</p>
+                  <p className="text-xl font-bold">{stats.contactsEngaged.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Automations Active</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl font-bold">{stats.automationsActive}</span>
+                    <Check className="w-5 h-5 p-1 bg-green-500/20 text-green-500 rounded-full" />
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 pt-2 italic">Usage resets on {formatDate(subscription?.current_period_end)}</p>
+            </div>
+          </div>
+
+          {/* Payment Details (Right) */}
+          <div className="bg-[#141417] border border-gray-800 rounded-3xl p-8">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold">Billing Details</h3>
+              <div className="flex gap-4 text-xs font-medium text-gray-500">
+                <div className="flex items-center gap-1.5 px-3 py-1 bg-gray-800/50 rounded-lg">Year: 2026 <ChevronDown className="w-3 h-3" /></div>
+              </div>
+            </div>
+
+            <div className="bg-[#1c1c21] p-6 rounded-2xl border border-gray-800 mb-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-8 bg-blue-600 rounded flex items-center justify-center text-xs font-bold">VISA</div>
+                <span className="font-semibold tracking-widest text-lg">•••• •••• •••• 4832</span>
+              </div>
+              <div className="flex justify-between items-end">
+                <p className="text-xs text-gray-500 leading-relaxed uppercase tracking-wider">Payments are securely<br />processed by Razorpay</p>
+                <div className="text-right">
+                  <p className="text-xs text-gray-500 mb-1">Billing Address:</p>
+                  <button className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-xs font-bold transition-colors">
+                    <Download className="w-3.5 h-3.5" /> Download Invoice
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Section 3: Invoices & Plan Options */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          {/* Invoices List */}
+          <div className="bg-[#141417] border border-gray-800 rounded-3xl p-8">
+            <h3 className="text-xl font-bold mb-6">Invoice History</h3>
+            <div className="space-y-1">
+              <div className="grid grid-cols-4 text-xs font-bold text-gray-500 px-4 py-2 border-b border-gray-800 mb-2">
+                <span>INVOICE</span>
+                <span>DATE</span>
+                <span>PLAN</span>
+                <span className="text-right">STATUS</span>
+              </div>
+              {[1, 2, 0].map(i => (
+                <div key={i} className="grid grid-cols-4 items-center px-4 py-3 hover:bg-gray-800/30 rounded-xl transition-colors text-sm">
+                  <span className="font-medium text-gray-300">INV-2026-00{i}</span>
+                  <span className="text-gray-500">28 Feb 2026</span>
+                  <span className="text-gray-400">Growth</span>
+                  <div className="text-right">
+                    <span className="inline-flex items-center gap-1 text-green-500 bg-green-500/10 px-2 py-0.5 rounded text-xs font-bold">
+                      <Check className="w-3 h-3" /> ₹999
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-8 text-xs text-gray-500 text-center">Questions about your billing? <a href="#" className="text-blue-500 hover:underline">Contact support</a></p>
+          </div>
+
+          {/* Plan Options Grid */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-[#141417] border border-gray-800 rounded-3xl p-6 flex flex-col justify-between group">
+              <div>
+                <h4 className="text-xl font-bold mb-1">Free</h4>
+                <div className="flex items-baseline gap-1 mb-4">
+                  <span className="text-2xl font-bold">₹0</span>
+                  <span className="text-gray-500 text-sm">/month</span>
+                </div>
+                <ul className="space-y-2 text-sm text-gray-400">
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-blue-500" /> Basic DMs</li>
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-blue-500" /> 1 Automation</li>
+                </ul>
+              </div>
+              <button className="w-full mt-6 py-2.5 bg-gray-800 rounded-xl text-sm font-bold opacity-50 cursor-not-allowed">Current Plan</button>
+            </div>
+
+            <div className="bg-blue-600 border border-blue-500 rounded-3xl p-6 flex flex-col justify-between shadow-xl shadow-blue-600/20 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 blur-3xl rounded-full -mr-10 -mt-10"></div>
+              <div className="relative">
+                <div className="bg-white/20 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded w-fit mb-3">Popular</div>
+                <h4 className="text-xl font-bold mb-1">Pro</h4>
+                <div className="flex items-baseline gap-1 mb-4">
+                  <span className="text-2xl font-bold">₹999</span>
+                  <span className="text-blue-100 text-sm">/month</span>
+                </div>
+                <ul className="space-y-2 text-sm text-blue-50">
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-white" /> Priority Support</li>
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-white" /> Unlimited DMs</li>
+                </ul>
+              </div>
+              <button onClick={openModal} className="w-full mt-6 py-2.5 bg-white text-blue-600 rounded-xl text-sm font-bold hover:bg-gray-100 transition-colors relative z-10">Upgrade</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
