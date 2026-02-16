@@ -37,6 +37,7 @@ export default function Automations() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [triggerFilter, setTriggerFilter] = useState<'all' | 'post_comment' | 'story_reply' | 'user_directed_messages'>('all');
   const [hasInstagramAccount, setHasInstagramAccount] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAutomations();
@@ -163,6 +164,8 @@ export default function Automations() {
   };
 
   const toggleStatus = async (id: string, currentStatus: string, n8nWorkflowId?: string) => {
+    if (togglingId === id) return;
+    setTogglingId(id);
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
 
     try {
@@ -194,6 +197,8 @@ export default function Automations() {
     } catch (error) {
       console.error('Error updating automation status:', error);
       alert('Failed to update automation status. Please try again.');
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -377,15 +382,16 @@ export default function Automations() {
                     >
                       <Edit size={20} />
                     </button>
-                    <button
-                      onClick={() => toggleStatus(automation.id, automation.status, automation.n8n_workflow_id)}
-                      className={`px-5 py-2.5 rounded-xl font-semibold transition-all shadow-md hover:shadow-lg ${automation.status === 'active'
-                        ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                        : 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white hover:from-blue-700 hover:to-cyan-700'
-                        }`}
-                    >
-                      {automation.status === 'active' ? 'Deactivate' : 'Activate'}
-                    </button>
+                    <label className="relative inline-flex items-center cursor-pointer mr-2">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={automation.status === 'active'}
+                        onChange={() => toggleStatus(automation.id, automation.status, automation.n8n_workflow_id)}
+                        disabled={togglingId === automation.id}
+                      />
+                      <div className={`w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-blue-600 peer-checked:to-cyan-600 ${togglingId === automation.id ? 'opacity-60 cursor-wait' : ''}`}></div>
+                    </label>
                     <button
                       onClick={() => handleDelete(automation.id, automation.name)}
                       className="p-2.5 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 transition-all shadow-md hover:shadow-lg"
