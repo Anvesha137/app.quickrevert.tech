@@ -502,35 +502,21 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                               />
                               <div className="relative">
                                 <select
-                                  value={(button as any).action || (button.url ? 'web_url' : 'postback')}
-                                  onChange={(e) => updateActionButton(index, buttonIndex, 'action', e.target.value)}
-                                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white pr-10"
+                                  value="web_url"
+                                  disabled
+                                  className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 appearance-none pr-10 cursor-not-allowed"
                                 >
-                                  <option value="postback">Reply (Postback)</option>
                                   <option value="web_url">Web URL</option>
-                                  <option value="calendar">Book Calendar</option>
                                 </select>
                                 <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
                               </div>
-                              {((button as any).action === 'web_url' || (!(button as any).action && button.url && button.url !== 'calendar')) && (
-                                <input
-                                  type="url"
-                                  value={button.url === 'calendar' ? '' : (button.url || '')}
-                                  onChange={(e) => updateActionButton(index, buttonIndex, 'url', e.target.value)}
-                                  placeholder="https://example.com"
-                                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                />
-                              )}
-                              {((button as any).action === 'calendar' || (!(button as any).action && button.url === 'calendar')) && (
-                                <p className="text-sm text-gray-600 bg-blue-50 p-2 rounded border border-blue-100">
-                                  📅 This button will open your calendar booking link
-                                </p>
-                              )}
-                              {((button as any).action === 'postback' || (!(button as any).action && !button.url)) && (
-                                <p className="text-sm text-gray-600 bg-blue-50 p-2 rounded border border-blue-100">
-                                  💬 This button will send a postback that triggers a reply action in the workflow
-                                </p>
-                              )}
+                              <input
+                                type="url"
+                                value={button.url || ''}
+                                onChange={(e) => updateActionButton(index, buttonIndex, 'url', e.target.value)}
+                                placeholder="https://example.com"
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
                             </div>
                           </div>
                         ))}

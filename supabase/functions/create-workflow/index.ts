@@ -734,13 +734,10 @@ Deno.serve(async (req: Request) => {
 
       // 2. Actions Generation
       console.log(`--- GENERATING ACTIONS for Trigger: ${triggerType} ---`);
-      console.log("Actions payload:", JSON.stringify(actions, null, 2));
-
       const postbackActions: any[] = [];
 
       actions.forEach((action: any, index: number) => {
         let nodeParams: any = {};
-        let nodeType = "n8n-nodes-base.httpRequest";
         let nodeName = `Action ${index + 1}`;
 
         let commentIdPath = "";
@@ -756,295 +753,61 @@ Deno.serve(async (req: Request) => {
         }
 
         if (action.type === 'reply_to_comment') {
-          nodeName = `Reply to Comment ${index + 1}`;
-          const replyTemplates = action.replyTemplates || [action.text || "Thanks!"];
-
-          let anchorNodeForReply = triggerAnchorNode;
-          let anchorOutputIndexForReply = (triggerAnchorNode === "Loop Protection Switch") ? 0 : 0;
-
-          if (replyTemplates.length > 1) {
-            const codeNodeName = `Pick Random Reply ${index + 1}`;
-            nodes.push({
-              id: `reply-pick-${index}`, name: codeNodeName, type: "n8n-nodes-base.code", typeVersion: 2,
-              position: [nodeX, 150],
-              parameters: {
-                jsCode: `const templates = ${JSON.stringify(replyTemplates)};\nreturn { json: { reply: templates[Math.floor(Math.random() * templates.length)] } };`
-              }
-            });
-
-            // Connect anchor to Code Node
-            if (!connections[anchorNodeForReply]) connections[anchorNodeForReply] = { main: [] };
-            if (!connections[anchorNodeForReply].main[anchorOutputIndexForReply]) connections[anchorNodeForReply].main[anchorOutputIndexForReply] = [];
-            connections[anchorNodeForReply].main[anchorOutputIndexForReply].push({ node: codeNodeName, type: "main", index: 0 });
-
-            // Update anchor for the HTTP node
-            anchorNodeForReply = codeNodeName;
-            anchorOutputIndexForReply = 0;
-            nodeX += 250;
-          }
-
-          const userText = replyTemplates.length > 1 ? "{{ $json.reply }}" : (replyTemplates[0] || "Thanks!");
-          const replyText = `@${usernamePath} ${userText}`;
-          nodeParams = {
-            method: "POST",
-            url: `=https://graph.instagram.com/v24.0/${commentIdPath}/replies`,
-            authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
-            sendBody: true, specifyBody: "json",
-            jsonBody: `=${JSON.stringify({ message: replyText }, null, 2)}`,
-            options: {}
-          };
-
-          // Connect the Reply node to its anchor
+          nodeName = `Reply to Comment `;
+          const replyText = `@${usernamePath} ${action.replyTemplates?.[0] || action.text || "Thanks!"}`;
           nodes.push({
-            id: `act-${index}`, name: nodeName, type: nodeType, typeVersion: 4.3,
-            position: [nodeX, -160],
-            parameters: nodeParams,
+            id: `act-reply-${index}`, name: nodeName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [nodeX, -160],
+            parameters: { method: "POST", url: `=https://graph.instagram.com/v24.0/${commentIdPath}/replies`, authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi", sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify({ message: replyText }, null, 2)}`, options: {} },
             credentials: { facebookGraphApi: { id: credentialId } }
           });
-
-          if (!connections[anchorNodeForReply]) connections[anchorNodeForReply] = { main: [] };
-          if (!connections[anchorNodeForReply].main[anchorOutputIndexForReply]) connections[anchorNodeForReply].main[anchorOutputIndexForReply] = [];
-          connections[anchorNodeForReply].main[anchorOutputIndexForReply].push({ node: nodeName, type: "main", index: 0 });
-
+          if (!connections[triggerAnchorNode]) connections[triggerAnchorNode] = { main: [] };
+          if (!connections[triggerAnchorNode].main[0]) connections[triggerAnchorNode].main[0] = [];
+          connections[triggerAnchorNode].main[0].push({ node: nodeName, type: "main", index: 0 });
           nodeX += 300;
-          return; // Node pushed, manual connection done
-        } else if (action.type === 'send_dm') {
-          // START NEW LOGIC
+          return;
+        }
+
+        if (action.type === 'send_dm') {
           if (action.askToFollow) {
-            // *** 1. TEASER DM (Trigger Branch) ***
-            // Connects to Loop Protection Switch
-            console.log(`--- GENERATING TEASER DM (` + index + `) ---`);
-            const teaserText = action.teaserMessage || "You asked for the access?";
-            const teaserBtn = action.teaserBtnText || "Yes, send me link";
-
-            let teaserJsonBody;
-            const teaserSubtitle = "Tap below to continue ✨";
-
-            if (triggerType === 'post_comment') {
-              teaserJsonBody = {
-                recipient: { comment_id: "{{ $json.body.entry[0].changes[0].value.id }}" },
-                message: {
-                  attachment: {
-                    type: "template",
-                    payload: {
-                      template_type: "generic",
-                      elements: [{
-                        title: teaserText,
-                        subtitle: teaserSubtitle,
-                        buttons: [{
-                          type: "postback",
-                          title: teaserBtn,
-                          payload: "SEND_LINK"
-                        }]
-                      }]
-                    }
-                  }
-                }
-              };
-            } else {
-              teaserJsonBody = {
-                recipient: { id: "{{ $json.body.entry[0].messaging[0].sender.id }}" },
-                message: {
-                  attachment: {
-                    type: "template",
-                    payload: {
-                      template_type: "generic",
-                      elements: [{
-                        title: teaserText,
-                        subtitle: teaserSubtitle,
-                        buttons: [{
-                          type: "postback",
-                          title: teaserBtn,
-                          payload: "SEND_LINK"
-                        }]
-                      }]
-                    }
-                  }
-                }
-              };
-            }
-
-            const teaserNodeName = `Send Teaser DM ${index + 1}`;
-            nodes.push({
-              id: `teaser-dm-${index}`, name: teaserNodeName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [nodeX, 32],
-              parameters: { method: "POST", url: "https://graph.instagram.com/v24.0/me/messages", authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi", sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify(teaserJsonBody, null, 2)}`, options: {} },
-              credentials: { facebookGraphApi: { id: credentialId } }
-            });
-
-            // Connect Teaser to triggerAnchorNode (Loop Protection) for parallel execution
-            if (!connections[triggerAnchorNode]) connections[triggerAnchorNode] = { main: [] };
-            if (!connections[triggerAnchorNode].main[0]) connections[triggerAnchorNode].main[0] = [];
-            connections[triggerAnchorNode].main[0].push({ node: teaserNodeName, type: "main", index: 0 });
-            // Do not update previousNode, ensuring parallel branching
-            nodeX += 300;
-
-
-            // *** 2. REWARD DM (Postback True Branch) ***
-            // Connects to Is Following? (Index 0)
-            const rewardNodeName = `Send Reward ${index + 1}`;
-            const rewardText = action.title || "Here is your link!";
-            const rewardSubtitle = action.subtitle || action.messageTemplate || "";
-            const rewardImageUrl = action.imageUrl || "";
-            const hasButtons = action.actionButtons && action.actionButtons.length > 0;
-
-            let rewardJsonBody = "";
-            const rewardRecipientId = "{{ $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id }}";
-
-            const quick_replies: any[] = [];
-            if (hasButtons) {
-              action.actionButtons.forEach((b: any) => {
-                const btnType = b.action || (b.url ? 'web_url' : 'postback');
-                if (btnType === 'postback') {
-                  quick_replies.push({ content_type: "text", title: b.text, payload: b.text });
-                }
-              });
-            }
-
-            const messagePayload: any = {
-              recipient: { id: rewardRecipientId },
+            const teaserNodeName = `Send Teaser DM`;
+            const teaserPayload = {
+              recipient: triggerType === 'post_comment' ? { comment_id: "{{ $json.body.entry[0].changes[0].value.id }}" } : { id: senderIdPath },
               message: {
-                text: rewardImageUrl ? `${rewardImageUrl}\n\n${rewardText}${rewardSubtitle ? '\n\n' + rewardSubtitle : ''}` : (rewardSubtitle ? `${rewardText}\n\n${rewardSubtitle}` : rewardText)
-              }
-            };
-
-            if (quick_replies.length > 0) {
-              messagePayload.message.quick_replies = quick_replies;
-            }
-
-            rewardJsonBody = `=${JSON.stringify(messagePayload, null, 2)}`;
-
-            nodes.push({
-              id: `act-reward-${index}`, name: rewardNodeName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3,
-              position: [postbackNodeX + 1100, postbackNodeY - 100], // Slightly above
-              parameters: {
-                method: "POST",
-                url: `https://graph.instagram.com/v24.0/me/messages`,
-                authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
-                sendBody: true, specifyBody: "json",
-                jsonBody: rewardJsonBody,
-                options: {}
-              },
-              credentials: { facebookGraphApi: { id: credentialId } }
-            });
-
-            // Connect Is Following? (Index 0) to Reward
-            connections["Is Following?"].main[0].push({ node: rewardNodeName, type: "main", index: 0 });
-
-
-            // *** 3. ASK TO FOLLOW DM (Postback False Branch) ***
-            // Connects to Is Following? (Index 1)
-            const askNodeName = `Ask to Follow ${index + 1}`;
-            const askText = action.askToFollowMessage || "Oops! You haven't followed me yet 👀";
-            const askBtn = action.askToFollowBtnText || "I'm following ✅";
-
-            const askJsonBody = {
-              recipient: { id: rewardRecipientId },
-              message: {
-                text: `${askText}\n\nPlease follow first here: https://www.instagram.com/${instagramAccount.username}/\n\nThen tap below 😊`,
+                text: action.teaserMessage || "Interested?",
                 quick_replies: [
-                  {
-                    content_type: "text",
-                    title: askBtn,
-                    payload: "CHECK_FOLLOW"
-                  }
+                  { content_type: "text", title: action.teaserBtnText || "access", payload: "SEND_LINK" }
                 ]
               }
             };
-
             nodes.push({
-              id: `act-ask-${index}`, name: askNodeName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3,
-              position: [postbackNodeX + 1100, postbackNodeY + 100], // Slightly below
-              parameters: { method: "POST", url: "https://graph.instagram.com/v24.0/me/messages", authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi", sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify(askJsonBody, null, 2)}`, options: {} },
+              id: `teaser-${index}`, name: teaserNodeName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [nodeX, 32],
+              parameters: { method: "POST", url: "https://graph.instagram.com/v24.0/me/messages", authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi", sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify(teaserPayload, null, 2)}`, options: {} },
               credentials: { facebookGraphApi: { id: credentialId } }
             });
-
-            // Connect Is Following? (Index 1) to Ask to Follow
+            if (!connections[triggerAnchorNode]) connections[triggerAnchorNode] = { main: [] };
+            if (!connections[triggerAnchorNode].main[0]) connections[triggerAnchorNode].main[0] = [];
+            connections[triggerAnchorNode].main[0].push({ node: teaserNodeName, type: "main", index: 0 });
+            nodeX += 300;
             postbackActions.push({ ...action, index });
-            return; // Done processing this action
+            return;
           } else {
-            // Standard DM
             nodeName = `Send DM ${index + 1}`;
-            const text = action.title || "Hello!";
-            const subtitle = action.subtitle || action.messageTemplate || "";
-            const imageUrl = action.imageUrl || "";
-            const hasButtons = action.actionButtons && action.actionButtons.length > 0;
-            const isRichMessage = hasButtons || imageUrl;
-
-            let jsonBody = "";
-            if (isRichMessage) {
-              const quick_replies: any[] = [];
-              if (hasButtons) {
-                action.actionButtons.forEach((b: any) => {
-                  const btnType = b.action || (b.url ? 'web_url' : 'postback');
-                  if (btnType === 'postback') {
-                    quick_replies.push({ content_type: "text", title: b.text, payload: b.text });
-                  }
-                });
-              }
-
-              const messagePayload: any = {
-                recipient: { id: senderIdPath },
-                message: {
-                  text: subtitle ? `${text}\n\n${subtitle}` : text
-                }
-              };
-
-              if (imageUrl) {
-                messagePayload.message.text = `${imageUrl}\n\n${messagePayload.message.text}`;
-              }
-
-              if (quick_replies.length > 0) {
-                messagePayload.message.quick_replies = quick_replies;
-              }
-              jsonBody = `=${JSON.stringify(messagePayload, null, 2)}`;
-            } else {
-              jsonBody = `={
-                  "recipient": { "id": "${senderIdPath}" },
-                  "message": { "text": "${text.replace(/"/g, '\\"')}" }
-                }`;
-            }
-
-            nodeParams = {
-              method: "POST",
-              url: `=https://graph.instagram.com/v24.0/me/messages`,
-              authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
-              sendBody: true, specifyBody: "json",
-              jsonBody: jsonBody,
-              options: {}
-            };
+            const messagePayload = { recipient: { id: senderIdPath }, message: { text: action.title || "Hello!" } };
+            nodeParams = { method: "POST", url: "https://graph.instagram.com/v24.0/me/messages", authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi", sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify(messagePayload, null, 2)}`, options: {} };
           }
         }
 
-
-
         if (Object.keys(nodeParams).length > 0) {
           nodes.push({
-            id: `act-${index}`,
-            name: nodeName,
-            type: nodeType,
-            typeVersion: 4.3,
-            position: [nodeX, 300],
-            parameters: nodeParams,
-            credentials: { facebookGraphApi: { id: credentialId } }
+            id: `act-${index}`, name: nodeName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [nodeX, 300],
+            parameters: nodeParams, credentials: { facebookGraphApi: { id: credentialId } }
           });
-
-          // Connect to previous node
           if (triggerType === 'post_comment') {
-            // Parallel connection for Loop Protection Switch
-            if (!connections[previousNode]) {
-              connections[previousNode] = { main: [[], []] }; // Output 0: Continue, Output 1: Stop
-            }
+            if (!connections[previousNode]) connections[previousNode] = { main: [[], []] };
             connections[previousNode].main[0].push({ node: nodeName, type: "main", index: 0 });
-
-            // Do NOT update previousNode, so all actions connect to the Switch
             nodeX += 300;
           } else {
-            // Sequential connection for other triggers
-            if (previousNode) {
-              connections[previousNode] = {
-                main: [[{ node: nodeName, type: "main", index: 0 }]]
-              };
-            }
+            if (previousNode) connections[previousNode] = { main: [[{ node: nodeName, type: "main", index: 0 }]] };
             previousNode = nodeName;
             nodeX += 300;
           }
@@ -1093,10 +856,10 @@ Deno.serve(async (req: Request) => {
             }
           ];
 
-          const switchName = `Button Action Switch ${index + 1}`;
+          const switchName = `Button Action Switch`; // Match user JSON naming
           nodes.push({
             id: `btn-switch-${index}`, name: switchName, type: "n8n-nodes-base.switch", typeVersion: 3.3,
-            position: [postbackNodeX, postbackNodeY],
+            position: [-304, 224], // Match user JSON position
             parameters: { rules: { values: switchRules }, options: { ignoreCase: true } }
           });
 
@@ -1110,10 +873,10 @@ Deno.serve(async (req: Request) => {
           postbackNodeX += 250;
 
           // 3.2 Fetch Context
-          const fetchName = `Fetch Context ${index + 1}`;
+          const fetchName = `Fetch Context`;
           nodes.push({
             id: `fetch-context-${index}`, name: fetchName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3,
-            position: [postbackNodeX, postbackNodeY],
+            position: [-80, 240], // Match user JSON position
             parameters: {
               url: `=https://graph.instagram.com/v24.0/${senderIdForContext}`,
               authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
@@ -1132,10 +895,10 @@ Deno.serve(async (req: Request) => {
           postbackNodeX += 250;
 
           // 3.3 Extract Status
-          const extractName = `Extract Status ${index + 1}`;
+          const extractName = `Extract Status`;
           nodes.push({
             id: `extract-status-${index}`, name: extractName, type: "n8n-nodes-base.code", typeVersion: 2,
-            position: [postbackNodeX, postbackNodeY],
+            position: [144, 240], // Match user JSON position
             parameters: {
               jsCode: `const conversationData = $input.item.json;
 const isFollowing = conversationData.is_user_follow_business || false;
@@ -1148,10 +911,10 @@ return { json: { userId, username, isFollowing } };`
           postbackNodeX += 250;
 
           // 3.4 Is Following?
-          const ifName = `Is Following? ${index + 1}`;
+          const ifName = `Is Following?`;
           nodes.push({
             id: `is-following-${index}`, name: ifName, type: "n8n-nodes-base.if", typeVersion: 2.1,
-            position: [postbackNodeX, postbackNodeY],
+            position: [368, 240], // Match user JSON position
             parameters: {
               conditions: {
                 options: { caseSensitive: true, leftValue: "" },
@@ -1163,48 +926,56 @@ return { json: { userId, username, isFollowing } };`
           connections[extractName] = { main: [[{ node: ifName, type: "main", index: 0 }]] };
           postbackNodeX += 250;
 
-          // 3.5 REWARD (True Branch) - Use Quick Replies
-          const text = action.title || "Hello!";
-          const subtitle = action.subtitle || action.messageTemplate || "";
-          const imageUrl = action.imageUrl || "";
-          const hasButtons = action.actionButtons && action.actionButtons.length > 0;
+          // 3.5 REWARD (True Branch) - Use Generic Template
+          const text = action.title || "Check out this link!";
+          const subtitle = action.subtitle || "Powered by Quickrevert.tech";
+          const imageUrl = action.imageUrl || "https://your-image-url.com/image.jpg";
+          const webUrl = action.actionButtons?.[0]?.url || "https://your-link.com";
+          const btnTitle = action.actionButtons?.[0]?.text || "View Link";
 
-          const quick_replies: any[] = [];
-          if (hasButtons) {
-            action.actionButtons.forEach((b: any) => {
-              const btnType = b.action || (b.url ? 'web_url' : 'postback');
-              if (btnType === 'postback') {
-                quick_replies.push({ content_type: "text", title: b.text, payload: b.text });
-              }
-            });
-          }
-
-          const rewardPayload: any = {
-            recipient: { id: recipientId },
+          const rewardPayload = {
+            recipient: {
+              id: "{{ $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id }}"
+            },
             message: {
-              text: subtitle ? `${text}\n\n${subtitle}` : text
+              attachment: {
+                type: "template",
+                payload: {
+                  template_type: "generic",
+                  elements: [
+                    {
+                      title: text,
+                      image_url: imageUrl,
+                      subtitle: subtitle,
+                      default_action: {
+                        type: "web_url",
+                        url: webUrl
+                      },
+                      buttons: [
+                        {
+                          type: "web_url",
+                          url: webUrl,
+                          title: btnTitle
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
             }
           };
 
-          if (imageUrl) {
-            rewardPayload.message.text = `${imageUrl}\n\n${rewardPayload.message.text}`;
-          }
-
-          if (quick_replies.length > 0) {
-            rewardPayload.message.quick_replies = quick_replies;
-          }
-
-          const rewardName = `Send Reward ${index + 1}`;
+          const rewardName = `Send Reward 2`; // Match user JSON naming
           nodes.push({
             id: `act-reward-${index}`, name: rewardName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3,
-            position: [postbackNodeX, postbackNodeY - 100],
+            position: [592, 144], // Match user JSON position
             parameters: { method: "POST", url: `https://graph.instagram.com/v24.0/me/messages`, authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi", sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify(rewardPayload, null, 2)}`, options: {} },
             credentials: { facebookGraphApi: { id: credentialId } }
           });
 
           // 3.6 ASK (False Branch) - Use Quick Replies
           const notFollowingText = action.askToFollowMessage || "Oops! Looks like you haven't followed me yet 👀";
-          const askBtn = action.askToFollowBtnText || "followed"; // Match user "want" JSON example "followed"
+          const askBtn = action.askToFollowBtnText || "qr"; // Match user "want" JSON example "qr"
 
           const askPayload = {
             recipient: { id: recipientId },
@@ -1216,10 +987,10 @@ return { json: { userId, username, isFollowing } };`
             }
           };
 
-          const askName = `Ask to Follow ${index + 1}`;
+          const askName = `Ask to Follow 2`; // Match user JSON naming
           nodes.push({
             id: `act-ask-${index}`, name: askName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3,
-            position: [postbackNodeX, postbackNodeY + 100],
+            position: [592, 336], // Match user JSON position
             parameters: { method: "POST", url: `https://graph.instagram.com/v24.0/me/messages`, authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi", sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify(askPayload, null, 2)}`, options: {} },
             credentials: { facebookGraphApi: { id: credentialId } }
           });
@@ -1231,26 +1002,28 @@ return { json: { userId, username, isFollowing } };`
 
       // Final wiring for loop protection switch (ONLY for non-post_comment triggers or if handled differently)
       // For post_comment, we handled connections inside the loop above.
-      if (triggerType !== 'post_comment' && nodes.find(n => n.name === "Loop Protection Switch")) {
-        // Find the first action node
-        const firstActionNode = nodes.find(n =>
-          n.name !== "Worker Webhook" &&
-          n.name !== "Loop Protection Switch" &&
-          n.name !== "Post Filter Switch" &&
-          n.name !== "Comment Switch" &&
-          n.name !== "Message Switch"
-        );
+      if (triggerType !== 'post_comment') {
+        const lpNode = nodes.find(n => n.name === "Loop Protection Switch" || n.name === "Loop Protection Switch1");
+        if (lpNode) {
+          // Find the first action node
+          const firstActionNode = nodes.find(n =>
+            n.name !== "Worker Webhook" &&
+            n.name !== lpNode.name &&
+            n.name !== "Post Filter Switch" &&
+            n.name !== "Comment Switch" &&
+            n.name !== "Event Type Switch" &&
+            n.name !== "Button Action Switch" &&
+            n.name !== "Message Switch"
+          );
 
-        if (firstActionNode) {
-          // Correct connection logic:
-          // Output 0: Comment from other account (notEquals) -> Continue to actions
-          // Output 1: Comment from own account (dummy) -> Stop
-          connections["Loop Protection Switch"] = {
-            main: [
-              [{ node: firstActionNode.name, type: "main", index: 0 }], // Output 0: Continue
-              [] // Output 1: Stop (no connection)
-            ]
-          };
+          if (firstActionNode) {
+            connections[lpNode.name] = {
+              main: [
+                [{ node: firstActionNode.name, type: "main", index: 0 }], // Output 0: Continue
+                [] // Output 1: Stop (no connection)
+              ]
+            };
+          }
         }
       }
 
