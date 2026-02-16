@@ -909,17 +909,24 @@ Deno.serve(async (req: Request) => {
             const teaserText = action.teaserMessage || "Hey there! I'm so happy you're here, thanks so much for your interest 😊\\n\\nClick below and I'll send you the link in just a sec ✨";
             const teaserBtn = action.teaserBtnText || "Send me the link";
 
-            const recipientId = triggerType === 'post_comment'
-              ? "{{ $json.body.entry[0].changes[0].value.from.id }}"
-              : "{{ $json.body.entry[0].messaging[0].sender.id }}";
-
-            const teaserJsonBody = {
-              recipient: { id: recipientId },
-              message: {
-                text: teaserText,
-                quick_replies: [{ content_type: "text", title: teaserBtn, payload: "SEND_LINK" }]
-              }
-            };
+            let teaserJsonBody;
+            if (triggerType === 'post_comment') {
+              teaserJsonBody = {
+                recipient: { comment_id: "{{ $json.body.entry[0].changes[0].value.id }}" },
+                message: {
+                  text: teaserText,
+                  quick_replies: [{ content_type: "text", title: teaserBtn, payload: "SEND_LINK" }]
+                }
+              };
+            } else {
+              teaserJsonBody = {
+                recipient: { id: "{{ $json.body.entry[0].messaging[0].sender.id }}" },
+                message: {
+                  text: teaserText,
+                  quick_replies: [{ content_type: "text", title: teaserBtn, payload: "SEND_LINK" }]
+                }
+              };
+            }
 
             const teaserNodeName = `Send Teaser DM ${index + 1}`;
             nodes.push({
