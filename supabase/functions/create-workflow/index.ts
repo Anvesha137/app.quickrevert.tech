@@ -75,26 +75,6 @@ Deno.serve(async (req: Request) => {
 
     const userProvidedName = workflowName || `Instagram Automation - ${new Date().toISOString().split('T')[0]}`;
     const finalWorkflowName = `[${instagramAccount.username}] ${userProvidedName}`;
-
-    // --- CHECK FOR DUPLICATE NAME ---
-    let dupQuery = supabase.from("n8n_workflows")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("n8n_workflow_name", finalWorkflowName);
-
-    if (automationId) {
-      dupQuery = dupQuery.neq("automation_id", automationId);
-    }
-
-    const { data: duplicates, error: dupError } = await dupQuery;
-    if (dupError) {
-      console.error("Duplicate check error:", dupError);
-      throw new Error("Failed to check for duplicate names");
-    }
-    if (duplicates && duplicates.length > 0) {
-      // Return 400 so frontend can show validation error
-      return new Response(JSON.stringify({ error: "An automation with this name already exists. Please choose a different name." }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
     // --- CHECK FOR EXISTING WORKFLOW ---
     let existingWorkflowId: string | null = null;
     let existingVibePath: string | null = null;
@@ -929,26 +909,17 @@ Deno.serve(async (req: Request) => {
             const teaserText = action.teaserMessage || "Hey there! I'm so happy you're here, thanks so much for your interest 😊\\n\\nClick below and I'll send you the link in just a sec ✨";
             const teaserBtn = action.teaserBtnText || "Send me the link";
 
-            let teaserJsonBody;
-            if (triggerType === 'post_comment') {
-              const commentId = "{{ $json.body.entry[0].changes[0].value.id }}";
-              teaserJsonBody = {
-                recipient: { comment_id: commentId },
-                message: {
-                  text: teaserText,
-                  quick_replies: [{ content_type: "text", title: teaserBtn, payload: "SEND_LINK" }]
-                }
-              };
-            } else {
-              const recipientId = "{{ $json.body.entry[0].messaging[0].sender.id }}";
-              teaserJsonBody = {
-                recipient: { id: recipientId },
-                message: {
-                  text: teaserText,
-                  quick_replies: [{ content_type: "text", title: teaserBtn, payload: "SEND_LINK" }]
-                }
-              };
-            }
+            const recipientId = triggerType === 'post_comment'
+              ? "{{ $json.body.entry[0].changes[0].value.from.id }}"
+              : "{{ $json.body.entry[0].messaging[0].sender.id }}";
+
+            const teaserJsonBody = {
+              recipient: { id: recipientId },
+              message: {
+                text: teaserText,
+                quick_replies: [{ content_type: "text", title: teaserBtn, payload: "SEND_LINK" }]
+              }
+            };
 
             const teaserNodeName = `Send Teaser DM ${index + 1}`;
             nodes.push({
@@ -1711,59 +1682,12 @@ return { json: { userId, username, isFollowing } };`
 
     const n8nWorkflowJSON = buildWorkflow();
 
-    // Create or Update Workflow
-    // NOTE: 'active' field is read-only in some n8n versions/endpoints during create/update.
-    // We must use the separate /activate endpoint.
-    const workflowPayload = {
-      ...n8nWorkflowJSON,
-      // active: !!autoActivate // REMOVED to avoid "active is read-only" error
-    };
+    // Create & Activate
+    const createRes = await fetch(`${n8nBaseUrl}/api/v1/workflows`, { method: "POST", headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey }, body: JSON.stringify(n8nWorkflowJSON) });
+    if (!createRes.ok) throw new Error("n8n Create Failed");
+    const n8nResult = await createRes.json();
 
-    let n8nResult;
-    if (existingWorkflowId) {
-      console.log(`Updating existing workflow: ${existingWorkflowId}`);
-      const updateRes = await fetch(`${n8nBaseUrl}/api/v1/workflows/${existingWorkflowId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey },
-        body: JSON.stringify(workflowPayload)
-      });
-      if (!updateRes.ok) {
-        const errText = await updateRes.text();
-        throw new Error(`n8n Update Failed: ${errText}`);
-      }
-      n8nResult = await updateRes.json();
-    } else {
-      console.log("Creating new workflow");
-      const createRes = await fetch(`${n8nBaseUrl}/api/v1/workflows`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey },
-        body: JSON.stringify(workflowPayload)
-      });
-      if (!createRes.ok) {
-        const errText = await createRes.text();
-        throw new Error(`n8n Create Failed: ${errText}`);
-      }
-      n8nResult = await createRes.json();
-    }
-
-    // Force activation if requested
-    if (autoActivate) {
-      console.log(`Activating workflow ${n8nResult.id}`);
-      const activateRes = await fetch(`${n8nBaseUrl}/api/v1/workflows/${n8nResult.id}/activate`, {
-        method: "POST",
-        headers: { "X-N8N-API-KEY": n8nApiKey }
-      });
-
-      if (!activateRes.ok) {
-        const errText = await activateRes.text();
-        console.error("Activation Failed:", errText);
-        // We log but don't throw, or throw if we want strict failure. 
-        // Given previous issues, strict failure helps debug.
-        throw new Error(`Workflow created/updated but failed to activate: ${errText}`);
-      }
-    }
-
-    let finalAutomationId = automationId;
+    if (autoActivate) await fetch(`${n8nBaseUrl}/api/v1/workflows/${n8nResult.id}/activate`, { method: "POST", headers: { "X-N8N-API-KEY": n8nApiKey } });
 
     // ATOMIC DATABASE REGISTRATION
     if (autoActivate) {
@@ -1801,7 +1725,7 @@ return { json: { userId, username, isFollowing } };`
         );
       }
 
-      const { data: rpcData, error: dbError } = await supabase.rpc('register_automation', {
+      const { error: dbError } = await supabase.rpc('register_automation', {
         p_user_id: user.id,
         p_n8n_id: n8nResult.id,
         p_n8n_name: n8nResult.name,
@@ -1818,34 +1742,8 @@ return { json: { userId, username, isFollowing } };`
         console.error("RPC Error:", dbError);
         throw new Error("Database Transaction Failed: " + dbError.message);
       }
-
-      // If RPC returns the ID (it usually returns the result of the function, often the ID or the row), use it.
-      // Assuming register_automation returns the automation_id. If not, we might fall back to automationId (if provided) or have an issue.
-      // If rpcData is a scalar (uuid), assume it is the ID.
-      if (rpcData) {
-        finalAutomationId = typeof rpcData === 'object' ? rpcData.id : rpcData;
-      }
-    }
-
-    // ALWAYS UPSERT TO N8N_WORKFLOWS to ensure future updates work
-    if (finalAutomationId) {
-      const { error: upsertError } = await supabase.from("n8n_workflows").upsert({
-        user_id: user.id,
-        n8n_workflow_id: n8nResult.id,
-        n8n_workflow_name: n8nResult.name,
-        webhook_path: webhookPath,
-        instagram_account_id: instagramAccount.id,
-        template: template || 'instagram_automation_v1',
-        variables: variables || {},
-        automation_id: finalAutomationId,
-        is_active: !!autoActivate // <--- Added this to ensure activation status is set correctly
-      }, { onConflict: 'automation_id' });
-
-      if (upsertError) console.error("Upsert Error:", upsertError);
     } else {
-      // Fallback for manual upsert if not active and no ID (should trigger earlier logic usually)
-      // If not active, we didn't run RPC. So we rely on automationId passed in.
-      const { error: upsertError } = await supabase.from("n8n_workflows").upsert({
+      await supabase.from("n8n_workflows").insert({
         user_id: user.id,
         n8n_workflow_id: n8nResult.id,
         n8n_workflow_name: n8nResult.name,
@@ -1853,22 +1751,21 @@ return { json: { userId, username, isFollowing } };`
         instagram_account_id: instagramAccount.id,
         template: template || 'instagram_automation_v1',
         variables: variables || {},
-        is_active: !!autoActivate, // <--- Correctly propagate active status
         ...(automationId && { automation_id: automationId })
-      }, { onConflict: 'automation_id' });
-      if (upsertError) console.error("Upsert Error (Manual):", upsertError);
+      });
     }
 
     return new Response(JSON.stringify({
       success: true,
       workflowId: n8nResult.id,
-      name: n8nResult.name,
-      automationId: finalAutomationId // Return the ID so frontend knows
+      webhookPath: webhookPath
     }), {
+      status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
-  } catch (err: any) {
-    console.error("Error:", err);
-    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+  } catch (error: any) {
+    console.error(error);
+    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
-});
+}); 
