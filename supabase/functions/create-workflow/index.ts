@@ -279,20 +279,6 @@ Deno.serve(async (req: Request) => {
                   },
                   renameOutput: true,
                   outputKey: "Button Click"
-                },
-                {
-                  conditions: {
-                    options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
-                    conditions: [
-                      {
-                        id: "is-message",
-                        leftValue: "={{ $json.body.sub_type }}",
-                        rightValue: "message",
-                        operator: { type: "string", operation: "equals" }
-                      }
-                    ],
-                    combinator: "and"
-                  }
                 }
               ]
             },
@@ -353,8 +339,7 @@ Deno.serve(async (req: Request) => {
         connections["Event Type Switch"] = {
           main: [
             [{ node: "Loop Protection Switch", type: "main", index: 0 }], // Index 0: Trigger Event
-            [], // Index 1: Button Click (Will connect later)
-            []  // Index 2: Message (Unused?)
+            [{ node: "Button Action Switch", type: "main", index: 0 }]  // Index 1: Button Click
           ]
         };
 
@@ -377,10 +362,10 @@ Deno.serve(async (req: Request) => {
               values: [
                 {
                   conditions: {
-                    options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
+                    options: { caseSensitive: true, leftValue: "", typeValidation: "strict", version: 2 },
                     conditions: [{
                       id: "check",
-                      leftValue: "={{ $json.body.entry[0].messaging[0].message.quick_reply.payload }}",
+                      leftValue: "={{ $json.body.entry[0].messaging[0].postback?.payload }}",
                       rightValue: "CHECK_FOLLOW",
                       operator: { type: "string", operation: "equals" }
                     }],
@@ -391,24 +376,10 @@ Deno.serve(async (req: Request) => {
                 },
                 {
                   conditions: {
-                    options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
-                    conditions: [{
-                      id: "visit",
-                      leftValue: "={{ $json.body.entry[0].messaging[0].message.quick_reply.payload }}",
-                      rightValue: "VISIT_PROFILE",
-                      operator: { type: "string", operation: "equals" }
-                    }],
-                    combinator: "and"
-                  },
-                  renameOutput: true,
-                  outputKey: "Visit Profile"
-                },
-                {
-                  conditions: {
-                    options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
+                    options: { caseSensitive: true, leftValue: "", typeValidation: "strict", version: 2 },
                     conditions: [{
                       id: "send",
-                      leftValue: "={{ $json.body.entry[0].messaging[0].message.quick_reply.payload }}",
+                      leftValue: "={{ $json.body.entry[0].messaging[0].postback?.payload }}",
                       rightValue: "SEND_LINK",
                       operator: { type: "string", operation: "equals" }
                     }],
@@ -480,25 +451,7 @@ Deno.serve(async (req: Request) => {
           }
         });
 
-        // 5. Send Profile Link (for VISIT_PROFILE)
-        nodes.push({
-          id: "send-profile-link",
-          name: "Send Profile Link",
-          type: "n8n-nodes-base.httpRequest",
-          typeVersion: 4.3,
-          position: [postbackNodeX + 300, postbackNodeY + 200],
-          parameters: {
-            method: "POST",
-            url: "https://graph.instagram.com/v24.0/me/messages",
-            authentication: "predefinedCredentialType",
-            nodeCredentialType: "facebookGraphApi",
-            sendBody: true,
-            specifyBody: "json",
-            jsonBody: `={ "recipient": { "id": "{{ $json.body.entry?.[0]?.messaging?.[0]?.sender?.id }}" }, "message": { "text": "Visit my profile here: https://instagram.com/${instagramAccount.username}\\n\\nAfter you follow, tap 'I am following' button! 😊" } }`,
-            options: {}
-          },
-          credentials: { facebookGraphApi: { id: credentialId } }
-        });
+
 
 
         // CONNECT POSTBACK BRANCH
@@ -509,8 +462,7 @@ Deno.serve(async (req: Request) => {
         connections["Button Action Switch"] = {
           main: [
             [{ node: "Fetch Context", type: "main", index: 0 }], // Index 0: Check Follow
-            [{ node: "Send Profile Link", type: "main", index: 0 }], // Index 1: Visit Profile
-            [{ node: "Fetch Context", type: "main", index: 0 }]  // Index 2: Send Link
+            [{ node: "Fetch Context", type: "main", index: 0 }]  // Index 1: Send Link
           ]
         };
 
@@ -861,9 +813,12 @@ Deno.serve(async (req: Request) => {
         if (!connections[previousNode].main[0]) connections[previousNode].main[0] = [];
         connections[previousNode].main[0].push({ node: "Loop Protection Switch", type: "main", index: 0 });
 
+
         previousNode = "Loop Protection Switch";
         nodeX += 300;
       }
+
+      const triggerAnchorNode = previousNode; // Snapshot for parallel connections (Reply + Teaser)
 
       // 2. Actions Generation
       console.log(`--- GENERATING ACTIONS for Trigger: ${triggerType} ---`);
@@ -935,11 +890,11 @@ Deno.serve(async (req: Request) => {
               credentials: { facebookGraphApi: { id: credentialId } }
             });
 
-            // Connect Teaser to previousNode (Loop Protection)
-            if (!connections[previousNode]) connections[previousNode] = { main: [] };
-            if (!connections[previousNode].main[0]) connections[previousNode].main[0] = [];
-            connections[previousNode].main[0].push({ node: teaserNodeName, type: "main", index: 0 });
-            // Don't update previousNode significantly as this is the end of Trigger branch for now (unless we chain more)
+            // Connect Teaser to triggerAnchorNode (Loop Protection) for parallel execution
+            if (!connections[triggerAnchorNode]) connections[triggerAnchorNode] = { main: [] };
+            if (!connections[triggerAnchorNode].main[0]) connections[triggerAnchorNode].main[0] = [];
+            connections[triggerAnchorNode].main[0].push({ node: teaserNodeName, type: "main", index: 0 });
+            // Do not update previousNode, ensuring parallel branching
             nodeX += 300;
 
 
