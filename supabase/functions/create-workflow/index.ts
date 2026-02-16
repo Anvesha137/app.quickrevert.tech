@@ -330,6 +330,34 @@ Deno.serve(async (req: Request) => {
           }
         });
 
+        // Add Specific Post & Keyword Filtering Conditions
+        // Access config from automationData
+        const triggerConfig = automationData?.trigger_config || {};
+        const loopConditions = nodes[nodes.length - 1].parameters.rules.values[0].conditions.conditions;
+
+        if (triggerConfig.postsType === 'specific' && triggerConfig.specificPosts && triggerConfig.specificPosts.length > 0) {
+          // If specific posts, check if media.id is IN the list
+          const postIdsRegex = triggerConfig.specificPosts.join("|");
+          loopConditions.push({
+            id: "post-id-check",
+            leftValue: "={{ $json.body.entry?.[0]?.changes?.[0]?.value?.media?.id }}",
+            rightValue: postIdsRegex,
+            operator: { type: "string", operation: "regex", name: "filter.operator.regex" }
+          });
+        }
+
+        if (triggerConfig.commentsType === 'keywords' && triggerConfig.keywords && triggerConfig.keywords.length > 0) {
+          const keywordsRegex = triggerConfig.keywords.map((k: string) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join("|");
+          loopConditions.push({
+            id: "keyword-check",
+            leftValue: "={{ $json.body.entry?.[0]?.changes?.[0]?.value?.text }}",
+            rightValue: keywordsRegex,
+            operator: { type: "string", operation: "regex", name: "filter.operator.regex" }
+          });
+        }
+
+
+
         // Connect Webhook to Event Type Switch
         connections["Worker Webhook"] = {
           main: [[{ node: "Event Type Switch", type: "main", index: 0 }]]

@@ -138,11 +138,13 @@ Deno.serve(async (req: Request) => {
           if (entry.messaging) {
             for (const messageEvent of entry.messaging) {
               const senderId = messageEvent.sender?.id;
-              const messageText = messageEvent.message?.text;
-              const messageId = messageEvent.message?.mid;
               const timestamp = messageEvent.timestamp;
 
-              if (senderId && messageText) {
+              // Handle regular text messages
+              if (messageEvent.message?.text) {
+                const messageText = messageEvent.message.text;
+                const messageId = messageEvent.message.mid;
+
                 const triggerType = 'user_directed_messages';
                 const eventData = {
                   messageId,
@@ -175,7 +177,6 @@ Deno.serve(async (req: Request) => {
                   if (!execResponse.ok) {
                     const err = await execResponse.text();
                     console.error(`Execute-automation failed (${execResponse.status}):`, err);
-                    // Log specific failure
                     await supabase.from('failed_events').insert({
                       event_id: 'exec-fail-' + Date.now(),
                       payload: { status: execResponse.status, error: err, body: eventData },
@@ -191,6 +192,98 @@ Deno.serve(async (req: Request) => {
                     payload: { error: fetchErr.message },
                     error_message: `Fetch Failed: ${fetchErr.message}`
                   });
+                }
+              }
+
+              // Handle postback events (button clicks)
+              if (messageEvent.postback) {
+                const postbackPayload = messageEvent.postback.payload;
+                const postbackTitle = messageEvent.postback.title;
+
+                // DEBUG: Log the raw message event
+                console.log('🔍 RAW MESSAGE EVENT:', JSON.stringify(messageEvent, null, 2));
+                console.log(`📍 Postback received: payload="${postbackPayload}", title="${postbackTitle}"`);
+
+                // Trigger n8n workflow directly with postback event
+                const { data: n8nWorkflows, error: n8nError } = await supabase
+                  .from('n8n_workflows')
+                  .select('*')
+                  .eq('user_id', instagramAccount.user_id)
+                  .eq('is_active', true);
+
+                if (!n8nError && n8nWorkflows && n8nWorkflows.length > 0) {
+                  const n8nBaseUrl = Deno.env.get('N8N_BASE_URL') || 'https://n8n.quickrevert.tech';
+
+                  for (const workflow of n8nWorkflows) {
+                    let targetUrl = workflow.webhook_url;
+                    if (!targetUrl && workflow.webhook_path) {
+                      targetUrl = `${n8nBaseUrl}/webhook/${workflow.webhook_path}`;
+                    }
+
+                    if (!targetUrl) continue;
+
+                    console.log(`  Triggering n8n workflow: ${workflow.name} → ${targetUrl}`);
+
+                    // CORRECTED PAYLOAD STRUCTURE
+                    const n8nPayload = {
+                      body: {
+                        platform: "instagram",
+                        account_id: instagramAccount.id,
+                        event_type: "messaging",
+                        sub_type: "postback",
+                        entry: [{
+                          id: instagramUserId,
+                          messaging: [{
+                            sender: messageEvent.sender,
+                            recipient: messageEvent.recipient,
+                            timestamp: messageEvent.timestamp,
+                            postback: {
+                              payload: postbackPayload,
+                              title: postbackTitle
+                            }
+                          }]
+                        }]
+                      }
+                    };
+
+                    console.log('📤 Sending to n8n:', JSON.stringify(n8nPayload, null, 2));
+
+                    try {
+                      const n8nResponse = await fetch(targetUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(n8nPayload)
+                      });
+
+                      const responseText = await n8nResponse.text();
+                      console.log(`  N8N response: ${n8nResponse.status} - ${responseText}`);
+
+                      await supabase.from('automation_activities').insert({
+                        user_id: instagramAccount.user_id,
+                        instagram_account_id: instagramAccount.id,
+                        activity_type: 'postback_trigger',
+                        target_username: senderId,
+                        message: `Postback: ${postbackPayload}`,
+                        status: n8nResponse.ok ? 'success' : 'failed',
+                        metadata: {
+                          workflow_id: workflow.id,
+                          postback_payload: postbackPayload,
+                          postback_title: postbackTitle,
+                          response_status: n8nResponse.status,
+                          n8n_response: responseText
+                        }
+                      });
+                    } catch (n8nErr: any) {
+                      console.error(`  ❌ N8N trigger failed:`, n8nErr);
+                      await supabase.from('failed_events').insert({
+                        event_id: 'n8n-fail-' + Date.now(),
+                        payload: { error: n8nErr.message, workflow: workflow.name },
+                        error_message: `N8N trigger failed: ${n8nErr.message}`
+                      });
+                    }
+                  }
+                } else {
+                  console.log('  No active n8n workflows found for postback');
                 }
               }
             }
