@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { planType, instagramHandle, couponCode } = await req.json()
+    const { planTier, planType, instagramHandle, couponCode } = await req.json()
 
     // Initialize Razorpay
     const key_id = Deno.env.get('RAZORPAY_KEY_ID');
@@ -32,10 +32,16 @@ serve(async (req) => {
       key_secret,
     });
 
-    // Calculate Base Amount
-    // Premium Annual: 599 * 12 = 7188 INR -> 718800 paise
-    // Premium Quarterly: Changed to 1 INR -> 100 paise for testing
-    let amount = planType === 'annual' ? 718800 : 100;
+    // Calculate Base Amount (in paise)
+    // PREMIUM: Q: 899/mo (3 months), Y: 599/mo (12 months)
+    // GOLD: Q: 4999/mo (3 months), Y: 3499/mo (12 months)
+    let amount = 0;
+    if (planTier === 'gold') {
+      amount = planType === 'annual' ? (3499 * 12 * 100) : (4999 * 3 * 100);
+    } else {
+      // Default to Premium
+      amount = planType === 'annual' ? (599 * 12 * 100) : (899 * 3 * 100);
+    }
     const currency = 'INR';
 
     // Coupon Logic

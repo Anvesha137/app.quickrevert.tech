@@ -93,10 +93,24 @@ export default function Billing() {
   };
 
   const getPlanName = (id?: string) => {
-    if (!id) return 'Free';
-    if (id === 'annual') return 'Premium Annual';
-    if (id === 'quarterly') return 'Premium Quarterly';
+    if (!id) return 'Basic';
+    if (id.startsWith('premium')) return 'Premium';
+    if (id.startsWith('gold')) return 'Gold';
     return id.toUpperCase();
+  };
+
+  const getPlanPrice = (id?: string) => {
+    if (!id) return '₹0';
+    if (id === 'premium_annual') return '₹599';
+    if (id === 'premium_quarterly') return '₹899';
+    if (id === 'gold_annual') return '₹3499';
+    if (id === 'gold_quarterly') return '₹4999';
+    return 'Custom';
+  };
+
+  const getPlanLimit = (id?: string) => {
+    if (!id || id === 'basic') return 1000;
+    return 'Unlimited';
   };
 
   const formatDate = (dateStr?: string) => {
@@ -146,7 +160,7 @@ export default function Billing() {
                 <div>
                   <h3 className="text-2xl font-bold">{getPlanName(subscription?.plan_id)}</h3>
                   <div className="flex items-baseline gap-1 mt-1">
-                    <span className="text-3xl font-bold">₹{subscription?.plan_id === 'annual' ? '599' : '999'}</span>
+                    <span className="text-3xl font-bold">{getPlanPrice(subscription?.plan_id)}</span>
                     <span className="text-gray-400">/month</span>
                   </div>
                 </div>
@@ -164,7 +178,7 @@ export default function Billing() {
               </div>
               <div>
                 <p className="text-gray-500 text-sm mb-1">Billing Cycle</p>
-                <p className="font-semibold capitalize">{subscription?.plan_id || 'Monthly'}</p>
+                <p className="font-semibold capitalize">{subscription?.plan_id?.replace('_', ' ') || 'None'}</p>
               </div>
             </div>
 
@@ -189,11 +203,18 @@ export default function Billing() {
             <div className="space-y-6">
               <div>
                 <div className="flex justify-between items-end mb-2">
-                  <span className="text-sm text-gray-400">DMs Sent: <span className="text-white font-medium">{stats.dmsSent.toLocaleString()} / 3,000</span></span>
-                  <span className="text-lg font-bold">₹{subscription?.plan_id === 'annual' ? '599' : '999'} <Check className="inline-block w-4 h-4 text-green-500 ml-1" /></span>
+                  <span className="text-sm text-gray-400">DMs Sent: <span className="text-white font-medium">{stats.dmsSent.toLocaleString()} / {getPlanLimit(subscription?.plan_id)}</span></span>
+                  <span className="text-lg font-bold">{getPlanPrice(subscription?.plan_id)} <Check className="inline-block w-4 h-4 text-green-500 ml-1" /></span>
                 </div>
                 <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-600 rounded-full" style={{ width: `${(stats.dmsSent / 3000) * 100}%` }}></div>
+                  <div
+                    className="h-full bg-blue-600 rounded-full"
+                    style={{
+                      width: getPlanLimit(subscription?.plan_id) === 'Unlimited'
+                        ? '100%'
+                        : `${Math.min((stats.dmsSent / (getPlanLimit(subscription?.plan_id) as number)) * 100, 100)}%`
+                    }}
+                  ></div>
                 </div>
               </div>
 
@@ -247,34 +268,36 @@ export default function Billing() {
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-[#141417] border border-gray-800 rounded-3xl p-6 flex flex-col justify-between group">
               <div>
-                <h4 className="text-xl font-bold mb-1">Free</h4>
+                <h4 className="text-xl font-bold mb-1">Basic</h4>
                 <div className="flex items-baseline gap-1 mb-4">
                   <span className="text-2xl font-bold">₹0</span>
                   <span className="text-gray-500 text-sm">/month</span>
                 </div>
                 <ul className="space-y-2 text-sm text-gray-400">
-                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-blue-500" /> Basic DMs</li>
-                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-blue-500" /> 1 Automation</li>
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-blue-500" /> 1K DMs / mo</li>
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-blue-500" /> Basic Automations</li>
                 </ul>
               </div>
-              <button className="w-full mt-6 py-2.5 bg-gray-800 rounded-xl text-sm font-bold opacity-50 cursor-not-allowed">Current Plan</button>
+              <button className={`w-full mt-6 py-2.5 rounded-xl text-sm font-bold ${!subscription?.plan_id ? 'bg-blue-600 text-white' : 'bg-gray-800 opacity-50 cursor-not-allowed'}`}>
+                {!subscription?.plan_id ? 'Current Plan' : 'Free Forever'}
+              </button>
             </div>
 
-            <div className="bg-blue-600 border border-blue-500 rounded-3xl p-6 flex flex-col justify-between shadow-xl shadow-blue-600/20 relative overflow-hidden">
+            <div className="bg-amber-600 border border-amber-500 rounded-3xl p-6 flex flex-col justify-between shadow-xl shadow-amber-600/20 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 blur-3xl rounded-full -mr-10 -mt-10"></div>
               <div className="relative">
-                <div className="bg-white/20 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded w-fit mb-3">Popular</div>
-                <h4 className="text-xl font-bold mb-1">Pro</h4>
+                <div className="bg-white/20 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded w-fit mb-3">Enterprise</div>
+                <h4 className="text-xl font-bold mb-1">Gold</h4>
                 <div className="flex items-baseline gap-1 mb-4">
-                  <span className="text-2xl font-bold">₹999</span>
-                  <span className="text-blue-100 text-sm">/month</span>
+                  <span className="text-2xl font-bold">₹3499</span>
+                  <span className="text-amber-100 text-sm">/month</span>
                 </div>
-                <ul className="space-y-2 text-sm text-blue-50">
-                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-white" /> Priority Support</li>
-                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-white" /> Unlimited DMs</li>
+                <ul className="space-y-2 text-sm text-amber-50">
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-white" /> 2 IG Accounts</li>
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-white" /> Dedicated Expert</li>
                 </ul>
               </div>
-              <button onClick={openModal} className="w-full mt-6 py-2.5 bg-white text-blue-600 rounded-xl text-sm font-bold hover:bg-gray-100 transition-colors relative z-10">Upgrade</button>
+              <button onClick={openModal} className="w-full mt-6 py-2.5 bg-white text-amber-600 rounded-xl text-sm font-bold hover:bg-gray-100 transition-colors relative z-10">Upgrade</button>
             </div>
           </div>
         </div>

@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, userId, planType, instagramHandle, couponCode, isFree } = await req.json()
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, userId, planTier, planType, instagramHandle, couponCode, isFree } = await req.json()
 
     // 1. Verify Payment (Signature or Free Coupon)
     if (isFree) {
@@ -128,7 +128,7 @@ serve(async (req) => {
       .upsert({
         user_id: userId,
         status: 'active',
-        plan_id: planType,
+        plan_id: `${planTier || 'premium'}_${planType}`,
         current_period_end: periodEnd.toISOString(),
         razorpay_order_id: razorpay_order_id || `free_order_${Date.now()}`,
         razorpay_payment_id: razorpay_payment_id || `free_pay_${Date.now()}`,
@@ -157,10 +157,10 @@ serve(async (req) => {
         const { data: { user: userData }, error: userError } = await supabaseClient.auth.admin.getUserById(userId);
         const email = userData?.email || '';
 
-        // Determine Package Name
-        let packageName = 'Premium'; // Default
-        if (planType === 'quarterly') packageName = 'Premium Quarterly';
-        if (planType === 'annual') packageName = 'Premium Annual';
+        // Determine Package Name and Amount Paid
+        let packageName = planTier === 'gold' ? 'Gold' : 'Premium';
+        if (planType === 'quarterly') packageName += ' Quarterly';
+        if (planType === 'annual') packageName += ' Annual';
 
         // Calculate Dates in JS (IST Offset + Plan Duration)
         const now = new Date();
@@ -197,8 +197,13 @@ serve(async (req) => {
         const activeAutomationsCount = countError ? 0 : (automationsCount || 0);
         // ---------------------------------------------------------
 
-        // Calculate amount paid for the new query
-        const amountPaid = planType === 'annual' ? 7188 : 1; // Assuming 1 for quarterly as per old code, or adjust as needed
+        // Calculate amount paid (total transaction value, not monthly)
+        let amountPaid = 0;
+        if (planTier === 'gold') {
+          amountPaid = planType === 'annual' ? (3499 * 12) : (4999 * 3);
+        } else {
+          amountPaid = planType === 'annual' ? (599 * 12) : (899 * 3);
+        }
         const subscriptionEnd = expiryDate.toISOString(); // Use expiryDate calculated above
 
         await neonClient.queryObject`
@@ -223,7 +228,7 @@ serve(async (req) => {
             ${userId},
             ${instagramHandle || email}, 
             ${email}, 
-            'Pro',
+            ${packageName},
             ${planType},
             'Active',
             NOW() + INTERVAL '5 hours 30 minutes',

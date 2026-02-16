@@ -1,5 +1,5 @@
 
-import { X, CheckCircle2, Sparkles } from 'lucide-react';
+import { X, CheckCircle2, Sparkles, Zap, Crown } from 'lucide-react';
 import { useUpgradeModal } from '../contexts/UpgradeModalContext';
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,9 +11,12 @@ declare global {
     }
 }
 
+type PlanTier = 'premium' | 'gold';
+
 export default function UpgradeModal() {
     const { isOpen, closeModal, openCelebration } = useUpgradeModal();
     const { user } = useAuth();
+    const [planTier, setPlanTier] = useState<PlanTier>('premium');
     const [billingCycle, setBillingCycle] = useState<'annual' | 'quarterly'>('annual');
     const [loading, setLoading] = useState(false);
 
@@ -25,14 +28,36 @@ export default function UpgradeModal() {
 
     if (!isOpen) return null;
 
-    const features = [
+    const premiumFeatures = [
         'Unlimited Auto DM',
         'Unlimited Comment automation',
-        'Unlimited keyword triggers / post',
-        'Live* & Story automation',
+        '2 keyword triggers / post',
+        'Live & Story automation',
         'Analytics dashboard',
+        'Lead manager',
         'Ask to follow'
     ];
+
+    const goldFeatures = [
+        'Up to 2 IG accounts',
+        'All features unlocked',
+        'Dedicated Automation Expert',
+        'Mailchimp (10k emails/mo)',
+        'Advanced workflows'
+    ];
+
+    const getPrice = () => {
+        if (planTier === 'premium') {
+            return billingCycle === 'annual' ? 599 : 899;
+        } else {
+            return billingCycle === 'annual' ? 3499 : 4999;
+        }
+    };
+
+    const getTotalPayable = () => {
+        const monthly = getPrice();
+        return billingCycle === 'annual' ? monthly * 12 : monthly * 3;
+    };
 
     const handleNextStep = () => {
         setStep(2);
@@ -50,23 +75,17 @@ export default function UpgradeModal() {
 
         setLoading(true);
         try {
-            console.log("Checking environment variables...");
             const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
             const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
             const razorpayKey = (import.meta.env.VITE_RAZORPAY_KEY_ID || '').trim();
 
-            console.log(`Debug - Key Length: ${supabaseAnonKey.length}`);
-
-            if (!supabaseUrl || supabaseUrl.includes('placeholder') ||
-                !supabaseAnonKey || supabaseAnonKey.includes('placeholder') ||
-                !razorpayKey) {
-                alert(`Configuration Error: Missing Environment Variables.\n\nURL: ${supabaseUrl}\nKey: ${supabaseAnonKey ? '...present' : 'MISSING'}\nRazorpay: ${razorpayKey ? '...present' : 'MISSING'}`);
+            if (!supabaseUrl || !supabaseAnonKey || !razorpayKey) {
+                alert(`Configuration Error: Missing Environment Variables.`);
                 setLoading(false);
                 return;
             }
 
             // 1. Create Order
-            console.log("Initiating Request via Fetch...");
             const response = await fetch(`${supabaseUrl}/functions/v1/create-razorpay-order`, {
                 method: 'POST',
                 headers: {
@@ -74,6 +93,7 @@ export default function UpgradeModal() {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
+                    planTier: planTier,
                     planType: billingCycle,
                     instagramHandle: instagramHandle,
                     couponCode: couponCode
@@ -81,30 +101,17 @@ export default function UpgradeModal() {
             });
 
             const responseText = await response.text();
-            console.log("Response Status:", response.status);
-            console.log("Response Body:", responseText);
+            if (!response.ok) throw new Error(`HTTP Error ${response.status}: ${responseText}`);
 
-            if (!response.ok) {
-                // If not 2xx, throw with status and body
-                throw new Error(`HTTP Error ${response.status}: ${responseText}`);
-            }
-
-            let data;
-            try {
-                data = JSON.parse(responseText);
-            } catch (e) {
-                throw new Error(`Invalid JSON Response: ${responseText}`);
-            }
-
+            const data = JSON.parse(responseText);
             if (data?.error) throw new Error(data.error);
 
             if (data?.free) {
-                // Free Upgrade Flow
-                console.log("Free upgrade detected. Verifying directly...");
                 const { error: verifyError } = await supabase.functions.invoke('verify-razorpay-payment', {
                     body: {
                         isFree: true,
                         userId: user?.id,
+                        planTier: planTier,
                         planType: billingCycle,
                         instagramHandle: instagramHandle,
                         couponCode: couponCode
@@ -112,37 +119,36 @@ export default function UpgradeModal() {
                 });
 
                 if (verifyError) {
-                    console.error("Free Upgrade Verification Error:", verifyError);
                     alert(`Upgrade failed: ${verifyError.message || JSON.stringify(verifyError)}`);
                     return;
                 }
 
-                // Success! Show celebration
                 closeModal();
                 openCelebration();
                 return;
             }
 
             const options = {
-                key: import.meta.env.VITE_RAZORPAY_KEY_ID, // Enter the Key ID generated from the Dashboard
+                key: razorpayKey,
                 amount: data.amount,
                 currency: data.currency,
                 name: "QuickRevert",
-                description: `Premium Plan - ${billingCycle === 'annual' ? 'Annual' : 'Quarterly'}`,
+                description: `${planTier.toUpperCase()} Plan - ${billingCycle === 'annual' ? 'Annual' : 'Quarterly'}`,
                 image: "/Logo.png",
                 order_id: data.id,
                 notes: {
+                    plan_tier: planTier,
                     instagram_handle: instagramHandle,
                     coupon_code: couponCode
                 },
                 handler: async function (response: any) {
-                    // 2. Verify Payment
                     const { error: verifyError } = await supabase.functions.invoke('verify-razorpay-payment', {
                         body: {
                             razorpay_order_id: response.razorpay_order_id,
                             razorpay_payment_id: response.razorpay_payment_id,
                             razorpay_signature: response.razorpay_signature,
                             userId: user?.id,
+                            planTier: planTier,
                             planType: billingCycle,
                             instagramHandle: instagramHandle,
                             couponCode: couponCode
@@ -150,12 +156,10 @@ export default function UpgradeModal() {
                     });
 
                     if (verifyError) {
-                        console.error("Payment Verification Error:", verifyError);
                         alert(`Payment verification failed: ${verifyError.message || JSON.stringify(verifyError)}`);
                         return;
                     }
 
-                    // Success! Show celebration
                     closeModal();
                     openCelebration();
                 },
@@ -164,7 +168,7 @@ export default function UpgradeModal() {
                     email: user?.email,
                 },
                 theme: {
-                    color: "#2563EB"
+                    color: planTier === 'gold' ? "#D97706" : "#2563EB"
                 }
             };
 
@@ -173,9 +177,7 @@ export default function UpgradeModal() {
 
         } catch (error) {
             console.error('Payment failed:', error);
-            const keyUsed = import.meta.env.VITE_SUPABASE_ANON_KEY || 'N/A';
-            const urlUsed = import.meta.env.VITE_SUPABASE_URL || 'N/A';
-            alert(`Payment Failed.\n\nError: ${error.message || JSON.stringify(error)}\n\nDebug Info:\nURL: ${urlUsed}\nKey (first 20 chars): ${keyUsed.substring(0, 20)}...`);
+            alert(`Payment Failed: ${error.message}`);
         } finally {
             setLoading(false);
         }
@@ -194,85 +196,104 @@ export default function UpgradeModal() {
                         <X size={24} />
                     </button>
                     <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                        Upgrade to <span className="text-violet-600">Premium</span>
+                        Upgrade to <span className={planTier === 'gold' ? 'text-amber-600' : 'text-blue-600'}>
+                            {planTier === 'gold' ? 'Gold' : 'Premium'}
+                        </span>
                     </h2>
-                    <p className="text-gray-500 text-sm mt-1">For creators and brands ready to scale.</p>
+                    <p className="text-gray-500 text-sm mt-1">
+                        {planTier === 'gold'
+                            ? 'For serious brands running revenue via IG.'
+                            : 'For creators and brands ready to scale.'}
+                    </p>
                 </div>
 
                 <div className="px-8 py-4">
                     {/* STEP 1: Plan Selection */}
                     {step === 1 && (
                         <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+
+                            {/* Tier Selection */}
+                            <div className="flex gap-2 mb-6">
+                                <button
+                                    onClick={() => setPlanTier('premium')}
+                                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all ${planTier === 'premium'
+                                            ? 'border-blue-600 bg-blue-50 text-blue-700'
+                                            : 'border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-200'
+                                        }`}
+                                >
+                                    <Sparkles className="w-4 h-4" />
+                                    <span className="font-bold">Premium</span>
+                                </button>
+                                <button
+                                    onClick={() => setPlanTier('gold')}
+                                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all ${planTier === 'gold'
+                                            ? 'border-amber-600 bg-amber-50 text-amber-700'
+                                            : 'border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-200'
+                                        }`}
+                                >
+                                    <Crown className="w-4 h-4" />
+                                    <span className="font-bold">Gold</span>
+                                </button>
+                            </div>
+
                             {/* Features Grid */}
-                            <div className="grid grid-cols-2 gap-y-3 gap-x-6 mb-8">
-                                {features.map((feature, idx) => (
+                            <div className="grid grid-cols-1 gap-y-2 mb-8 bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
+                                {(planTier === 'gold' ? goldFeatures : premiumFeatures).map((feature, idx) => (
                                     <div key={idx} className="flex items-center gap-2.5">
-                                        <CheckCircle2 className="w-5 h-5 text-green-500 fill-green-50 flex-shrink-0" />
-                                        <span className="text-gray-700 font-medium text-sm">{feature}</span>
+                                        <CheckCircle2 className={`w-4 h-4 flex-shrink-0 ${planTier === 'gold' ? 'text-amber-500' : 'text-blue-500'}`} />
+                                        <span className="text-gray-700 font-medium text-xs">{feature}</span>
                                     </div>
                                 ))}
                             </div>
 
                             {/* Billing Toggle */}
-                            <div className="bg-gray-100/80 p-1.5 rounded-xl flex items-center mb-6 font-medium text-sm relative">
+                            <div className="bg-gray-100/80 p-1 rounded-xl flex items-center mb-6 font-medium text-sm">
                                 <button
                                     onClick={() => setBillingCycle('annual')}
-                                    className={`flex-1 py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-all duration-300 ${billingCycle === 'annual'
-                                        ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
-                                        : 'text-gray-500 hover:text-gray-700'
+                                    className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-2 transition-all duration-300 ${billingCycle === 'annual'
+                                        ? 'bg-white text-gray-900 shadow-sm'
+                                        : 'text-gray-400 hover:text-gray-600'
                                         }`}
                                 >
-                                    Annual
-                                    <span className="bg-green-500 text-white text-[10px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">
-                                        Save 33%
+                                    Yearly
+                                    <span className="text-green-600 text-[10px] font-black uppercase">
+                                        -33%
                                     </span>
                                 </button>
                                 <button
                                     onClick={() => setBillingCycle('quarterly')}
-                                    className={`flex-1 py-3 px-4 rounded-lg transition-all duration-300 ${billingCycle === 'quarterly'
-                                        ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
-                                        : 'text-gray-500 hover:text-gray-700'
+                                    className={`flex-1 py-2 rounded-lg transition-all duration-300 ${billingCycle === 'quarterly'
+                                        ? 'bg-white text-gray-900 shadow-sm'
+                                        : 'text-gray-400 hover:text-gray-600'
                                         }`}
                                 >
                                     Quarterly
                                 </button>
                             </div>
 
-                            {/* Savings Banner */}
-                            {billingCycle === 'annual' && (
-                                <div className="bg-green-50 border border-green-100 rounded-lg py-2.5 px-4 text-center mb-6">
-                                    <p className="text-green-700 text-sm font-semibold flex items-center justify-center gap-2">
-                                        <Sparkles className="w-4 h-4" />
-                                        You save <span className="underline decoration-green-300 decoration-2">₹3,600</span> per year with this plan!
-                                    </p>
-                                </div>
-                            )}
-
                             {/* Pricing Card */}
-                            <div className="bg-violet-50/50 border border-violet-100 rounded-2xl p-6 text-center mb-6">
-                                <p className="text-gray-500 font-medium text-sm mb-1">
-                                    Billed {billingCycle === 'annual' ? 'Annually' : 'Quarterly'}
+                            <div className={`rounded-2xl p-6 text-center mb-6 border ${planTier === 'gold' ? 'bg-amber-50 border-amber-100' : 'bg-blue-50 border-blue-100'}`}>
+                                <p className="text-gray-500 font-medium text-sm mb-1 uppercase tracking-wider">
+                                    {billingCycle === 'annual' ? 'ANNUAL BILLING' : 'QUARTERLY BILLING'}
                                 </p>
                                 <div className="flex items-center justify-center gap-2">
-                                    <span className="text-5xl font-extrabold text-gray-900">
-                                        ₹{billingCycle === 'annual' ? '599' : '1'}
+                                    <span className="text-5xl font-black text-gray-900">
+                                        ₹{getPrice()}
                                     </span>
-                                    {billingCycle === 'annual' && (
-                                        <span className="text-xl text-gray-400 font-semibold line-through decoration-2">
-                                            ₹899
-                                        </span>
-                                    )}
                                     <span className="text-xl text-gray-500 font-medium">/mo</span>
                                 </div>
-                                <p className="text-violet-600 font-medium text-sm mt-2">
-                                    Total payable: ₹{billingCycle === 'annual' ? '7,188' : '1'}
+                                <p className={`font-bold text-sm mt-2 ${planTier === 'gold' ? 'text-amber-700' : 'text-blue-700'}`}>
+                                    Total: ₹{getTotalPayable().toLocaleString()}
                                 </p>
                             </div>
 
                             {/* CTA Button */}
                             <button
                                 onClick={handleNextStep}
-                                className="w-full bg-blue-600 hover:bg-blue-700 text-white text-lg font-bold py-4 rounded-xl shadow-lg shadow-blue-600/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                className={`w-full text-white text-lg font-bold py-4 rounded-xl shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] ${planTier === 'gold'
+                                        ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20'
+                                        : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'
+                                    }`}
                             >
                                 Next
                             </button>
@@ -282,11 +303,6 @@ export default function UpgradeModal() {
                     {/* STEP 2: Details */}
                     {step === 2 && (
                         <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-6">
-
-                            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-800">
-                                Try <strong>QuickRevert Pro</strong> for accessing unlimited automations.
-                            </div>
-
                             <div className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">
@@ -299,22 +315,22 @@ export default function UpgradeModal() {
                                             value={instagramHandle}
                                             onChange={(e) => setInstagramHandle(e.target.value)}
                                             placeholder="your_username"
-                                            className="w-full pl-8 pr-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                                            className="w-full pl-8 pr-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium"
                                         />
                                     </div>
-                                    <p className="text-xs text-gray-500 mt-1">We need this to verify your automated account.</p>
+                                    <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider font-bold">Required for account verification</p>
                                 </div>
 
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                                        Coupon Code <span className="text-gray-400 font-normal">(Optional)</span>
+                                        Coupon Code <span className="text-gray-400 font-normal italic">(Optional)</span>
                                     </label>
                                     <input
                                         type="text"
                                         value={couponCode}
                                         onChange={(e) => setCouponCode(e.target.value)}
-                                        placeholder="ENTER CODE"
-                                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all uppercase placeholder:normal-case"
+                                        placeholder="ENTER PROMO CODE"
+                                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all uppercase placeholder:normal-case font-bold"
                                     />
                                 </div>
                             </div>
@@ -322,26 +338,23 @@ export default function UpgradeModal() {
                             <div className="pt-2 flex gap-3">
                                 <button
                                     onClick={handleBackStep}
-                                    className="px-6 py-4 rounded-xl border border-gray-200 text-gray-600 font-bold hover:bg-gray-50 transition-colors"
+                                    className="px-6 py-4 rounded-xl border border-gray-200 text-gray-500 font-bold hover:bg-gray-50 transition-colors"
                                 >
                                     Back
                                 </button>
                                 <button
                                     onClick={handleUpgrade}
                                     disabled={loading}
-                                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-lg font-bold py-4 rounded-xl shadow-lg shadow-blue-600/20 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
+                                    className={`flex-1 text-white text-lg font-bold py-4 rounded-xl shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed ${planTier === 'gold'
+                                            ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20'
+                                            : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'
+                                        }`}
                                 >
                                     {loading ? 'Processing...' : 'Proceed to Pay'}
                                 </button>
                             </div>
-
                         </div>
                     )}
-
-                    {/* Footer */}
-                    <p className="text-center text-xs text-gray-500 mt-6 font-medium">
-                        <span className="font-bold text-gray-700">Price Lock Guarantee:</span> You will keep paying this price as long as you remain subscribed.
-                    </p>
                 </div>
             </div>
         </div>
