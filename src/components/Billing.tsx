@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Check, MessageCircle, CreditCard, Calendar, Zap, Users, Download, Crown, ChevronDown, Plus, TrendingUp, Sparkles } from 'lucide-react';
+import { Check, MessageCircle, CreditCard, Calendar, Zap, Users, Crown, ChevronDown, Plus, TrendingUp, Sparkles } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useUpgradeModal } from '../contexts/UpgradeModalContext';
@@ -61,6 +61,18 @@ export default function Billing() {
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user!.id);
 
+      // Also check unique target_usernames in activities as a fallback/sync check
+      const { data: activityContacts } = await supabase
+        .from('automation_activities')
+        .select('target_username')
+        .eq('user_id', user!.id);
+
+      const uniqueFromActivities = new Set(
+        activityContacts
+          ?.map(a => a.target_username)
+          .filter(u => u && u !== 'Unknown' && !u.includes('undefined'))
+      ).size;
+
       const { count: automationsCount } = await supabase
         .from('automations')
         .select('*', { count: 'exact', head: true })
@@ -69,7 +81,7 @@ export default function Billing() {
 
       setStats({
         dmsSent: dms.length,
-        contactsEngaged: contactsCount || 0,
+        contactsEngaged: Math.max(contactsCount || 0, uniqueFromActivities),
         automationsActive: automationsCount || 0
       });
 
@@ -122,8 +134,8 @@ export default function Billing() {
         </div>
 
         {/* Section 1: Growth Plan Card */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          <div className="lg:col-span-2 bg-[#141417] border border-gray-800 rounded-3xl p-8 relative overflow-hidden group">
+        <div className="mb-8">
+          <div className="bg-[#141417] border border-gray-800 rounded-3xl p-8 relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/5 blur-[80px] rounded-full -mr-20 -mt-20"></div>
 
             <div className="flex items-start justify-between mb-6 relative">
@@ -157,36 +169,14 @@ export default function Billing() {
             </div>
 
             <div className="flex gap-4 relative">
-              <button onClick={openModal} className="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-xl transition-colors font-semibold">Change Plan</button>
-              <button className="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-xl transition-colors font-semibold">Update Payment Method</button>
-            </div>
-          </div>
-
-          {/* Payment Method Preview (Simplified as requested) */}
-          <div className="bg-[#141417] border border-gray-800 rounded-3xl p-8 flex flex-col justify-between">
-            <div className="space-y-4">
-              <div className="bg-[#1c1c21] p-4 rounded-2xl border border-gray-800">
-                <div className="flex justify-between items-center mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-6 bg-blue-600 rounded flex items-center justify-center text-[10px] font-bold">VISA</div>
-                    <span className="font-medium text-gray-300">•••• •••• •••• 4832</span>
-                  </div>
-                  <ChevronDown className="w-5 h-5 text-gray-500" />
-                </div>
-                <p className="text-xs text-gray-500">Billing Address:</p>
-                <p className="text-sm text-gray-400 font-medium">Mumbai, India</p>
-              </div>
-            </div>
-            <div className="flex gap-3 mt-6">
-              <button className="flex-1 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-xl text-xs font-bold transition-colors">Update Card</button>
-              <button className="flex-1 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-xl text-xs font-bold transition-colors">Add New</button>
+              <button onClick={openModal} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors font-semibold shadow-lg shadow-blue-600/20">Upgrade Plan</button>
+              <button className="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-xl transition-colors font-semibold">Contact Billing</button>
             </div>
           </div>
         </div>
 
-        {/* Section 2: Usage & Payment method detail */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          {/* Usage Stats (Left) */}
+        {/* Section 2: Usage Stats */}
+        <div className="mb-8">
           <div className="bg-[#141417] border border-gray-800 rounded-3xl p-8">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold">Usage This Month</h3>
@@ -221,32 +211,6 @@ export default function Billing() {
                 </div>
               </div>
               <p className="text-xs text-gray-500 pt-2 italic">Usage resets on {formatDate(subscription?.current_period_end)}</p>
-            </div>
-          </div>
-
-          {/* Payment Details (Right) */}
-          <div className="bg-[#141417] border border-gray-800 rounded-3xl p-8">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold">Billing Details</h3>
-              <div className="flex gap-4 text-xs font-medium text-gray-500">
-                <div className="flex items-center gap-1.5 px-3 py-1 bg-gray-800/50 rounded-lg">Year: 2026 <ChevronDown className="w-3 h-3" /></div>
-              </div>
-            </div>
-
-            <div className="bg-[#1c1c21] p-6 rounded-2xl border border-gray-800 mb-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-8 bg-blue-600 rounded flex items-center justify-center text-xs font-bold">VISA</div>
-                <span className="font-semibold tracking-widest text-lg">•••• •••• •••• 4832</span>
-              </div>
-              <div className="flex justify-between items-end">
-                <p className="text-xs text-gray-500 leading-relaxed uppercase tracking-wider">Payments are securely<br />processed by Razorpay</p>
-                <div className="text-right">
-                  <p className="text-xs text-gray-500 mb-1">Billing Address:</p>
-                  <button className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-xs font-bold transition-colors">
-                    <Download className="w-3.5 h-3.5" /> Download Invoice
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
         </div>

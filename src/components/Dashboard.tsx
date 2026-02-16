@@ -82,13 +82,25 @@ export default function Dashboard() {
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user!.id);
 
+      // Also check unique target_usernames in activities as a fallback/sync check
+      const { data: activityContacts } = await supabase
+        .from('automation_activities')
+        .select('target_username')
+        .eq('user_id', user!.id);
+
+      const uniqueFromActivities = new Set(
+        activityContacts
+          ?.map(a => a.target_username)
+          .filter(u => u && u !== 'Unknown' && !u.includes('undefined'))
+      ).size;
+
       if (contactsError) console.error("Error fetching contacts count:", contactsError);
 
       setStats({
         dmsTriggered: dms.length,
         activeAutomations,
         commentReplies: comments.length,
-        uniqueUsers: uniqueUsersCount || 0,
+        uniqueUsers: Math.max(uniqueUsersCount || 0, uniqueFromActivities),
         followersCount: instaAccount?.followers_count,
         initialFollowersCount: instaAccount?.initial_followers_count,
         followersLastUpdated: instaAccount?.followers_last_updated
