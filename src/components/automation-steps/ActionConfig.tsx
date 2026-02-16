@@ -327,69 +327,123 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                   </div>
 
                   {(action as SendDmAction).askToFollow && (
-                    <div className="mt-4 space-y-4 pl-4 border-l-2 border-blue-100">
-                      <div className="bg-blue-50 p-3 rounded-lg mb-4">
-                        <h4 className="font-semibold text-blue-800 mb-2">1. Initial Teaser Message</h4>
-                        <p className="text-sm text-blue-600 mb-3">This is sent first to prompt the user to click a button.</p>
-                        <div className="space-y-3">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-900 mb-2">
-                              Teaser Message
-                            </label>
-                            <textarea
-                              value={(action as SendDmAction).teaserMessage || ''}
-                              onChange={(e) => updateAction(index, { ...action, teaserMessage: e.target.value } as SendDmAction)}
-                              placeholder="Hey there! I'm so happy you're here... Click below and I'll send you the link in just a sec ✨"
-                              rows={3}
-                              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-900 mb-2">
-                              Teaser Button Text
-                            </label>
+const DEFAULT_TEASER_MESSAGE = "Hey there! I'm so happy you're here... Click below and I'll send you the link in just a sec ✨";
+                  const DEFAULT_NOT_FOLLOWING_MESSAGE = "Oops! Looks like you haven't followed me yet 👀...";
+
+                  // ... inside the component ...
+
+                  <div className="mt-4 space-y-4 pl-4 border-l-2 border-blue-100">
+                    <div className="bg-blue-50 p-3 rounded-lg mb-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <h4 className="font-semibold text-blue-800">1. Initial Teaser Message</h4>
+                          <p className="text-sm text-blue-600">This is sent first to prompt the user to click a button.</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-blue-700">Simple Msg</span>
+                          <label className="relative inline-flex items-center cursor-pointer">
                             <input
-                              type="text"
-                              value={(action as SendDmAction).teaserBtnText || ''}
-                              onChange={(e) => updateAction(index, { ...action, teaserBtnText: e.target.value } as SendDmAction)}
-                              placeholder="Send me the link"
-                              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              type="checkbox"
+                              className="sr-only peer"
+                              checked={(action as SendDmAction).teaserMessage === DEFAULT_TEASER_MESSAGE}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  updateAction(index, { ...action, teaserMessage: DEFAULT_TEASER_MESSAGE } as SendDmAction);
+                                } else {
+                                  // Optional: Clear or leave as is. Leaving as is allows editing.
+                                  // If we want to force "Simple Msg" concept, maybe we just leave it.
+                                  // But to "untoggle", user just edits the text. 
+                                  // The toggle is just a quick-setter here strictly speaking. 
+                                  // But user asked for a toggle button. 
+                                  updateAction(index, { ...action, teaserMessage: '' } as SendDmAction);
+                                }
+                              }}
                             />
-                          </div>
+                            <div className="w-9 h-5 bg-blue-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                          </label>
                         </div>
                       </div>
-
-                      <div className="bg-gray-50 p-3 rounded-lg">
-                        <h4 className="font-semibold text-gray-800 mb-2">2. Verification Failed Message</h4>
-                        <p className="text-sm text-gray-600 mb-3">Sent if they are NOT following you.</p>
-                        <div className="space-y-3">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-900 mb-2">
-                              Not Following Message
-                            </label>
-                            <textarea
-                              value={(action as SendDmAction).askToFollowMessage || ''}
-                              onChange={(e) => updateAction(index, { ...action, askToFollowMessage: e.target.value } as SendDmAction)}
-                              placeholder="Oops! Looks like you haven't followed me yet 👀..."
-                              rows={3}
-                              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-900 mb-2">
-                              'I'm Following' Button Text
-                            </label>
-                            <input
-                              type="text"
-                              value={(action as SendDmAction).askToFollowBtnText || ''}
-                              onChange={(e) => updateAction(index, { ...action, askToFollowBtnText: e.target.value } as SendDmAction)}
-                              placeholder="I'm following ✅"
-                              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            />
-                          </div>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-900 mb-2">
+                            Teaser Message
+                          </label>
+                          <textarea
+                            value={(action as SendDmAction).teaserMessage || ''}
+                            onChange={(e) => updateAction(index, { ...action, teaserMessage: e.target.value } as SendDmAction)}
+                            placeholder={DEFAULT_TEASER_MESSAGE}
+                            rows={3}
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-900 mb-2">
+                            Teaser Button Text
+                          </label>
+                          <input
+                            type="text"
+                            value={(action as SendDmAction).teaserBtnText || ''}
+                            onChange={(e) => updateAction(index, { ...action, teaserBtnText: e.target.value } as SendDmAction)}
+                            placeholder="Send me the link"
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
                         </div>
                       </div>
                     </div>
+
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <h4 className="font-semibold text-gray-800">2. Verification Failed Message</h4>
+                          <p className="text-sm text-gray-600">Sent if they are NOT following you.</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-gray-700">Simple Msg</span>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              className="sr-only peer"
+                              checked={(action as SendDmAction).askToFollowMessage === DEFAULT_NOT_FOLLOWING_MESSAGE}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  updateAction(index, { ...action, askToFollowMessage: DEFAULT_NOT_FOLLOWING_MESSAGE } as SendDmAction);
+                                } else {
+                                  updateAction(index, { ...action, askToFollowMessage: '' } as SendDmAction);
+                                }
+                              }}
+                            />
+                            <div className="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-gray-600"></div>
+                          </label>
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-900 mb-2">
+                            Not Following Message
+                          </label>
+                          <textarea
+                            value={(action as SendDmAction).askToFollowMessage || ''}
+                            onChange={(e) => updateAction(index, { ...action, askToFollowMessage: e.target.value } as SendDmAction)}
+                            placeholder={DEFAULT_NOT_FOLLOWING_MESSAGE}
+                            rows={3}
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-900 mb-2">
+                            'I'm Following' Button Text
+                          </label>
+                          <input
+                            type="text"
+                            value={(action as SendDmAction).askToFollowBtnText || ''}
+                            onChange={(e) => updateAction(index, { ...action, askToFollowBtnText: e.target.value } as SendDmAction)}
+                            placeholder="I'm following ✅"
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   )}
 
                   <div>
