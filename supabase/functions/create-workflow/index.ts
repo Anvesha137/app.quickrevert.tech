@@ -613,50 +613,388 @@ Deno.serve(async (req: Request) => {
             recipientId = "{{ $('Worker Webhook').item.json.body.entry[0].changes[0].value.from.id }}";
           }
           let jsonBody = "";
-          if (isRichMessage) {
-            const elementsButtons: any[] = [];
-            if (hasButtons) {
-              action.actionButtons.forEach((b: any) => {
-                const btnType = b.action || (b.url ? 'web_url' : 'postback');
-                if (btnType === 'web_url') {
-                  elementsButtons.push({ type: "web_url", url: b.url, title: b.text });
-                } else {
-                  elementsButtons.push({ type: "postback", title: b.text, payload: b.text });
+
+          // --- ASK TO FOLLOW LOGIC ---
+          if (action.askToFollow) {
+            console.log(`--- ADDING ASK TO FOLLOW LOGIC FOR ACTION ${index + 1} ---`);
+            const senderIdForContext = triggerType === 'post_comment'
+              ? "{{ $json.body.entry[0].changes[0].value.from.id }}"
+              : "{{ $json.body.entry[0].messaging[0].sender.id }}";
+
+            // 1. Fetch Conversation Context
+            nodes.push({
+              id: `fetch-context-${index}`,
+              name: `Fetch Context ${index + 1}`,
+              type: "n8n-nodes-base.httpRequest",
+              typeVersion: 4.3,
+              position: [nodeX, 300],
+              parameters: {
+                url: `=https://graph.instagram.com/v24.0/${senderIdForContext}`,
+                authentication: "predefinedCredentialType",
+                nodeCredentialType: "facebookGraphApi",
+                sendQuery: true,
+                queryParameters: {
+                  parameters: [
+                    {
+                      name: "fields",
+                      value: "id,username,name,follower_count,is_user_follow_business,is_business_follow_user"
+                    }
+                  ]
+                },
+                options: {}
+              },
+              credentials: { facebookGraphApi: { id: credentialId } }
+            });
+            // Connect previous node to Fetch Context
+            if (previousNode) {
+              if (triggerType === 'post_comment') {
+                if (!connections[previousNode]) {
+                  connections[previousNode] = { main: [[], []] };
                 }
-              });
+                connections[previousNode].main[0].push({ node: `Fetch Context ${index + 1}`, type: "main", index: 0 });
+              } else {
+                connections[previousNode] = { main: [[{ node: `Fetch Context ${index + 1}`, type: "main", index: 0 }]] };
+              }
             }
-            const messagePayload = {
-              recipient: { id: recipientId },
-              message: {
-                attachment: {
-                  type: "template",
-                  payload: {
-                    template_type: "generic",
-                    elements: [{
-                      title: text,
-                      ...(imageUrl ? { image_url: imageUrl } : {}),
-                      subtitle: subtitle,
-                      buttons: elementsButtons
-                    }]
-                  }
+            if (triggerType !== 'post_comment') previousNode = `Fetch Context ${index + 1}`;
+            nodeX += 250;
+
+
+            // 2. Extract Follow Status (Code Node)
+            nodes.push({
+              id: `extract-status-${index}`,
+              name: `Extract Status ${index + 1}`,
+              type: "n8n-nodes-base.code",
+              typeVersion: 2,
+              position: [nodeX, 300],
+              parameters: {
+                jsCode: `// Extract the relationship flag from conversation context
+const conversationData = $input.item.json;
+const isFollowing = conversationData.is_user_follow_business || false;
+const userId = conversationData.id;
+const username = conversationData.username || 'user';
+return {
+  json: {
+    userId: userId,
+    username: username,
+    isFollowing: isFollowing
+  }
+};`
+              }
+            });
+            connections[`Fetch Context ${index + 1}`] = { main: [[{ node: `Extract Status ${index + 1}`, type: "main", index: 0 }]] };
+            previousNode = `Extract Status ${index + 1}`;
+            nodeX += 250;
+
+            // 3. Is Following? (If Node)
+            nodes.push({
+              id: `is-following-${index}`,
+              name: `Is Following? ${index + 1}`,
+              type: "n8n-nodes-base.if",
+              typeVersion: 2.1,
+              position: [nodeX, 300],
+              parameters: {
+                conditions: {
+                  options: { caseSensitive: true, leftValue: "" },
+                  conditions: [
+                    {
+                      id: "is-following-check",
+                      leftValue: "={{ $json.isFollowing }}",
+                      rightValue: true,
+                      operator: { type: "boolean", operation: "true" }
+                    }
+                  ],
+                  combinator: "and"
                 }
               }
-            };
-            jsonBody = `=${JSON.stringify(messagePayload, null, 2)}`;
-          } else {
-            jsonBody = `={
-              "recipient": { "id": "${recipientId}" },
-              "message": { "text": "${text.replace(/"/g, '\\"')}" }
-            }`;
+            });
+            connections[`Extract Status ${index + 1}`] = { main: [[{ node: `Is Following? ${index + 1}`, type: "main", index: 0 }]] };
+            previousNode = `Is Following? ${index + 1}`;
+            nodeX += 250; // Branching happens here
+
+            // 4A. TRUE Branch: Send Reward (Original DM)
+            // Construct the original DM payload
+            if (isRichMessage) {
+              const elementsButtons: any[] = [];
+              if (hasButtons) {
+                action.actionButtons.forEach((b: any) => {
+                  const btnType = b.action || (b.url ? 'web_url' : 'postback');
+                  if (btnType === 'web_url') {
+                    elementsButtons.push({ type: "web_url", url: b.url, title: b.text });
+                  } else {
+                    elementsButtons.push({ type: "postback", title: b.text, payload: b.text });
+                  }
+                });
+              }
+              const messagePayload = {
+                recipient: { id: recipientId },
+                message: {
+                  attachment: {
+                    type: "template",
+                    payload: {
+                      template_type: "generic",
+                      elements: [{
+                        title: text,
+                        ...(imageUrl ? { image_url: imageUrl } : {}),
+                        subtitle: subtitle,
+                        buttons: elementsButtons
+                      }]
+                    }
+                  }
+                }
+              };
+              jsonBody = `=${JSON.stringify(messagePayload, null, 2)}`;
+            } else {
+              jsonBody = `={
+                  "recipient": { "id": "${recipientId}" },
+                  "message": { "text": "${text.replace(/"/g, '\\"')}" }
+                }`;
+            }
+
+            nodes.push({
+              id: `act-${index}`, // Reusing ID for consistency in tracking if needed, but names are unique
+              name: `Send Reward ${index + 1}`,
+              type: "n8n-nodes-base.httpRequest",
+              typeVersion: 4.3,
+              position: [nodeX, 200], // Upper branch
+              parameters: {
+                method: "POST",
+                url: `=https://graph.instagram.com/v24.0/me/messages`,
+                authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
+                sendBody: true, specifyBody: "json",
+                jsonBody: jsonBody,
+                options: {}
+              },
+              credentials: { facebookGraphApi: { id: credentialId } }
+            });
+
+            // 4B. FALSE Branch: Send "Not Following" Message
+            const notFollowingBody = `={
+  "recipient": {
+    "id": "${recipientId}"
+  },
+  "message": {
+    "attachment": {
+      "type": "template",
+      "payload": {
+        "template_type": "generic",
+        "elements": [
+          {
+            "title": "Oops! Looks like you haven't followed me yet 👀\\n\\nIt would mean a lot if you could visit my profile and hit that follow button 😊.",
+            "buttons": [
+              {
+                "type": "postback",
+                "title": "Visit Profile",
+                "payload": "VISIT_PROFILE"
+              },
+              {
+                "type": "postback",
+                "title": "I'm following ✅",
+                "payload": "CHECK_FOLLOW"
+              }
+            ]
           }
-          nodeParams = {
-            method: "POST",
-            url: `=https://graph.instagram.com/v24.0/me/messages`,
-            authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
-            sendBody: true, specifyBody: "json",
-            jsonBody: jsonBody,
-            options: {}
-          };
+        ]
+      }
+    }
+  }
+}`;
+            nodes.push({
+              id: `send-not-following-${index}`,
+              name: `Send Not Following ${index + 1}`,
+              type: "n8n-nodes-base.httpRequest",
+              typeVersion: 4.3,
+              position: [nodeX, 400], // Lower branch
+              parameters: {
+                method: "POST",
+                url: `=https://graph.instagram.com/v24.0/me/messages`,
+                authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
+                sendBody: true, specifyBody: "json",
+                jsonBody: notFollowingBody,
+                options: {}
+              },
+              credentials: { facebookGraphApi: { id: credentialId } }
+            });
+
+            // Wiring Is Following?
+            connections[`Is Following? ${index + 1}`] = {
+              main: [
+                [{ node: `Send Reward ${index + 1}`, type: "main", index: 0 }], // True
+                [{ node: `Send Not Following ${index + 1}`, type: "main", index: 0 }] // False
+              ]
+            };
+
+            nodeX += 300;
+
+            // 5. Button Action Switch
+            const switchRules = [
+              {
+                conditions: {
+                  options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
+                  conditions: [{
+                    id: "check-follow-payload",
+                    leftValue: "={{ $json.body.entry[0].messaging[0].postback.payload }}",
+                    rightValue: "CHECK_FOLLOW",
+                    operator: { type: "string", operation: "equals" }
+                  }],
+                  combinator: "and"
+                },
+                renameOutput: true,
+                outputKey: "Check Follow"
+              },
+              {
+                conditions: {
+                  options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
+                  conditions: [{
+                    id: "visit-profile-payload",
+                    leftValue: "={{ $json.body.entry[0].messaging[0].postback.payload }}",
+                    rightValue: "VISIT_PROFILE",
+                    operator: { type: "string", operation: "equals" }
+                  }],
+                  combinator: "and"
+                },
+                renameOutput: true,
+                outputKey: "Visit Profile"
+              }
+            ];
+
+            nodes.push({
+              id: `button-switch-${index}`,
+              name: `Button Action Switch ${index + 1}`,
+              type: "n8n-nodes-base.switch",
+              typeVersion: 3.3,
+              position: [-192, 1200 + (index * 200)], // Needs to be positioned where it can be triggered by webhook. 
+              // CRITICAL IMPL DETAIL: In the user's example, the Webhook connects to this switch too.
+              // We need to add this switch and connect the MAIN webhook to it?
+              // OR is it a separate flow? The user provided JSON shows "Worker Webhook" connects to "Button Action Switch2".
+              // So yes, we need to connect the main webhook to this switch as well.
+              parameters: { rules: { values: switchRules }, options: { ignoreCase: true } }
+            });
+
+            // Connect MAIN Webhook to this Switch
+            // We need to find the webhook node or the node that branches from it.
+            // "Worker Webhook" is usually the starting point.
+            // We need to add this switch to the connections of "Worker Webhook".
+
+            // Since this is inside a loop, we might have multiple "Ask to Follow" actions.
+            // The user example shows ONE main webhook connecting to mutiple starts.
+
+            // 5B. Send Profile Link (Visit Profile Action)
+            nodes.push({
+              id: `send-profile-link-${index}`,
+              name: `Send Profile Link ${index + 1}`,
+              type: "n8n-nodes-base.httpRequest",
+              typeVersion: 4.3,
+              position: [32, 1300 + (index * 200)],
+              parameters: {
+                method: "POST",
+                url: `=https://graph.instagram.com/v24.0/me/messages`,
+                authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
+                sendBody: true, specifyBody: "json",
+                jsonBody: `={
+  "recipient": {
+    "id": "${recipientId}"
+  },
+  "message": {
+    "text": "Visit my profile here: https://instagram.com/${instagramAccount.username}\\n\\nAfter you follow, tap 'I'm following ✅' button! 😊"
+  }
+}`,
+                options: {}
+              },
+              credentials: { facebookGraphApi: { id: credentialId } }
+            });
+
+            // Connect Button Switch
+            connections[`Button Action Switch ${index + 1}`] = {
+              main: [
+                [{ node: `Fetch Context ${index + 1}`, type: "main", index: 0 }], // Check Follow -> Go back to Fetch Context
+                [{ node: `Send Profile Link ${index + 1}`, type: "main", index: 0 }] // Visit Profile -> Send Link
+              ]
+            };
+
+            // Update logic to connect Webhook to this Button Switch
+            // We need to do this OUTSIDE the loop or handle it here by modifying the Webhook connections directly.
+            // "Worker Webhook" connections are usually set at the very beginning or via `previousNode` logic.
+            // But for `post_comment` trigger, `previousNode` is the switch/filter.
+            // However, `Button Action Switch` should be triggered by a POSTBACK webhook event.
+            // In the user's JSON, "Worker Webhook" connects to BOTH "Comment Switch" AND "Button Action Switch2".
+
+            // If this is the FIRST action, we can append to Webhook connections.
+            if (connections["Worker Webhook"]) {
+              // Check if it already has connections
+              if (!connections["Worker Webhook"].main) connections["Worker Webhook"].main = [[]];
+              // Output 0 is the only one for Webhook.
+              connections["Worker Webhook"].main[0].push({ node: `Button Action Switch ${index + 1}`, type: "main", index: 0 });
+            } else {
+              // Should exist, but if not:
+              connections["Worker Webhook"] = { main: [[{ node: `Button Action Switch ${index + 1}`, type: "main", index: 0 }]] };
+            }
+
+            // For logic consistency:
+            // The `Fetch Context` node is the entry point for the "Ask to Follow" flow. 
+            // It's triggered by the main flow (e.g. comment) AND by the "Check Follow" button click.
+            // We already connected the main flow to `Fetch Context` above (via `previousNode`).
+            // And we just connected `Button Action Switch` -> `Fetch Context`.
+
+            // RESET previousNode to null or something that indicates "end of this chain" because the chain splits?
+            // Actually, subsequent actions in the configured list should probably NOT happen if we are in this flow. 
+            // Or they should happen after "Send Reward".
+            // If there are more actions after this one, they should attach to "Send Reward".
+
+            if (triggerType !== 'post_comment') {
+              previousNode = `Send Reward ${index + 1}`;
+            }
+            // Only updates previousNode to the "Success" branch.
+            // Actions after "Ask to Follow" will only run if the user IS following (or clicks "I'm following" and passes check).
+
+          } else {
+            // --- STANDARD SEND DM LOGIC (EXISTING) ---
+            if (isRichMessage) {
+              const elementsButtons: any[] = [];
+              if (hasButtons) {
+                action.actionButtons.forEach((b: any) => {
+                  const btnType = b.action || (b.url ? 'web_url' : 'postback');
+                  if (btnType === 'web_url') {
+                    elementsButtons.push({ type: "web_url", url: b.url, title: b.text });
+                  } else {
+                    elementsButtons.push({ type: "postback", title: b.text, payload: b.text });
+                  }
+                });
+              }
+              const messagePayload = {
+                recipient: { id: recipientId },
+                message: {
+                  attachment: {
+                    type: "template",
+                    payload: {
+                      template_type: "generic",
+                      elements: [{
+                        title: text,
+                        ...(imageUrl ? { image_url: imageUrl } : {}),
+                        subtitle: subtitle,
+                        buttons: elementsButtons
+                      }]
+                    }
+                  }
+                }
+              };
+              jsonBody = `=${JSON.stringify(messagePayload, null, 2)}`;
+            } else {
+              jsonBody = `={
+                  "recipient": { "id": "${recipientId}" },
+                  "message": { "text": "${text.replace(/"/g, '\\"')}" }
+                }`;
+            }
+            nodeParams = {
+              method: "POST",
+              url: `=https://graph.instagram.com/v24.0/me/messages`,
+              authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
+              sendBody: true, specifyBody: "json",
+              jsonBody: jsonBody,
+              options: {}
+            };
+            nodeName = `Send DM ${index + 1}`;
+          }
         }
 
         if (Object.keys(nodeParams).length > 0) {

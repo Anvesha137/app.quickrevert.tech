@@ -49,6 +49,7 @@ export interface SendDmAction {
   subtitle?: string; // Also keep messageTemplate for backward compatibility
   messageTemplate?: string; // Keep for backward compatibility, but subtitle takes precedence
   actionButtons: ActionButton[];
+  askToFollow?: boolean;
 }
 
 export type Action = ReplyToCommentAction | AskToFollowAction | SendDmAction;

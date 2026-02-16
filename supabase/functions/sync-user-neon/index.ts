@@ -26,18 +26,35 @@ serve(async (req) => {
     }
 
     console.log(`Syncing user to Neon: ${email}`);
+    // Initialize Supabase Client to fetch additional data
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const supabaseClient = createClient(supabaseUrl, supabaseKey);
+
+    // Fetch Connected Instagram Account (Active)
+    const { data: instagramData } = await supabaseClient
+      .from('instagram_accounts')
+      .select('username')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    const connectedHandle = instagramData?.username || null;
+
+    // Count Active Automations
+    const { count: automationsCount, error: countError } = await supabaseClient
+      .from('automations')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('status', 'active');
+
+    // Fallback to 0 if error
+    const activeAutomationsCount = countError ? 0 : (automationsCount || 0);
+
+    console.log(`Syncing user to Neon: ${email}. Insta: ${connectedHandle}, Automations: ${activeAutomationsCount}`);
+
     const neonClient = new Client(neonDbUrl);
     await neonClient.connect();
-
-    // Upsert User (On login, we mostly want to ensure they exist)
-    // If they are new, status 'Pending', package likely NULL or 'Free' (if not specified)
-    // If they exist, we do NOTHING or Update login time?
-    // Let's just ensure they exist.
-
-    // Using ON CONFLICT (email) DO NOTHING because we don't want to overwrite 
-    // existing payment status or package if they are just logging in.
-    // UNLESS we want to capture their latest instagram handle if it changed?
-    // Let's DO NOTHING for now to be safe, or just update username.
 
     await neonClient.queryObject`
       INSERT INTO users (
@@ -46,19 +63,25 @@ serve(async (req) => {
         email, 
         status,
         deleted,
-        last_active
+        last_active,
+        connected_instagram_handle,
+        automations_count
       ) VALUES (
         ${userId},
         ${instagramHandle || fullName || email.split('@')[0]}, 
         ${email}, 
         'Pending',
         FALSE,
-        NOW() + INTERVAL '5 hours 30 minutes'
+        NOW() + INTERVAL '5 hours 30 minutes',
+        ${connectedHandle},
+        ${activeAutomationsCount}
       )
       ON CONFLICT (email) DO UPDATE SET
         username = COALESCE(EXCLUDED.username, users.username),
         deleted = FALSE,
-        last_active = NOW() + INTERVAL '5 hours 30 minutes';
+        last_active = NOW() + INTERVAL '5 hours 30 minutes',
+        connected_instagram_handle = EXCLUDED.connected_instagram_handle,
+        automations_count = EXCLUDED.automations_count;
     `;
 
     // Also Insert into Onboardings if not exists?

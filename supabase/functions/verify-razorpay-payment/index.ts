@@ -176,50 +176,83 @@ serve(async (req) => {
 
         // Upsert User
         // We use ON CONFLICT (email) DO UPDATE to ensure we don't duplicate if they already exist
-        await neonClient.queryObject(`
-             INSERT INTO users (
-               id,
-               username, 
-               email, 
-               package, 
-               promo_code, 
-               amt_paid,
-               status,
-               joining_date,
-               subscription_start_date,
-               expiry_date
-             ) VALUES (
-               $9,
-               $1, 
-               $2, 
-               $3, 
-               $4, 
-               $5, 
-               'PaidCustomer',
-               $6,
-               $7,
-               $8
-             )
-             ON CONFLICT (email) DO UPDATE SET
-               id = EXCLUDED.id,
-               package = EXCLUDED.package,
-               promo_code = EXCLUDED.promo_code,
-               amt_paid = users.amt_paid + EXCLUDED.amt_paid,
-               status = 'PaidCustomer',
-               username = EXCLUDED.username,
-               subscription_start_date = $7,
-               expiry_date = $8;
-           `, [
-          instagramHandle,
-          email,
-          packageName,
-          couponCode || null,
-          planType === 'annual' ? 7188 : 1,
-          istDate,
-          istDate,
-          expiryDate,
-          userId
-        ]);
+        // --- NEW: Sync connected handle and automations count ---
+        // Fetch Connected Instagram Account (Active)
+        const { data: instagramData } = await supabaseClient
+          .from('instagram_accounts')
+          .select('username')
+          .eq('user_id', userId)
+          .eq('status', 'active')
+          .maybeSingle();
+
+        const connectedHandle = instagramData?.username || null;
+
+        // Count Active Automations
+        const { count: automationsCount, error: countError } = await supabaseClient
+          .from('automations')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .eq('status', 'active');
+
+        const activeAutomationsCount = countError ? 0 : (automationsCount || 0);
+        // ---------------------------------------------------------
+
+        // Calculate amount paid for the new query
+        const amountPaid = planType === 'annual' ? 7188 : 1; // Assuming 1 for quarterly as per old code, or adjust as needed
+        const subscriptionEnd = expiryDate.toISOString(); // Use expiryDate calculated above
+
+        await neonClient.queryObject`
+          INSERT INTO users (
+            id,
+            username, 
+            email, 
+            package,
+            billing_cycle,
+            status,
+            subscription_start,
+            subscription_end,
+            payment_status,
+            last_payment_date,
+            amount_paid,
+            currency,
+            deleted,
+            last_active,
+            connected_instagram_handle,
+            automations_count
+          ) VALUES (
+            ${userId},
+            ${instagramHandle || email}, 
+            ${email}, 
+            'Pro',
+            ${planType},
+            'Active',
+            NOW() + INTERVAL '5 hours 30 minutes',
+            ${subscriptionEnd},
+            'paid',
+            NOW() + INTERVAL '5 hours 30 minutes',
+            ${amountPaid},
+            'INR',
+            FALSE,
+            NOW() + INTERVAL '5 hours 30 minutes',
+            ${connectedHandle},
+            ${activeAutomationsCount}
+          )
+          ON CONFLICT (email) DO UPDATE SET
+            username = COALESCE(EXCLUDED.username, users.username),
+            package = EXCLUDED.package,
+            billing_cycle = EXCLUDED.billing_cycle,
+            status = EXCLUDED.status,
+            subscription_start = EXCLUDED.subscription_start,
+            subscription_end = EXCLUDED.subscription_end,
+            payment_status = EXCLUDED.payment_status,
+            last_payment_date = EXCLUDED.last_payment_date,
+            amount_paid = EXCLUDED.amount_paid,
+            currency = EXCLUDED.currency,
+            deleted = FALSE,
+            last_active = NOW() + INTERVAL '5 hours 30 minutes',
+            connected_instagram_handle = EXCLUDED.connected_instagram_handle,
+            automations_count = EXCLUDED.automations_count;
+        `;
 
         // Increment Coupon Usage (for paid transactions)
         if (couponCode) {
