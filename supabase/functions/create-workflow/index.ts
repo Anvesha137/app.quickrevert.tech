@@ -822,8 +822,8 @@ Deno.serve(async (req: Request) => {
 
         postbackActions.forEach((action: any, i: number) => {
           const index = action.index; // Original index
-          const senderIdForContext = "{{ $json.body.entry?.[0]?.messaging?.[0]?.sender?.id }}"; // Postback always has sender
-          const recipientId = "{{ $json.body.entry?.[0]?.messaging?.[0]?.sender?.id }}"; // Same
+          const senderIdForContext = "{{ $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id }}";
+          const recipientId = "{{ $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id }}";
 
           // 3.1 Button Action Switch
           const teaserBtnText = action.teaserBtnText || "Yes, send me link";
