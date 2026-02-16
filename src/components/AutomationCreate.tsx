@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -15,8 +15,10 @@ type Step = 'basic' | 'trigger' | 'config' | 'actions';
 export default function AutomationCreate() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { id } = useParams();
   const [currentStep, setCurrentStep] = useState<Step>('basic');
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<AutomationFormData>({
     name: '',
     triggerType: null,
@@ -26,7 +28,41 @@ export default function AutomationCreate() {
 
   useEffect(() => {
     checkInstagramAccount();
-  }, [user]);
+    if (id) {
+      fetchAutomation(id);
+    }
+  }, [user, id]);
+
+  const fetchAutomation = async (automationId: string) => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('automations')
+        .select('*')
+        .eq('id', automationId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (error) throw error;
+      if (data) {
+        setFormData({
+          name: data.name,
+          triggerType: data.trigger_type,
+          triggerConfig: data.trigger_config,
+          actions: data.actions || [],
+        });
+        // Optionally jump to actions if editing? Or stay on basic.
+        // Let's stay on basic but mark steps as complete.
+      }
+    } catch (error) {
+      console.error('Error fetching automation:', error);
+      alert('Failed to load automation details');
+      navigate('/automation');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const checkInstagramAccount = async () => {
     if (!user) return;
@@ -93,7 +129,7 @@ export default function AutomationCreate() {
     setSaving(true);
 
     try {
-      console.log('Saving automation:', {
+      console.log(`${id ? 'Updating' : 'Saving'} automation:`, {
         user_id: user.id,
         name: formData.name.trim(),
         trigger_type: formData.triggerType,
@@ -102,26 +138,53 @@ export default function AutomationCreate() {
         status: 'inactive',
       });
 
-      // First, save the automation to Supabase
-      const { data: automationData, error: automationError } = await supabase
-        .from('automations')
-        .insert({
-          user_id: user.id,
-          name: formData.name.trim(),
-          trigger_type: formData.triggerType,
-          trigger_config: formData.triggerConfig,
-          actions: formData.actions,
-          status: 'inactive',
-        }).select('id').single(); // Get the ID of the created automation
+      let automationId = id;
+      let automationData;
 
-      if (automationError) {
-        console.error('Supabase error creating automation:', automationError);
-        throw automationError;
+      if (id) {
+        // Update existing automation
+        const { data, error } = await supabase
+          .from('automations')
+          .update({
+            name: formData.name.trim(),
+            trigger_type: formData.triggerType,
+            trigger_config: formData.triggerConfig,
+            actions: formData.actions,
+            // Don't reset status on edit, or maybe we should?
+            // Usually editing deactivates to ensure sync, but let's keep it simple for now or follow business logic.
+            // Let's NOT update status automatically on edit unless passed.
+            // But wait, if we change logic, we need to regenerate workflow.
+            // So we should probably set to inactive to force re-activation? 
+            // The user requested "make sure one can edit the wokflow too".
+            // If we update, we MUST regenerate the N8N workflow.
+          })
+          .eq('id', id)
+          .select('id')
+          .single();
+
+        if (error) throw error;
+        automationData = data;
+      } else {
+        // Create new automation
+        const { data, error } = await supabase
+          .from('automations')
+          .insert({
+            user_id: user.id,
+            name: formData.name.trim(),
+            trigger_type: formData.triggerType,
+            trigger_config: formData.triggerConfig,
+            actions: formData.actions,
+            status: 'inactive',
+          }).select('id').single();
+
+        if (error) throw error;
+        automationData = data;
+        automationId = data.id;
       }
 
-      // After successfully saving to Supabase, create the corresponding N8N workflow
+      // Re-generate N8N workflow (for both create and update)
       try {
-        // Fetch Instagram account details
+        // existing logic...
         const { data: instagramAccount } = await supabase
           .from('instagram_accounts')
           .select('id, instagram_user_id, username')
@@ -193,8 +256,8 @@ export default function AutomationCreate() {
             <ArrowLeft size={20} />
             Back to Automations
           </button>
-          <h1 className="text-3xl font-bold text-gray-900">Create Automation</h1>
-          <p className="text-gray-600 mt-1">Set up a new Instagram automation</p>
+          <h1 className="text-3xl font-bold text-gray-900">{id ? 'Edit Automation' : 'Create Automation'}</h1>
+          <p className="text-gray-600 mt-1">{id ? 'Update your existing automation' : 'Set up a new Instagram automation'}</p>
         </div>
 
         <div className="mb-8">

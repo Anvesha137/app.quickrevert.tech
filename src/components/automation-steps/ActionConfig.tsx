@@ -315,162 +315,223 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                         If not, we'll ask them to follow first.
                       </p>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={(action as SendDmAction).askToFollow || false}
-                        onChange={(e) => updateAction(index, { ...action, askToFollow: e.target.checked } as SendDmAction)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                    </label>
+                  </label>
+                </div>
+
+                  {(action as SendDmAction).askToFollow && (
+                <div className="mt-4 space-y-4 pl-4 border-l-2 border-blue-100">
+                  <div className="bg-blue-50 p-3 rounded-lg mb-4">
+                    <h4 className="font-semibold text-blue-800 mb-2">1. Initial Teaser Message</h4>
+                    <p className="text-sm text-blue-600 mb-3">This is sent first to prompt the user to click a button.</p>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-900 mb-2">
+                          Teaser Message
+                        </label>
+                        <textarea
+                          value={(action as SendDmAction).teaserMessage || ''}
+                          onChange={(e) => updateAction(index, { ...action, teaserMessage: e.target.value } as SendDmAction)}
+                          placeholder="Hey there! I'm so happy you're here... Click below and I'll send you the link in just a sec ✨"
+                          rows={3}
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-900 mb-2">
+                          Teaser Button Text
+                        </label>
+                        <input
+                          type="text"
+                          value={(action as SendDmAction).teaserBtnText || ''}
+                          onChange={(e) => updateAction(index, { ...action, teaserBtnText: e.target.value } as SendDmAction)}
+                          placeholder="Send me the link"
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-900 mb-2">
-                      Action Buttons ({(action as SendDmAction).actionButtons.length}/3)
-                    </label>
-                    {(action as SendDmAction).actionButtons.length > 0 && (
-                      <div className="space-y-3 mb-3">
-                        {(action as SendDmAction).actionButtons.map((button, buttonIndex) => (
-                          <div key={button.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                            <div className="flex items-center justify-between mb-3">
-                              <span className="text-sm font-medium text-gray-700">Button {buttonIndex + 1}</span>
-                              <button
-                                onClick={() => removeActionButton(index, buttonIndex)}
-                                className="text-gray-400 hover:text-red-600 transition-colors"
-                              >
-                                <X size={18} />
-                              </button>
-                            </div>
-                            <div className="space-y-3">
-                              <input
-                                type="text"
-                                value={button.text}
-                                onChange={(e) => updateActionButton(index, buttonIndex, 'text', e.target.value)}
-                                placeholder="Button text"
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              />
-                              <div className="relative">
-                                <select
-                                  value={(button as any).action || (button.url ? 'web_url' : 'postback')}
-                                  onChange={(e) => updateActionButton(index, buttonIndex, 'action', e.target.value)}
-                                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white pr-10"
-                                >
-                                  <option value="postback">Reply (Postback)</option>
-                                  <option value="web_url">Web URL</option>
-                                  <option value="calendar">Book Calendar</option>
-                                </select>
-                                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
-                              </div>
-                              {((button as any).action === 'web_url' || (!(button as any).action && button.url && button.url !== 'calendar')) && (
-                                <input
-                                  type="url"
-                                  value={button.url === 'calendar' ? '' : (button.url || '')}
-                                  onChange={(e) => updateActionButton(index, buttonIndex, 'url', e.target.value)}
-                                  placeholder="https://example.com"
-                                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                />
-                              )}
-                              {((button as any).action === 'calendar' || (!(button as any).action && button.url === 'calendar')) && (
-                                <p className="text-sm text-gray-600 bg-blue-50 p-2 rounded border border-blue-100">
-                                  📅 This button will open your calendar booking link
-                                </p>
-                              )}
-                              {((button as any).action === 'postback' || (!(button as any).action && !button.url)) && (
-                                <p className="text-sm text-gray-600 bg-blue-50 p-2 rounded border border-blue-100">
-                                  💬 This button will send a postback that triggers a reply action in the workflow
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        ))}
+                  <div className="bg-gray-50 p-3 rounded-lg">
+                    <h4 className="font-semibold text-gray-800 mb-2">2. Verification Failed Message</h4>
+                    <p className="text-sm text-gray-600 mb-3">Sent if they are NOT following you.</p>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-900 mb-2">
+                          Not Following Message
+                        </label>
+                        <textarea
+                          value={(action as SendDmAction).askToFollowMessage || ''}
+                          onChange={(e) => updateAction(index, { ...action, askToFollowMessage: e.target.value } as SendDmAction)}
+                          placeholder="Oops! Looks like you haven't followed me yet 👀..."
+                          rows={3}
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
                       </div>
-                    )}
-                    {(action as SendDmAction).actionButtons.length < 3 && (
-                      <button
-                        onClick={() => addActionButton(index)}
-                        className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 transition-colors"
-                      >
-                        <Sparkles size={16} />
-                        Add Action Button
-                      </button>
-                    )}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-900 mb-2">
+                          'I'm Following' Button Text
+                        </label>
+                        <input
+                          type="text"
+                          value={(action as SendDmAction).askToFollowBtnText || ''}
+                          onChange={(e) => updateAction(index, { ...action, askToFollowBtnText: e.target.value } as SendDmAction)}
+                          placeholder="I'm following ✅"
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
-            </div>
-          ))}
 
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${(action as SendDmAction).askToFollow ? 'text-green-700 font-bold mt-6' : 'text-gray-900'}`}>
+                  {(action as SendDmAction).askToFollow ? '3. Verification Success Actions (The Reward)' : `Action Buttons (${(action as SendDmAction).actionButtons.length}/3)`}
+                </label>
+                {(action as SendDmAction).actionButtons.length > 0 && (
+                  <div className="space-y-3 mb-3">
+                    {(action as SendDmAction).actionButtons.map((button, buttonIndex) => (
+                      <div key={button.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-sm font-medium text-gray-700">Button {buttonIndex + 1}</span>
+                          <button
+                            onClick={() => removeActionButton(index, buttonIndex)}
+                            className="text-gray-400 hover:text-red-600 transition-colors"
+                          >
+                            <X size={18} />
+                          </button>
+                        </div>
+                        <div className="space-y-3">
+                          <input
+                            type="text"
+                            value={button.text}
+                            onChange={(e) => updateActionButton(index, buttonIndex, 'text', e.target.value)}
+                            placeholder="Button text"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                          <div className="relative">
+                            <select
+                              value={(button as any).action || (button.url ? 'web_url' : 'postback')}
+                              onChange={(e) => updateActionButton(index, buttonIndex, 'action', e.target.value)}
+                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white pr-10"
+                            >
+                              <option value="postback">Reply (Postback)</option>
+                              <option value="web_url">Web URL</option>
+                              <option value="calendar">Book Calendar</option>
+                            </select>
+                            <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                          </div>
+                          {((button as any).action === 'web_url' || (!(button as any).action && button.url && button.url !== 'calendar')) && (
+                            <input
+                              type="url"
+                              value={button.url === 'calendar' ? '' : (button.url || '')}
+                              onChange={(e) => updateActionButton(index, buttonIndex, 'url', e.target.value)}
+                              placeholder="https://example.com"
+                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                          )}
+                          {((button as any).action === 'calendar' || (!(button as any).action && button.url === 'calendar')) && (
+                            <p className="text-sm text-gray-600 bg-blue-50 p-2 rounded border border-blue-100">
+                              📅 This button will open your calendar booking link
+                            </p>
+                          )}
+                          {((button as any).action === 'postback' || (!(button as any).action && !button.url)) && (
+                            <p className="text-sm text-gray-600 bg-blue-50 p-2 rounded border border-blue-100">
+                              💬 This button will send a postback that triggers a reply action in the workflow
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {(action as SendDmAction).actionButtons.length < 3 && (
+                  <button
+                    onClick={() => addActionButton(index)}
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 transition-colors"
+                  >
+                    <Sparkles size={16} />
+                    Add Action Button
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+
+      <button
+        onClick={() => setShowActionSelector(true)}
+        className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-500 hover:text-blue-600 transition-colors font-medium flex items-center justify-center gap-2"
+      >
+        <Plus size={20} />
+        Add Another Action
+      </button>
+    </div>
+  )
+}
+
+{
+  showActionSelector && (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-bold text-gray-900">Choose Action Type</h3>
           <button
-            onClick={() => setShowActionSelector(true)}
-            className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-500 hover:text-blue-600 transition-colors font-medium flex items-center justify-center gap-2"
+            onClick={() => setShowActionSelector(false)}
+            className="text-gray-400 hover:text-gray-600"
           >
-            <Plus size={20} />
-            Add Another Action
+            <X size={24} />
           </button>
         </div>
-      )}
-
-      {showActionSelector && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-gray-900">Choose Action Type</h3>
+        <p className="text-gray-600 mb-6">
+          Available actions for "{getTriggerName(triggerType)}" trigger:
+        </p>
+        <div className="space-y-3">
+          {availableActions.map((actionOption, index) => {
+            const Icon = actionOption.icon;
+            return (
               <button
-                onClick={() => setShowActionSelector(false)}
-                className="text-gray-400 hover:text-gray-600"
+                key={actionOption.type}
+                onClick={() => addAction(actionOption.type)}
+                className="w-full text-left p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all flex items-start gap-4"
               >
-                <X size={24} />
+                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-100 flex-shrink-0">
+                  <Icon className="w-5 h-5 text-blue-600" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-200 text-sm font-semibold text-gray-700">
+                      {index + 1}
+                    </span>
+                    <h4 className="font-semibold text-gray-900">{actionOption.name}</h4>
+                  </div>
+                  <p className="text-sm text-gray-600">{actionOption.description}</p>
+                </div>
               </button>
-            </div>
-            <p className="text-gray-600 mb-6">
-              Available actions for "{getTriggerName(triggerType)}" trigger:
-            </p>
-            <div className="space-y-3">
-              {availableActions.map((actionOption, index) => {
-                const Icon = actionOption.icon;
-                return (
-                  <button
-                    key={actionOption.type}
-                    onClick={() => addAction(actionOption.type)}
-                    className="w-full text-left p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all flex items-start gap-4"
-                  >
-                    <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-100 flex-shrink-0">
-                      <Icon className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-200 text-sm font-semibold text-gray-700">
-                          {index + 1}
-                        </span>
-                        <h4 className="font-semibold text-gray-900">{actionOption.name}</h4>
-                      </div>
-                      <p className="text-sm text-gray-600">{actionOption.description}</p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+            );
+          })}
         </div>
-      )}
-
-      <div className="flex justify-between pt-4">
-        <button
-          onClick={onBack}
-          className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-        >
-          Back
-        </button>
-        <button
-          onClick={onSave}
-          disabled={!canSave || saving}
-          className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center gap-2"
-        >
-          {saving ? 'Saving...' : 'Save Automation'}
-        </button>
       </div>
     </div>
+  )
+}
+
+<div className="flex justify-between pt-4">
+  <button
+    onClick={onBack}
+    className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+  >
+    Back
+  </button>
+  <button
+    onClick={onSave}
+    disabled={!canSave || saving}
+    className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center gap-2"
+  >
+    {saving ? 'Saving...' : 'Save Automation'}
+  </button>
+</div>
+    </div >
   );
 }

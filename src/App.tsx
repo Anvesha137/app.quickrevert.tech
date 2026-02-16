@@ -58,6 +58,7 @@ function AppContent() {
           <Route path="/dashboard" element={<Navigate to="/" replace />} />
           <Route path="/automation" element={<div className="ml-0 md:ml-64 pb-20 md:pb-0 flex-1"><Automations /></div>} />
           <Route path="/automation/create" element={<div className="ml-0 md:ml-64 pb-20 md:pb-0 flex-1"><AutomationCreate /></div>} />
+          <Route path="/automation/edit/:id" element={<div className="ml-0 md:ml-64 pb-20 md:pb-0 flex-1"><AutomationCreate /></div>} />
           <Route path="/contacts" element={<Contacts />} />
 
           <Route path="/billing" element={<Billing />} />
