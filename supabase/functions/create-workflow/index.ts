@@ -861,24 +861,50 @@ Deno.serve(async (req: Request) => {
             // *** 1. TEASER DM (Trigger Branch) ***
             // Connects to Loop Protection Switch
             console.log(`--- GENERATING TEASER DM (` + index + `) ---`);
-            const teaserText = action.teaserMessage || "Hey there! I'm so happy you're here, thanks so much for your interest 😊\\n\\nClick below and I'll send you the link in just a sec ✨";
-            const teaserBtn = action.teaserBtnText || "Send me the link";
+            const teaserText = action.teaserMessage || "You asked for the access?";
+            const teaserBtn = action.teaserBtnText || "Yes, send me link";
 
             let teaserJsonBody;
             if (triggerType === 'post_comment') {
               teaserJsonBody = {
                 recipient: { comment_id: "{{ $json.body.entry[0].changes[0].value.id }}" },
                 message: {
-                  text: teaserText,
-                  quick_replies: [{ content_type: "text", title: teaserBtn, payload: "SEND_LINK" }]
+                  attachment: {
+                    type: "template",
+                    payload: {
+                      template_type: "generic",
+                      elements: [{
+                        title: teaserText,
+                        subtitle: "Tap below to continue ✨",
+                        buttons: [{
+                          type: "postback",
+                          title: teaserBtn,
+                          payload: "SEND_LINK"
+                        }]
+                      }]
+                    }
+                  }
                 }
               };
             } else {
               teaserJsonBody = {
                 recipient: { id: "{{ $json.body.entry[0].messaging[0].sender.id }}" },
                 message: {
-                  text: teaserText,
-                  quick_replies: [{ content_type: "text", title: teaserBtn, payload: "SEND_LINK" }]
+                  attachment: {
+                    type: "template",
+                    payload: {
+                      template_type: "generic",
+                      elements: [{
+                        title: teaserText,
+                        subtitle: "Tap below to continue ✨",
+                        buttons: [{
+                          type: "postback",
+                          title: teaserBtn,
+                          payload: "SEND_LINK"
+                        }]
+                      }]
+                    }
+                  }
                 }
               };
             }
@@ -948,14 +974,34 @@ Deno.serve(async (req: Request) => {
             // *** 3. ASK TO FOLLOW DM (Postback False Branch) ***
             // Connects to Is Following? (Index 1)
             const askNodeName = `Ask to Follow ${index + 1}`;
-            const askText = action.askToFollowMessage || "Please follow us to get access! 👇";
-            const askBtn = action.askToFollowBtnText || "I am following";
+            const askText = action.askToFollowMessage || "Oops! You haven't followed me yet 👀";
+            const askBtn = action.askToFollowBtnText || "I'm following ✅";
 
             const askJsonBody = {
               recipient: { id: rewardRecipientId },
               message: {
-                text: askText,
-                quick_replies: [{ content_type: "text", title: askBtn, payload: "CHECK_FOLLOW" }]
+                attachment: {
+                  type: "template",
+                  payload: {
+                    template_type: "generic",
+                    elements: [{
+                      title: askText,
+                      subtitle: "Please follow first, then tap below 😊",
+                      buttons: [
+                        {
+                          type: "web_url",
+                          title: "Visit Profile",
+                          url: `https://www.instagram.com/${instagramAccount.username}/`
+                        },
+                        {
+                          type: "postback",
+                          title: askBtn,
+                          payload: "CHECK_FOLLOW"
+                        }
+                      ]
+                    }]
+                  }
+                }
               }
             };
 
