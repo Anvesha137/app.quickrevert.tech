@@ -78,14 +78,25 @@ Deno.serve(async (req: Request) => {
       // B. INSERT ROUTES (Messaging + Comments) FOR ALL User's Accounts
       const newRoutes = [];
       for (const account of accountMappings) {
+        // Broad Messaging Route (Wildcard)
         newRoutes.push({
           account_id: account.id,
           user_id: user.id,
           n8n_workflow_id: workflowId,
           event_type: 'messaging',
-          sub_type: 'message',
+          sub_type: null,
           is_active: true
         });
+        // Explicit Postback Route
+        newRoutes.push({
+          account_id: account.id,
+          user_id: user.id,
+          n8n_workflow_id: workflowId,
+          event_type: 'messaging',
+          sub_type: 'postback',
+          is_active: true
+        });
+        // Broad Changes Route (Comments)
         newRoutes.push({
           account_id: account.id,
           user_id: user.id,

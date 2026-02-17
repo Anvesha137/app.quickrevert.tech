@@ -1087,6 +1087,29 @@ return { json: { userId, username, isFollowing } };`
       const globalRoutesPayload: any[] = [];
       const trackedPostsPayload: any[] = [];
 
+      // ALWAYS REGISTER GLOBAL ROUTES for messaging/postback/changes 
+      // This ensures that even for 'specific post' triggers, follow-up messages/buttons will find the route.
+      globalRoutesPayload.push(
+        {
+          account_id: instagramAccount.id,
+          event_type: 'messaging',
+          sub_type: null,
+          is_active: true
+        },
+        {
+          account_id: instagramAccount.id,
+          event_type: 'messaging',
+          sub_type: 'postback',
+          is_active: true
+        },
+        {
+          account_id: instagramAccount.id,
+          event_type: 'changes',
+          sub_type: null,
+          is_active: true
+        }
+      );
+
       const isSpecificPostTrigger = automationData && automationData.trigger_type === 'post_comment' && automationData.trigger_config && automationData.trigger_config.postsType === 'specific';
 
       if (isSpecificPostTrigger) {
@@ -1101,27 +1124,6 @@ return { json: { userId, username, isFollowing } };`
             });
           });
         }
-      } else {
-        globalRoutesPayload.push(
-          {
-            account_id: instagramAccount.id,
-            event_type: 'messaging',
-            sub_type: null,
-            is_active: true
-          },
-          {
-            account_id: instagramAccount.id,
-            event_type: 'messaging',
-            sub_type: 'postback',
-            is_active: true
-          },
-          {
-            account_id: instagramAccount.id,
-            event_type: 'changes',
-            sub_type: null,
-            is_active: true
-          }
-        );
       }
 
       const { error: dbError } = await supabase.rpc('register_automation', {

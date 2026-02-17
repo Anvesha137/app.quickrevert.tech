@@ -636,6 +636,8 @@ async function routeAndTrigger(normalized: any) {
         }
     }
 
+    console.log(`[ROUTING DEBUG] Searching routes for AccountUUID: ${normalized.account_id}, Event: ${normalized.event_type}, Sub: ${normalized.sub_type}`);
+
     let routes = [];
 
     if (specificWorkflowId) {
@@ -643,19 +645,51 @@ async function routeAndTrigger(normalized: any) {
         routes = [{ n8n_workflow_id: specificWorkflowId }];
     } else {
         // 2. Fallback: Global Routes
+        // Try UUID match first
         const { data: globalRoutes, error } = await supabase
             .from('automation_routes')
-            .select('n8n_workflow_id, sub_type')
+            .select('n8n_workflow_id, sub_type, account_id')
             .eq('account_id', normalized.account_id)
-            .eq('event_type', normalized.event_type) // e.g. 'messaging'
+            .eq('event_type', normalized.event_type)
             .eq('is_active', true)
             .or(`sub_type.eq.${normalized.sub_type},sub_type.is.null`);
 
         if (error) { console.error("Route Lookup Error:", error); return; }
-        routes = globalRoutes || [];
+
+        if (globalRoutes && globalRoutes.length > 0) {
+            console.log(`[ROUTING DEBUG] Found ${globalRoutes.length} routes via UUID.`);
+            routes = globalRoutes;
+        } else {
+            console.warn(`[ROUTING DEBUG] No routes found for UUID ${normalized.account_id}. Trying Legacy Meta ID lookup...`);
+
+            // LEGACY FALLBACK: Try Meta ID from the entry.id (if we have it)
+            // normalized.payload?.recipient?.id or normalized.payload?.sender?.id might be the Meta ID
+            // Actually, entry.id is the Meta ID. We should have passed it.
+            const metaId = normalized.entry?.[0]?.id;
+            if (metaId) {
+                const { data: legacyRoutes } = await supabase
+                    .from('automation_routes')
+                    .select('n8n_workflow_id, sub_type')
+                    .eq('account_id', String(metaId))
+                    .eq('event_type', normalized.event_type)
+                    .eq('is_active', true)
+                    .or(`sub_type.eq.${normalized.sub_type},sub_type.is.null`);
+
+                if (legacyRoutes && legacyRoutes.length > 0) {
+                    console.log(`[ROUTING DEBUG] Found ${legacyRoutes.length} routes via Legacy Meta ID ${metaId}.`);
+                    routes = legacyRoutes;
+                }
+            }
+        }
     }
 
-    if (!routes || routes.length === 0) { console.log("No active routes found (Specific or Global)."); return; }
+    if (!routes || routes.length === 0) {
+        console.warn(`[ROUTING FAILED] No active routes found for Account ${normalized.account_id} (Type: ${normalized.event_type}, Sub: ${normalized.sub_type})`);
+        // Log all routes for this account to see what's actually there
+        const { data: allRoutes } = await supabase.from('automation_routes').select('*').eq('account_id', normalized.account_id);
+        console.log(`[ROUTING FAILED] All routes for this account:`, JSON.stringify(allRoutes));
+        return;
+    }
 
     // Resolve Webhook Paths
     const workflowIds = routes.map(r => r.n8n_workflow_id);
