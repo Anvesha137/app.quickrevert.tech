@@ -1,9 +1,9 @@
-
 import { X, CheckCircle2, Sparkles, Zap, Crown } from 'lucide-react';
 import { useUpgradeModal } from '../contexts/UpgradeModalContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { useSubscription } from '../contexts/SubscriptionContext';
 
 declare global {
     interface Window {
@@ -16,9 +16,22 @@ type PlanTier = 'premium' | 'gold';
 export default function UpgradeModal() {
     const { isOpen, closeModal, openCelebration } = useUpgradeModal();
     const { user } = useAuth();
+    const { isPremium, isGold } = useSubscription();
     const [planTier, setPlanTier] = useState<PlanTier>('premium');
     const [billingCycle, setBillingCycle] = useState<'annual' | 'quarterly'>('annual');
     const [loading, setLoading] = useState(false);
+
+    // Default to Gold if already Premium
+    useEffect(() => {
+        if (isOpen) {
+            if (isPremium && !isGold) {
+                setPlanTier('gold');
+            } else {
+                setPlanTier('premium');
+            }
+            setStep(1);
+        }
+    }, [isOpen, isPremium, isGold]);
 
     // Step 1: Select Plan
     // Step 2: Enter Details (Insta ID, Coupon)
@@ -217,8 +230,8 @@ export default function UpgradeModal() {
                                 <button
                                     onClick={() => setPlanTier('premium')}
                                     className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all ${planTier === 'premium'
-                                            ? 'border-blue-600 bg-blue-50 text-blue-700'
-                                            : 'border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-200'
+                                        ? 'border-blue-600 bg-blue-50 text-blue-700'
+                                        : 'border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-200'
                                         }`}
                                 >
                                     <Sparkles className="w-4 h-4" />
@@ -227,8 +240,8 @@ export default function UpgradeModal() {
                                 <button
                                     onClick={() => setPlanTier('gold')}
                                     className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all ${planTier === 'gold'
-                                            ? 'border-amber-600 bg-amber-50 text-amber-700'
-                                            : 'border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-200'
+                                        ? 'border-amber-600 bg-amber-50 text-amber-700'
+                                        : 'border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-200'
                                         }`}
                                 >
                                     <Crown className="w-4 h-4" />
@@ -291,8 +304,8 @@ export default function UpgradeModal() {
                             <button
                                 onClick={handleNextStep}
                                 className={`w-full text-white text-lg font-bold py-4 rounded-xl shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] ${planTier === 'gold'
-                                        ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20'
-                                        : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'
+                                    ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20'
+                                    : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'
                                     }`}
                             >
                                 Next
@@ -346,8 +359,8 @@ export default function UpgradeModal() {
                                     onClick={handleUpgrade}
                                     disabled={loading}
                                     className={`flex-1 text-white text-lg font-bold py-4 rounded-xl shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed ${planTier === 'gold'
-                                            ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20'
-                                            : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'
+                                        ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20'
+                                        : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'
                                         }`}
                                 >
                                     {loading ? 'Processing...' : 'Proceed to Pay'}

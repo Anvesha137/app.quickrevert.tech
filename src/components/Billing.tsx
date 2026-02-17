@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Check, Zap, Tag, Calendar, CreditCard, ChevronRight } from 'lucide-react';
+import { Check, Zap, Tag, Calendar, CreditCard, ChevronRight, RefreshCw, Plus } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useUpgradeModal } from '../contexts/UpgradeModalContext';
@@ -20,7 +20,7 @@ interface BillingUsage {
   automations: number;
 }
 
-const useSubscription = () => {
+const useSubscriptionData = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
@@ -78,7 +78,7 @@ const useSubscription = () => {
 };
 
 const Billing = () => {
-  const { subscription, usage, loading } = useSubscription();
+  const { subscription, usage, loading } = useSubscriptionData();
   const { openModal: openUpgradeModal } = useUpgradeModal();
   const [activeTab, setActiveTab] = useState<'overview' | 'invoices'>('overview');
 
@@ -112,8 +112,9 @@ const Billing = () => {
     );
   }
 
-  const isGold = subscription?.plan_id?.startsWith('gold');
-  const planLimit = isGold || subscription?.plan_id?.startsWith('premium') ? 'Unlimited' : 1000;
+  const isPremium = subscription?.plan_id?.startsWith('premium');
+  const isGold = subscription?.plan_id?.startsWith('gold') || subscription?.plan_id?.startsWith('enterprise');
+  const planLimit = isGold || isPremium ? 'Unlimited' : 1000;
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
@@ -127,13 +128,15 @@ const Billing = () => {
             Comprehensive control over your digital growth engine.
           </p>
         </div>
-        <button
-          onClick={openUpgradeModal}
-          className="px-8 py-4 bg-gradient-to-br from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-black rounded-2xl transition-all hover:scale-[1.03] active:scale-[0.97] shadow-xl shadow-blue-500/20 flex items-center gap-3 group border border-blue-400/20"
-        >
-          <Zap className="w-5 h-5 group-hover:scale-125 transition-transform" />
-          UPGRADE NOW
-        </button>
+        {!isGold && (
+          <button
+            onClick={openUpgradeModal}
+            className="px-8 py-4 bg-gradient-to-br from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-black rounded-2xl transition-all hover:scale-[1.03] active:scale-[0.97] shadow-xl shadow-blue-500/20 flex items-center gap-3 group border border-blue-400/20"
+          >
+            <Zap className="w-5 h-5 group-hover:scale-125 transition-transform" />
+            {isPremium ? 'UPGRADE TO GOLD' : 'UPGRADE NOW'}
+          </button>
+        )}
       </div>
 
       {/* Tabs Layout */}
@@ -216,12 +219,33 @@ const Billing = () => {
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-4 mt-12">
+              {/* Renewal Section */}
+              <div className="mt-10 p-6 bg-white/[0.02] border border-white/5 rounded-3xl space-y-4">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Renew Your Success</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    onClick={openUpgradeModal}
+                    className="py-3 px-4 bg-white/5 hover:bg-white/10 text-white rounded-xl text-[10px] font-black border border-white/10 transition-all flex items-center justify-center gap-2"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    RENEW QUARTERLY
+                  </button>
+                  <button
+                    onClick={openUpgradeModal}
+                    className="py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[10px] font-black border border-blue-500/20 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    RENEW YEARLY
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-4 mt-8">
                 <button
                   onClick={openUpgradeModal}
                   className="flex-1 px-8 py-5 bg-white text-black font-black text-xs tracking-widest rounded-2xl hover:bg-gray-100 transition-all uppercase shadow-2xl shadow-white/5 flex items-center justify-center gap-2"
                 >
-                  Manage Membership
+                  {isPremium ? 'Upgrade to GOLD' : 'Manage Membership'}
                   <ChevronRight className="w-4 h-4" />
                 </button>
                 <button className="px-8 py-5 bg-white/[0.03] hover:bg-white/[0.07] text-white font-black text-xs tracking-widest rounded-2xl border border-white/10 transition-all uppercase">

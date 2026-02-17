@@ -66,12 +66,16 @@ export default function Sidebar() {
             location.pathname.startsWith(item.path + '/') ||
             (item.id === 'dashboard' && location.pathname === '/');
 
+          const activeGradient = isPremium
+            ? 'bg-gradient-to-r from-indigo-600 to-violet-700 shadow-indigo-500/50'
+            : 'bg-gradient-to-r from-blue-500 to-purple-600 shadow-purple-500/50';
+
           return (
             <Link
               key={item.id}
               to={item.path}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${isActive
-                ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-purple-500/50'
+                ? `${activeGradient} text-white shadow-lg`
                 : 'text-gray-700 hover:bg-white/50 hover:backdrop-blur-md transition-colors'
                 }`}
             >
@@ -85,14 +89,17 @@ export default function Sidebar() {
       {/* Usage Stats Section */}
       <div className="mt-auto space-y-2 -mx-1">
         <UsageStats />
-        {!isPremium && (
+        {(!isPremium || (subscription?.plan_id?.startsWith('premium'))) && (
           <div className="px-4">
             <button
               onClick={openModal}
-              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 text-white text-sm font-bold shadow-lg shadow-red-500/40 hover:shadow-red-500/60 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 group"
+              className={`w-full py-2.5 px-4 rounded-xl text-white text-sm font-bold shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 group ${isPremium
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-600 shadow-amber-500/40 hover:shadow-amber-500/60'
+                  : 'bg-gradient-to-r from-red-500 to-rose-600 shadow-red-500/40 hover:shadow-red-500/60'
+                }`}
             >
               <Crown className="w-4 h-4 text-white fill-white group-hover:animate-pulse" />
-              Upgrade to Pro
+              {isPremium ? 'Upgrade to GOLD' : 'Upgrade to Pro'}
             </button>
           </div>
         )}
