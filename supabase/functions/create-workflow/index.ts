@@ -1158,6 +1158,12 @@ return { json: { userId, username, isFollowing } };`
           },
           {
             account_id: instagramAccount.instagram_user_id,
+            event_type: 'messaging',
+            sub_type: 'postback',
+            is_active: true
+          },
+          {
+            account_id: instagramAccount.instagram_user_id,
             event_type: 'changes',
             sub_type: null,
             is_active: true
