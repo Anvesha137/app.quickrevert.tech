@@ -143,8 +143,14 @@ serve(async (req) => {
           discountRs = Math.floor(baseAmountRs * (couponData.discount_percentage / 100));
         }
       }
-      amountPaidRs = Math.max(1, baseAmountRs - discountRs); // Razorpay min 1 Rs
+      // Allow 0 Rs if coupon covers 100%
+      amountPaidRs = Math.max(0, baseAmountRs - discountRs);
     }
+
+    // 3. Update Supabase Subscription Status
+    // Fetch user email from Supabase (needed early for schema sync and dashboard sync)
+    const { data: { user: userData }, error: userError } = await supabaseClient.auth.admin.getUserById(userId);
+    const email = userData?.email || '';
 
     // Calculate Period End (Renewal Logic)
     const { data: existingSub } = await supabaseClient
@@ -173,6 +179,7 @@ serve(async (req) => {
       .from('subscriptions')
       .upsert({
         user_id: userId,
+        user_email: email, // Added user_email column
         status: 'active',
         plan_id: `${planTier || 'premium'}_${planType}`,
         current_period_end: periodEnd.toISOString(),
@@ -201,20 +208,17 @@ serve(async (req) => {
         const neonClient = new Client(neonDbUrl);
         await neonClient.connect();
 
-        // Fetch user email from Supabase
-        const { data: { user: userData }, error: userError } = await supabaseClient.auth.admin.getUserById(userId);
-        const email = userData?.email || '';
-
         // Check if user already exists in Neon and was deleted
-        const { rows: existingNeonUsers } = await neonClient.queryObject(`
-          SELECT id, deleted FROM users WHERE email = ${email}
-        `);
+        const { rows: existingNeonUsers } = await neonClient.queryObject(
+          `SELECT id, deleted FROM users WHERE email = $1`,
+          [email]
+        );
 
         if (existingNeonUsers.length > 0) {
           const existingUser = existingNeonUsers[0] as any;
           if (existingUser.deleted) {
             console.log(`User ${email} was previously deleted. Removing old record for fresh start.`);
-            await neonClient.queryObject(`DELETE FROM users WHERE id = ${existingUser.id}`);
+            await neonClient.queryObject(`DELETE FROM users WHERE id = $1`, [existingUser.id]);
           }
         }
 
@@ -279,7 +283,7 @@ serve(async (req) => {
             ${email}, 
             ${packageName},
             ${planType},
-            'Active',
+            'PaidCustomer',
             NOW() + INTERVAL '5 hours 30 minutes',
             ${subscriptionEnd},
             'paid',

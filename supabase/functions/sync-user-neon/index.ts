@@ -51,21 +51,60 @@ serve(async (req) => {
     // Fallback to 0 if error
     const activeAutomationsCount = countError ? 0 : (automationsCount || 0);
 
-    console.log(`Syncing user to Neon: ${email}. Insta: ${connectedHandle}, Automations: ${activeAutomationsCount}`);
+    // --- Fetch Subscription Status to avoid overwriting Premium with Pending ---
+    const { data: subData } = await supabaseClient
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    let status = 'Pending';
+    let packageName = null;
+    let billingCycle = null;
+    let subscriptionEnd = null;
+    let paymentStatus = 'unpaid';
+    let amountPaid = 0;
+    let discountAmount = 0;
+
+    if (subData && (subData.status === 'active' || subData.status === 'trialing')) {
+      status = 'PaidCustomer';
+      paymentStatus = 'paid';
+      subscriptionEnd = subData.current_period_end;
+      amountPaid = subData.amount_paid || 0;
+      discountAmount = subData.discount_amount || 0;
+
+      const planId = (subData.plan_id || '').toLowerCase();
+      if (planId.includes('gold')) {
+        packageName = 'Gold';
+      } else {
+        packageName = 'Premium';
+      }
+
+      if (planId.includes('quarterly')) {
+        packageName += ' Quarterly';
+        billingCycle = 'quarterly';
+      } else if (planId.includes('annual')) {
+        packageName += ' Annual';
+        billingCycle = 'annual';
+      }
+    }
+
+    console.log(`Syncing user to Neon: ${email}. Status: ${status}, Insta: ${connectedHandle}, Automations: ${activeAutomationsCount}`);
 
     const neonClient = new Client(neonDbUrl);
     await neonClient.connect();
 
     // Check if user already exists in Neon and was deleted
-    const { rows: existingNeonUsers } = await neonClient.queryObject(`
-      SELECT id, deleted FROM users WHERE email = ${email}
-    `);
+    const { rows: existingNeonUsers } = await neonClient.queryObject(
+      `SELECT id, deleted FROM users WHERE email = $1`,
+      [email]
+    );
 
     if (existingNeonUsers.length > 0) {
       const existingUser = existingNeonUsers[0] as any;
       if (existingUser.deleted) {
         console.log(`User ${email} was previously deleted. Removing old record for fresh start.`);
-        await neonClient.queryObject(`DELETE FROM users WHERE id = ${existingUser.id}`);
+        await neonClient.queryObject(`DELETE FROM users WHERE id = $1`, [existingUser.id]);
       }
     }
 
@@ -74,7 +113,13 @@ serve(async (req) => {
         id,
         username, 
         email, 
+        package,
+        billing_cycle,
         status,
+        subscription_end,
+        payment_status,
+        amount_paid,
+        discount_amount,
         deleted,
         last_active,
         connected_instagram_handle,
@@ -83,7 +128,13 @@ serve(async (req) => {
         ${userId},
         ${instagramHandle || fullName || email.split('@')[0]}, 
         ${email}, 
-        'Pending',
+        ${packageName},
+        ${billingCycle},
+        ${status},
+        ${subscriptionEnd},
+        ${paymentStatus},
+        ${amountPaid},
+        ${discountAmount},
         FALSE,
         NOW() + INTERVAL '5 hours 30 minutes',
         ${connectedHandle},
@@ -91,6 +142,13 @@ serve(async (req) => {
       )
       ON CONFLICT (email) DO UPDATE SET
         username = COALESCE(EXCLUDED.username, users.username),
+        package = COALESCE(EXCLUDED.package, users.package),
+        billing_cycle = COALESCE(EXCLUDED.billing_cycle, users.billing_cycle),
+        status = EXCLUDED.status,
+        subscription_end = COALESCE(EXCLUDED.subscription_end, users.subscription_end),
+        payment_status = EXCLUDED.payment_status,
+        amount_paid = GREATEST(EXCLUDED.amount_paid, users.amount_paid),
+        discount_amount = GREATEST(EXCLUDED.discount_amount, users.discount_amount),
         deleted = FALSE,
         last_active = NOW() + INTERVAL '5 hours 30 minutes',
         connected_instagram_handle = EXCLUDED.connected_instagram_handle,
