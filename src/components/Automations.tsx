@@ -1,10 +1,64 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, ChevronDown, Trash2, Edit } from 'lucide-react';
+import { Search, Plus, ChevronDown, Trash2, Edit, Loader2, Sparkles, AlertCircle } from 'lucide-react';
+import { motion } from "motion/react";
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { useThemeColors } from '../hooks/useThemeColors';
+import { useTheme } from '../contexts/ThemeContext';
 import { N8nWorkflowService } from '../lib/n8nService';
+
+// Utility for class merging
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+// --- Reusable Glass Components ---
+
+const GlassCard = ({ children, className, delay = 0, noPadding = false }: any) => (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.5, delay: delay, ease: "easeOut" }}
+    className={cn(
+      "relative rounded-3xl border border-white/60 bg-white/40 shadow-xl backdrop-blur-2xl transition-all hover:border-white/80 hover:shadow-2xl hover:shadow-blue-500/5 group",
+      !noPadding && "p-8",
+      className
+    )}
+  >
+    <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-white/10 to-transparent pointer-events-none opacity-50 group-hover:opacity-70 transition-opacity" />
+    <div className="relative z-10 h-full">{children}</div>
+  </motion.div>
+);
+
+const GlassButton = ({ children, variant = "primary", className, icon: Icon, onClick, loading = false, type = "button", disabled = false }: any) => {
+  const variants = {
+    primary: "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:brightness-110 border-transparent",
+    secondary: "bg-white/60 text-slate-700 hover:bg-white/90 border-slate-200/50 shadow-sm hover:shadow-md",
+    danger: "bg-red-50 text-red-600 border-red-100 hover:bg-red-100 hover:text-red-700 hover:border-red-200 shadow-sm",
+    ghost: "bg-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100/50"
+  };
+
+  return (
+    <motion.button
+      whileHover={!disabled ? { scale: 1.02 } : {}}
+      whileTap={!disabled ? { scale: 0.98 } : {}}
+      onClick={onClick}
+      type={type}
+      disabled={loading || disabled}
+      className={cn(
+        "flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 font-semibold transition-all border text-sm cursor-pointer",
+        variants[variant as keyof typeof variants],
+        (loading || disabled) && "opacity-50 cursor-not-allowed",
+        className
+      )}
+    >
+      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : Icon && <Icon className="h-4 w-4" />}
+      {children}
+    </motion.button>
+  );
+};
 
 interface Automation {
   id: string;
@@ -28,7 +82,7 @@ const triggerLabels = {
 export default function Automations() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { gradientClass } = useThemeColors();
+  const theme = useTheme();
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [filteredAutomations, setFilteredAutomations] = useState<Automation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -262,187 +316,242 @@ export default function Automations() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50/30 p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between mb-10">
-          <div>
-            <h1 className="text-4xl font-bold text-gray-900 tracking-tight mb-2">Automations</h1>
-            <p className="text-gray-600 text-lg">Create and manage your Instagram automations</p>
-          </div>
-          <button
-            onClick={handleCreateAutomation}
-            className={`flex items-center gap-2 px-6 py-3.5 bg-gradient-to-r ${gradientClass} text-white rounded-xl hover:opacity-90 transition-all shadow-lg hover:shadow-xl hover:scale-105 font-semibold`}
+    <div className="flex-1 relative min-h-screen overflow-x-hidden p-4 md:p-8">
+      {/* Animated Background Blobs */}
+      <div className="fixed inset-0 -z-10 bg-[#f8fafc]">
+        <div className="absolute top-0 -left-4 w-96 h-96 bg-slate-200/30 rounded-full mix-blend-multiply filter blur-3xl animate-blob"></div>
+        <div className="absolute top-1/4 -right-4 w-96 h-96 bg-blue-100/20 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-8 left-20 w-96 h-96 bg-indigo-100/30 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000"></div>
+        <div className="absolute inset-0 opacity-10" style={{
+          backgroundImage: `url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS1vcGFjaXR5PSIwLjA1IiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=")`
+        }}></div>
+      </div>
+
+      <div className="max-w-7xl mx-auto space-y-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5 }}
           >
-            <Plus size={20} />
+            <h1 className="text-4xl font-bold text-slate-800 tracking-tight">Automations</h1>
+            <p className="text-slate-500 font-medium">Create and manage your Instagram automations</p>
+          </motion.div>
+
+          <GlassButton
+            icon={Plus}
+            onClick={handleCreateAutomation}
+            className="px-8 py-4 h-fit md:w-auto w-full"
+          >
             Create Automation
-          </button>
+          </GlassButton>
         </div>
 
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200 p-6 mb-6">
-          <div className="flex flex-col lg:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+        <GlassCard delay={0.1} className="py-4 px-6">
+          <div className="flex flex-col lg:flex-row gap-6">
+            <div className="flex-1 relative group">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={20} />
               <input
                 type="text"
                 placeholder="Search automations..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm hover:border-gray-300 transition-all"
+                className="w-full pl-12 pr-4 py-3.5 border border-slate-200/60 bg-white/50 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 shadow-sm hover:bg-white/80 transition-all font-medium text-slate-700 placeholder-slate-400"
               />
             </div>
 
-            <div className="flex flex-wrap gap-3">
-              <div className="relative">
+            <div className="flex flex-wrap gap-4 items-center">
+              <div className="relative h-full">
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as 'newest' | 'oldest' | 'name')}
-                  className="appearance-none pl-4 pr-10 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white cursor-pointer font-medium shadow-sm hover:border-gray-300 transition-all"
+                  className="appearance-none pl-4 pr-10 py-3.5 border border-slate-200/60 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 bg-white/50 cursor-pointer font-bold text-slate-700 shadow-sm hover:bg-white/80 transition-all min-w-[160px] text-sm"
                 >
                   <option value="newest">Newest First</option>
                   <option value="oldest">Oldest First</option>
                   <option value="name">Name</option>
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={20} />
+                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
               </div>
 
-              <div className="flex gap-2 border-2 border-gray-200 rounded-xl p-1.5 bg-gray-50 shadow-sm">
-                <button
-                  onClick={() => setStatusFilter('all')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-all ${statusFilter === 'all'
-                    ? 'bg-white text-blue-600 shadow-md'
-                    : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                >
-                  All
-                </button>
-                <button
-                  onClick={() => setStatusFilter('active')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-all ${statusFilter === 'active'
-                    ? 'bg-white text-blue-600 shadow-md'
-                    : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                >
-                  Active
-                </button>
-                <button
-                  onClick={() => setStatusFilter('inactive')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-all ${statusFilter === 'inactive'
-                    ? 'bg-white text-blue-600 shadow-md'
-                    : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                >
-                  Inactive
-                </button>
+              <div className="flex gap-1.5 p-1.5 bg-slate-100/50 backdrop-blur-sm rounded-2xl border border-slate-200/50 shadow-inner">
+                {['all', 'active', 'inactive'].map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => setStatusFilter(status as any)}
+                    className={cn(
+                      "px-5 py-2 rounded-xl text-sm font-bold transition-all",
+                      statusFilter === status
+                        ? "bg-white text-blue-600 shadow-md ring-1 ring-slate-200"
+                        : "text-slate-500 hover:text-slate-800 hover:bg-white/50"
+                    )}
+                  >
+                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                  </button>
+                ))}
               </div>
 
-              <div className="relative">
+              <div className="relative h-full">
                 <select
                   value={triggerFilter}
                   onChange={(e) => setTriggerFilter(e.target.value as typeof triggerFilter)}
-                  className="appearance-none pl-4 pr-10 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white cursor-pointer font-medium shadow-sm hover:border-gray-300 transition-all"
+                  className="appearance-none pl-4 pr-10 py-3.5 border border-slate-200/60 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 bg-white/50 cursor-pointer font-bold text-slate-700 shadow-sm hover:bg-white/80 transition-all min-w-[180px] text-sm"
                 >
                   <option value="all">All Triggers</option>
-                  <option value="post_comment">Post Comment</option>
-                  <option value="story_reply">Story Reply</option>
-                  <option value="user_directed_messages">User Directed Messages</option>
+                  <option value="post_comment">Post Comments</option>
+                  <option value="story_reply">Story Replies</option>
+                  <option value="user_directed_messages">DMs</option>
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={20} />
+                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
               </div>
             </div>
           </div>
-        </div>
+        </GlassCard>
 
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <div className="flex flex-col items-center justify-center py-32 space-y-4">
+            <Loader2 className="h-12 w-12 text-blue-500 animate-spin" />
+            <p className="text-slate-400 font-medium animate-pulse">Loading your automations...</p>
           </div>
         ) : filteredAutomations.length > 0 ? (
-          <div className="space-y-5">
-            {filteredAutomations.map((automation) => (
-              <div
+          <div className="grid grid-cols-1 gap-6">
+            {filteredAutomations.map((automation, index) => (
+              <GlassCard
                 key={automation.id}
-                className="group bg-white rounded-2xl shadow-md border-2 border-gray-200 p-6 hover:shadow-xl hover:border-blue-300 transition-all duration-300"
+                delay={0.2 + index * 0.05}
+                className="group/card !p-0 overflow-hidden"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-3">
-                      <h3 className="text-xl font-bold text-gray-900">{automation.name}</h3>
-                      <span
-                        className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide ${automation.status === 'active'
-                          ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white shadow-md'
-                          : 'bg-gray-200 text-gray-600'
-                          }`}
-                      >
-                        {automation.status}
-                      </span>
+                <div className="flex flex-col md:flex-row items-stretch">
+                  {/* Status Indicator Bar */}
+                  <div className={cn(
+                    "w-1 md:w-2 shrink-0 transition-all duration-300",
+                    automation.status === 'active'
+                      ? "bg-gradient-to-b from-emerald-400 to-teal-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                      : "bg-slate-300"
+                  )} />
+
+                  <div className="flex-1 p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div className="flex-1 space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "p-2.5 rounded-xl transition-colors shadow-sm",
+                          automation.status === 'active' ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"
+                        )}>
+                          <Sparkles className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-bold text-slate-800 group-hover/card:text-blue-600 transition-colors">
+                            {automation.name}
+                          </h3>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className={cn(
+                              "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md",
+                              automation.status === 'active'
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-slate-100 text-slate-500"
+                            )}>
+                              {automation.status}
+                            </span>
+                            <span className="text-slate-300">•</span>
+                            <span className="text-xs text-slate-400 font-medium">
+                              Created {new Date(automation.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {automation.description && (
+                        <p className="text-slate-500 leading-relaxed max-w-2xl font-medium">
+                          {automation.description}
+                        </p>
+                      )}
+
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-2 bg-blue-50/50 border border-blue-100 px-3 py-1.5 rounded-xl">
+                          <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Trigger</span>
+                          <span className="text-sm font-bold text-blue-700">{triggerLabels[automation.trigger_type as keyof typeof triggerLabels]}</span>
+                        </div>
+
+                        {automation.webhook_url && (
+                          <div className="flex items-center gap-2 bg-indigo-50/50 border border-indigo-100 px-3 py-1.5 rounded-xl max-w-xs md:max-w-md">
+                            <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Webhook</span>
+                            <span className="text-xs font-mono text-indigo-600 truncate">{automation.webhook_url}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    {automation.description && (
-                      <p className="text-gray-600 mb-4 text-base">{automation.description}</p>
-                    )}
-                    <div className="flex items-center gap-4 text-sm flex-wrap">
-                      <span className="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-lg">
-                        <span className="font-bold text-blue-700">Trigger:</span>
-                        <span className="text-blue-600">{triggerLabels[automation.trigger_type]}</span>
-                      </span>
-                      <span className="text-gray-400">•</span>
-                      <span className="text-gray-500 font-medium">Created {automation.created_at ? new Date(automation.created_at).toLocaleDateString() : 'N/A'}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => navigate(`/automation/edit/${automation.id}`)}
-                      className="p-2.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 transition-all shadow-md hover:shadow-lg"
-                      title="Edit automation"
-                    >
-                      <Edit size={20} />
-                    </button>
-                    <label className="relative inline-flex items-center cursor-pointer mr-2">
-                      <input
-                        type="checkbox"
-                        className="sr-only peer"
-                        checked={automation.status === 'active'}
-                        onChange={() => toggleStatus(automation.id, automation.status, automation.n8n_workflow_id)}
-                        disabled={togglingId === automation.id}
+
+                    <div className="flex items-center gap-3 self-end md:self-center shrink-0">
+                      <GlassButton
+                        variant="secondary"
+                        icon={Edit}
+                        onClick={() => navigate(`/automation/edit/${automation.id}`)}
+                        className="!p-3 rounded-xl"
                       />
-                      <div className={`w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-blue-600 peer-checked:to-cyan-600 ${togglingId === automation.id ? 'opacity-60 cursor-wait' : ''}`}></div>
-                    </label>
-                    <button
-                      onClick={() => handleDelete(automation.id, automation.name)}
-                      className="p-2.5 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 transition-all shadow-md hover:shadow-lg"
-                      title="Delete automation"
-                    >
-                      <Trash2 size={20} />
-                    </button>
+
+                      <div className="flex items-center gap-3 px-4 py-2 bg-white/50 backdrop-blur-sm rounded-2xl border border-slate-200/50 shadow-sm">
+                        <span className={cn(
+                          "text-xs font-bold transition-colors",
+                          automation.status === 'active' ? "text-emerald-600" : "text-slate-400"
+                        )}>
+                          {automation.status === 'active' ? 'ON' : 'OFF'}
+                        </span>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={automation.status === 'active'}
+                            onChange={() => toggleStatus(automation.id, automation.status, automation.n8n_workflow_id)}
+                            disabled={togglingId === automation.id}
+                          />
+                          <div className={cn(
+                            "w-11 h-6 rounded-full transition-all duration-300 peer",
+                            "bg-slate-200 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all after:shadow-sm",
+                            "peer-checked:bg-gradient-to-r peer-checked:from-emerald-500 peer-checked:to-teal-500 peer-checked:after:translate-x-full peer-checked:after:rotate-180",
+                            togglingId === automation.id && "opacity-50 cursor-wait"
+                          )}></div>
+                        </label>
+                      </div>
+
+                      <GlassButton
+                        variant="danger"
+                        icon={Trash2}
+                        onClick={() => handleDelete(automation.id, automation.name)}
+                        className="!p-3 rounded-xl"
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
+              </GlassCard>
             ))}
           </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-            <div className="max-w-md mx-auto">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Plus size={32} className="text-blue-600" />
+          <GlassCard className="!p-16 text-center">
+            <div className="max-w-md mx-auto space-y-6">
+              <div className="w-20 h-20 bg-blue-50 text-blue-500 rounded-3xl flex items-center justify-center mx-auto shadow-inner rotate-12 transition-transform hover:rotate-0">
+                <Sparkles size={40} className="animate-pulse" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                {searchQuery || statusFilter !== 'all' || triggerFilter !== 'all'
-                  ? 'No automations found'
-                  : 'No automations yet'}
-              </h3>
-              <p className="text-gray-600 mb-6">
-                {searchQuery || statusFilter !== 'all' || triggerFilter !== 'all'
-                  ? 'Try adjusting your filters or search query'
-                  : 'Get started by creating your first automation'}
-              </p>
-              <button
+              <div className="space-y-2">
+                <h3 className="text-2xl font-bold text-slate-800">
+                  {searchQuery || statusFilter !== 'all' || triggerFilter !== 'all'
+                    ? 'No matches found'
+                    : 'Start Automating'}
+                </h3>
+                <p className="text-slate-500 font-medium leading-relaxed">
+                  {searchQuery || statusFilter !== 'all' || triggerFilter !== 'all'
+                    ? 'Try adjusting your filters or search query to find what you are looking for.'
+                    : 'Connect your Instagram account and build your first intelligent automation journey today.'}
+                </p>
+              </div>
+              <GlassButton
+                icon={Plus}
                 onClick={handleCreateAutomation}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                className="mx-auto px-10"
               >
-                <Plus size={20} />
                 Create Automation
-              </button>
+              </GlassButton>
             </div>
-          </div>
+          </GlassCard>
         )}
       </div>
     </div>

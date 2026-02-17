@@ -1,7 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Plus, X, Image as ImageIcon, Video } from 'lucide-react';
+import { X, Image as ImageIcon, Video, Filter, CheckCircle2, Search, ArrowRight, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from "motion/react";
 import { TriggerType, TriggerConfig, PostCommentTriggerConfig, StoryReplyTriggerConfig, UserDirectMessageTriggerConfig } from '../../types/automation';
 import { supabase } from '../../lib/supabase';
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
 
 interface InstagramMedia {
   id: string;
@@ -57,14 +64,9 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
 
       if (error) throw error;
       setPosts(data.media || []);
-      console.log('Fetched posts:', data.media || []); // Debug log
     } catch (error: any) {
       console.error('Error fetching posts:', error);
-      let errorMessage = 'Failed to fetch Instagram posts';
-      if (error.message) {
-        errorMessage += ': ' + error.message;
-      }
-      alert(errorMessage); // Better error feedback
+      alert('Failed to fetch Instagram posts: ' + (error.message || 'Unknown error'));
     } finally {
       setLoadingMedia(false);
     }
@@ -150,7 +152,6 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
   const addKeyword = () => {
     if (!keyword.trim()) return;
 
-    // Max 2 keywords restriction
     if (getKeywords().length >= 2) {
       alert("You can only add up to 2 keywords.");
       return;
@@ -201,353 +202,406 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
   };
 
   return (
-    <div className="space-y-6">
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <p className="text-sm font-medium text-blue-900">
-          <span className="font-semibold">{getTriggerName(triggerType)}</span> Trigger selected - Configure the settings below
-        </p>
+    <div className="space-y-10">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-100">
+        <div>
+          <h2 className="text-3xl font-black text-slate-800 mb-2 font-outfit">Configure Logic</h2>
+          <p className="text-slate-500 font-medium font-outfit">Fine-tune exactly when your automation should fire.</p>
+        </div>
+        <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-2xl border border-blue-100 shrink-0 self-start">
+          <Filter className="h-4 w-4 text-blue-600" />
+          <span className="text-xs font-black text-blue-700 uppercase tracking-widest leading-none">
+            {getTriggerName(triggerType)}
+          </span>
+        </div>
       </div>
 
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">
-          Configure {getTriggerName(triggerType)} Trigger
-        </h2>
-      </div>
-
-      <div className="space-y-6">
+      <div className="space-y-12">
         {triggerType === 'post_comment' && (
           <>
-            <div>
-              <label className="block text-sm font-medium text-gray-900 mb-3">
-                a. Posts to monitor
-              </label>
-              <div className="space-y-2">
-                <label className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                  <input
-                    type="radio"
-                    name="postsType"
-                    checked={(currentConfig as PostCommentTriggerConfig).postsType === 'all'}
-                    onChange={() => handlePostsTypeChange('all')}
-                    className="w-4 h-4 text-blue-600"
-                  />
-                  <span className="text-gray-900">All my posts</span>
-                </label>
-                <label className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                  <input
-                    type="radio"
-                    name="postsType"
-                    checked={(currentConfig as PostCommentTriggerConfig).postsType === 'specific'}
-                    onChange={() => handlePostsTypeChange('specific')}
-                    className="w-4 h-4 text-blue-600"
-                  />
-                  <span className="text-gray-900">Specific posts</span>
-                </label>
+            {/* Posts monitor section */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-black text-xs">A</div>
+                <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Scope: Which posts?</h3>
               </div>
 
-              {(currentConfig as PostCommentTriggerConfig).postsType === 'specific' && (
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                  <label className="block text-sm font-medium text-gray-900 mb-3">
-                    Select posts to monitor
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  { id: 'all', label: 'Monitor All Posts', desc: 'Every comment on any post will trigger it.' },
+                  { id: 'specific', label: 'Select Specific Posts', desc: 'Choose exactly which posts to monitor.' }
+                ].map((option) => (
+                  <label key={option.id} className={cn(
+                    "relative flex flex-col p-6 rounded-3xl border-2 transition-all cursor-pointer group",
+                    (currentConfig as PostCommentTriggerConfig).postsType === option.id
+                      ? "bg-blue-50/50 border-blue-500 shadow-lg shadow-blue-500/10"
+                      : "bg-white border-slate-100 hover:border-slate-200 hover:bg-slate-50/30"
+                  )}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className={cn(
+                        "font-black text-lg transition-colors",
+                        (currentConfig as PostCommentTriggerConfig).postsType === option.id ? "text-blue-700" : "text-slate-800"
+                      )}>
+                        {option.label}
+                      </span>
+                      <input
+                        type="radio"
+                        name="postsType"
+                        checked={(currentConfig as PostCommentTriggerConfig).postsType === option.id}
+                        onChange={() => handlePostsTypeChange(option.id as any)}
+                        className="w-5 h-5 text-blue-600 border-slate-300 focus:ring-blue-500 rounded-full"
+                      />
+                    </div>
+                    <p className="text-sm font-medium text-slate-500 leading-relaxed group-hover:text-slate-600">
+                      {option.desc}
+                    </p>
                   </label>
-                  {loadingMedia ? (
-                    <div className="flex items-center justify-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                ))}
+              </div>
+
+              <AnimatePresence mode="wait">
+                {(currentConfig as PostCommentTriggerConfig).postsType === 'specific' && (
+                  <motion.div
+                    key="specific-posts"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden bg-slate-50/50 rounded-3xl border border-slate-100 p-6 space-y-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-black text-slate-700 uppercase tracking-widest">Available Media</h4>
+                      {loadingMedia && <Loader2 className="h-4 w-4 animate-spin text-blue-500" />}
                     </div>
-                  ) : posts.length > 0 ? (
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
-                      {posts.map((post) => (
-                        <div
-                          key={post.id}
-                          onClick={() => togglePostSelection(post.id)}
-                          className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${selectedPosts.includes(post.id)
-                              ? 'border-blue-500 ring-2 ring-blue-200'
-                              : 'border-gray-200 hover:border-gray-300'
-                            }`}
-                        >
-                          <div className="aspect-square bg-gray-100">
-                            {post.media_type === 'VIDEO' ? (
-                              <div className="relative w-full h-full">
-                                <img
-                                  src={post.thumbnail_url || post.media_url}
-                                  alt={post.caption || 'Instagram post'}
-                                  className="w-full h-full object-cover"
-                                />
-                                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20">
-                                  <Video className="w-8 h-8 text-white" />
-                                </div>
-                              </div>
-                            ) : (
-                              <img
-                                src={post.media_url}
-                                alt={post.caption || 'Instagram post'}
-                                className="w-full h-full object-cover"
-                              />
+
+                    {posts.length > 0 ? (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                        {posts.map((post) => (
+                          <motion.div
+                            key={post.id}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => togglePostSelection(post.id)}
+                            className={cn(
+                              "relative cursor-pointer aspect-square rounded-2xl overflow-hidden border-4 transition-all group",
+                              selectedPosts.includes(post.id) ? "border-blue-500 shadow-lg" : "border-transparent hover:border-blue-200"
                             )}
-                          </div>
-                          {selectedPosts.includes(post.id) && (
-                            <div className="absolute top-2 right-2 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
-                              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                            </div>
-                          )}
-                          {post.caption && (
-                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-2">
-                              <p className="text-white text-xs truncate">{post.caption}</p>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      <ImageIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                      <p className="text-sm">No posts found</p>
-                    </div>
-                  )}
-                </div>
-              )}
+                          >
+                            <img
+                              src={post.media_type === 'VIDEO' ? (post.thumbnail_url || post.media_url) : post.media_url}
+                              alt={post.caption || 'Instagram Post'}
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                            />
+                            {post.media_type === 'VIDEO' && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                                <Video className="w-8 h-8 text-white drop-shadow-lg" />
+                              </div>
+                            )}
+                            <div className={cn(
+                              "absolute inset-0 transition-opacity duration-300",
+                              selectedPosts.includes(post.id) ? "bg-blue-600/20" : "bg-black/0 group-hover:bg-black/10"
+                            )} />
+
+                            {selectedPosts.includes(post.id) && (
+                              <div className="absolute top-2 right-2 bg-blue-500 text-white p-1 rounded-lg shadow-lg">
+                                <CheckCircle2 size={16} />
+                              </div>
+                            )}
+                            {post.caption && (
+                              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3 translate-y-full group-hover:translate-y-0 transition-transform">
+                                <p className="text-[10px] text-white font-medium truncate">{post.caption}</p>
+                              </div>
+                            )}
+                          </motion.div>
+                        ))}
+                      </div>
+                    ) : !loadingMedia && (
+                      <div className="text-center py-12 space-y-3">
+                        <ImageIcon className="h-10 w-10 text-slate-300 mx-auto" />
+                        <p className="text-slate-400 font-medium text-sm">No recent posts found to monitor.</p>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-900 mb-3">
-                b. Comments to monitor
-              </label>
-              <div className="space-y-2">
-                <label className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                  <input
-                    type="radio"
-                    name="commentsType"
-                    checked={(currentConfig as PostCommentTriggerConfig).commentsType === 'all'}
-                    onChange={() => handleCommentsTypeChange('all')}
-                    className="w-4 h-4 text-blue-600"
-                  />
-                  <span className="text-gray-900">All comments</span>
-                </label>
-                <label className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                  <input
-                    type="radio"
-                    name="commentsType"
-                    checked={(currentConfig as PostCommentTriggerConfig).commentsType === 'keywords'}
-                    onChange={() => handleCommentsTypeChange('keywords')}
-                    className="w-4 h-4 text-blue-600"
-                  />
-                  <span className="text-gray-900">Comments with keywords</span>
-                </label>
+            {/* Comments monitor section */}
+            <div className="space-y-6 pt-6">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 font-black text-xs">B</div>
+                <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Logic: Which comments?</h3>
               </div>
 
-              {(currentConfig as PostCommentTriggerConfig).commentsType === 'keywords' && (
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                  <label className="block text-sm font-medium text-gray-900 mb-2">
-                    Keywords (Max 2)
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={keyword}
-                      onChange={(e) => setKeyword(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
-                      placeholder="Enter keyword"
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                    <button
-                      type="button"
-                      onClick={addKeyword}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                    >
-                      <Plus size={20} />
-                      Add
-                    </button>
-                  </div>
-                  {getKeywords().length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-3">
-                      {getKeywords().map((kw, index) => (
-                        <span
-                          key={index}
-                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm"
-                        >
-                          {kw}
-                          <button
-                            type="button"
-                            onClick={() => removeKeyword(index)}
-                            className="text-gray-500 hover:text-red-600"
-                          >
-                            <X size={16} />
-                          </button>
-                        </span>
-                      ))}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  { id: 'all', label: 'Every Comment', desc: 'Respond to absolutely every comment posted.' },
+                  { id: 'keywords', label: 'Keyword Filter', desc: 'Only trigger when specific words are used.' }
+                ].map((option) => (
+                  <label key={option.id} className={cn(
+                    "relative flex flex-col p-6 rounded-3xl border-2 transition-all cursor-pointer group",
+                    (currentConfig as PostCommentTriggerConfig).commentsType === option.id
+                      ? "bg-indigo-50/50 border-indigo-500 shadow-lg shadow-indigo-500/10"
+                      : "bg-white border-slate-100 hover:border-slate-200 hover:bg-slate-50/30"
+                  )}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className={cn(
+                        "font-black text-lg transition-colors",
+                        (currentConfig as PostCommentTriggerConfig).commentsType === option.id ? "text-indigo-700" : "text-slate-800"
+                      )}>
+                        {option.label}
+                      </span>
+                      <input
+                        type="radio"
+                        name="commentsType"
+                        checked={(currentConfig as PostCommentTriggerConfig).commentsType === option.id}
+                        onChange={() => handleCommentsTypeChange(option.id as any)}
+                        className="w-5 h-5 text-indigo-600 border-slate-300 focus:ring-indigo-500 rounded-full"
+                      />
                     </div>
-                  )}
-                </div>
-              )}
+                    <p className="text-sm font-medium text-slate-500 leading-relaxed group-hover:text-slate-600">
+                      {option.desc}
+                    </p>
+                  </label>
+                ))}
+              </div>
+
+              <AnimatePresence mode="wait">
+                {(currentConfig as PostCommentTriggerConfig).commentsType === 'keywords' && (
+                  <motion.div
+                    key="comment-keywords"
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.98 }}
+                    className="bg-indigo-50/30 rounded-3xl border border-indigo-100 p-8 space-y-6"
+                  >
+                    <div className="space-y-4">
+                      <label className="block text-sm font-black text-indigo-700 uppercase tracking-widest pl-1">
+                        Active Keywords <span className="text-xs text-indigo-400 font-bold">(Max 2)</span>
+                      </label>
+                      <div className="flex gap-3">
+                        <div className="relative flex-1 group">
+                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-indigo-300 group-focus-within:text-indigo-500 transition-colors" />
+                          <input
+                            type="text"
+                            value={keyword}
+                            onChange={(e) => setKeyword(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
+                            placeholder="Add a magic keyword..."
+                            className="w-full pl-12 pr-4 py-4 rounded-2xl border-2 border-slate-100 bg-white shadow-inner focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 font-bold text-slate-800 transition-all placeholder:text-slate-300"
+                          />
+                        </div>
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          type="button"
+                          onClick={addKeyword}
+                          className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:brightness-110 transition-all"
+                        >
+                          Add
+                        </motion.button>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-3">
+                      {getKeywords().map((kw, index) => (
+                        <motion.span
+                          key={index}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          className="flex items-center gap-3 pl-4 pr-1 py-1.5 bg-white border border-indigo-200 rounded-xl shadow-sm group/kw"
+                        >
+                          <span className="text-sm font-bold text-slate-700">{kw}</span>
+                          <button
+                            onClick={() => removeKeyword(index)}
+                            className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all"
+                          >
+                            <X size={14} />
+                          </button>
+                        </motion.span>
+                      ))}
+                      {getKeywords().length === 0 && (
+                        <span className="text-sm font-medium text-slate-400 italic py-2">Add your first keyword above...</span>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </>
         )}
 
         {triggerType === 'story_reply' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-900 mb-3">
-              Replies to monitor
-            </label>
-            <div className="space-y-2">
-              <label className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                <input
-                  type="radio"
-                  name="storiesType"
-                  checked={(currentConfig as StoryReplyTriggerConfig).storiesType === 'all'}
-                  onChange={() => handleStoriesTypeChange('all')}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <span className="text-gray-900">All story replies</span>
-              </label>
-              <label className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                <input
-                  type="radio"
-                  name="storiesType"
-                  checked={(currentConfig as StoryReplyTriggerConfig).storiesType === 'keywords'}
-                  onChange={() => handleStoriesTypeChange('keywords')}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <span className="text-gray-900">Replies with keywords</span>
-              </label>
-            </div>
-
-            {(currentConfig as StoryReplyTriggerConfig).storiesType === 'keywords' && (
-              <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                <label className="block text-sm font-medium text-gray-900 mb-2">
-                  Keywords (Max 2)
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={keyword}
-                    onChange={(e) => setKeyword(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
-                    placeholder="Enter keyword"
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <button
-                    type="button"
-                    onClick={addKeyword}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                  >
-                    <Plus size={20} />
-                    Add
-                  </button>
-                </div>
-                {getKeywords().length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {getKeywords().map((kw, index) => (
-                      <span
-                        key={index}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm"
-                      >
-                        {kw}
-                        <button
-                          type="button"
-                          onClick={() => removeKeyword(index)}
-                          className="text-gray-500 hover:text-red-600"
-                        >
-                          <X size={16} />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
+          <div className="space-y-10">
+            <div className="space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-violet-100 flex items-center justify-center text-violet-600 font-black text-xs">S</div>
+                <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Trigger Logic</h3>
               </div>
-            )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  { id: 'all', label: 'All Story Replies', desc: 'Never miss a beat, respond to every reaction.' },
+                  { id: 'keywords', label: 'Keyword Filter', desc: 'Target specific reactions or conversations.' }
+                ].map((option) => (
+                  <label key={option.id} className={cn(
+                    "relative flex flex-col p-6 rounded-3xl border-2 transition-all cursor-pointer group",
+                    (currentConfig as StoryReplyTriggerConfig).storiesType === option.id
+                      ? "bg-violet-50/50 border-violet-500 shadow-lg shadow-violet-500/10"
+                      : "bg-white border-slate-100 hover:border-slate-200 hover:bg-slate-50/30"
+                  )}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className={cn(
+                        "font-black text-lg transition-colors",
+                        (currentConfig as StoryReplyTriggerConfig).storiesType === option.id ? "text-violet-700" : "text-slate-800"
+                      )}>
+                        {option.label}
+                      </span>
+                      <input
+                        type="radio"
+                        name="storiesType"
+                        checked={(currentConfig as StoryReplyTriggerConfig).storiesType === option.id}
+                        onChange={() => handleStoriesTypeChange(option.id as any)}
+                        className="w-5 h-5 text-violet-600 border-slate-300 focus:ring-violet-500 rounded-full"
+                      />
+                    </div>
+                    <p className="text-sm font-medium text-slate-500 leading-relaxed group-hover:text-slate-600">
+                      {option.desc}
+                    </p>
+                  </label>
+                ))}
+              </div>
+
+              <AnimatePresence mode="wait">
+                {(currentConfig as StoryReplyTriggerConfig).storiesType === 'keywords' && (
+                  <motion.div
+                    key="story-keywords"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="bg-violet-50/30 rounded-3xl border border-violet-100 p-8 space-y-6"
+                  >
+                    <div className="space-y-4">
+                      <label className="block text-sm font-black text-violet-700 uppercase tracking-widest pl-1">Keywords</label>
+                      <div className="flex gap-3">
+                        <input
+                          type="text"
+                          value={keyword}
+                          onChange={(e) => setKeyword(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
+                          placeholder="Type and press enter..."
+                          className="flex-1 px-6 py-4 rounded-2xl border-2 border-slate-100 bg-white font-bold text-slate-800 transition-all focus:ring-4 focus:ring-violet-500/10 focus:border-violet-500"
+                        />
+                        <button onClick={addKeyword} className="bg-violet-600 text-white px-8 rounded-2xl font-black text-sm uppercase tracking-widest">Add</button>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {getKeywords().map((kw, index) => (
+                        <span key={index} className="px-4 py-2 bg-white border border-violet-200 rounded-xl flex items-center gap-2 shadow-sm font-bold text-slate-700">
+                          {kw} <X size={14} className="cursor-pointer text-slate-400 hover:text-red-500" onClick={() => removeKeyword(index)} />
+                        </span>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         )}
 
         {triggerType === 'user_directed_messages' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-900 mb-3">
-              Messages to monitor
-            </label>
-            <div className="space-y-2">
-              <label className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                <input
-                  type="radio"
-                  name="messageType"
-                  checked={(currentConfig as UserDirectMessageTriggerConfig).messageType === 'all'}
-                  onChange={() => handleMessageTypeChange('all')}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <span className="text-gray-900">All messages</span>
-              </label>
-              <label className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                <input
-                  type="radio"
-                  name="messageType"
-                  checked={(currentConfig as UserDirectMessageTriggerConfig).messageType === 'keywords'}
-                  onChange={() => handleMessageTypeChange('keywords')}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <span className="text-gray-900">Messages with keywords</span>
-              </label>
-            </div>
-
-            {(currentConfig as UserDirectMessageTriggerConfig).messageType === 'keywords' && (
-              <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                <label className="block text-sm font-medium text-gray-900 mb-2">
-                  Keywords (Max 2)
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={keyword}
-                    onChange={(e) => setKeyword(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
-                    placeholder="Enter keyword"
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <button
-                    type="button"
-                    onClick={addKeyword}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                  >
-                    <Plus size={20} />
-                    Add
-                  </button>
-                </div>
-                {getKeywords().length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {getKeywords().map((kw, index) => (
-                      <span
-                        key={index}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm"
-                      >
-                        {kw}
-                        <button
-                          type="button"
-                          onClick={() => removeKeyword(index)}
-                          className="text-gray-500 hover:text-red-600"
-                        >
-                          <X size={16} />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
+          <div className="space-y-10">
+            <div className="space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 font-black text-xs">D</div>
+                <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Conversation Flow</h3>
               </div>
-            )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  { id: 'all', label: 'All DMs', desc: 'Greet everyone who messages you instantly.' },
+                  { id: 'keywords', label: 'Keyword Filter', desc: 'Automate responses based on intents.' }
+                ].map((option) => (
+                  <label key={option.id} className={cn(
+                    "relative flex flex-col p-6 rounded-3xl border-2 transition-all cursor-pointer group",
+                    (currentConfig as UserDirectMessageTriggerConfig).messageType === option.id
+                      ? "bg-emerald-50/50 border-emerald-500 shadow-lg shadow-emerald-500/10"
+                      : "bg-white border-slate-100 hover:border-slate-200 hover:bg-slate-50/30"
+                  )}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className={cn(
+                        "font-black text-lg transition-colors",
+                        (currentConfig as UserDirectMessageTriggerConfig).messageType === option.id ? "text-emerald-700" : "text-slate-800"
+                      )}>
+                        {option.label}
+                      </span>
+                      <input
+                        type="radio"
+                        name="messageType"
+                        checked={(currentConfig as UserDirectMessageTriggerConfig).messageType === option.id}
+                        onChange={() => handleMessageTypeChange(option.id as any)}
+                        className="w-5 h-5 text-emerald-600 border-slate-300 focus:ring-emerald-500 rounded-full"
+                      />
+                    </div>
+                    <p className="text-sm font-medium text-slate-500 leading-relaxed group-hover:text-slate-600">
+                      {option.desc}
+                    </p>
+                  </label>
+                ))}
+              </div>
+
+              <AnimatePresence mode="wait">
+                {(currentConfig as UserDirectMessageTriggerConfig).messageType === 'keywords' && (
+                  <motion.div
+                    key="dm-keywords"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="bg-emerald-50/30 rounded-3xl border border-emerald-100 p-8 space-y-6"
+                  >
+                    <div className="space-y-4">
+                      <label className="block text-sm font-black text-emerald-700 uppercase tracking-widest pl-1">Keywords</label>
+                      <div className="flex gap-3">
+                        <input
+                          type="text"
+                          value={keyword}
+                          onChange={(e) => setKeyword(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
+                          placeholder="Type and press enter..."
+                          className="flex-1 px-6 py-4 rounded-2xl border-2 border-slate-100 bg-white font-bold text-slate-800 transition-all focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500"
+                        />
+                        <button onClick={addKeyword} className="bg-emerald-600 text-white px-8 rounded-2xl font-black text-sm uppercase tracking-widest">Add</button>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {getKeywords().map((kw, index) => (
+                        <span key={index} className="px-4 py-2 bg-white border border-emerald-200 rounded-xl flex items-center gap-2 shadow-sm font-bold text-slate-700">
+                          {kw} <X size={14} className="cursor-pointer text-slate-400 hover:text-red-500" onClick={() => removeKeyword(index)} />
+                        </span>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         )}
       </div>
 
-      <div className="flex justify-between pt-4">
+      <div className="flex justify-between items-center pt-10 border-t border-slate-100">
         <button
           onClick={onBack}
-          className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+          className="px-8 py-3.5 text-slate-500 hover:text-slate-800 font-black text-sm uppercase tracking-widest transition-all"
         >
           Back
         </button>
-        <button
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
           onClick={onNext}
-          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          className="px-10 py-4 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl hover:shadow-xl hover:shadow-blue-500/20 transition-all font-black text-sm uppercase tracking-widest shadow-lg flex items-center gap-3"
         >
-          Continue to Actions
-        </button>
+          Define Actions <ArrowRight size={18} />
+        </motion.button>
       </div>
     </div>
   );
