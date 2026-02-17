@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { X, Instagram, CheckCircle, ShieldCheck, Sparkles } from 'lucide-react';
+import { X, Instagram, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 interface InstagramConnectModalProps {
   isOpen: boolean;
@@ -9,6 +10,7 @@ interface InstagramConnectModalProps {
 }
 
 const InstagramConnectModal = ({ isOpen, onClose, onConnect }: InstagramConnectModalProps) => {
+  const { signOut } = useAuth();
   const [oauthUrl, setOauthUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +74,15 @@ const InstagramConnectModal = ({ isOpen, onClose, onConnect }: InstagramConnectM
     if (oauthUrl) window.location.href = oauthUrl;
   };
 
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      onClose();
+    } catch (err) {
+      console.error('Error signing out:', err);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -81,51 +92,62 @@ const InstagramConnectModal = ({ isOpen, onClose, onConnect }: InstagramConnectM
         onClick={onClose}
       />
 
-      <div className="relative backdrop-blur-2xl bg-white/80 rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-white/40 animate-in fade-in zoom-in duration-300">
+      <div className="relative backdrop-blur-2xl bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-white/40 animate-in fade-in zoom-in duration-300">
         <button
           onClick={onClose}
-          className="absolute top-6 right-6 p-2 text-gray-400 hover:text-gray-600 hover:bg-white/50 rounded-full transition-all z-10"
+          className="absolute top-6 right-6 p-2 text-gray-400 hover:text-gray-600 hover:bg-slate-100 rounded-full transition-all z-10"
         >
           <X size={20} />
         </button>
 
         <div className="p-8 pt-10 flex flex-col items-center">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-orange-500 flex items-center justify-center shadow-lg mb-6 transform -rotate-6">
-            <Instagram className="w-10 h-10 text-white" />
+          {/* Logo Branding */}
+          <div className="flex items-center gap-1 justify-center mb-8">
+            <img src="/Logo.png" alt="QuickRevert Logo" className="w-12 h-12 object-contain" />
+            <h1 className="font-bold text-gray-800 text-3xl tracking-tighter">QuickRevert</h1>
           </div>
 
           <div className="text-center mb-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-2 flex items-center justify-center gap-2">
-              Connect Instagram <Sparkles className="w-5 h-5 text-amber-500" />
+              Connect Instagram Account ✨
             </h2>
-            <p className="text-gray-600 font-medium">Link your business account to go viral!</p>
+            <p className="text-gray-500 font-medium">Only a few steps away to go Viral!</p>
           </div>
 
-          <div className="w-full space-y-4 mb-8">
-            <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-100 flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
-                <ShieldCheck className="w-6 h-6 text-blue-600" />
+          {/* Meta-verified block */}
+          <div className="w-full p-6 rounded-3xl bg-slate-50/50 border border-slate-100 mb-8">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="shrink-0 pt-1">
+                <svg className="w-8 h-8 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm6.9 14.8c-.2 1.2-.6 2.3-1.3 3.3-1.1 1.6-2.8 2.5-4.7 2.5-1.9 0-3.6-.9-4.7-2.4-.7-1-1.1-2.1-1.3-3.3l-.1-.6c-.1-.7-.1-1.3-.1-2 0-.7 0-1.3.1-2l.1-.6c.2-1.2.6-2.3 1.3-3.3 1.1-1.6 2.8-2.5 4.7-2.5 1.9 0 3.6.9 4.7 2.4.7 1 1.1 2.1 1.3 3.3l.1.6c.1.7.1 1.3.1 2 0 .7 0 1.3-.1 2l-.1.6zm-4.9-5c-1.1 0-2 .4-2.8 1.1-.5.4-.9 1-1.1 1.6L12 12.8c.2.6.6 1.2 1.1 1.6.8.7 1.7 1.1 2.8 1.1s2-.4 2.8-1.1c.5-.4.9-1 1.1-1.6l.1-.3c.2-.6-.2-1.2-1.1-1.6-.8-.7-1.7-1.1-2.8-1.1z" />
+                </svg>
               </div>
               <div>
-                <h4 className="font-bold text-blue-900 text-sm">Meta-Verified Business</h4>
-                <p className="text-blue-700/70 text-xs mt-0.5">Official Instagram API integration. Safe & Secure.</p>
+                <h4 className="font-bold text-blue-600 text-lg">We're a Meta-verified business</h4>
+                <p className="text-gray-500 text-sm mt-1 leading-relaxed">
+                  We only use official Instagram APIs and processes. Your Instagram account is secure, and you stay in full control.
+                </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100">
-                <CheckCircle className="w-4 h-4" />
-                <span className="text-xs font-bold uppercase tracking-wider">Official OAuth</span>
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                </div>
+                <span className="text-sm font-medium text-gray-600">Official Meta OAuth login</span>
               </div>
-              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100">
-                <CheckCircle className="w-4 h-4" />
-                <span className="text-xs font-bold uppercase tracking-wider">Secure Data</span>
+              <div className="flex items-center gap-3">
+                <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                </div>
+                <span className="text-sm font-medium text-gray-600">Safe and Secure</span>
               </div>
             </div>
           </div>
 
           {error && (
-            <div className="w-full p-4 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm font-medium mb-6 text-center">
+            <div className="w-full p-4 rounded-2xl bg-red-50 border border-red-100 text-red-600 text-sm font-medium mb-6 text-center">
               {error}
             </div>
           )}
@@ -133,7 +155,7 @@ const InstagramConnectModal = ({ isOpen, onClose, onConnect }: InstagramConnectM
           <button
             onClick={handleConnect}
             disabled={loading || !oauthUrl}
-            className="w-full bg-gradient-to-r from-purple-600 to-orange-500 text-white font-bold py-4 rounded-2xl shadow-xl shadow-purple-500/20 hover:shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+            className="w-full bg-gradient-to-r from-purple-600 via-rose-500 to-orange-500 text-white font-bold py-4 rounded-2xl shadow-xl shadow-rose-500/20 hover:shadow-rose-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 mb-8"
           >
             {loading ? (
               <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -145,15 +167,22 @@ const InstagramConnectModal = ({ isOpen, onClose, onConnect }: InstagramConnectM
             )}
           </button>
 
-          <div className="mt-8 text-center">
-            <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-3">
-              By continuing you agree to
+          <div className="text-center w-full">
+            <p className="text-xs text-gray-400 mb-4">
+              By continuing, you agree to QuickRevert's
             </p>
-            <div className="flex items-center justify-center gap-3 text-xs">
-              <a href="#" className="font-bold text-gray-600 hover:text-blue-600 hover:underline">Terms</a>
-              <span className="w-1 h-1 rounded-full bg-gray-300"></span>
-              <a href="#" className="font-bold text-gray-600 hover:text-blue-600 hover:underline">Privacy Policy</a>
+            <div className="flex items-center justify-center gap-2 text-sm mb-6">
+              <a href="#" className="font-medium text-blue-500 hover:underline">Terms of Service</a>
+              <span className="text-gray-300">and</span>
+              <a href="#" className="font-medium text-blue-500 hover:underline">Privacy Policy</a>
             </div>
+
+            <button
+              onClick={handleLogout}
+              className="text-gray-500 hover:text-gray-800 font-bold transition-colors"
+            >
+              Logout
+            </button>
           </div>
         </div>
       </div>
@@ -162,3 +191,4 @@ const InstagramConnectModal = ({ isOpen, onClose, onConnect }: InstagramConnectM
 };
 
 export default InstagramConnectModal;
+
