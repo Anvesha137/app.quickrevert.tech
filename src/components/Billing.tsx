@@ -127,296 +127,154 @@ const Billing = () => {
   const planLimit = isPremium ? 'Unlimited' : 1000;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
+    <div className="max-w-6xl mx-auto p-6 md:p-12 animate-in fade-in slide-in-from-bottom-4 duration-700 min-h-screen flex flex-col">
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 px-4 md:px-0">
-        <div className="space-y-2">
-          <h1 className="text-4xl md:text-5xl font-black tracking-tight text-white leading-none">
-            Plan & <span className="text-blue-600">Subscription</span>
-          </h1>
-          <p className="text-gray-400 text-lg uppercase text-[10px] tracking-[0.2em] font-bold">
-            Comprehensive control over your digital growth engine.
-          </p>
-        </div>
-        {!isGold && (
-          <button
-            onClick={openUpgradeModal}
-            className="px-8 py-4 bg-gradient-to-br from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-black rounded-2xl transition-all hover:scale-[1.03] active:scale-[0.97] shadow-xl shadow-blue-500/20 flex items-center gap-3 group border border-blue-400/20"
-          >
-            <Zap className="w-5 h-5 group-hover:scale-125 transition-transform" />
-            {isPremium ? 'UPGRADE TO GOLD' : 'UPGRADE NOW'}
-          </button>
-        )}
+      <div className="mb-8">
+        <h1 className="text-4xl font-black tracking-tight text-white leading-none">
+          Billing & <span className="text-blue-600">Subscription</span>
+        </h1>
       </div>
 
-      {/* Tabs Layout */}
-      <div className="flex gap-2 p-1.5 bg-white/[0.03] backdrop-blur-3xl border border-white/10 rounded-2xl w-fit mx-4 md:mx-0">
-        <button
-          onClick={() => setActiveTab('overview')}
-          className={`px-8 py-3 rounded-xl transition-all text-xs font-black tracking-widest uppercase ${activeTab === 'overview' ? 'bg-white/10 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.02]'
-            }`}
-        >
-          Overview
-        </button>
-        <button
-          onClick={() => setActiveTab('invoices')}
-          className={`px-8 py-3 rounded-xl transition-all text-xs font-black tracking-widest uppercase ${activeTab === 'invoices' ? 'bg-white/10 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.02]'
-            }`}
-        >
-          Billing History
-        </button>
-      </div>
+      {/* Main Two-Section Layout */}
+      <div className="flex flex-col lg:flex-row gap-8 flex-1">
+        {/* Left Section: Current Plan */}
+        <div className="flex-1 bg-[#0F0F12] border border-white/10 rounded-[2.5rem] p-8 relative overflow-hidden group">
+          <div className="absolute -top-24 -right-24 w-96 h-96 bg-blue-600/5 blur-[100px] rounded-full pointer-events-none"></div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 px-4 md:px-0">
-        {/* Main Content Area */}
-        <div className="lg:col-span-2 space-y-8">
-          {/* Active Plan Card */}
-          <div className="relative overflow-hidden bg-[#0F0F12] border border-white/10 rounded-[2.5rem] p-10 group transition-all hover:border-blue-500/30">
-            {/* Glass Background Elements */}
-            <div className="absolute -top-24 -right-24 w-96 h-96 bg-blue-600/10 blur-[120px] rounded-full pointer-events-none group-hover:bg-blue-600/20 transition-all duration-1000"></div>
-            <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-indigo-600/10 blur-[100px] rounded-full pointer-events-none group-hover:bg-indigo-600/20 transition-all duration-1000"></div>
-
-            <div className="relative z-10 flex flex-col h-full">
-              <div className="flex justify-between items-start mb-12">
-                <div className="space-y-6">
-                  <div className="inline-flex items-center gap-2.5 px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-blue-400 text-[10px] font-black tracking-widest uppercase">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
-                    Current Active Plan
-                  </div>
-                  <div>
-                    <h3 className="text-6xl font-black text-white tracking-tighter leading-none mb-4 uppercase">
-                      {getPlanName(subscription?.plan_id)}
-                    </h3>
-                    <div className="flex items-baseline gap-3">
-                      <span className="text-5xl font-bold text-white tracking-tight">
-                        {getPlanPrice(subscription?.plan_id, subscription?.amount_paid)}
-                      </span>
-                      {(!subscription?.plan_id || subscription?.plan_id === 'basic') && (
-                        <span className="text-xl text-gray-500 font-medium">/month</span>
-                      )}
-                    </div>
-
-                    {subscription?.coupon_code && (
-                      <div className="mt-6 inline-flex items-center gap-2.5 bg-green-500/10 border border-green-500/20 text-green-400 px-4 py-2 rounded-2xl text-[11px] font-black tracking-wider shadow-lg shadow-green-500/5">
-                        <Tag className="w-4 h-4" />
-                        CODE: {subscription.coupon_code}
-                        {subscription.discount_amount && (
-                          <span className="ml-1 opacity-80 text-white/60">SAVE ₹{subscription.discount_amount}</span>
-                        )}
-                        {subscription.amount_paid === 0 && !subscription.discount_amount && (
-                          <span className="ml-2 bg-green-500/20 px-2 py-0.5 rounded-lg text-[9px] text-green-300">100% DISCOUNT</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
+          <div className="relative z-10 flex flex-col h-full">
+            <div className="flex justify-between items-start mb-8">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full text-blue-400 text-[9px] font-black uppercase tracking-widest mb-4">
+                  Active Plan
                 </div>
-
-                <div className="w-20 h-20 bg-white/5 rounded-3xl border border-white/10 flex items-center justify-center backdrop-blur-xl group-hover:scale-110 group-hover:rotate-6 transition-all duration-500">
-                  <Zap className="w-10 h-10 text-blue-500 fill-blue-500/20" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-12 py-10 border-y border-white/[0.05]">
-                <div className="space-y-2">
-                  <p className="text-gray-600 text-[9px] font-black uppercase tracking-[0.2em]">Next Automated Billing</p>
-                  <p className="text-white text-xl font-bold">{formatDate(subscription?.current_period_end)}</p>
-                </div>
-                <div className="space-y-2 text-right">
-                  <p className="text-gray-600 text-[9px] font-black uppercase tracking-[0.2em]">Cycle Interval</p>
-                  <p className="text-white text-xl font-bold capitalize">
-                    {subscription?.plan_id?.includes('annual') ? 'Annual' : 'Quarterly'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Renewal Section */}
-              <div className="mt-10 p-6 bg-white/[0.02] border border-white/5 rounded-3xl space-y-4">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Renew Your Success</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <button
-                    onClick={openUpgradeModal}
-                    className="py-3 px-4 bg-white/5 hover:bg-white/10 text-white rounded-xl text-[10px] font-black border border-white/10 transition-all flex items-center justify-center gap-2"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    RENEW QUARTERLY
-                  </button>
-                  <button
-                    onClick={openUpgradeModal}
-                    className="py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[10px] font-black border border-blue-500/20 transition-all flex items-center justify-center gap-2"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    RENEW YEARLY
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-4 mt-8">
-                <button
-                  onClick={openUpgradeModal}
-                  className="flex-1 px-8 py-5 bg-white text-black font-black text-xs tracking-widest rounded-2xl hover:bg-gray-100 transition-all uppercase shadow-2xl shadow-white/5 flex items-center justify-center gap-2"
-                >
-                  {isPremium ? 'Upgrade to GOLD' : 'Manage Membership'}
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-                <button className="px-8 py-5 bg-white/[0.03] hover:bg-white/[0.07] text-white font-black text-xs tracking-widest rounded-2xl border border-white/10 transition-all uppercase">
-                  Download Receipt
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Detailed Usage Area */}
-          <div className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-10 space-y-10 group">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <h4 className="text-2xl font-black text-white tracking-tight">Operational Usage</h4>
-                <p className="text-gray-500 text-xs font-medium">Real-time tracking of your automation throughput.</p>
-              </div>
-              <div className="flex items-center gap-2 text-[10px] font-black tracking-widest text-gray-400 bg-white/5 px-4 py-2 rounded-xl border border-white/10 uppercase">
-                <Calendar className="w-4 h-4 text-blue-500" />
-                Cycle End: {formatDate(subscription?.current_period_end)}
-              </div>
-            </div>
-
-            <div className="space-y-12">
-              <div className="space-y-5">
-                <div className="flex justify-between items-end">
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">DMs Delivered This Period</p>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-4xl font-black text-white">{usage.dms.toLocaleString()}</span>
-                      <span className="text-gray-600 text-xl font-bold">/</span>
-                      <span className="text-gray-400 text-xl font-bold">{planLimit.toLocaleString()}</span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-[10px] font-black text-blue-500 mb-1 uppercase tracking-widest">
-                      {planLimit === 'Unlimited' ? 'Full Access' : `${Math.round((usage.dms / 1000) * 100)}% Utilized`}
-                    </div>
-                  </div>
-                </div>
-                {/* Custom Progress Bar */}
-                <div className="relative h-6 bg-white/[0.03] rounded-3xl overflow-hidden p-1.5 border border-white/5">
-                  <div
-                    className="h-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-full transition-all duration-[1.5s] ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-[0_0_30px_rgba(37,99,235,0.3)] relative group-hover:brightness-110"
-                    style={{
-                      width: planLimit === 'Unlimited' ? '100%' : `${Math.min((usage.dms / 1000) * 100, 100)}%`
-                    }}
-                  >
-                    <div className="absolute inset-0 bg-white/20 blur-sm opacity-50"></div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="relative overflow-hidden p-8 bg-white/[0.02] border border-white/5 rounded-3xl hover:bg-white/[0.04] transition-all hover:scale-[1.02] duration-500">
-                  <div className="absolute top-0 right-0 p-4 opacity-5">
-                    <Zap className="w-16 h-16" />
-                  </div>
-                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3">Audience Pool Growth</p>
-                  <div className="flex items-center gap-3">
-                    <p className="text-3xl font-black text-white">{usage.contacts.toLocaleString()}</p>
-                    <span className="text-[10px] font-bold text-green-500 bg-green-500/10 px-2 py-0.5 rounded-lg">LIVE</span>
-                  </div>
-                </div>
-                <div className="relative overflow-hidden p-8 bg-white/[0.02] border border-white/5 rounded-3xl hover:bg-white/[0.04] transition-all hover:scale-[1.02] duration-500">
-                  <div className="absolute top-0 right-0 p-4 opacity-5">
-                    <Check className="w-16 h-16" />
-                  </div>
-                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3">Active Automations</p>
-                  <div className="flex items-center gap-4">
-                    <p className="text-3xl font-black text-white">{usage.automations}</p>
-                    <div className="bg-green-500/20 p-1.5 rounded-full border border-green-500/20">
-                      <Check className="w-5 h-5 text-green-500" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Dynamic Sidebar */}
-        <div className="space-y-8">
-          <div className="p-10 bg-gradient-to-br from-indigo-700/20 via-blue-600/5 to-transparent border border-white/10 rounded-[3rem] space-y-8 relative overflow-hidden group">
-            <div className="absolute -top-12 -left-12 w-32 h-32 bg-indigo-500/10 blur-2xl rounded-full"></div>
-            <div className="space-y-4">
-              <h4 className="text-2xl font-black text-white tracking-tight">Elite Support</h4>
-              <p className="text-gray-400 text-sm leading-relaxed font-medium">
-                Our specialized billing concierge is available 24/7 for account optimizations and enterprise inquiries.
-              </p>
-            </div>
-            <button className="w-full py-5 bg-white text-black font-black text-[11px] tracking-widest rounded-2xl transition-all hover:bg-gray-200 active:scale-95 uppercase shadow-xl shadow-indigo-500/10">
-              COMMUNICATE WITH US
-            </button>
-          </div>
-
-          <div className="p-10 bg-white/[0.03] border border-white/5 rounded-[3rem] space-y-10 group hover:border-white/10 transition-colors">
-            <div className="flex gap-6">
-              <div className="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-500 border border-blue-500/10 transform rotate-3 group-hover:rotate-12 transition-transform">
-                <CreditCard className="w-8 h-8" />
-              </div>
-              <div className="space-y-2">
-                <h4 className="text-lg font-black text-white uppercase tracking-tight">Auto-Renew</h4>
-                <div className="inline-flex items-center gap-1.5 text-[9px] font-black bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-md tracking-tighter">
-                  <Check className="w-3 h-3" /> ENABLED
-                </div>
-              </div>
-            </div>
-            <p className="text-gray-500 text-xs leading-relaxed font-medium">
-              Seamlessly continue your growth. Subscriptions renew automatically using your primary vault method.
-            </p>
-            <div className="pt-6 border-t border-white/5 flex items-center justify-between">
-              <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Vault Status</span>
-              <span className="text-white text-[10px] font-bold">SECURE (SHA-256)</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {activeTab === 'invoices' && (
-        <div className="bg-[#0F0F12] border border-white/10 rounded-[3rem] overflow-hidden animate-in slide-in-from-bottom-8 duration-700 mx-4 md:mx-0 shadow-2xl">
-          <div className="p-10 border-b border-white/[0.03] flex justify-between items-center bg-white/[0.01]">
-            <div className="space-y-1">
-              <h3 className="text-3xl font-black text-white tracking-tight leading-none uppercase">Billing History</h3>
-              <p className="text-gray-500 text-[10px] font-black tracking-widest uppercase">Archived records of your financial throughput.</p>
-            </div>
-            <button className="text-[10px] font-black text-blue-500 hover:text-blue-400 transition-colors tracking-widest uppercase bg-blue-500/5 px-6 py-3 rounded-xl border border-blue-500/10">
-              EXPORT ALL RECORDS
-            </button>
-          </div>
-          <div className="p-8">
-            <div className="grid grid-cols-4 px-8 py-4 mb-4 text-[9px] font-black text-gray-600 uppercase tracking-[0.3em]">
-              <span>Reference</span>
-              <span>Timestamp</span>
-              <span>Asset Tier</span>
-              <span className="text-right">Settlement</span>
-            </div>
-            <div className="space-y-3">
-              {subscription ? (
-                <div className="grid grid-cols-4 items-center px-8 py-6 bg-white/[0.03] border border-white/[0.03] rounded-3xl hover:bg-white/[0.05] hover:border-white/10 transition-all text-xs group cursor-default">
-                  <span className="font-extrabold text-white flex items-center gap-3">
-                    <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.5)]"></div>
-                    INV-{new Date(subscription.created_at || '').getFullYear()}-001
+                <h3 className="text-5xl font-black text-white tracking-tighter uppercase mb-2">
+                  {getPlanName(subscription?.plan_id)}
+                </h3>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-4xl font-bold text-white tracking-tight">
+                    {getPlanPrice(subscription?.plan_id, subscription?.amount_paid)}
                   </span>
-                  <span className="text-gray-500 font-bold">{formatDate(subscription.created_at)}</span>
-                  <span className="text-gray-400 font-extrabold uppercase tracking-tighter">{getPlanName(subscription.plan_id)}</span>
-                  <div className="text-right">
-                    <span className="inline-flex items-center gap-2 text-green-400 font-black text-lg">
-                      ₹{subscription.amount_paid || 0}
-                      <Check className="w-5 h-5 opacity-50 group-hover:opacity-100 transition-opacity" />
-                    </span>
-                  </div>
+                  <span className="text-sm text-gray-500 font-medium uppercase">{subscription?.plan_id?.includes('annual') ? '/ annual' : '/ quarterly'}</span>
                 </div>
-              ) : (
-                <div className="py-24 text-center space-y-6">
-                  <div className="w-20 h-20 bg-white/[0.03] rounded-[2rem] flex items-center justify-center mx-auto text-gray-700 border border-white/5 animate-pulse">
-                    <Calendar className="w-10 h-10" />
-                  </div>
-                  <p className="text-gray-600 text-[10px] font-black tracking-[0.3em] uppercase">No transactional records detected.</p>
-                </div>
-              )}
+              </div>
+              <div className="w-16 h-16 bg-white/5 rounded-2xl border border-white/10 flex items-center justify-center backdrop-blur-xl shrink-0">
+                <Zap className="w-8 h-8 text-blue-500 fill-blue-500/20" />
+              </div>
             </div>
+
+            <div className="grid grid-cols-2 gap-8 py-6 border-y border-white/[0.05] mb-8">
+              <div className="space-y-1">
+                <p className="text-gray-600 text-[9px] font-black uppercase tracking-widest">Next Billing Date</p>
+                <p className="text-white text-lg font-bold">{formatDate(subscription?.current_period_end)}</p>
+              </div>
+              <div className="space-y-1 text-right">
+                <p className="text-gray-600 text-[9px] font-black uppercase tracking-widest">Status</p>
+                <p className="text-green-500 text-lg font-bold uppercase tracking-tighter">Active</p>
+              </div>
+            </div>
+
+            <div className="mt-auto flex flex-col sm:flex-row gap-4">
+              <button
+                onClick={openUpgradeModal}
+                className="flex-1 py-4 bg-white text-black font-black text-xs tracking-widest rounded-xl hover:bg-gray-100 transition-all uppercase flex items-center justify-center gap-2"
+              >
+                {isPremium ? 'Upgrade to GOLD' : 'Upgrade Plan'}
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <button className="flex-1 py-4 bg-white/[0.03] hover:bg-white/[0.07] text-white font-black text-xs tracking-widest rounded-xl border border-white/10 transition-all uppercase">
+                Download Receipt
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Section: Usage & History Tabs */}
+        <div className="lg:w-1/3 flex flex-col gap-6">
+          {/* Operational Usage Card */}
+          <div className="bg-[#0F0F12] border border-white/10 rounded-[2.5rem] p-8 flex-1 flex flex-col justify-center">
+            <h4 className="text-lg font-black text-white tracking-tight mb-6 uppercase">Operational Usage</h4>
+
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <div className="flex justify-between items-end text-[10px] font-black uppercase tracking-widest">
+                  <span className="text-gray-500">DMs Delivered</span>
+                  <span className="text-blue-500">{usage.dms.toLocaleString()} / {planLimit.toLocaleString()}</span>
+                </div>
+                <div className="h-2.5 bg-white/[0.03] rounded-full overflow-hidden border border-white/5">
+                  <div
+                    className="h-full bg-blue-600 rounded-full transition-all duration-1000"
+                    style={{ width: planLimit === 'Unlimited' ? '100%' : `${Math.min((usage.dms / 1000) * 100, 100)}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl">
+                  <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Contacts</p>
+                  <p className="text-xl font-black text-white">{usage.contacts.toLocaleString()}</p>
+                </div>
+                <div className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl">
+                  <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Automations</p>
+                  <p className="text-xl font-black text-white">{usage.automations}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Compact Billing History Access */}
+          <div
+            onClick={() => setActiveTab('invoices')}
+            className={`cursor-pointer p-6 rounded-[2rem] border transition-all ${activeTab === 'invoices' ? 'bg-white/10 border-white/20' : 'bg-white/[0.03] border-white/5 hover:bg-white/[0.05]'}`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Calendar className="w-5 h-5 text-gray-400" />
+                <span className="text-xs font-black uppercase tracking-widest text-white">Billing History</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-500" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* History Modal-like View if Active */}
+      {activeTab === 'invoices' && (
+        <div className="mt-8 bg-[#0F0F12] border border-white/10 rounded-[2.5rem] overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
+          <div className="p-6 border-b border-white/[0.03] flex justify-between items-center bg-white/[0.01]">
+            <h3 className="text-lg font-black text-white uppercase tracking-tight">Invoice Records</h3>
+            <button
+              onClick={() => setActiveTab('overview')}
+              className="text-[10px] font-black text-gray-400 hover:text-white transition-colors uppercase tracking-widest"
+            >
+              Close History
+            </button>
+          </div>
+          <div className="p-6 overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="text-[9px] font-black text-gray-600 uppercase tracking-[0.2em] border-b border-white/5">
+                  <th className="pb-4">Reference</th>
+                  <th className="pb-4">Date</th>
+                  <th className="pb-4 text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="text-white">
+                {subscription ? (
+                  <tr className="border-b border-white/[0.02] last:border-0">
+                    <td className="py-4 font-bold flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-600"></div>
+                      INV-{new Date(subscription.created_at || '').getFullYear()}-001
+                    </td>
+                    <td className="py-4 text-gray-500">{formatDate(subscription.created_at)}</td>
+                    <td className="py-4 text-right font-black text-green-400">₹{subscription.amount_paid || 0}</td>
+                  </tr>
+                ) : (
+                  <tr>
+                    <td colSpan={3} className="py-8 text-center text-gray-600 font-bold uppercase tracking-widest">No records found</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
