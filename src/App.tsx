@@ -43,7 +43,6 @@ function AppContent() {
   if (location.pathname === '/pricing') {
     return (
       <ErrorBoundary>
-        <PlanBanner />
         <Routes>
           <Route path="/pricing" element={<Pricing />} />
         </Routes>
