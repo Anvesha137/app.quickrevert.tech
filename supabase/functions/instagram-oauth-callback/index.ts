@@ -141,6 +141,10 @@ Deno.serve(async (req: Request) => {
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
+    // Fetch user email for linking
+    const { data: { user: authUser } } = await supabase.auth.admin.getUserById(userId);
+    const userEmail = authUser?.email || '';
+
     const { data: existingAccount } = await supabase
       .from("instagram_accounts")
       .select("id")
@@ -149,6 +153,7 @@ Deno.serve(async (req: Request) => {
 
     const accountData = {
       user_id: userId,
+      email: userEmail, // Link the user's email to the account
       instagram_user_id: instagramUserId,
       instagram_business_id: igbaId,
       username: username,

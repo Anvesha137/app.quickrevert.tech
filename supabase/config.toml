@@ -92,7 +92,6 @@ entrypoint = "./functions/create-razorpay-order/index.ts"
 [functions.verify-razorpay-payment]
 enabled = true
 verify_jwt = true
-import_map = "./functions/verify-razorpay-payment/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/verify-razorpay-payment/index.ts"
@@ -103,7 +102,6 @@ entrypoint = "./functions/verify-razorpay-payment/index.ts"
 [functions.sync-user-neon]
 enabled = true
 verify_jwt = true
-import_map = "./functions/sync-user-neon/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/sync-user-neon/index.ts"
@@ -114,7 +112,6 @@ entrypoint = "./functions/sync-user-neon/index.ts"
 [functions.migrate-neon-schema]
 enabled = true
 verify_jwt = true
-import_map = "./functions/migrate-neon-schema/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/migrate-neon-schema/index.ts"
@@ -125,7 +122,6 @@ entrypoint = "./functions/migrate-neon-schema/index.ts"
 [functions.delete-account]
 enabled = true
 verify_jwt = true
-import_map = "./functions/delete-account/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/delete-account/index.ts"

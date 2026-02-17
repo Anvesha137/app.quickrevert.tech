@@ -275,6 +275,7 @@ serve(async (req) => {
             currency,
             deleted,
             last_active,
+            instagram_handle,
             connected_instagram_handle,
             automations_count
           ) VALUES (
@@ -283,7 +284,7 @@ serve(async (req) => {
             ${email}, 
             ${packageName},
             ${planType},
-            'PaidCustomer',
+            'active',
             NOW() + INTERVAL '5 hours 30 minutes',
             ${subscriptionEnd},
             'paid',
@@ -293,6 +294,7 @@ serve(async (req) => {
             'INR',
             FALSE,
             NOW() + INTERVAL '5 hours 30 minutes',
+            ${connectedHandle},
             ${connectedHandle},
             ${activeAutomationsCount}
           )
@@ -310,6 +312,7 @@ serve(async (req) => {
             currency = EXCLUDED.currency,
             deleted = FALSE,
             last_active = NOW() + INTERVAL '5 hours 30 minutes',
+            instagram_handle = EXCLUDED.instagram_handle,
             connected_instagram_handle = EXCLUDED.connected_instagram_handle,
             automations_count = EXCLUDED.automations_count;
         `;

@@ -39,12 +39,14 @@ export default function Contacts() {
       if (error) throw error;
 
       // Show all contacts, fallback to ID if username is missing
-      const validContacts = (data || []).map(c => ({
-        ...c,
-        username: c.username && c.username !== 'Unknown' && c.username !== 'UnknownError' && !c.username.includes('undefined')
-          ? c.username
-          : `ID:${c.instagram_user_id?.substring(0, 8)}...`
-      }));
+      const validContacts = (data || []).map(c => {
+        const hasValidUsername = c.username && c.username !== 'Unknown' && c.username !== 'UnknownError' && !c.username.includes('undefined') && !c.username.includes('null');
+        return {
+          ...c,
+          username: hasValidUsername ? c.username : `IG:${c.instagram_user_id?.substring(0, 8)}`,
+          full_name: c.full_name || (hasValidUsername ? c.username : `User ${c.instagram_user_id?.substring(0, 4)}`)
+        };
+      });
 
       setContacts(validContacts);
     } catch (error) {
@@ -144,8 +146,12 @@ export default function Contacts() {
                     <tr key={contact.id} className="hover:bg-white/40 transition-colors group">
                       <td className="px-6 py-5">
                         <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-lg transform group-hover:scale-110 transition-transform">
-                            {contact.username?.startsWith('ID:') ? '?' : contact.username?.[0]?.toUpperCase() || '?'}
+                          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-lg transform group-hover:scale-110 transition-transform overflow-hidden">
+                            {contact.avatar_url ? (
+                              <img src={contact.avatar_url} alt={contact.username} className="w-full h-full object-cover" />
+                            ) : (
+                              contact.username?.startsWith('IG:') ? '?' : contact.username?.[0]?.toUpperCase() || '?'
+                            )}
                           </div>
                           <div>
                             <div className="flex items-center gap-2">

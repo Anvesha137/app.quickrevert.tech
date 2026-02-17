@@ -421,7 +421,33 @@ async function processEvent(body: any) {
 
                 // 🔥 CRITICAL FIX: Call execute-automation for dashboard automations (comments)
                 if (change.field === 'comments' && accountsData && accountsData.length > 0) {
+                    // RESOLVE IDENTITY for comments too
+                    let resolvedUsername = change.value?.from?.username;
+                    let profileName = null;
+                    let profilePic = null;
+
+                    const primaryAccount = accountsData[0];
+                    if (primaryAccount && change.value?.from?.id) {
+                        const profile = await fetchInstagramProfile(change.value.from.id, primaryAccount.access_token);
+                        if (profile) {
+                            resolvedUsername = profile.username || resolvedUsername;
+                            profileName = profile.name;
+                            profilePic = profile.profile_pic;
+                        }
+                    }
+
                     for (const account of accountsData) {
+                        // Upsert Contact for comments
+                        await upsertContact(supabase, {
+                            user_id: account.user_id,
+                            instagram_account_id: account.id,
+                            instagram_user_id: change.value?.from?.id,
+                            username: resolvedUsername,
+                            full_name: profileName,
+                            avatar_url: profilePic,
+                            platform: 'instagram'
+                        });
+
                         try {
                             const executeUrl = `${SUPABASE_URL}/functions/v1/execute-automation`;
                             console.log(`Calling execute-automation for comment on user ${account.user_id}`);
@@ -479,14 +505,18 @@ async function processEvent(body: any) {
 // Helpers
 async function fetchInstagramProfile(senderId: string, accessToken: string) {
     try {
-        const url = `https://graph.facebook.com/v21.0/${senderId}?fields=username,name,profile_picture_url&access_token=${accessToken}`;
+        // Use graph.instagram.com for Instagram Business IDs (Messaging PSIDs)
+        // Fields for Instagram Messaging: name, profile_pic
+        const url = `https://graph.instagram.com/v21.0/${senderId}?fields=name,profile_pic&access_token=${accessToken}`;
         const res = await fetch(url);
         if (res.ok) {
-            return await res.json();
+            const data = await res.json();
+            // Map profile_pic to profile_picture_url if needed for compatibility, 
+            // but let's keep it consistent with the API
+            return data;
         }
         const errText = await res.text();
         console.error(`Profile Fetch Failed (${res.status}):`, errText);
-        // We can't log to DB here easily without passing supabase client, handled by caller
         return null;
     } catch (e) {
         console.error("Profile Fetch Error:", e);

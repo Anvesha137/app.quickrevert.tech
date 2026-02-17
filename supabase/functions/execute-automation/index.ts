@@ -82,7 +82,7 @@ Deno.serve(async (req: Request) => {
         // Use v21.0 or newer
         const apiVersion = 'v21.0';
         // USE graph.facebook.com which is more reliable for business-to-user profile lookups
-        const userProfileUrl = `https://graph.facebook.com/${apiVersion}/${eventData.from.id}?fields=username,name,is_user_follow_business,profile_pic&access_token=${instagramAccount.access_token}`;
+        const userProfileUrl = `https://graph.facebook.com/${apiVersion}/${eventData.from.id}?fields=name,profile_pic,is_user_follow_business&access_token=${instagramAccount.access_token}`;
         console.log(`Fetching profile for ${eventData.from.id} via ${apiVersion} (facebook graph)`);
 
         const userProfileRes = await fetch(userProfileUrl);
@@ -92,8 +92,11 @@ Deno.serve(async (req: Request) => {
           const userProfile = JSON.parse(resText);
           console.log("✅ Profile Data:", JSON.stringify(userProfile));
 
-          if (userProfile.username) eventData.from.username = userProfile.username;
           if (userProfile.name) eventData.from.name = userProfile.name;
+          // Set username to email or ID if not already resolved, but IG Messaging doesn't return username
+          if (!eventData.from.username || eventData.from.username === 'Unknown') {
+            eventData.from.username = userProfile.name || eventData.from.id;
+          }
 
           // Store follow status
           (eventData as any).isFollowing = userProfile.is_user_follow_business || false;
@@ -143,6 +146,7 @@ Deno.serve(async (req: Request) => {
         instagram_user_id: eventData.from.id,
         username: finalUsername,
         full_name: eventData.from.name || null,
+        avatar_url: (eventData as any).profilePic || null,
         last_interaction_at: new Date().toISOString(),
         interaction_count: newInteractionCount,
         follows_us: (eventData as any).isFollowing || false,
@@ -566,14 +570,37 @@ async function executeAction(params: any) {
   };
 
   if (buttons.length > 0) {
-    // Instagram Platform API uses quick_replies
+    // Switch from quick_replies to Generic Template as requested
+    const elements: any[] = [{
+      title: messageText.substring(0, 80), // Max 80 chars for title
+      subtitle: "Powered By Quickrevert.tech",
+      buttons: buttons.slice(0, 3).map((btn: any) => {
+        // If it starts with http, it's a web_url, otherwise it's a postback
+        const isUrl = btn.url && btn.url.startsWith('http');
+        if (isUrl) {
+          return {
+            type: 'web_url',
+            url: btn.url,
+            title: btn.text.substring(0, 20)
+          };
+        } else {
+          return {
+            type: 'postback',
+            title: btn.text.substring(0, 20),
+            payload: btn.text.toUpperCase()
+          };
+        }
+      })
+    }];
+
     messagePayload.message = {
-      text: messageText,
-      quick_replies: buttons.slice(0, 13).map((btn: any) => ({
-        content_type: 'text',
-        title: btn.text.substring(0, 20), // Max 20 chars
-        payload: btn.url || btn.text.toUpperCase()
-      }))
+      attachment: {
+        type: 'template',
+        payload: {
+          template_type: 'generic',
+          elements
+        }
+      }
     };
   } else {
     messagePayload.message = { text: messageText };

@@ -58,7 +58,7 @@ serve(async (req) => {
       .eq('user_id', userId)
       .maybeSingle();
 
-    let status = 'Pending';
+    let status = 'active'; // Always active when syncing (triggered by user action)
     let packageName = null;
     let billingCycle = null;
     let subscriptionEnd = null;
@@ -67,7 +67,6 @@ serve(async (req) => {
     let discountAmount = 0;
 
     if (subData && (subData.status === 'active' || subData.status === 'trialing')) {
-      status = 'PaidCustomer';
       paymentStatus = 'paid';
       subscriptionEnd = subData.current_period_end;
       amountPaid = subData.amount_paid || 0;
@@ -122,6 +121,7 @@ serve(async (req) => {
         discount_amount,
         deleted,
         last_active,
+        instagram_handle,
         connected_instagram_handle,
         automations_count
       ) VALUES (
@@ -138,6 +138,7 @@ serve(async (req) => {
         FALSE,
         NOW() + INTERVAL '5 hours 30 minutes',
         ${connectedHandle},
+        ${connectedHandle},
         ${activeAutomationsCount}
       )
       ON CONFLICT (email) DO UPDATE SET
@@ -151,6 +152,7 @@ serve(async (req) => {
         discount_amount = GREATEST(EXCLUDED.discount_amount, users.discount_amount),
         deleted = FALSE,
         last_active = NOW() + INTERVAL '5 hours 30 minutes',
+        instagram_handle = EXCLUDED.instagram_handle,
         connected_instagram_handle = EXCLUDED.connected_instagram_handle,
         automations_count = EXCLUDED.automations_count;
     `;

@@ -76,6 +76,66 @@ serve(async (req) => {
         ADD COLUMN IF NOT EXISTS discount_amount INTEGER DEFAULT 0;
       `);
 
+      // Add 'package' and 'billing_cycle' columns
+      await client.queryArray(`
+        ALTER TABLE users 
+        ADD COLUMN IF NOT EXISTS package TEXT,
+        ADD COLUMN IF NOT EXISTS billing_cycle TEXT;
+      `);
+
+      // Add 'status' and 'payment_status' columns
+      await client.queryArray(`
+        ALTER TABLE users 
+        ADD COLUMN IF NOT EXISTS status TEXT,
+        ADD COLUMN IF NOT EXISTS payment_status TEXT;
+      `);
+
+      // Add 'subscription_end' and 'subscription_start' columns
+      await client.queryArray(`
+        ALTER TABLE users 
+        ADD COLUMN IF NOT EXISTS subscription_end TIMESTAMP WITH TIME ZONE,
+        ADD COLUMN IF NOT EXISTS subscription_start TIMESTAMP WITH TIME ZONE;
+      `);
+
+      // Add 'instagram_handle' and 'automations_count' columns
+      await client.queryArray(`
+        ALTER TABLE users 
+        ADD COLUMN IF NOT EXISTS instagram_handle TEXT,
+        ADD COLUMN IF NOT EXISTS connected_instagram_handle TEXT,
+        ADD COLUMN IF NOT EXISTS automations_count INTEGER DEFAULT 0;
+      `);
+
+      // Seed last_active from joining_date if it's NULL (initial setup)
+      await client.queryArray(`
+        UPDATE users
+        SET last_active = joining_date
+        WHERE last_active IS NULL AND joining_date IS NOT NULL;
+      `);
+
+      // Update 'status' column to be activity-based (active/inactive)
+      // Active if last_active is within the last 1 month, else inactive
+      await client.queryArray(`
+        UPDATE users
+        SET status = 'active'
+        WHERE last_active >= NOW() - INTERVAL '30 days';
+      `);
+
+      await client.queryArray(`
+        UPDATE users
+        SET status = 'inactive'
+        WHERE last_active < NOW() - INTERVAL '30 days' OR last_active IS NULL;
+      `);
+
+      // Sync amt_paid to amount_paid for consistency if needed
+      await client.queryArray(`
+        DO $$ 
+        BEGIN 
+          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='amt_paid') THEN
+            UPDATE users SET amount_paid = amt_paid::integer WHERE amount_paid = 0 AND amt_paid > 0;
+          END IF;
+        END $$;
+      `);
+
       // Backfill subscription_start_date based on expiry_date
       await client.queryArray(`
         UPDATE users

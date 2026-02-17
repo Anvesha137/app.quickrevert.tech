@@ -297,7 +297,7 @@ Deno.serve(async (req: Request) => {
                 {
                   conditions: {
                     options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
-                    conditions: [{ id: "is-comment", leftValue: "={{ $('Worker Webhook').item.json.body.sub_type }}", rightValue: "comments", operator: { type: "string", operation: "equals" } }],
+                    conditions: [{ id: "is-comment", leftValue: "={{ $json.body.sub_type }}", rightValue: "comments", operator: { type: "string", operation: "equals" } }],
                     combinator: "and"
                   },
                   renameOutput: true, outputKey: "Trigger Event"
@@ -305,7 +305,7 @@ Deno.serve(async (req: Request) => {
                 {
                   conditions: {
                     options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
-                    conditions: [{ id: "is-postback", leftValue: "={{ $('Worker Webhook').item.json.body.sub_type }}", rightValue: "postback", operator: { type: "string", operation: "equals" } }],
+                    conditions: [{ id: "is-postback", leftValue: "={{ $json.body.sub_type }}", rightValue: "postback", operator: { type: "string", operation: "equals" } }],
                     combinator: "and"
                   },
                   renameOutput: true, outputKey: "Button Click"
@@ -313,7 +313,7 @@ Deno.serve(async (req: Request) => {
                 {
                   conditions: {
                     options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
-                    conditions: [{ id: "is-message", leftValue: "={{ $('Worker Webhook').item.json.body.sub_type }}", rightValue: "message", operator: { type: "string", operation: "equals" } }],
+                    conditions: [{ id: "is-message", leftValue: "={{ $json.body.sub_type }}", rightValue: "message", operator: { type: "string", operation: "equals" } }],
                     combinator: "and"
                   },
                   renameOutput: true, outputKey: "message"
@@ -329,7 +329,7 @@ Deno.serve(async (req: Request) => {
         // Initial Anchor
         let triggerChainAnchor = "Event Type Switch";
         let triggerChainOutputIndex = 0;
-        nodeX += 250;
+        nodeX = -80; // Match user position for Event Type Switch
 
         const triggerConfig = automationData?.trigger_config || {};
 
@@ -391,7 +391,7 @@ Deno.serve(async (req: Request) => {
         const instagramUsername = instagramAccount.username;
         nodes.push({
           id: "loop-protection-switch", name: "Loop Protection Switch1", type: "n8n-nodes-base.switch", typeVersion: 3.4,
-          position: [nodeX, -64],
+          position: [144, -80], // Match user position
           parameters: {
             rules: {
               values: [
@@ -511,23 +511,14 @@ Deno.serve(async (req: Request) => {
 
           let jsonBody = "";
           if (isRichMessage) {
-            const elementsButtons: any[] = [];
+            const templateButtons: any[] = [];
             if (hasButtons) {
               sendDmAction.actionButtons.forEach((b: any) => {
                 const btnType = b.action || (b.url ? 'web_url' : 'postback');
                 if (btnType === 'web_url') {
-                  elementsButtons.push({ type: "web_url", url: b.url, title: b.text });
+                  templateButtons.push({ type: "web_url", url: b.url, title: b.text.substring(0, 20) });
                 } else {
-                  elementsButtons.push({ type: "postback", title: b.text, payload: b.text });
-                }
-              });
-            }
-            const quick_replies: any[] = [];
-            if (hasButtons) {
-              sendDmAction.actionButtons.forEach((b: any) => {
-                const btnType = b.action || (b.url ? 'web_url' : 'postback');
-                if (btnType === 'postback') {
-                  quick_replies.push({ content_type: "text", title: b.text, payload: b.text });
+                  templateButtons.push({ type: "postback", title: b.text.substring(0, 20), payload: b.text });
                 }
               });
             }
@@ -535,17 +526,23 @@ Deno.serve(async (req: Request) => {
             const messagePayload: any = {
               recipient: { id: `{{ $json.body.payload.sender.id }}` },
               message: {
-                text: subtitle ? `${text}\n\n${subtitle}` : text
+                attachment: {
+                  type: "template",
+                  payload: {
+                    template_type: "generic",
+                    elements: [
+                      {
+                        title: text.substring(0, 80),
+                        subtitle: subtitle ? subtitle.substring(0, 80) : "Powered By Quickrevert.tech",
+                        image_url: imageUrl || undefined,
+                        buttons: templateButtons.length > 0 ? templateButtons.slice(0, 3) : undefined
+                      }
+                    ]
+                  }
+                }
               }
             };
 
-            if (imageUrl) {
-              messagePayload.message.text = `${imageUrl}\n\n${messagePayload.message.text}`;
-            }
-
-            if (quick_replies.length > 0) {
-              messagePayload.message.quick_replies = quick_replies;
-            }
             jsonBody = `=${JSON.stringify(messagePayload, null, 2)}`;
           } else {
             jsonBody = `={
@@ -578,12 +575,14 @@ Deno.serve(async (req: Request) => {
             btnImage = linkedAction.imageUrl || "";
           }
 
-          const quick_replies: any[] = [];
+          const templateButtons: any[] = [];
           if (linkedAction && linkedAction.actionButtons) {
             linkedAction.actionButtons.forEach((b: any) => {
               const btnType = b.action || (b.url ? 'web_url' : 'postback');
-              if (btnType === 'postback') {
-                quick_replies.push({ content_type: "text", title: b.text, payload: b.text });
+              if (btnType === 'web_url') {
+                templateButtons.push({ type: "web_url", url: b.url, title: b.text.substring(0, 20) });
+              } else {
+                templateButtons.push({ type: "postback", title: b.text.substring(0, 20), payload: b.text });
               }
             });
           }
@@ -591,13 +590,22 @@ Deno.serve(async (req: Request) => {
           const messagePayload: any = {
             recipient: { id: `{{ $json.body.entry[0].messaging[0].sender.id }}` },
             message: {
-              text: btnImage ? `${btnImage}\n\n${btnText}` : btnText
+              attachment: {
+                type: "template",
+                payload: {
+                  template_type: "generic",
+                  elements: [
+                    {
+                      title: btnText.substring(0, 80),
+                      subtitle: "Powered By Quickrevert.tech",
+                      image_url: btnImage || undefined,
+                      buttons: templateButtons.length > 0 ? templateButtons.slice(0, 3) : undefined
+                    }
+                  ]
+                }
+              }
             }
           };
-
-          if (quick_replies.length > 0) {
-            messagePayload.message.quick_replies = quick_replies;
-          }
 
           nodes.push({
             id: `act-btn-${index}`, name: `Send DM - ${b.title}`, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3,
@@ -818,14 +826,30 @@ Deno.serve(async (req: Request) => {
             const teaserPayload = {
               recipient: triggerType === 'post_comment' ? { comment_id: "{{ $json.body.entry[0].changes[0].value.id }}" } : { id: senderIdPath },
               message: {
-                text: action.teaserMessage || "Interested?",
-                quick_replies: [
-                  { content_type: "text", title: action.teaserBtnText || "access", payload: "SEND_LINK" }
-                ]
+                attachment: {
+                  type: "template",
+                  payload: {
+                    template_type: "generic",
+                    elements: [
+                      {
+                        title: (action.teaserMessage || "Interested?").substring(0, 80),
+                        subtitle: "Powered By Quickrevert.tech",
+                        image_url: action.imageUrl || undefined,
+                        buttons: [
+                          {
+                            type: "postback",
+                            title: (action.teaserBtnText || "access").substring(0, 20),
+                            payload: "SEND_LINK"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
               }
             };
             nodes.push({
-              id: `teaser-${index}`, name: teaserNodeName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [nodeX, 32],
+              id: `teaser-${index}`, name: teaserNodeName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [352, -96], // Match user position
               parameters: { method: "POST", url: "https://graph.instagram.com/v24.0/me/messages", authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi", sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify(teaserPayload, null, 2)}`, options: {} },
               credentials: { facebookGraphApi: { id: credentialId } }
             });
@@ -905,7 +929,7 @@ Deno.serve(async (req: Request) => {
           const switchName = `Button Action Switch`; // Match user JSON naming
           nodes.push({
             id: `btn-switch-${index}`, name: switchName, type: "n8n-nodes-base.switch", typeVersion: 3.3,
-            position: [-304, 224], // Match user JSON position
+            position: [144, 112], // Match user position
             parameters: { rules: { values: switchRules }, options: { ignoreCase: true } }
           });
 
@@ -922,7 +946,7 @@ Deno.serve(async (req: Request) => {
           const fetchName = `Fetch Context`;
           nodes.push({
             id: `fetch-context-${index}`, name: fetchName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3,
-            position: [-80, 240], // Match user JSON position
+            position: [368, 128], // Match user position
             parameters: {
               url: `=https://graph.instagram.com/v24.0/${senderIdForContext}`,
               authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
@@ -944,7 +968,7 @@ Deno.serve(async (req: Request) => {
           const extractName = `Extract Status`;
           nodes.push({
             id: `extract-status-${index}`, name: extractName, type: "n8n-nodes-base.code", typeVersion: 2,
-            position: [144, 240], // Match user JSON position
+            position: [592, 128], // Match user position
             parameters: {
               jsCode: `const conversationData = $input.item.json;
 const isFollowing = conversationData.is_user_follow_business || false;
@@ -960,7 +984,7 @@ return { json: { userId, username, isFollowing } };`
           const ifName = `Is Following?`;
           nodes.push({
             id: `is-following-${index}`, name: ifName, type: "n8n-nodes-base.if", typeVersion: 2.1,
-            position: [368, 240], // Match user JSON position
+            position: [816, 128], // Match user position
             parameters: {
               conditions: {
                 options: { caseSensitive: true, leftValue: "" },
@@ -1014,7 +1038,7 @@ return { json: { userId, username, isFollowing } };`
           const rewardName = `Send Reward 2`; // Match user JSON naming
           nodes.push({
             id: `act-reward-${index}`, name: rewardName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3,
-            position: [592, 144], // Match user JSON position
+            position: [1040, 32], // Match user position
             parameters: { method: "POST", url: `https://graph.instagram.com/v24.0/me/messages`, authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi", sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify(rewardPayload, null, 2)}`, options: {} },
             credentials: { facebookGraphApi: { id: credentialId } }
           });
@@ -1026,17 +1050,37 @@ return { json: { userId, username, isFollowing } };`
           const askPayload = {
             recipient: { id: recipientId },
             message: {
-              text: `${notFollowingText}\n\nPlease follow first here: https://www.instagram.com/${instagramAccount.username}/\n\nThen tap below 😊`,
-              quick_replies: [
-                { content_type: "text", title: askBtn, payload: "CHECK_FOLLOW" }
-              ]
+              attachment: {
+                type: "template",
+                payload: {
+                  template_type: "generic",
+                  elements: [
+                    {
+                      title: (action.askToFollowMessage || "Follow to unlock!").substring(0, 80),
+                      subtitle: "Please follow us first!",
+                      buttons: [
+                        {
+                          type: "web_url",
+                          url: `https://www.instagram.com/${instagramAccount.username}/`,
+                          title: "Follow Now"
+                        },
+                        {
+                          type: "postback",
+                          title: askBtn.substring(0, 20),
+                          payload: "CHECK_FOLLOW"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
             }
           };
 
           const askName = `Ask to Follow 2`; // Match user JSON naming
           nodes.push({
             id: `act-ask-${index}`, name: askName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3,
-            position: [592, 336], // Match user JSON position
+            position: [1040, 224], // Match user position
             parameters: { method: "POST", url: `https://graph.instagram.com/v24.0/me/messages`, authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi", sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify(askPayload, null, 2)}`, options: {} },
             credentials: { facebookGraphApi: { id: credentialId } }
           });
