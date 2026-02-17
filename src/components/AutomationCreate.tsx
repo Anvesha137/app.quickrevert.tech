@@ -36,13 +36,13 @@ const GlassCard = ({ children, className, delay = 0, noPadding = false }: any) =
   </motion.div>
 );
 
-type Step = 'basic' | 'trigger' | 'config' | 'actions';
+type Step = 'setup' | 'configuration';
 
 export default function AutomationCreate() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const [currentStep, setCurrentStep] = useState<Step>('basic');
+  const [currentStep, setCurrentStep] = useState<Step>('setup');
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<AutomationFormData>({
@@ -113,10 +113,8 @@ export default function AutomationCreate() {
   };
 
   const steps = [
-    { id: 'basic', name: 'Basic Info', completed: formData.name.trim().length > 0 },
-    { id: 'trigger', name: 'Trigger', completed: formData.triggerType !== null },
-    { id: 'config', name: 'Configure', completed: formData.triggerConfig !== null },
-    { id: 'actions', name: 'Actions', completed: formData.actions.length > 0 },
+    { id: 'setup', name: 'Step 1: Setup', completed: formData.name.trim().length > 0 && formData.triggerType !== null },
+    { id: 'configuration', name: 'Step 2: Configure', completed: formData.triggerConfig !== null && formData.actions.length > 0 },
   ];
 
   const currentStepIndex = steps.findIndex(s => s.id === currentStep);
@@ -359,82 +357,76 @@ export default function AutomationCreate() {
             transition={{ duration: 0.3 }}
           >
             <GlassCard className="!p-0 overflow-hidden shadow-2xl shadow-blue-500/5">
-              <div className="p-8 md:p-12">
-                {currentStep === 'basic' && (
-                  <BasicInfo
-                    name={formData.name}
-                    onNameChange={(name) => setFormData({ ...formData, name })}
-                    onNext={() => setCurrentStep('trigger')}
-                  />
+              <div className="p-8 md:p-12 space-y-16">
+                {currentStep === 'setup' && (
+                  <div className="space-y-16">
+                    <BasicInfo
+                      name={formData.name}
+                      onNameChange={(name) => setFormData({ ...formData, name })}
+                      onNext={() => { }} // Internal next not needed if we show both
+                      isCondensed={true}
+                    />
+                    <div className="pt-8 border-t border-slate-100">
+                      <TriggerSelection
+                        selectedTrigger={formData.triggerType}
+                        onTriggerSelect={(triggerType: TriggerType) => {
+                          let defaultConfig: TriggerConfig;
+                          if (triggerType === 'post_comment') {
+                            defaultConfig = { postsType: 'all', commentsType: 'all' };
+                          } else if (triggerType === 'story_reply') {
+                            defaultConfig = { storiesType: 'all' };
+                          } else {
+                            defaultConfig = { messageType: 'all' };
+                          }
+                          setFormData({
+                            ...formData,
+                            triggerType,
+                            triggerConfig: defaultConfig
+                          });
+                        }}
+                        onNext={() => {
+                          if (formData.name.trim() && formData.triggerType) {
+                            setCurrentStep('configuration');
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          } else {
+                            alert('Please provide a name and select a trigger.');
+                          }
+                        }}
+                        onBack={() => navigate('/automation')}
+                        isCondensed={true}
+                      />
+                    </div>
+                  </div>
                 )}
 
-                {currentStep === 'trigger' && formData.triggerType === null && (
-                  <TriggerSelection
-                    selectedTrigger={formData.triggerType}
-                    onTriggerSelect={(triggerType: TriggerType) => {
-                      // Set default configuration based on trigger type
-                      let defaultConfig: TriggerConfig;
-                      if (triggerType === 'post_comment') {
-                        defaultConfig = { postsType: 'all', commentsType: 'all' };
-                      } else if (triggerType === 'story_reply') {
-                        defaultConfig = { storiesType: 'all' };
-                      } else {
-                        defaultConfig = { messageType: 'all' };
-                      }
-                      setFormData({
-                        ...formData,
-                        triggerType,
-                        triggerConfig: defaultConfig
-                      });
-                    }}
-                    onNext={() => setCurrentStep('config')}
-                    onBack={() => setCurrentStep('basic')}
-                  />
-                )}
-
-                {currentStep === 'trigger' && formData.triggerType !== null && (
-                  <TriggerSelection
-                    selectedTrigger={formData.triggerType}
-                    onTriggerSelect={(triggerType: TriggerType) => {
-                      // Set default configuration based on trigger type
-                      let defaultConfig: TriggerConfig;
-                      if (triggerType === 'post_comment') {
-                        defaultConfig = { postsType: 'all', commentsType: 'all' };
-                      } else if (triggerType === 'story_reply') {
-                        defaultConfig = { storiesType: 'all' };
-                      } else {
-                        defaultConfig = { messageType: 'all' };
-                      }
-                      setFormData({
-                        ...formData,
-                        triggerType,
-                        triggerConfig: defaultConfig
-                      });
-                    }}
-                    onNext={() => setCurrentStep('config')}
-                    onBack={() => setCurrentStep('basic')}
-                  />
-                )}
-
-                {currentStep === 'config' && formData.triggerType && (
-                  <TriggerConfigStep
-                    triggerType={formData.triggerType}
-                    config={formData.triggerConfig}
-                    onConfigChange={(triggerConfig: TriggerConfig) => setFormData({ ...formData, triggerConfig })}
-                    onNext={() => setCurrentStep('actions')}
-                    onBack={() => setCurrentStep('trigger')}
-                  />
-                )}
-
-                {currentStep === 'actions' && formData.triggerType && (
-                  <ActionConfig
-                    triggerType={formData.triggerType}
-                    actions={formData.actions}
-                    onActionsChange={(actions: Action[]) => setFormData({ ...formData, actions })}
-                    onSave={handleSave}
-                    onBack={() => setCurrentStep('config')}
-                    saving={saving}
-                  />
+                {currentStep === 'configuration' && formData.triggerType && (
+                  <div className="space-y-16">
+                    <TriggerConfigStep
+                      triggerType={formData.triggerType}
+                      config={formData.triggerConfig}
+                      onConfigChange={(triggerConfig: TriggerConfig) => setFormData({ ...formData, triggerConfig })}
+                      onNext={() => { }} // We'll use the ActionConfig's buttons for navigation
+                      onBack={() => {
+                        setCurrentStep('setup');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      isCondensed={true}
+                    />
+                    <div className="pt-8 border-t border-slate-100">
+                      <ActionConfig
+                        triggerType={formData.triggerType}
+                        actions={formData.actions}
+                        onActionsChange={(actions: Action[]) => setFormData({ ...formData, actions })}
+                        onSave={handleSave}
+                        onBack={() => {
+                          setCurrentStep('setup');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        saving={saving}
+                        isCondensed={true}
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
             </GlassCard>

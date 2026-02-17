@@ -24,8 +24,9 @@ interface TriggerConfigProps {
   triggerType: TriggerType;
   config: TriggerConfig | null;
   onConfigChange: (config: TriggerConfig) => void;
-  onNext: () => void;
-  onBack: () => void;
+  onNext: () => void | Promise<void>;
+  onBack: () => void | Promise<void>;
+  isCondensed?: boolean;
 }
 
 const getTriggerName = (type: TriggerType): string => {
@@ -39,7 +40,7 @@ const getTriggerName = (type: TriggerType): string => {
   }
 };
 
-export default function TriggerConfigStep({ triggerType, config, onConfigChange, onNext, onBack }: TriggerConfigProps) {
+export default function TriggerConfigStep({ triggerType, config, onConfigChange, onNext, onBack, isCondensed }: TriggerConfigProps) {
   const [keyword, setKeyword] = useState('');
   const [posts, setPosts] = useState<InstagramMedia[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(false);
@@ -203,18 +204,34 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
 
   return (
     <div className="space-y-10">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-100">
-        <div>
-          <h2 className="text-3xl font-black text-slate-800 mb-2 font-outfit">Configure Logic</h2>
-          <p className="text-slate-500 font-medium font-outfit">Fine-tune exactly when your automation should fire.</p>
+      {!isCondensed && (
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-100">
+          <div>
+            <h2 className="text-3xl font-black text-slate-800 mb-2 font-outfit">Configure Logic</h2>
+            <p className="text-slate-500 font-medium font-outfit">Fine-tune exactly when your automation should fire.</p>
+          </div>
+          <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-2xl border border-blue-100 shrink-0 self-start">
+            <Filter className="h-4 w-4 text-blue-600" />
+            <span className="text-xs font-black text-blue-700 uppercase tracking-widest leading-none">
+              {getTriggerName(triggerType)}
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-2xl border border-blue-100 shrink-0 self-start">
-          <Filter className="h-4 w-4 text-blue-600" />
-          <span className="text-xs font-black text-blue-700 uppercase tracking-widest leading-none">
-            {getTriggerName(triggerType)}
-          </span>
+      )}
+
+      {isCondensed && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-blue-500 flex items-center justify-center text-white shadow-lg">
+              <Filter size={20} />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight">Step 1: Configure Logic</h2>
+              <p className="text-sm font-medium text-slate-400 uppercase tracking-widest">Define your trigger conditions</p>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="space-y-12">
         {triggerType === 'post_comment' && (
@@ -587,22 +604,24 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
         )}
       </div>
 
-      <div className="flex justify-between items-center pt-10 border-t border-slate-100">
-        <button
-          onClick={onBack}
-          className="px-8 py-3.5 text-slate-500 hover:text-slate-800 font-black text-sm uppercase tracking-widest transition-all"
-        >
-          Back
-        </button>
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={onNext}
-          className="px-10 py-4 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl hover:shadow-xl hover:shadow-blue-500/20 transition-all font-black text-sm uppercase tracking-widest shadow-lg flex items-center gap-3"
-        >
-          Define Actions <ArrowRight size={18} />
-        </motion.button>
-      </div>
+      {!isCondensed && (
+        <div className="flex justify-between items-center pt-10 border-t border-slate-100">
+          <button
+            onClick={onBack}
+            className="px-8 py-3.5 text-slate-500 hover:text-slate-800 font-black text-sm uppercase tracking-widest transition-all"
+          >
+            Back
+          </button>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={onNext}
+            className="px-10 py-4 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl hover:shadow-xl hover:shadow-blue-500/20 transition-all font-black text-sm uppercase tracking-widest shadow-lg flex items-center gap-3"
+          >
+            Define Actions <ArrowRight size={18} />
+          </motion.button>
+        </div>
+      )}
     </div>
   );
 }

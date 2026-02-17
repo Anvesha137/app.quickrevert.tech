@@ -18,9 +18,10 @@ interface ActionConfigProps {
   triggerType: TriggerType;
   actions: Action[];
   onActionsChange: (actions: Action[]) => void;
-  onSave: () => void;
-  onBack: () => void;
+  onSave: () => void | Promise<void>;
+  onBack: () => void | Promise<void>;
   saving: boolean;
+  isCondensed?: boolean;
 }
 
 const getTriggerName = (type: TriggerType): string => {
@@ -61,7 +62,7 @@ const getAvailableActions = (triggerType: TriggerType): { type: ActionType; name
   return baseActions;
 };
 
-export default function ActionConfig({ triggerType, actions, onActionsChange, onSave, onBack, saving }: ActionConfigProps) {
+export default function ActionConfig({ triggerType, actions, onActionsChange, onSave, onBack, saving, isCondensed }: ActionConfigProps) {
   const [showActionSelector, setShowActionSelector] = useState(false);
   const { canUseAskToFollow } = useSubscription();
   const { openModal } = useUpgradeModal();
@@ -183,18 +184,34 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
   return (
     <div className="space-y-10">
       {/* Step Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-100">
-        <div>
-          <h2 className="text-3xl font-black text-slate-800 mb-2 font-outfit">Design Actions</h2>
-          <p className="text-slate-500 font-medium font-outfit">Define what happens when the trigger fires.</p>
+      {!isCondensed && (
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-100">
+          <div>
+            <h2 className="text-3xl font-black text-slate-800 mb-2 font-outfit">Design Actions</h2>
+            <p className="text-slate-500 font-medium font-outfit">Define what happens when the trigger fires.</p>
+          </div>
+          <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-2xl border border-blue-100 shrink-0 self-start">
+            <Sparkles className="h-4 w-4 text-blue-600" />
+            <span className="text-xs font-black text-blue-700 uppercase tracking-widest leading-none">
+              {getTriggerName(triggerType)} Active
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-2xl border border-blue-100 shrink-0 self-start">
-          <Sparkles className="h-4 w-4 text-blue-600" />
-          <span className="text-xs font-black text-blue-700 uppercase tracking-widest leading-none">
-            {getTriggerName(triggerType)} Active
-          </span>
+      )}
+
+      {isCondensed && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-500 flex items-center justify-center text-white shadow-lg">
+              <Sparkles size={20} />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight">Step 2: Design Actions</h2>
+              <p className="text-sm font-medium text-slate-400 uppercase tracking-widest">Create your automated responses</p>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       <AnimatePresence mode="popLayout">
         {actions.length === 0 ? (
@@ -593,7 +610,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
           onClick={onBack}
           className="px-8 py-3.5 text-slate-500 hover:text-slate-800 font-black text-sm uppercase tracking-widest transition-all"
         >
-          Back
+          {isCondensed ? 'Back to Logic' : 'Back'}
         </button>
         <div className="flex items-center gap-4">
           {!canSave && actions.length > 0 && (

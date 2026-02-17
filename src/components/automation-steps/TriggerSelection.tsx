@@ -6,7 +6,8 @@ interface TriggerSelectionProps {
   selectedTrigger: TriggerType | null;
   onTriggerSelect: (trigger: TriggerType) => void;
   onNext: () => void;
-  onBack: () => void;
+  onBack: () => void | Promise<void>;
+  isCondensed?: boolean;
 }
 
 const triggers = [
@@ -41,6 +42,7 @@ export default function TriggerSelection({
   onTriggerSelect,
   onNext,
   onBack,
+  isCondensed
 }: TriggerSelectionProps) {
   const handleNext = () => {
     if (selectedTrigger) {
@@ -52,15 +54,19 @@ export default function TriggerSelection({
     <div className="space-y-10">
       <div className="flex justify-between items-start">
         <div>
-          <h2 className="text-3xl font-black text-slate-800 mb-2 font-outfit">Choose Your Event</h2>
+          <h2 className="text-3xl font-black text-slate-800 mb-2 font-outfit">
+            {isCondensed ? 'Select Trigger Type' : 'Choose Your Event'}
+          </h2>
           <p className="text-slate-500 font-medium">
             Select the spark that ignites this automation.
           </p>
         </div>
-        <div className="bg-amber-50 px-4 py-2 rounded-2xl border border-amber-100 flex items-center gap-2">
-          <Zap className="h-4 w-4 text-amber-500 fill-amber-500" />
-          <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Single Trigger</span>
-        </div>
+        {!isCondensed && (
+          <div className="bg-amber-50 px-4 py-2 rounded-2xl border border-amber-100 flex items-center gap-2">
+            <Zap className="h-4 w-4 text-amber-500 fill-amber-500" />
+            <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Single Trigger</span>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-1 gap-5">
@@ -75,8 +81,8 @@ export default function TriggerSelection({
               whileTap={{ scale: 0.99 }}
               onClick={() => onTriggerSelect(trigger.type)}
               className={`w-full text-left p-8 rounded-3xl transition-all relative overflow-hidden group ${isSelected
-                  ? 'bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 text-white shadow-xl shadow-blue-600/20'
-                  : 'bg-white/50 border-2 border-slate-100 hover:border-blue-200 hover:bg-white hover:shadow-lg'
+                ? 'bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 text-white shadow-xl shadow-blue-600/20'
+                : 'bg-white/50 border-2 border-slate-100 hover:border-blue-200 hover:bg-white hover:shadow-lg'
                 }`}
             >
               {isSelected && (
@@ -108,8 +114,8 @@ export default function TriggerSelection({
                   <div className="flex flex-wrap gap-2">
                     {trigger.actions.map((action) => (
                       <span key={action} className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border transition-colors ${isSelected
-                          ? 'bg-white/10 border-white/20 text-white hover:bg-white/20'
-                          : 'bg-slate-50 border-slate-100 text-slate-500 hover:bg-white hover:border-slate-200'
+                        ? 'bg-white/10 border-white/20 text-white hover:bg-white/20'
+                        : 'bg-slate-50 border-slate-100 text-slate-500 hover:bg-white hover:border-slate-200'
                         }`}>
                         {action}
                       </span>
@@ -132,7 +138,7 @@ export default function TriggerSelection({
           onClick={onBack}
           className="px-8 py-3.5 text-slate-500 hover:text-slate-800 font-black text-sm uppercase tracking-widest transition-all"
         >
-          Back
+          {isCondensed ? 'Exit' : 'Back'}
         </button>
         <motion.button
           whileHover={{ scale: 1.05 }}
@@ -141,7 +147,7 @@ export default function TriggerSelection({
           disabled={!selectedTrigger}
           className="px-10 py-4 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl hover:shadow-xl hover:shadow-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-black text-sm uppercase tracking-widest shadow-lg flex items-center gap-3"
         >
-          Configure logic <ArrowRight size={18} />
+          {isCondensed ? 'Set Logic & Actions' : 'Configure logic'} <ArrowRight size={18} />
         </motion.button>
       </div>
     </div>
