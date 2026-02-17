@@ -319,8 +319,8 @@ async function processEvent(body: any) {
                 }
 
                 let sub_type = 'other';
-                if (msg.message) sub_type = 'message';
-                else if (msg.postback) sub_type = 'postback';
+                if (msg.postback || msg.message?.quick_reply) sub_type = 'postback';
+                else if (msg.message) sub_type = 'message';
 
                 // 3. TRIGGER AUTOMATION
                 // Enrich payload with contact_id for N8n (so it can use it if needed)

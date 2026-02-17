@@ -243,7 +243,7 @@ Deno.serve(async (req: Request) => {
           name: "Event Type Switch",
           type: "n8n-nodes-base.switch",
           typeVersion: 3.3,
-          position: [-112, -440], // Match user position
+          position: [-112, -424],
           parameters: {
             rules: {
               values: [
@@ -262,14 +262,6 @@ Deno.serve(async (req: Request) => {
                     combinator: "and"
                   },
                   renameOutput: true, outputKey: "Button Click"
-                },
-                {
-                  conditions: {
-                    options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
-                    conditions: [{ id: "is-message", leftValue: "={{ $json.body.sub_type }}", rightValue: "message", operator: { type: "string", operation: "equals" } }],
-                    combinator: "and"
-                  },
-                  renameOutput: true, outputKey: "message"
                 }
               ]
             },
@@ -344,7 +336,7 @@ Deno.serve(async (req: Request) => {
         const instagramUsername = instagramAccount.username;
         nodes.push({
           id: "loop-protection-switch", name: "Loop Protection Switch1", type: "n8n-nodes-base.switch", typeVersion: 3.4,
-          position: [336, -528], // Match user position
+          position: [112, -528], // Match user position
           parameters: {
             rules: {
               values: [
@@ -762,7 +754,7 @@ Deno.serve(async (req: Request) => {
           nodeName = `Reply to Comment `;
           const replyText = `@${usernamePath} ${action.replyTemplates?.[0] || action.text || "Thanks!"}`;
           nodes.push({
-            id: `act-reply-${index}`, name: nodeName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [560, -624], // Match user position
+            id: `act-reply-${index}`, name: nodeName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [336, -624], // Match user position
             parameters: { method: "POST", url: `=https://graph.instagram.com/v24.0/${commentIdPath}/replies`, authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi", sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify({ message: replyText }, null, 2)}`, options: {} },
             credentials: { facebookGraphApi: { id: credentialId } }
           });
@@ -777,7 +769,7 @@ Deno.serve(async (req: Request) => {
           if (action.askToFollow) {
             const teaserNodeName = `Send Teaser DM`;
             const teaserPayload = {
-              recipient: triggerType === 'post_comment' ? { comment_id: "{{ $json.body.entry[0].changes[0].value.id }}" } : { id: senderIdPath },
+              recipient: { id: senderIdPath },
               message: {
                 attachment: {
                   type: "template",
@@ -802,7 +794,7 @@ Deno.serve(async (req: Request) => {
               }
             };
             nodes.push({
-              id: `teaser-${index}`, name: teaserNodeName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [560, -432], // Match user position
+              id: `teaser-${index}`, name: teaserNodeName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [336, -432], // Match user position
               parameters: { method: "POST", url: "https://graph.instagram.com/v24.0/me/messages", authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi", sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify(teaserPayload, null, 2)}`, options: {} },
               credentials: { facebookGraphApi: { id: credentialId } }
             });
