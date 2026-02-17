@@ -29,7 +29,7 @@ export const navigation = [
 export default function Sidebar() {
   const location = useLocation();
   const { user, signOut } = useAuth();
-  const { displayName } = useTheme();
+  const { displayName, avatarUrl } = useTheme();
   const { isPremium } = useSubscription();
   const { openModal } = useUpgradeModal();
 
@@ -112,9 +112,9 @@ export default function Sidebar() {
       {/* User & Sign Out Section */}
       <div className="mt-4 space-y-2">
         <div className="flex items-center gap-3 p-3 rounded-xl bg-white/30 backdrop-blur-md border border-white/40 cursor-pointer hover:bg-white/40 transition-all">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center shadow-sm relative">
-            {user?.user_metadata?.avatar_url ? (
-              <img src={user.user_metadata.avatar_url} alt={getUserName()} className="w-full h-full rounded-full object-cover" />
+          <div className="w-10 h-10 rounded-full bg-white/50 flex items-center justify-center shadow-sm relative overflow-hidden border border-white/60">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={getUserName()} className="w-full h-full object-contain p-1" />
             ) : (
               <User className="w-5 h-5 text-white" />
             )}

@@ -5,8 +5,10 @@ import { supabase } from '../lib/supabase';
 interface ThemeContextType {
   colorPalette: string;
   displayName: string;
+  avatarUrl: string;
   setColorPalette: (palette: string) => void;
   setDisplayName: (name: string) => void;
+  setAvatarUrl: (url: string) => void;
   refreshUserProfile: () => Promise<void>;
 }
 
@@ -25,6 +27,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [colorPalette, setColorPaletteState] = useState('default');
   const [displayName, setDisplayNameState] = useState('');
+  const [avatarUrl, setAvatarUrlState] = useState('');
 
   useEffect(() => {
     if (user) {
@@ -42,15 +45,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     try {
       const { data } = await supabase
         .from('profiles')
-        .select('display_name, color_palette')
+        .select('display_name, color_palette, avatar_url')
         .eq('id', user.id)
         .maybeSingle();
 
       if (data) {
         setColorPaletteState(data.color_palette || 'default');
         setDisplayNameState(data.display_name || user.user_metadata?.full_name || user.email?.split('@')[0] || '');
+        setAvatarUrlState(data.avatar_url || user.user_metadata?.avatar_url || '');
       } else {
         setDisplayNameState(user.user_metadata?.full_name || user.email?.split('@')[0] || '');
+        setAvatarUrlState(user.user_metadata?.avatar_url || '');
       }
     } catch (error) {
       console.error('Error loading profile:', error);
@@ -73,6 +78,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setDisplayNameState(name);
   };
 
+  const setAvatarUrl = (url: string) => {
+    setAvatarUrlState(url);
+  };
+
   const refreshUserProfile = async () => {
     await loadUserProfile();
   };
@@ -82,8 +91,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       value={{
         colorPalette,
         displayName,
+        avatarUrl,
         setColorPalette,
         setDisplayName,
+        setAvatarUrl,
         refreshUserProfile,
       }}
     >
