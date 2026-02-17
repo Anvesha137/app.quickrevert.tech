@@ -56,6 +56,19 @@ serve(async (req) => {
     const neonClient = new Client(neonDbUrl);
     await neonClient.connect();
 
+    // Check if user already exists in Neon and was deleted
+    const { rows: existingNeonUsers } = await neonClient.queryObject(`
+      SELECT id, deleted FROM users WHERE email = ${email}
+    `);
+
+    if (existingNeonUsers.length > 0) {
+      const existingUser = existingNeonUsers[0] as any;
+      if (existingUser.deleted) {
+        console.log(`User ${email} was previously deleted. Removing old record for fresh start.`);
+        await neonClient.queryObject(`DELETE FROM users WHERE id = ${existingUser.id}`);
+      }
+    }
+
     await neonClient.queryObject`
       INSERT INTO users (
         id,

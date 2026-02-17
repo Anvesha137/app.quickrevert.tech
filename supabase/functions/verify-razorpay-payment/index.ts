@@ -205,6 +205,19 @@ serve(async (req) => {
         const { data: { user: userData }, error: userError } = await supabaseClient.auth.admin.getUserById(userId);
         const email = userData?.email || '';
 
+        // Check if user already exists in Neon and was deleted
+        const { rows: existingNeonUsers } = await neonClient.queryObject(`
+          SELECT id, deleted FROM users WHERE email = ${email}
+        `);
+
+        if (existingNeonUsers.length > 0) {
+          const existingUser = existingNeonUsers[0] as any;
+          if (existingUser.deleted) {
+            console.log(`User ${email} was previously deleted. Removing old record for fresh start.`);
+            await neonClient.queryObject(`DELETE FROM users WHERE id = ${existingUser.id}`);
+          }
+        }
+
         // Determine Package Name 
         let packageName = planTier === 'gold' ? 'Gold' : 'Premium';
         if (planType === 'quarterly') packageName += ' Quarterly';

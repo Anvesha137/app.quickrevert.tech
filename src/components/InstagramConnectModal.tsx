@@ -116,18 +116,8 @@ const InstagramConnectModal = ({ isOpen, onClose, onConnect }: InstagramConnectM
 
           {/* Meta-verified block */}
           <div className="w-full p-6 rounded-3xl bg-slate-50/50 border border-slate-100 mb-8">
-            <div className="flex items-start gap-4 mb-4">
-              <div className="shrink-0 pt-1">
-                <svg className="w-8 h-8 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm6.9 14.8c-.2 1.2-.6 2.3-1.3 3.3-1.1 1.6-2.8 2.5-4.7 2.5-1.9 0-3.6-.9-4.7-2.4-.7-1-1.1-2.1-1.3-3.3l-.1-.6c-.1-.7-.1-1.3-.1-2 0-.7 0-1.3.1-2l.1-.6c.2-1.2.6-2.3 1.3-3.3 1.1-1.6 2.8-2.5 4.7-2.5 1.9 0 3.6.9 4.7 2.4.7 1 1.1 2.1 1.3 3.3l.1.6c.1.7.1 1.3.1 2 0 .7 0 1.3-.1 2l-.1.6zm-4.9-5c-1.1 0-2 .4-2.8 1.1-.5.4-.9 1-1.1 1.6L12 12.8c.2.6.6 1.2 1.1 1.6.8.7 1.7 1.1 2.8 1.1s2-.4 2.8-1.1c.5-.4.9-1 1.1-1.6l.1-.3c.2-.6-.2-1.2-1.1-1.6-.8-.7-1.7-1.1-2.8-1.1z" />
-                </svg>
-              </div>
-              <div>
-                <h4 className="font-bold text-blue-600 text-lg">We're a Meta-verified business</h4>
-                <p className="text-gray-500 text-sm mt-1 leading-relaxed">
-                  We only use official Instagram APIs and processes. Your Instagram account is secure, and you stay in full control.
-                </p>
-              </div>
+            <div className="flex items-center justify-center mb-6">
+              <img src="/meta_logo.png" alt="Meta Logo" className="h-8 object-contain" />
             </div>
 
             <div className="space-y-3">
