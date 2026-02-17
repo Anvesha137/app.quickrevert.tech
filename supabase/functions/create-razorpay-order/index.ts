@@ -46,58 +46,70 @@ serve(async (req) => {
 
     // Coupon Logic
     if (couponCode) {
-      const neonDbUrl = Deno.env.get('NEON_DB_URL');
-      if (neonDbUrl) {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+
+      if (supabaseUrl && supabaseKey) {
         try {
-          const client = new Client(neonDbUrl);
-          await client.connect();
+          const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+          const supabaseClient = createClient(supabaseUrl, supabaseKey);
 
-          // Check coupon in promo_codes table
-          const result = await client.queryObject`
-                    SELECT * FROM promo_codes 
-                    WHERE promo_code = ${couponCode} 
-                    AND (expiry_date >= NOW())
-                    AND (max_usage > total_usage_tilldate)
-                `;
+          // Check coupon in Supabase promo_codes table
+          const { data: coupon, error: couponError } = await supabaseClient
+            .from('promo_codes')
+            .select('*')
+            .ilike('code', couponCode.trim())
+            .eq('status', 'active')
+            .maybeSingle();
 
-          if (result.rows.length > 0) {
-            const coupon = result.rows[0] as any;
-            // Apply Discount (Percentage based)
-            // Apply Discount (Percentage based)
-            let discountPaise = 0;
-            if (coupon.discount_percentage > 0) {
-              discountPaise = Math.floor(amount * (coupon.discount_percentage / 100));
+          if (couponError) throw couponError;
+
+          if (coupon) {
+            const now = new Date();
+            const expiresAt = new Date(coupon.expires_at);
+
+            if (expiresAt >= now && coupon.used_count < coupon.usage_limit) {
+              let discountPaise = 0;
+
+              // Apply Discount
+              if (coupon.pack_type === 'starter') {
+                // Starter pack is treated as 100% OFF (Free)
+                discountPaise = amount;
+              } else if (coupon.discount_amount > 0) {
+                // Flat discount in rupees
+                discountPaise = coupon.discount_amount * 100;
+              } else if (coupon.discount_percentage > 0) {
+                // Percentage based
+                discountPaise = Math.floor(amount * (coupon.discount_percentage / 100));
+              }
+
+              let finalAmount = amount - discountPaise;
+
+              if (finalAmount <= 0) {
+                console.log(`Coupon Applied: ${couponCode}, 100% OFF. Returning free status.`);
+                return new Response(
+                  JSON.stringify({ free: true, amount: 0 }),
+                  { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                );
+              }
+
+              // Enforce minimum ₹1 (100 paise) for Razorpay if not free
+              amount = Math.max(100, finalAmount);
+              console.log(`Coupon Applied: ${couponCode}, Discount: ${discountPaise}, Final: ${amount}`);
+            } else {
+              console.log(`Coupon Expired or Max Usage Reached: ${couponCode}`);
             }
-
-            let finalAmount = amount - discountPaise;
-
-            if (finalAmount <= 0) {
-              console.log(`Coupon Applied: ${couponCode}, 100% OFF. Returning free status.`);
-              await client.end();
-              return new Response(
-                JSON.stringify({ free: true, amount: 0 }),
-                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-              );
-            }
-
-            // Enforce minimum ₹1 (100 paise) for Razorpay if not free
-            amount = Math.max(100, finalAmount);
-
-            console.log(`Coupon Applied: ${couponCode}, Discount: ${discountPaise}, Final: ${amount}`);
           } else {
-            console.log(`Invalid or Expired Coupon: ${couponCode}`);
-            // Optional: Return error or just ignore invalid coupon
+            console.log(`Invalid Coupon: ${couponCode}`);
           }
-
-          await client.end();
-        } catch (dbError) {
-          console.error("Neon DB Error:", dbError);
-          // Continue without discount on DB error (safe fail)
+        } catch (supaError) {
+          console.error("Supabase Promo Check Error:", supaError);
         }
       } else {
-        console.warn("NEON_DB_URL not set, skipping coupon check");
+        console.warn("Supabase credentials not set, skipping coupon check");
       }
     }
+
 
     const options = {
       amount,

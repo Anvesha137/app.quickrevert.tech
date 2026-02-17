@@ -96,8 +96,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     }, [user]);
 
     const planId = subscription?.plan_id || 'basic';
-    const isPremium = planId === 'premium' || planId === 'gold' || planId === 'enterprise';
-    const isGold = planId === 'gold' || planId === 'enterprise';
+    const isPremium = planId.startsWith('premium') || planId.startsWith('gold') || planId.startsWith('enterprise');
+    const isGold = planId.startsWith('gold') || planId.startsWith('enterprise');
 
     const canUseAskToFollow = isPremium;
     const dmLimit = isPremium ? 'Unlimited' : 1000;

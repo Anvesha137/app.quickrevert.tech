@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Check, MessageCircle, CreditCard, Calendar, Zap, Users, Crown, ChevronDown, Plus, TrendingUp, Sparkles } from 'lucide-react';
+import { Check, Zap, ChevronDown, Tag } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useUpgradeModal } from '../contexts/UpgradeModalContext';
@@ -8,6 +8,10 @@ interface SubscriptionData {
   plan_id: string;
   status: string;
   current_period_end: string;
+  amount_paid?: number;
+  discount_amount?: number;
+  coupon_code?: string;
+  created_at?: string;
 }
 
 interface BillingStats {
@@ -99,13 +103,17 @@ export default function Billing() {
     return id.toUpperCase();
   };
 
-  const getPlanPrice = (id?: string) => {
-    if (!id) return '₹0';
-    if (id === 'premium_annual') return '₹599';
-    if (id === 'premium_quarterly') return '₹899';
-    if (id === 'gold_annual') return '₹3499';
-    if (id === 'gold_quarterly') return '₹4999';
-    return 'Custom';
+  const getPlanPrice = (planId?: string, amountPaid?: number) => {
+    if (!planId || planId === 'basic') return '₹0';
+    if (amountPaid !== undefined && amountPaid !== null) {
+      return `₹${amountPaid}`;
+    }
+    // Fallback if amount_paid is missing
+    if (planId === 'premium_annual') return '₹7,188';
+    if (planId === 'premium_quarterly') return '₹2,697';
+    if (planId === 'gold_annual') return '₹41,988';
+    if (planId === 'gold_quarterly') return '₹14,997';
+    return 'Free';
   };
 
   const getPlanLimit = (id?: string) => {
@@ -159,9 +167,25 @@ export default function Billing() {
                 </div>
                 <div>
                   <h3 className="text-2xl font-bold">{getPlanName(subscription?.plan_id)}</h3>
-                  <div className="flex items-baseline gap-1 mt-1">
-                    <span className="text-3xl font-bold">{getPlanPrice(subscription?.plan_id)}</span>
-                    <span className="text-gray-400">/month</span>
+                  <div className="flex flex-col gap-1 mt-1">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl font-bold">{getPlanPrice(subscription?.plan_id, subscription?.amount_paid)}</span>
+                      {(!subscription?.plan_id || subscription?.plan_id === 'basic') && <span className="text-gray-400">/month</span>}
+                    </div>
+                    {subscription?.coupon_code && (
+                      <div className="flex items-center gap-1.5 text-green-500 text-sm font-medium">
+                        <Tag className="w-3.5 h-3.5" />
+                        <span>Code Applied: {subscription.coupon_code}</span>
+                        {subscription.discount_amount !== undefined && subscription.discount_amount > 0 && (
+                          <span className="ml-1 bg-green-500/10 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">
+                            Save ₹{subscription.discount_amount}
+                          </span>
+                        )}
+                        {subscription.amount_paid === 0 && !subscription.discount_amount && (
+                          <span className="ml-1 bg-green-500/10 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">100% OFF</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -204,7 +228,10 @@ export default function Billing() {
               <div>
                 <div className="flex justify-between items-end mb-2">
                   <span className="text-sm text-gray-400">DMs Sent: <span className="text-white font-medium">{stats.dmsSent.toLocaleString()} / {getPlanLimit(subscription?.plan_id)}</span></span>
-                  <span className="text-lg font-bold">{getPlanPrice(subscription?.plan_id)} <Check className="inline-block w-4 h-4 text-green-500 ml-1" /></span>
+                  <span className="text-lg font-bold">
+                    {subscription?.amount_paid === 0 ? 'FREE' : getPlanPrice(subscription?.plan_id, subscription?.amount_paid)}
+                    <Check className="inline-block w-4 h-4 text-green-500 ml-1" />
+                  </span>
                 </div>
                 <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
                   <div
@@ -248,18 +275,20 @@ export default function Billing() {
                 <span>PLAN</span>
                 <span className="text-right">STATUS</span>
               </div>
-              {[1, 2, 0].map(i => (
-                <div key={i} className="grid grid-cols-4 items-center px-4 py-3 hover:bg-gray-800/30 rounded-xl transition-colors text-sm">
-                  <span className="font-medium text-gray-300">INV-2026-00{i}</span>
-                  <span className="text-gray-500">28 Feb 2026</span>
-                  <span className="text-gray-400">Growth</span>
+              {subscription ? (
+                <div className="grid grid-cols-4 items-center px-4 py-3 hover:bg-gray-800/30 rounded-xl transition-colors text-sm">
+                  <span className="font-medium text-gray-300">INV-{new Date(subscription.created_at || '').getFullYear()}-001</span>
+                  <span className="text-gray-500">{formatDate(subscription.created_at)}</span>
+                  <span className="text-gray-400 truncate">{getPlanName(subscription.plan_id)}</span>
                   <div className="text-right">
                     <span className="inline-flex items-center gap-1 text-green-500 bg-green-500/10 px-2 py-0.5 rounded text-xs font-bold">
-                      <Check className="w-3 h-3" /> ₹999
+                      <Check className="w-3 h-3" /> ₹{subscription.amount_paid || 0}
                     </span>
                   </div>
                 </div>
-              ))}
+              ) : (
+                <div className="px-4 py-8 text-center text-gray-500 text-sm">No payment history found.</div>
+              )}
             </div>
             <p className="mt-8 text-xs text-gray-500 text-center">Questions about your billing? <a href="#" className="text-blue-500 hover:underline">Contact support</a></p>
           </div>

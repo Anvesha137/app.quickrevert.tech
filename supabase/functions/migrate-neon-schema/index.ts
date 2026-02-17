@@ -69,6 +69,13 @@ serve(async (req) => {
         ADD COLUMN IF NOT EXISTS subscription_start_date TIMESTAMP WITH TIME ZONE;
       `);
 
+      // Add 'amount_paid' and 'discount_amount' columns
+      await client.queryArray(`
+        ALTER TABLE users 
+        ADD COLUMN IF NOT EXISTS amount_paid INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS discount_amount INTEGER DEFAULT 0;
+      `);
+
       // Backfill subscription_start_date based on expiry_date
       await client.queryArray(`
         UPDATE users

@@ -13,7 +13,7 @@ export default function UsageStats() {
                     <div className="space-y-1">
                         <div className="flex justify-between text-[9px]">
                             <span className="text-black-500 uppercase tracking-widest text-shadow-sm">DMs Triggered</span>
-                            <span className="text-black-900">{usage.dms.toLocaleString()}/{limitValue}</span>
+                            <span className="text-black-900">{usage.dms.toLocaleString()}/{isUnlimited ? 'unlimited' : limitValue}</span>
                         </div>
                         <div className="h-1 w-full bg-slate-200/40 rounded-full overflow-hidden">
                             <div

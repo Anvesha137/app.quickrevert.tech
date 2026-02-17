@@ -25,53 +25,46 @@ serve(async (req) => {
         )
       }
 
-      const neonDbUrl = Deno.env.get('NEON_DB_URL');
-      if (!neonDbUrl) {
-        throw new Error("Server Configuration Error: Missing NEON_DB_URL");
-      }
-
-      const client = new Client(neonDbUrl);
-      await client.connect();
+      const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+      const supabaseClient = createClient(supabaseUrl, supabaseKey);
 
       try {
-        const result = await client.queryObject`
-                SELECT * FROM promo_codes 
-                WHERE promo_code = ${couponCode} 
-                AND (expiry_date >= NOW())
-                AND (max_usage > total_usage_tilldate)
-            `;
+        const { data: coupon, error: couponError } = await supabaseClient
+          .from('promo_codes')
+          .select('*')
+          .ilike('code', couponCode.trim())
+          .eq('status', 'active')
+          .maybeSingle();
 
-        if (result.rows.length === 0) {
-          await client.end();
+        if (couponError || !coupon) {
           return new Response(
             JSON.stringify({ error: 'Invalid or Expired Coupon' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
 
-        const coupon = result.rows[0] as any;
-        if (coupon.discount_percentage !== 100) {
-          await client.end();
+        // Validate 100% off (Starter packs or explicit 100% discount)
+        const isActuallyFree = coupon.pack_type === 'starter' || coupon.discount_percentage === 100;
+
+        if (!isActuallyFree) {
           return new Response(
             JSON.stringify({ error: 'Coupon is not 100% off' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
 
-        // Valid 100% off coupon
-        // Increment usage count to enforce max_usage limit
-        await client.queryObject`
-                UPDATE promo_codes 
-                SET total_usage_tilldate = total_usage_tilldate + 1 
-                WHERE promo_code = ${couponCode}
-            `;
-        console.log(`Coupon ${couponCode} usage incremented.`);
+        // Increment usage count in Supabase
+        await supabaseClient
+          .from('promo_codes')
+          .update({ used_count: coupon.used_count + 1 })
+          .eq('id', coupon.id);
+
+        console.log(`Coupon ${couponCode} usage incremented in Supabase.`);
 
       } catch (e) {
-        await client.end();
         throw e;
       }
-      await client.end();
 
     } else {
       // Standard Razorpay Signature Verification
@@ -114,13 +107,66 @@ serve(async (req) => {
     const supabaseClient = createClient(supabaseUrl, supabaseKey);
 
     // 3. Upsert to Supabase
-    // Calculate Period End
-    const now = new Date();
-    const periodEnd = new Date();
-    if (planType === 'annual') {
-      periodEnd.setFullYear(now.getFullYear() + 1);
+    // Calculate amount paid and discount (in rupees as integer)
+    let amountPaidRs = 0;
+    let discountRs = 0;
+
+    // Fetch coupon details if any to calculate discount
+    let couponData = null;
+    if (couponCode) {
+      const { data: c } = await supabaseClient
+        .from('promo_codes')
+        .select('*')
+        .ilike('code', couponCode.trim())
+        .maybeSingle();
+      couponData = c;
+    }
+
+    // Default price before discount
+    let baseAmountRs = 0;
+    if (planTier === 'gold') {
+      baseAmountRs = planType === 'annual' ? (3499 * 12) : (4999 * 3);
     } else {
-      periodEnd.setMonth(now.getMonth() + 3);
+      baseAmountRs = planType === 'annual' ? (599 * 12) : (899 * 3);
+    }
+
+    if (isFree) {
+      amountPaidRs = 0;
+      discountRs = baseAmountRs;
+    } else {
+      if (couponData) {
+        if (couponData.pack_type === 'starter') {
+          discountRs = baseAmountRs;
+        } else if (couponData.discount_amount > 0) {
+          discountRs = couponData.discount_amount;
+        } else if (couponData.discount_percentage > 0) {
+          discountRs = Math.floor(baseAmountRs * (couponData.discount_percentage / 100));
+        }
+      }
+      amountPaidRs = Math.max(1, baseAmountRs - discountRs); // Razorpay min 1 Rs
+    }
+
+    // Calculate Period End (Renewal Logic)
+    const { data: existingSub } = await supabaseClient
+      .from('subscriptions')
+      .select('current_period_end, status')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const now = new Date();
+    let startDate = now;
+
+    // If there's an active subscription that hasn't expired, extend it
+    if (existingSub?.status === 'active' && new Date(existingSub.current_period_end) > now) {
+      startDate = new Date(existingSub.current_period_end);
+      console.log(`Renewing: Extending subscription from ${startDate.toISOString()}`);
+    }
+
+    const periodEnd = new Date(startDate);
+    if (planType === 'annual') {
+      periodEnd.setFullYear(startDate.getFullYear() + 1);
+    } else {
+      periodEnd.setMonth(startDate.getMonth() + 3);
     }
 
     const { error: dbError } = await supabaseClient
@@ -134,6 +180,8 @@ serve(async (req) => {
         razorpay_payment_id: razorpay_payment_id || `free_pay_${Date.now()}`,
         instagram_handle: instagramHandle,
         coupon_code: couponCode,
+        amount_paid: amountPaidRs,
+        discount_amount: discountRs,
         updated_at: new Date().toISOString()
       })
 
@@ -157,13 +205,12 @@ serve(async (req) => {
         const { data: { user: userData }, error: userError } = await supabaseClient.auth.admin.getUserById(userId);
         const email = userData?.email || '';
 
-        // Determine Package Name and Amount Paid
+        // Determine Package Name 
         let packageName = planTier === 'gold' ? 'Gold' : 'Premium';
         if (planType === 'quarterly') packageName += ' Quarterly';
         if (planType === 'annual') packageName += ' Annual';
 
         // Calculate Dates in JS (IST Offset + Plan Duration)
-        const now = new Date();
         const istOffsetMs = 5.5 * 60 * 60 * 1000;
         const istDate = new Date(now.getTime() + istOffsetMs);
 
@@ -174,10 +221,7 @@ serve(async (req) => {
           expiryDate.setMonth(expiryDate.getMonth() + 3);
         }
 
-        // Upsert User
-        // We use ON CONFLICT (email) DO UPDATE to ensure we don't duplicate if they already exist
-        // --- NEW: Sync connected handle and automations count ---
-        // Fetch Connected Instagram Account (Active)
+        // --- Fetch connected handle and automations count ---
         const { data: instagramData } = await supabaseClient
           .from('instagram_accounts')
           .select('username')
@@ -187,7 +231,6 @@ serve(async (req) => {
 
         const connectedHandle = instagramData?.username || null;
 
-        // Count Active Automations
         const { count: automationsCount, error: countError } = await supabaseClient
           .from('automations')
           .select('*', { count: 'exact', head: true })
@@ -195,16 +238,8 @@ serve(async (req) => {
           .eq('status', 'active');
 
         const activeAutomationsCount = countError ? 0 : (automationsCount || 0);
-        // ---------------------------------------------------------
 
-        // Calculate amount paid (total transaction value, not monthly)
-        let amountPaid = 0;
-        if (planTier === 'gold') {
-          amountPaid = planType === 'annual' ? (3499 * 12) : (4999 * 3);
-        } else {
-          amountPaid = planType === 'annual' ? (599 * 12) : (899 * 3);
-        }
-        const subscriptionEnd = expiryDate.toISOString(); // Use expiryDate calculated above
+        const subscriptionEnd = expiryDate.toISOString();
 
         await neonClient.queryObject`
           INSERT INTO users (
@@ -219,6 +254,7 @@ serve(async (req) => {
             payment_status,
             last_payment_date,
             amount_paid,
+            discount_amount,
             currency,
             deleted,
             last_active,
@@ -235,7 +271,8 @@ serve(async (req) => {
             ${subscriptionEnd},
             'paid',
             NOW() + INTERVAL '5 hours 30 minutes',
-            ${amountPaid},
+            ${amountPaidRs},
+            ${discountRs},
             'INR',
             FALSE,
             NOW() + INTERVAL '5 hours 30 minutes',
@@ -252,6 +289,7 @@ serve(async (req) => {
             payment_status = EXCLUDED.payment_status,
             last_payment_date = EXCLUDED.last_payment_date,
             amount_paid = EXCLUDED.amount_paid,
+            discount_amount = EXCLUDED.discount_amount,
             currency = EXCLUDED.currency,
             deleted = FALSE,
             last_active = NOW() + INTERVAL '5 hours 30 minutes',
@@ -259,14 +297,23 @@ serve(async (req) => {
             automations_count = EXCLUDED.automations_count;
         `;
 
-        // Increment Coupon Usage (for paid transactions)
+
+        // Increment Coupon Usage (for paid transactions) in Supabase
         if (couponCode) {
-          await neonClient.queryObject`
-             UPDATE promo_codes 
-             SET total_usage_tilldate = total_usage_tilldate + 1 
-             WHERE promo_code = ${couponCode}
-           `;
-          console.log(`Paid Coupon ${couponCode} usage incremented.`);
+          await supabaseClient
+            .from('promo_codes')
+            .select('id, used_count')
+            .ilike('code', couponCode.trim())
+            .maybeSingle()
+            .then(async ({ data: coupon }) => {
+              if (coupon) {
+                await supabaseClient
+                  .from('promo_codes')
+                  .update({ used_count: coupon.used_count + 1 })
+                  .eq('id', coupon.id);
+                console.log(`Paid Coupon ${couponCode} usage incremented in Supabase.`);
+              }
+            });
         }
 
         await neonClient.end();
