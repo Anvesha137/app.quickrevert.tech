@@ -54,17 +54,17 @@ export default function TriggerSelection({
     <div className="space-y-10">
       <div className="flex justify-between items-start">
         <div>
-          <h2 className="text-3xl font-black text-slate-800 mb-2 font-outfit">
+          <h2 className="text-3xl font-extrabold text-slate-800 mb-2 font-outfit">
             {isCondensed ? 'Select Trigger Type' : 'Choose Your Event'}
           </h2>
-          <p className="text-slate-500 font-medium">
+          <p className="text-slate-500 font-normal">
             Select the spark that ignites this automation.
           </p>
         </div>
         {!isCondensed && (
           <div className="bg-amber-50 px-4 py-2 rounded-2xl border border-amber-100 flex items-center gap-2">
             <Zap className="h-4 w-4 text-amber-500 fill-amber-500" />
-            <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Single Trigger</span>
+            <span className="text-[10px] font-semibold text-amber-700 uppercase tracking-widest">Single Trigger</span>
           </div>
         )}
       </div>
@@ -99,21 +99,21 @@ export default function TriggerSelection({
 
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
-                    <span className={`text-[10px] font-black w-6 h-6 rounded-lg flex items-center justify-center border transition-all ${isSelected ? 'bg-white/20 border-white/40' : 'bg-slate-100 border-slate-200 text-slate-500'
+                    <span className={`text-[10px] font-semibold w-6 h-6 rounded-lg flex items-center justify-center border transition-all ${isSelected ? 'bg-white/20 border-white/40' : 'bg-slate-100 border-slate-200 text-slate-500'
                       }`}>
                       {index + 1}
                     </span>
-                    <h3 className={`text-xl font-black tracking-tight ${isSelected ? 'text-white' : 'text-slate-800'}`}>
+                    <h3 className={`text-xl font-extrabold tracking-tight ${isSelected ? 'text-white' : 'text-slate-800'}`}>
                       {trigger.title}
                     </h3>
                   </div>
-                  <p className={`font-medium mb-4 ${isSelected ? 'text-blue-50' : 'text-slate-500'}`}>
+                  <p className={`font-normal mb-4 ${isSelected ? 'text-blue-50' : 'text-slate-500'}`}>
                     {trigger.description}
                   </p>
 
                   <div className="flex flex-wrap gap-2">
                     {trigger.actions.map((action) => (
-                      <span key={action} className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border transition-colors ${isSelected
+                      <span key={action} className={`text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5 rounded-xl border transition-colors ${isSelected
                         ? 'bg-white/10 border-white/20 text-white hover:bg-white/20'
                         : 'bg-slate-50 border-slate-100 text-slate-500 hover:bg-white hover:border-slate-200'
                         }`}>
@@ -136,7 +136,7 @@ export default function TriggerSelection({
       <div className="flex justify-between items-center pt-6">
         <button
           onClick={onBack}
-          className="px-8 py-3.5 text-slate-500 hover:text-slate-800 font-black text-sm uppercase tracking-widest transition-all"
+          className="px-8 py-3.5 text-slate-500 hover:text-slate-800 font-semibold text-sm uppercase tracking-widest transition-all"
         >
           {isCondensed ? 'Exit' : 'Back'}
         </button>
@@ -145,7 +145,7 @@ export default function TriggerSelection({
           whileTap={{ scale: 0.95 }}
           onClick={handleNext}
           disabled={!selectedTrigger}
-          className="px-10 py-4 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl hover:shadow-xl hover:shadow-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-black text-sm uppercase tracking-widest shadow-lg flex items-center gap-3"
+          className="px-10 py-4 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl hover:shadow-xl hover:shadow-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm uppercase tracking-widest shadow-lg flex items-center gap-3"
         >
           {isCondensed ? 'Set Logic & Actions' : 'Configure logic'} <ArrowRight size={18} />
         </motion.button>

@@ -187,12 +187,12 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
       {!isCondensed && (
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-100">
           <div>
-            <h2 className="text-3xl font-black text-slate-800 mb-2 font-outfit">Design Actions</h2>
-            <p className="text-slate-500 font-medium font-outfit">Define what happens when the trigger fires.</p>
+            <h2 className="text-3xl font-extrabold text-slate-800 mb-2 font-outfit">Design Actions</h2>
+            <p className="text-slate-500 font-normal font-outfit">Define what happens when the trigger fires.</p>
           </div>
           <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-2xl border border-blue-100 shrink-0 self-start">
             <Sparkles className="h-4 w-4 text-blue-600" />
-            <span className="text-xs font-black text-blue-700 uppercase tracking-widest leading-none">
+            <span className="text-xs font-semibold text-blue-700 uppercase tracking-widest leading-none">
               {getTriggerName(triggerType)} Active
             </span>
           </div>
@@ -206,8 +206,8 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
               <Sparkles size={20} />
             </div>
             <div>
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight">Step 2: Design Actions</h2>
-              <p className="text-sm font-medium text-slate-400 uppercase tracking-widest">Create your automated responses</p>
+              <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">Step 2: Design Actions</h2>
+              <p className="text-sm font-semibold text-slate-400 uppercase tracking-widest">Create your automated responses</p>
             </div>
           </div>
         </div>
@@ -225,12 +225,12 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
             <div className="w-20 h-20 bg-white rounded-3xl shadow-xl shadow-slate-200/50 flex items-center justify-center mb-6">
               <Sparkles className="w-10 h-10 text-slate-300" />
             </div>
-            <p className="text-slate-400 font-bold text-lg mb-8">No actions added yet</p>
+            <p className="text-slate-400 font-semibold text-lg mb-8">No actions added yet</p>
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowActionSelector(true)}
-              className="px-10 py-5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-500/20 flex items-center gap-3"
+              className="px-10 py-5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-[2rem] font-semibold text-sm uppercase tracking-widest shadow-xl shadow-blue-500/20 flex items-center gap-3"
             >
               <Plus size={20} /> Add Your First Action
             </motion.button>
@@ -261,10 +261,10 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                       {action.type === 'reply_to_comment' ? <MessageSquare size={22} /> : <Send size={22} />}
                     </div>
                     <div>
-                      <h3 className="text-xl font-black text-slate-800 tracking-tight">
+                      <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">
                         {getActionName(action)}
                       </h3>
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Action #{index + 1}</p>
+                      <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Action #{index + 1}</p>
                     </div>
                   </div>
                   <button
@@ -280,8 +280,8 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                 {action.type === 'reply_to_comment' && (
                   <div className="space-y-6">
                     <div className="space-y-4">
-                      <label className="block text-sm font-black text-indigo-700 uppercase tracking-widest pl-1">
-                        Reply Templates <span className="text-xs text-indigo-400 font-bold">(Up to 10)</span>
+                      <label className="block text-sm font-semibold text-indigo-700 uppercase tracking-widest pl-1">
+                        Reply Templates <span className="text-xs text-indigo-400 font-medium">(Up to 10)</span>
                       </label>
                       <div className="grid gap-3">
                         {action.replyTemplates.map((template, templateIndex) => (
@@ -291,7 +291,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                               value={template}
                               onChange={(e) => updateReplyTemplate(index, templateIndex, e.target.value)}
                               placeholder="e.g., Check your DMs for the link! 👋"
-                              className="flex-1 px-6 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 font-bold text-slate-800 transition-all placeholder:text-slate-300"
+                              className="flex-1 px-6 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 font-semibold text-slate-800 transition-all placeholder:text-slate-300"
                             />
                             {action.replyTemplates.length > 1 && (
                               <button
@@ -308,7 +308,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                         <motion.button
                           whileHover={{ x: 5 }}
                           onClick={() => addReplyTemplate(index)}
-                          className="flex items-center gap-2 text-indigo-600 font-black text-xs uppercase tracking-widest pl-1 pt-2"
+                          className="flex items-center gap-2 text-indigo-600 font-semibold text-xs uppercase tracking-widest pl-1 pt-2"
                         >
                           <Plus size={16} /> Add random variation
                         </motion.button>
@@ -321,34 +321,34 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                   <div className="space-y-8">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
-                        <label className="block text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Card Title</label>
+                        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest pl-1">Card Title</label>
                         <input
                           type="text"
                           value={(action as SendDmAction).title || ''}
                           onChange={(e) => updateAction(index, { ...action, title: e.target.value } as SendDmAction)}
                           placeholder="Hey there! 👋"
-                          className="w-full px-6 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 font-bold text-slate-800 transition-all placeholder:text-slate-300"
+                          className="w-full px-6 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 font-semibold text-slate-800 transition-all placeholder:text-slate-300"
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="block text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Image URL</label>
+                        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest pl-1">Image URL</label>
                         <input
                           type="url"
                           value={(action as SendDmAction).imageUrl || ''}
                           onChange={(e) => updateAction(index, { ...action, imageUrl: e.target.value } as SendDmAction)}
                           placeholder="https://example.com/promo.jpg"
-                          className="w-full px-6 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 font-bold text-slate-800 transition-all placeholder:text-slate-300"
+                          className="w-full px-6 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 font-semibold text-slate-800 transition-all placeholder:text-slate-300"
                         />
                       </div>
                     </div>
 
                     <div className="space-y-2">
-                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Branding Subtitle</label>
+                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest pl-1">Branding Subtitle</label>
                       <input
                         type="text"
                         value="Powered By Quickrevert.tech"
                         readOnly
-                        className="w-full px-6 py-4 rounded-2xl border-2 border-slate-100 bg-slate-100 text-slate-400 font-black text-xs uppercase tracking-widest cursor-not-allowed"
+                        className="w-full px-6 py-4 rounded-2xl border-2 border-slate-100 bg-slate-100 text-slate-400 font-semibold text-xs uppercase tracking-widest cursor-not-allowed"
                       />
                     </div>
 
@@ -364,14 +364,14 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
-                              <h4 className="font-black text-slate-800">Growth Engine: Ask to Follow</h4>
+                              <h4 className="font-extrabold text-slate-800">Growth Engine: Ask to Follow</h4>
                               {!canUseAskToFollow && (
-                                <span className="bg-blue-600 text-white text-[8px] font-black px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <span className="bg-blue-600 text-white text-[8px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
                                   <Crown size={8} /> PREMIUM
                                 </span>
                               )}
                             </div>
-                            <p className="text-xs font-medium text-slate-400">Force follow verification before reward.</p>
+                            <p className="text-xs font-normal text-slate-400">Force follow verification before reward.</p>
                           </div>
                         </div>
                         <label className="relative inline-flex items-center cursor-pointer">
@@ -404,11 +404,11 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                               {/* Teaser Section */}
                               <div className="bg-indigo-50/50 rounded-3xl border border-indigo-100 p-6 space-y-4">
                                 <div className="flex items-center justify-between">
-                                  <h5 className="text-xs font-black text-indigo-700 uppercase tracking-widest">1. Initial Teaser</h5>
+                                  <h5 className="text-xs font-semibold text-indigo-700 uppercase tracking-widest">1. Initial Teaser</h5>
                                   <motion.button
                                     whileTap={{ scale: 0.9 }}
                                     onClick={() => updateAction(index, { ...action, teaserMessage: DEFAULT_TEASER_MESSAGE } as SendDmAction)}
-                                    className="text-[10px] font-black text-indigo-400 hover:text-indigo-600 uppercase tracking-tighter"
+                                    className="text-[10px] font-semibold text-indigo-400 hover:text-indigo-600 uppercase tracking-tighter"
                                   >
                                     Auto-Fill
                                   </motion.button>
@@ -418,25 +418,25 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                                   onChange={(e) => updateAction(index, { ...action, teaserMessage: e.target.value } as SendDmAction)}
                                   placeholder="Initial message to hook them..."
                                   rows={2}
-                                  className="w-full px-4 py-3 rounded-xl border-2 border-indigo-100 bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 font-bold text-slate-800 text-sm transition-all shadow-inner"
+                                  className="w-full px-4 py-3 rounded-xl border-2 border-indigo-100 bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 font-semibold text-slate-800 text-sm transition-all shadow-inner"
                                 />
                                 <input
                                   type="text"
                                   value={(action as SendDmAction).teaserBtnText || ''}
                                   onChange={(e) => updateAction(index, { ...action, teaserBtnText: e.target.value } as SendDmAction)}
                                   placeholder="Teaser Button Text"
-                                  className="w-full px-4 py-3 rounded-xl border-2 border-indigo-100 bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 font-black text-slate-800 text-xs text-center transition-all shadow-sm"
+                                  className="w-full px-4 py-3 rounded-xl border-2 border-indigo-100 bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 font-semibold text-slate-800 text-xs text-center transition-all shadow-sm"
                                 />
                               </div>
 
                               {/* Fail Message Section */}
                               <div className="bg-slate-100/50 rounded-3xl border border-slate-200 p-6 space-y-4">
                                 <div className="flex items-center justify-between">
-                                  <h5 className="text-xs font-black text-slate-500 uppercase tracking-widest">2. Verification Failed</h5>
+                                  <h5 className="text-xs font-semibold text-slate-500 uppercase tracking-widest">2. Verification Failed</h5>
                                   <motion.button
                                     whileTap={{ scale: 0.9 }}
                                     onClick={() => updateAction(index, { ...action, askToFollowMessage: DEFAULT_NOT_FOLLOWING_MESSAGE } as SendDmAction)}
-                                    className="text-[10px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-tighter"
+                                    className="text-[10px] font-semibold text-slate-400 hover:text-slate-600 uppercase tracking-tighter"
                                   >
                                     Auto-Fill
                                   </motion.button>
@@ -446,20 +446,20 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                                   onChange={(e) => updateAction(index, { ...action, askToFollowMessage: e.target.value } as SendDmAction)}
                                   placeholder="Message if not following..."
                                   rows={2}
-                                  className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-white focus:ring-4 focus:ring-slate-500/10 focus:border-slate-400 font-bold text-slate-800 text-sm transition-all shadow-inner"
+                                  className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-white focus:ring-4 focus:ring-slate-500/10 focus:border-slate-400 font-semibold text-slate-800 text-sm transition-all shadow-inner"
                                 />
                                 <input
                                   type="text"
                                   value={(action as SendDmAction).askToFollowBtnText || ''}
                                   onChange={(e) => updateAction(index, { ...action, askToFollowBtnText: e.target.value } as SendDmAction)}
                                   placeholder="Follow Button Text"
-                                  className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-white focus:ring-4 focus:ring-slate-500/10 focus:border-slate-400 font-black text-slate-800 text-xs text-center transition-all shadow-sm"
+                                  className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-white focus:ring-4 focus:ring-slate-500/10 focus:border-slate-400 font-semibold text-slate-800 text-xs text-center transition-all shadow-sm"
                                 />
                               </div>
                             </div>
                             <div className="flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100">
                               <Crown size={12} className="text-emerald-600" />
-                              <p className="text-[10px] font-bold text-emerald-700">The "Final Reward" buttons below will show ONLY after follow verification succeeds.</p>
+                              <p className="text-[10px] font-semibold text-emerald-700">The "Final Reward" buttons below will show ONLY after follow verification succeeds.</p>
                             </div>
                           </motion.div>
                         )}
@@ -469,8 +469,8 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                     {/* Action Buttons Section */}
                     <div className="space-y-4">
                       <div className="flex items-center justify-between pl-1">
-                        <label className="block text-xs font-black text-slate-400 uppercase tracking-widest">Action Buttons (Max 3)</label>
-                        <span className="text-[10px] font-black text-blue-400 uppercase tracking-tighter">Clickable Rewards</span>
+                        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest">Action Buttons (Max 3)</label>
+                        <span className="text-[10px] font-semibold text-blue-400 uppercase tracking-tighter">Clickable Rewards</span>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -492,10 +492,10 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                               value={button.text}
                               onChange={(e) => updateActionButton(index, buttonIndex, 'text', e.target.value)}
                               placeholder="Button Text"
-                              className="w-full px-4 py-2 rounded-xl border-2 border-slate-100 bg-white focus:border-blue-500 font-black text-slate-700 text-xs text-center transition-all"
+                              className="w-full px-4 py-2 rounded-xl border-2 border-slate-100 bg-white focus:border-blue-500 font-semibold text-slate-700 text-xs text-center transition-all"
                             />
                             <div className="relative">
-                              <select className="w-full px-4 py-2 rounded-xl border-2 border-slate-100 bg-white focus:border-blue-500 font-bold text-slate-400 text-[10px] appearance-none disabled:opacity-100" disabled>
+                              <select className="w-full px-4 py-2 rounded-xl border-2 border-slate-100 bg-white focus:border-blue-500 font-semibold text-slate-400 text-[10px] appearance-none disabled:opacity-100" disabled>
                                 <option>Web URL</option>
                               </select>
                               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-300" />
@@ -520,7 +520,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                             <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center">
                               <Plus size={20} />
                             </div>
-                            <span className="text-[10px] font-black uppercase tracking-widest">Add Button</span>
+                            <span className="text-[10px] font-semibold uppercase tracking-widest">Add Button</span>
                           </motion.button>
                         )}
                       </div>
@@ -534,7 +534,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
               onClick={() => setShowActionSelector(true)}
-              className="w-full py-6 border-2 border-dashed border-slate-200 rounded-[2.5rem] text-slate-400 font-black uppercase tracking-widest text-xs hover:border-blue-200 hover:text-blue-500 hover:bg-blue-50/10 transition-all flex items-center justify-center gap-3 mt-4"
+              className="w-full py-6 border-2 border-dashed border-slate-200 rounded-[2.5rem] text-slate-400 font-semibold uppercase tracking-widest text-xs hover:border-blue-200 hover:text-blue-500 hover:bg-blue-50/10 transition-all flex items-center justify-center gap-3 mt-4"
             >
               <Plus size={20} /> Add Another Action Step
             </motion.button>
@@ -562,8 +562,8 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
               <div className="p-10">
                 <div className="flex items-center justify-between mb-8">
                   <div>
-                    <h3 className="text-2xl font-black text-slate-800 font-outfit">Choose Action</h3>
-                    <p className="text-sm font-medium text-slate-500">Select how to respond to "{getTriggerName(triggerType)}"</p>
+                    <h3 className="text-2xl font-extrabold text-slate-800 font-outfit">Choose Action</h3>
+                    <p className="text-sm font-normal text-slate-500">Select how to respond to "{getTriggerName(triggerType)}"</p>
                   </div>
                   <button onClick={() => setShowActionSelector(false)} className="p-3 bg-slate-100 text-slate-400 rounded-2xl hover:bg-slate-200 transition-colors">
                     <X size={24} />
@@ -587,10 +587,10 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                       </div>
                       <div className="pt-1">
                         <div className="flex items-center gap-3 mb-1">
-                          <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-400 text-[10px] font-black flex items-center justify-center">{idx + 1}</span>
-                          <h4 className="text-xl font-black text-slate-800">{option.name}</h4>
+                          <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-400 text-[10px] font-semibold flex items-center justify-center">{idx + 1}</span>
+                          <h4 className="text-xl font-extrabold text-slate-800">{option.name}</h4>
                         </div>
-                        <p className="text-sm font-medium text-slate-500 leading-relaxed">{option.description}</p>
+                        <p className="text-sm font-normal text-slate-500 leading-relaxed">{option.description}</p>
                       </div>
                       <div className="ml-auto self-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <ArrowRight className="text-blue-500" />
@@ -608,7 +608,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
       <div className="flex justify-between items-center pt-10 border-t border-slate-100">
         <button
           onClick={onBack}
-          className="px-8 py-3.5 text-slate-500 hover:text-slate-800 font-black text-sm uppercase tracking-widest transition-all"
+          className="px-8 py-3.5 text-slate-500 hover:text-slate-800 font-semibold text-sm uppercase tracking-widest transition-all"
         >
           {isCondensed ? 'Back to Logic' : 'Back'}
         </button>
@@ -616,7 +616,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
           {!canSave && actions.length > 0 && (
             <div className="flex items-center gap-2 text-amber-500 bg-amber-50 px-4 py-2 rounded-xl border border-amber-100">
               <AlertCircle size={14} />
-              <span className="text-[10px] font-black uppercase tracking-widest">Complete all required fields</span>
+              <span className="text-[10px] font-semibold uppercase tracking-widest">Complete all required fields</span>
             </div>
           )}
           <motion.button
@@ -625,7 +625,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
             onClick={onSave}
             disabled={!canSave || saving}
             className={cn(
-              "px-10 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg flex items-center gap-3 transition-all",
+              "px-10 py-4 rounded-2xl font-semibold text-sm uppercase tracking-widest shadow-lg flex items-center gap-3 transition-all",
               canSave && !saving
                 ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:shadow-emerald-500/20"
                 : "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"

@@ -207,12 +207,12 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
       {!isCondensed && (
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-100">
           <div>
-            <h2 className="text-3xl font-black text-slate-800 mb-2 font-outfit">Configure Logic</h2>
-            <p className="text-slate-500 font-medium font-outfit">Fine-tune exactly when your automation should fire.</p>
+            <h2 className="text-3xl font-extrabold text-slate-800 mb-2 font-outfit">Configure Logic</h2>
+            <p className="text-slate-500 font-normal font-outfit">Fine-tune exactly when your automation should fire.</p>
           </div>
           <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-2xl border border-blue-100 shrink-0 self-start">
             <Filter className="h-4 w-4 text-blue-600" />
-            <span className="text-xs font-black text-blue-700 uppercase tracking-widest leading-none">
+            <span className="text-xs font-semibold text-blue-700 uppercase tracking-widest leading-none">
               {getTriggerName(triggerType)}
             </span>
           </div>
@@ -226,8 +226,8 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
               <Filter size={20} />
             </div>
             <div>
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight">Step 1: Configure Logic</h2>
-              <p className="text-sm font-medium text-slate-400 uppercase tracking-widest">Define your trigger conditions</p>
+              <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">Step 1: Configure Logic</h2>
+              <p className="text-sm font-semibold text-slate-400 uppercase tracking-widest">Define your trigger conditions</p>
             </div>
           </div>
         </div>
@@ -239,8 +239,8 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
             {/* Posts monitor section */}
             <div className="space-y-6">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-black text-xs">A</div>
-                <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Scope: Which posts?</h3>
+                <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-extrabold text-xs">A</div>
+                <h3 className="text-lg font-extrabold text-slate-800 uppercase tracking-tight">Scope: Which posts?</h3>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -256,7 +256,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                   )}>
                     <div className="flex items-center justify-between mb-2">
                       <span className={cn(
-                        "font-black text-lg transition-colors",
+                        "font-bold text-lg transition-colors",
                         (currentConfig as PostCommentTriggerConfig).postsType === option.id ? "text-blue-700" : "text-slate-800"
                       )}>
                         {option.label}
@@ -269,7 +269,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                         className="w-5 h-5 text-blue-600 border-slate-300 focus:ring-blue-500 rounded-full"
                       />
                     </div>
-                    <p className="text-sm font-medium text-slate-500 leading-relaxed group-hover:text-slate-600">
+                    <p className="text-sm font-normal text-slate-500 leading-relaxed group-hover:text-slate-600">
                       {option.desc}
                     </p>
                   </label>
@@ -286,7 +286,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                     className="overflow-hidden bg-slate-50/50 rounded-3xl border border-slate-100 p-6 space-y-4"
                   >
                     <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-black text-slate-700 uppercase tracking-widest">Available Media</h4>
+                      <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-widest">Available Media</h4>
                       {loadingMedia && <Loader2 className="h-4 w-4 animate-spin text-blue-500" />}
                     </div>
 
@@ -345,8 +345,8 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
             {/* Comments monitor section */}
             <div className="space-y-6 pt-6">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 font-black text-xs">B</div>
-                <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Logic: Which comments?</h3>
+                <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 font-extrabold text-xs">B</div>
+                <h3 className="text-lg font-extrabold text-slate-800 uppercase tracking-tight">Logic: Which comments?</h3>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -362,7 +362,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                   )}>
                     <div className="flex items-center justify-between mb-2">
                       <span className={cn(
-                        "font-black text-lg transition-colors",
+                        "font-bold text-lg transition-colors",
                         (currentConfig as PostCommentTriggerConfig).commentsType === option.id ? "text-indigo-700" : "text-slate-800"
                       )}>
                         {option.label}
@@ -375,7 +375,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                         className="w-5 h-5 text-indigo-600 border-slate-300 focus:ring-indigo-500 rounded-full"
                       />
                     </div>
-                    <p className="text-sm font-medium text-slate-500 leading-relaxed group-hover:text-slate-600">
+                    <p className="text-sm font-normal text-slate-500 leading-relaxed group-hover:text-slate-600">
                       {option.desc}
                     </p>
                   </label>
@@ -392,8 +392,8 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                     className="bg-indigo-50/30 rounded-3xl border border-indigo-100 p-8 space-y-6"
                   >
                     <div className="space-y-4">
-                      <label className="block text-sm font-black text-indigo-700 uppercase tracking-widest pl-1">
-                        Active Keywords <span className="text-xs text-indigo-400 font-bold">(Max 2)</span>
+                      <label className="block text-sm font-semibold text-indigo-700 uppercase tracking-widest pl-1">
+                        Active Keywords <span className="text-xs text-indigo-400 font-medium">(Max 2)</span>
                       </label>
                       <div className="flex gap-3">
                         <div className="relative flex-1 group">
@@ -404,7 +404,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                             onChange={(e) => setKeyword(e.target.value)}
                             onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
                             placeholder="Add a magic keyword..."
-                            className="w-full pl-12 pr-4 py-4 rounded-2xl border-2 border-slate-100 bg-white shadow-inner focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 font-bold text-slate-800 transition-all placeholder:text-slate-300"
+                            className="w-full pl-12 pr-4 py-4 rounded-2xl border-2 border-slate-100 bg-white shadow-inner focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 font-semibold text-slate-800 transition-all placeholder:text-slate-300"
                           />
                         </div>
                         <motion.button
@@ -412,7 +412,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                           whileTap={{ scale: 0.95 }}
                           type="button"
                           onClick={addKeyword}
-                          className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:brightness-110 transition-all"
+                          className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-semibold text-sm uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:brightness-110 transition-all"
                         >
                           Add
                         </motion.button>
@@ -427,7 +427,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                           animate={{ opacity: 1, x: 0 }}
                           className="flex items-center gap-3 pl-4 pr-1 py-1.5 bg-white border border-indigo-200 rounded-xl shadow-sm group/kw"
                         >
-                          <span className="text-sm font-bold text-slate-700">{kw}</span>
+                          <span className="text-sm font-semibold text-slate-700">{kw}</span>
                           <button
                             onClick={() => removeKeyword(index)}
                             className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all"
@@ -451,8 +451,8 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
           <div className="space-y-10">
             <div className="space-y-6">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-violet-100 flex items-center justify-center text-violet-600 font-black text-xs">S</div>
-                <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Trigger Logic</h3>
+                <div className="w-8 h-8 rounded-xl bg-violet-100 flex items-center justify-center text-violet-600 font-extrabold text-xs">S</div>
+                <h3 className="text-lg font-extrabold text-slate-800 uppercase tracking-tight">Trigger Logic</h3>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -468,7 +468,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                   )}>
                     <div className="flex items-center justify-between mb-2">
                       <span className={cn(
-                        "font-black text-lg transition-colors",
+                        "font-bold text-lg transition-colors",
                         (currentConfig as StoryReplyTriggerConfig).storiesType === option.id ? "text-violet-700" : "text-slate-800"
                       )}>
                         {option.label}
@@ -498,7 +498,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                     className="bg-violet-50/30 rounded-3xl border border-violet-100 p-8 space-y-6"
                   >
                     <div className="space-y-4">
-                      <label className="block text-sm font-black text-violet-700 uppercase tracking-widest pl-1">Keywords</label>
+                      <label className="block text-sm font-semibold text-violet-700 uppercase tracking-widest pl-1">Keywords</label>
                       <div className="flex gap-3">
                         <input
                           type="text"
@@ -506,14 +506,14 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                           onChange={(e) => setKeyword(e.target.value)}
                           onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
                           placeholder="Type and press enter..."
-                          className="flex-1 px-6 py-4 rounded-2xl border-2 border-slate-100 bg-white font-bold text-slate-800 transition-all focus:ring-4 focus:ring-violet-500/10 focus:border-violet-500"
+                          className="flex-1 px-6 py-4 rounded-2xl border-2 border-slate-100 bg-white font-semibold text-slate-800 transition-all focus:ring-4 focus:ring-violet-500/10 focus:border-violet-500"
                         />
-                        <button onClick={addKeyword} className="bg-violet-600 text-white px-8 rounded-2xl font-black text-sm uppercase tracking-widest">Add</button>
+                        <button onClick={addKeyword} className="bg-violet-600 text-white px-8 rounded-2xl font-semibold text-sm uppercase tracking-widest">Add</button>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {getKeywords().map((kw, index) => (
-                        <span key={index} className="px-4 py-2 bg-white border border-violet-200 rounded-xl flex items-center gap-2 shadow-sm font-bold text-slate-700">
+                        <span key={index} className="px-4 py-2 bg-white border border-violet-200 rounded-xl flex items-center gap-2 shadow-sm font-semibold text-slate-700">
                           {kw} <X size={14} className="cursor-pointer text-slate-400 hover:text-red-500" onClick={() => removeKeyword(index)} />
                         </span>
                       ))}
@@ -529,8 +529,8 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
           <div className="space-y-10">
             <div className="space-y-6">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 font-black text-xs">D</div>
-                <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Conversation Flow</h3>
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 font-extrabold text-xs">D</div>
+                <h3 className="text-lg font-extrabold text-slate-800 uppercase tracking-tight">Conversation Flow</h3>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -546,7 +546,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                   )}>
                     <div className="flex items-center justify-between mb-2">
                       <span className={cn(
-                        "font-black text-lg transition-colors",
+                        "font-bold text-lg transition-colors",
                         (currentConfig as UserDirectMessageTriggerConfig).messageType === option.id ? "text-emerald-700" : "text-slate-800"
                       )}>
                         {option.label}
@@ -559,7 +559,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                         className="w-5 h-5 text-emerald-600 border-slate-300 focus:ring-emerald-500 rounded-full"
                       />
                     </div>
-                    <p className="text-sm font-medium text-slate-500 leading-relaxed group-hover:text-slate-600">
+                    <p className="text-sm font-normal text-slate-500 leading-relaxed group-hover:text-slate-600">
                       {option.desc}
                     </p>
                   </label>
@@ -576,7 +576,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                     className="bg-emerald-50/30 rounded-3xl border border-emerald-100 p-8 space-y-6"
                   >
                     <div className="space-y-4">
-                      <label className="block text-sm font-black text-emerald-700 uppercase tracking-widest pl-1">Keywords</label>
+                      <label className="block text-sm font-semibold text-emerald-700 uppercase tracking-widest pl-1">Keywords</label>
                       <div className="flex gap-3">
                         <input
                           type="text"
@@ -584,14 +584,14 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                           onChange={(e) => setKeyword(e.target.value)}
                           onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
                           placeholder="Type and press enter..."
-                          className="flex-1 px-6 py-4 rounded-2xl border-2 border-slate-100 bg-white font-bold text-slate-800 transition-all focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500"
+                          className="flex-1 px-6 py-4 rounded-2xl border-2 border-slate-100 bg-white font-semibold text-slate-800 transition-all focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500"
                         />
-                        <button onClick={addKeyword} className="bg-emerald-600 text-white px-8 rounded-2xl font-black text-sm uppercase tracking-widest">Add</button>
+                        <button onClick={addKeyword} className="bg-emerald-600 text-white px-8 rounded-2xl font-semibold text-sm uppercase tracking-widest">Add</button>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {getKeywords().map((kw, index) => (
-                        <span key={index} className="px-4 py-2 bg-white border border-emerald-200 rounded-xl flex items-center gap-2 shadow-sm font-bold text-slate-700">
+                        <span key={index} className="px-4 py-2 bg-white border border-emerald-200 rounded-xl flex items-center gap-2 shadow-sm font-semibold text-slate-700">
                           {kw} <X size={14} className="cursor-pointer text-slate-400 hover:text-red-500" onClick={() => removeKeyword(index)} />
                         </span>
                       ))}
@@ -608,7 +608,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
         <div className="flex justify-between items-center pt-10 border-t border-slate-100">
           <button
             onClick={onBack}
-            className="px-8 py-3.5 text-slate-500 hover:text-slate-800 font-black text-sm uppercase tracking-widest transition-all"
+            className="px-8 py-3.5 text-slate-500 hover:text-slate-800 font-semibold text-sm uppercase tracking-widest transition-all"
           >
             Back
           </button>
@@ -616,7 +616,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={onNext}
-            className="px-10 py-4 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl hover:shadow-xl hover:shadow-blue-500/20 transition-all font-black text-sm uppercase tracking-widest shadow-lg flex items-center gap-3"
+            className="px-10 py-4 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl hover:shadow-xl hover:shadow-blue-500/20 transition-all font-semibold text-sm uppercase tracking-widest shadow-lg flex items-center gap-3"
           >
             Define Actions <ArrowRight size={18} />
           </motion.button>
