@@ -124,12 +124,6 @@ const InstagramConnectModal = ({ isOpen, onClose, onConnect }: InstagramConnectM
                 </div>
                 <span className="text-gray-600 font-medium text-sm">Safe and Secure</span>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="bg-green-100 rounded-full p-0.5">
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                </div>
-                <span className="text-gray-600 font-medium text-sm">Used by 1000+ creators</span>
-              </div>
             </div>
           </div>
 
