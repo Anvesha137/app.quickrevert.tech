@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   MessageSquare,
   Zap,
@@ -6,7 +7,7 @@ import {
   Users,
   TrendingUp,
   Hand,
-  Bell,
+  User,
   Headset,
   Instagram,
   AlertCircle
@@ -153,9 +154,12 @@ export default function Dashboard() {
             </h2>
           </div>
           <div className="flex items-center gap-3">
-            <button className="p-3 rounded-xl backdrop-blur-xl bg-white/60 border border-white/40 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110">
-              <Bell className="w-5 h-5 text-gray-700" />
-            </button>
+            <Link
+              to="/settings"
+              className="p-3 rounded-xl backdrop-blur-xl bg-white/60 border border-white/40 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110"
+            >
+              <User className="w-5 h-5 text-gray-700" />
+            </Link>
             <a
               href="https://quickrevert.tech/contact"
               target="_blank"
