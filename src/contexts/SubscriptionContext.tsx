@@ -95,9 +95,18 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         return () => clearInterval(interval);
     }, [user]);
 
-    const planId = subscription?.plan_id || 'basic';
-    const isPremium = planId.startsWith('premium') || planId.startsWith('gold') || planId.startsWith('enterprise');
-    const isGold = planId.startsWith('gold') || planId.startsWith('enterprise');
+    const planId = (subscription?.plan_id || 'basic').toLowerCase();
+
+    // Robust detection: If it's not basic, and it has any premium-tier signal or is a paid interval, it's premium
+    const isPremium = planId !== 'basic' && (
+        planId.includes('premium') ||
+        planId.includes('gold') ||
+        planId.includes('enterprise') ||
+        planId.includes('quarterly') ||
+        planId.includes('annual')
+    );
+
+    const isGold = planId.includes('gold') || planId.includes('enterprise');
 
     const canUseAskToFollow = isPremium;
     const dmLimit = isPremium ? 'Unlimited' : 1000;

@@ -93,8 +93,11 @@ const Billing = () => {
 
   const getPlanName = (id?: string) => {
     if (!id || id === 'basic') return 'BASIC';
-    const name = id.split('_')[0];
-    return name.toUpperCase();
+    const lowerId = id.toLowerCase();
+    if (lowerId.includes('gold')) return 'GOLD';
+    if (lowerId.includes('enterprise')) return 'ENTERPRISE';
+    if (lowerId.includes('premium')) return 'PREMIUM';
+    return lowerId.toUpperCase(); // Fallback for things like 'QUARTERLY'
   };
 
   const getPlanPrice = (id?: string, amount?: number) => {
@@ -112,9 +115,16 @@ const Billing = () => {
     );
   }
 
-  const isPremium = subscription?.plan_id?.startsWith('premium');
-  const isGold = subscription?.plan_id?.startsWith('gold') || subscription?.plan_id?.startsWith('enterprise');
-  const planLimit = isGold || isPremium ? 'Unlimited' : 1000;
+  const planId = (subscription?.plan_id || 'basic').toLowerCase();
+  const isPremium = planId !== 'basic' && (
+    planId.includes('premium') ||
+    planId.includes('gold') ||
+    planId.includes('enterprise') ||
+    planId.includes('quarterly') ||
+    planId.includes('annual')
+  );
+  const isGold = planId.includes('gold') || planId.includes('enterprise');
+  const planLimit = isPremium ? 'Unlimited' : 1000;
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
