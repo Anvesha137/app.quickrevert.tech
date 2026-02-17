@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { Plus, X, Sparkles, UserPlus, Send, MessageSquare, Trash2, ChevronDown } from 'lucide-react';
+import { Plus, X, Sparkles, UserPlus, Send, MessageSquare, Trash2, ChevronDown, Crown } from 'lucide-react';
 import { TriggerType, Action, ActionType, ReplyToCommentAction, AskToFollowAction, SendDmAction } from '../../types/automation';
+import { useSubscription } from '../../contexts/SubscriptionContext';
+import { useUpgradeModal } from '../../contexts/UpgradeModalContext';
 
 const DEFAULT_TEASER_MESSAGE = "Hey there! I'm so happy you're here... Click below and I'll send you the link in just a sec ✨";
 const DEFAULT_NOT_FOLLOWING_MESSAGE = "Oops! Looks like you haven't followed me yet 👀...";
@@ -46,6 +48,8 @@ const getAvailableActions = (triggerType: TriggerType): { type: ActionType; name
 export default function ActionConfig({ triggerType, actions, onActionsChange, onSave, onBack, saving }: ActionConfigProps) {
   const [showActionSelector, setShowActionSelector] = useState(false);
   const [editingActionIndex, setEditingActionIndex] = useState<number | null>(null);
+  const { canUseAskToFollow } = useSubscription();
+  const { openModal } = useUpgradeModal();
 
   const availableActions = getAvailableActions(triggerType);
 
@@ -342,19 +346,33 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
 
                   <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
                     <div className="flex-1">
-                      <h4 className="text-sm font-medium text-gray-900">Ask to Follow</h4>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-medium text-gray-900">Ask to Follow</h4>
+                        {!canUseAskToFollow && (
+                          <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-100 text-blue-600 uppercase tracking-wider flex items-center gap-0.5">
+                            <Crown size={8} /> PREMIUM
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-gray-500 mt-1">
                         If enabled, we'll check if the user follows you before sending the DM.
                         <br />
                         If not, we'll ask them to follow first.
                       </p>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
+                    <label className={`relative inline-flex items-center ${!canUseAskToFollow ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
                       <input
                         type="checkbox"
                         className="sr-only peer"
+                        disabled={!canUseAskToFollow}
                         checked={(action as SendDmAction).askToFollow || false}
-                        onChange={(e) => updateAction(index, { ...action, askToFollow: e.target.checked } as SendDmAction)}
+                        onChange={(e) => {
+                          if (!canUseAskToFollow) {
+                            openModal();
+                            return;
+                          }
+                          updateAction(index, { ...action, askToFollow: e.target.checked } as SendDmAction);
+                        }}
                       />
                       <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                     </label>

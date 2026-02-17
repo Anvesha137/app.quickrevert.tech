@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Search, User, CheckCircle2, XCircle, MessageSquare, Clock } from 'lucide-react';
+import { Search, User, CheckCircle2, XCircle, MessageSquare, Clock, Users as UsersIcon, ExternalLink } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -36,7 +36,16 @@ export default function Contacts() {
         .order('last_interaction_at', { ascending: false });
 
       if (error) throw error;
-      setContacts(data || []);
+
+      // Filter out 'Unknown' identities immediately
+      const validContacts = (data || []).filter(c =>
+        c.username &&
+        c.username !== 'Unknown' &&
+        c.username !== 'UnknownError' &&
+        !c.username.includes('undefined')
+      );
+
+      setContacts(validContacts);
     } catch (error) {
       console.error('Error fetching contacts:', error);
     } finally {
@@ -62,7 +71,7 @@ export default function Contacts() {
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50 h-screen">
+      <div className="flex-1 flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-gray-500 font-medium">Loading contacts...</p>
@@ -72,12 +81,24 @@ export default function Contacts() {
   }
 
   return (
-    <div className="flex-1 bg-gray-50 min-h-screen p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+    <div className="flex-1 relative min-h-screen overflow-x-hidden">
+      {/* Animated Background Blobs */}
+      <div className="fixed inset-0 -z-10 bg-[#f8fafc]">
+        <div className="absolute top-0 -left-4 w-96 h-96 bg-blue-400/10 rounded-full mix-blend-multiply filter blur-3xl animate-blob"></div>
+        <div className="absolute top-0 -right-4 w-96 h-96 bg-purple-400/10 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000"></div>
+        <div className="absolute inset-0 opacity-5" style={{
+          backgroundImage: `url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS1vcGFjaXR5PSIwLjA1IiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=")`
+        }}></div>
+      </div>
+
+      <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Contacts</h1>
-            <p className="text-gray-500 mt-1">Manage and track your Instagram audience interactions</p>
+            <h1 className="text-3xl font-bold text-gray-800 tracking-tight flex items-center gap-3">
+              <UsersIcon className="w-8 h-8 text-blue-600" />
+              Contacts
+            </h1>
+            <p className="text-gray-600 mt-1">Track and manage your automated audience interactions</p>
           </div>
 
           <div className="relative w-full md:w-96">
@@ -87,82 +108,94 @@ export default function Contacts() {
               placeholder="Search by username or name..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm transition-all"
+              className="w-full pl-12 pr-4 py-3.5 backdrop-blur-xl bg-white/60 border border-white/40 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-lg transition-all"
             />
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="backdrop-blur-xl bg-white/60 border border-white/40 rounded-3xl shadow-2xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-gray-50/50 border-b border-gray-200">
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">User</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Follow status</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Automations</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Conversations</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Last active</th>
+                <tr className="bg-white/40 border-b border-white/20">
+                  <th className="px-6 py-5 text-xs font-bold text-gray-500 uppercase tracking-widest">User Details</th>
+                  <th className="px-6 py-5 text-xs font-bold text-gray-500 uppercase tracking-widest">Follow Status</th>
+                  <th className="px-6 py-5 text-xs font-bold text-gray-500 uppercase tracking-widest">Automations</th>
+                  <th className="px-6 py-5 text-xs font-bold text-gray-500 uppercase tracking-widest text-center">Interactions</th>
+                  <th className="px-6 py-5 text-xs font-bold text-gray-500 uppercase tracking-widest">Last Active</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-white/20">
                 {filteredContacts.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center">
+                    <td colSpan={5} className="px-6 py-20 text-center">
                       <div className="flex flex-col items-center justify-center">
-                        <User className="w-12 h-12 text-gray-300 mb-3" />
-                        <p className="text-gray-900 font-semibold">No contacts found</p>
-                        <p className="text-gray-400 text-sm">Connect your IG and start automations to see data here</p>
+                        <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mb-4 shadow-inner">
+                          <User className="w-8 h-8" />
+                        </div>
+                        <p className="text-gray-800 font-bold text-lg">No contacts yet</p>
+                        <p className="text-gray-500 text-sm max-w-xs mx-auto">Connect your Instagram and start your first automation to see your audience here.</p>
                       </div>
                     </td>
                   </tr>
                 ) : (
                   filteredContacts.map((contact) => (
-                    <tr key={contact.id} className="hover:bg-gray-50/80 transition-colors group">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-sm">
-                            {contact.username[0].toUpperCase()}
+                    <tr key={contact.id} className="hover:bg-white/40 transition-colors group">
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-lg transform group-hover:scale-110 transition-transform">
+                            {contact.username[0]?.toUpperCase() || '?'}
                           </div>
                           <div>
-                            <div className="text-sm font-bold text-gray-900">@{contact.username}</div>
-                            <div className="text-xs text-gray-500">{contact.full_name || 'Instagram User'}</div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-gray-900">@{contact.username}</span>
+                              <a
+                                href={`https://instagram.com/${contact.username}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-gray-400 hover:text-blue-500 transition-colors"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            </div>
+                            <div className="text-xs text-gray-500 font-medium">{contact.full_name || 'Instagram User'}</div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-5">
                         {contact.follows_us ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 text-green-700 text-xs font-bold ring-1 ring-inset ring-green-600/20">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-green-500/10 text-green-700 text-[10px] font-bold uppercase tracking-wider border border-green-200">
                             <CheckCircle2 className="w-3.5 h-3.5" />
                             Follows you
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-50 text-gray-500 text-xs font-bold ring-1 ring-inset ring-gray-600/10">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-wider border border-slate-200">
                             <XCircle className="w-3.5 h-3.5" />
                             Not following
                           </span>
                         )}
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-wrap gap-1.5 max-w-xs">
+                      <td className="px-6 py-5">
+                        <div className="flex flex-wrap gap-2 max-w-xs">
                           {contact.interacted_automations?.length > 0 ? (
                             contact.interacted_automations.map((auto, idx) => (
-                              <span key={idx} className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded uppercase tracking-wider">
+                              <span key={idx} className="px-2.5 py-1 bg-gradient-to-r from-blue-500/10 to-purple-500/10 text-blue-600 text-[9px] font-bold rounded-lg uppercase tracking-widest border border-blue-100 shadow-sm">
                                 {auto}
                               </span>
                             ))
                           ) : (
-                            <span className="text-gray-400 text-xs italic">No automations triggered</span>
+                            <span className="text-gray-400 text-[10px] font-medium italic">No triggers yet</span>
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-center">
-                        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-100 rounded-lg text-gray-700 font-bold text-sm">
-                          <MessageSquare className="w-3.5 h-3.5 text-gray-400" />
+                      <td className="px-6 py-5 text-center">
+                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/60 rounded-xl text-gray-800 font-bold text-sm shadow-sm border border-white/50">
+                          <MessageSquare className="w-3.5 h-3.5 text-blue-500" />
                           {contact.interaction_count}
                         </div>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-2.5 text-xs font-medium text-gray-600">
                           <Clock className="w-4 h-4 text-gray-400" />
                           {formatRelativeTime(contact.last_interaction_at)}
                         </div>

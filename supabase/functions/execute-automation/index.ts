@@ -75,25 +75,40 @@ Deno.serve(async (req: Request) => {
     console.log("✅ Account found:", instagramAccount.instagram_user_id);
 
     // 2. Resolve Profile & Follow Status
-    if (!eventData.from.username || eventData.from.username === eventData.from.id || true) { // Always fetch to get follow status
+    const isUnknown = !eventData.from.username || eventData.from.username === 'Unknown' || eventData.from.username === eventData.from.id;
+    if (isUnknown || true) { // Always fetch to get latest follow status and profile info
       console.log('\n🔍 STEP 2: Fetching user profile & follow status...');
       try {
-        const userProfileUrl = `https://graph.instagram.com/v21.0/${eventData.from.id}?fields=username,name,is_user_follow_business&access_token=${instagramAccount.access_token}`;
-        console.log(`Fetching profile for ${eventData.from.id}`);
+        // Use v21.0 or newer (v24.0 is current in n8n builder)
+        const apiVersion = 'v24.0';
+        const userProfileUrl = `https://graph.instagram.com/${apiVersion}/${eventData.from.id}?fields=username,name,is_user_follow_business,profile_pic&access_token=${instagramAccount.access_token}`;
+        console.log(`Fetching profile for ${eventData.from.id} via ${apiVersion}`);
 
         const userProfileRes = await fetch(userProfileUrl);
         const resText = await userProfileRes.text();
-        console.log(`Profile API response (${userProfileRes.status}):`, resText);
 
         if (userProfileRes.ok) {
           const userProfile = JSON.parse(resText);
-          eventData.from.username = userProfile.username || userProfile.name || 'Instagram User';
+          console.log("✅ Profile Data:", JSON.stringify(userProfile));
+
+          if (userProfile.username) eventData.from.username = userProfile.username;
           if (userProfile.name) eventData.from.name = userProfile.name;
+
+          // Store follow status
           (eventData as any).isFollowing = userProfile.is_user_follow_business || false;
-          console.log('✅ Resolved identity:', { username: eventData.from.username, name: eventData.from.name, isFollowing: (eventData as any).isFollowing });
+          (eventData as any).profilePic = userProfile.profile_pic || null;
+
+          console.log('✅ Resolved identity:', {
+            username: eventData.from.username,
+            name: eventData.from.name,
+            isFollowing: (eventData as any).isFollowing
+          });
         } else {
-          console.error('❌ Failed to fetch user profile:', resText);
-          if (!eventData.from.username) eventData.from.username = 'Unknown';
+          console.error(`❌ Failed to fetch user profile (${userProfileRes.status}):`, resText);
+          // If we already have a username from the webhook, don't overwrite it with 'Unknown'
+          if (!eventData.from.username || eventData.from.username === eventData.from.id) {
+            eventData.from.username = 'Unknown';
+          }
         }
       } catch (err) {
         console.error('❌ Error fetching user profile:', err);

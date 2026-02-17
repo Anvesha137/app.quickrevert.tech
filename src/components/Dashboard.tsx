@@ -1,13 +1,25 @@
 import { useState, useEffect } from 'react';
-import { MessageSquare, Zap, MessageCircle, Users, X, TrendingUp, Crown } from 'lucide-react';
+import {
+  MessageSquare,
+  Zap,
+  MessageCircle,
+  Users,
+  TrendingUp,
+  Hand,
+  Bell,
+  Headset,
+  Instagram,
+  AlertCircle
+} from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import KPICard from './KPICard';
 import InstagramFeed from './InstagramFeed';
-import InstagramConnectionStatus from './InstagramConnectionStatus';
-
-import { useUpgradeModal } from '../contexts/UpgradeModalContext';
+import ProBanner from './ProBanner';
+import DMsChart from './DMsChart';
+import SetupProgress from './SetupProgress';
+import TopPerforming from './TopPerforming';
 
 interface DashboardStats {
   dmsTriggered: number;
@@ -22,7 +34,6 @@ interface DashboardStats {
 export default function Dashboard() {
   const { user } = useAuth();
   const { displayName } = useTheme();
-  const { openModal } = useUpgradeModal();
   const [stats, setStats] = useState<DashboardStats>({
     dmsTriggered: 0,
     activeAutomations: 0,
@@ -33,8 +44,7 @@ export default function Dashboard() {
     followersLastUpdated: null
   });
   const [loading, setLoading] = useState(true);
-  const [instagramConnected, setInstagramConnected] = useState(false);
-  const [activatingAnalytics, setActivatingAnalytics] = useState(false);
+  const [instagramAccount, setInstagramAccount] = useState<any>(null);
 
   useEffect(() => {
     if (user) {
@@ -47,12 +57,12 @@ export default function Dashboard() {
       // 0. Check Instagram Connection
       const { data: instagram } = await supabase
         .from('instagram_accounts')
-        .select('id, followers_count, initial_followers_count, followers_last_updated')
+        .select('*')
         .eq('user_id', user!.id)
         .limit(1);
 
       const instaAccount = instagram?.[0];
-      setInstagramConnected(!!instaAccount);
+      setInstagramAccount(instaAccount);
 
       const { data: automations, error: automationsError } = await supabase
         .from('automations')
@@ -62,44 +72,35 @@ export default function Dashboard() {
       if (automationsError) throw automationsError;
 
       // 1. Active Automations
-      const activeAutomations = automations?.filter(a => a.status === 'active').length || 0;
+      const activeAutomationsCount = automations?.filter(a => a.status === 'active').length || 0;
 
       // 2. Fetch Activities for DMs and Comments
-      // Fetching all fields to be consistent with RecentActivity and avoid any RLS column restrictions
       const { data: activities, error: activitiesError } = await supabase
         .from('automation_activities')
-        .select('*')
+        .select('activity_type, target_username')
         .eq('user_id', user!.id);
 
       if (activitiesError) throw activitiesError;
 
-      const dms = activities?.filter(a => ['dm', 'dm_sent', 'send_dm', 'user_directed_messages'].includes(a.activity_type)) || [];
-      const comments = activities?.filter(a => ['reply', 'comment', 'reply_to_comment', 'incoming_comment', 'post_comment'].includes(a.activity_type)) || [];
+      const dmsCount = activities?.filter(a => ['dm', 'dm_sent', 'send_dm', 'user_directed_messages'].includes(a.activity_type)).length || 0;
+      const commentsCount = activities?.filter(a => ['reply', 'comment', 'reply_to_comment', 'incoming_comment', 'post_comment'].includes(a.activity_type)).length || 0;
 
       // 3. Unique Users (Source of Truth: Contacts Table)
-      const { count: uniqueUsersCount, error: contactsError } = await supabase
+      const { count: uniqueUsersCount } = await supabase
         .from('contacts')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user!.id);
 
-      // Also check unique target_usernames in activities as a fallback/sync check
-      const { data: activityContacts } = await supabase
-        .from('automation_activities')
-        .select('target_username')
-        .eq('user_id', user!.id);
-
       const uniqueFromActivities = new Set(
-        activityContacts
+        activities
           ?.map(a => a.target_username)
           .filter(u => u && u !== 'Unknown' && !u.includes('undefined'))
       ).size;
 
-      if (contactsError) console.error("Error fetching contacts count:", contactsError);
-
       setStats({
-        dmsTriggered: dms.length,
-        activeAutomations,
-        commentReplies: comments.length,
+        dmsTriggered: dmsCount,
+        activeAutomations: activeAutomationsCount,
+        commentReplies: commentsCount,
         uniqueUsers: Math.max(uniqueUsersCount || 0, uniqueFromActivities),
         followersCount: instaAccount?.followers_count,
         initialFollowersCount: instaAccount?.initial_followers_count,
@@ -107,236 +108,171 @@ export default function Dashboard() {
       });
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
-      // Reset stats to default values on error to prevent undefined values
-      setStats({
-        dmsTriggered: 0,
-        activeAutomations: 0,
-        commentReplies: 0,
-        uniqueUsers: 0,
-        followersCount: null,
-        initialFollowersCount: null,
-        followersLastUpdated: null
-      });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleUnlockAnalytics = async () => {
-    if (!instagramConnected) return;
-    try {
-      setActivatingAnalytics(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      // Get Instagram Object again or use state if available (better fetch fresh)
-      const { data: instagram } = await supabase.from('instagram_accounts').select('id').eq('user_id', user!.id).single();
-      if (!instagram) return;
-
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-analytics-workflow`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          userId: user!.id,
-          instagramAccountId: instagram.id
-        }),
-      });
-
-      if (!response.ok) throw new Error('Failed to activate analytics');
-
-      // Refresh stats
-      await fetchDashboardStats();
-    } catch (error) {
-      console.error('Error unlocking analytics:', error);
-    } finally {
-      setActivatingAnalytics(false);
+  const getStepProgress = (id: number) => {
+    switch (id) {
+      case 1: return instagramAccount ? true : false;
+      case 2: return stats.activeAutomations > 0;
+      case 3: return (stats.dmsTriggered > 0 || stats.commentReplies > 0);
+      case 4: return !!stats.followersLastUpdated;
+      default: return false;
     }
   };
 
-  const getProgress = (step: number) => {
-    switch (step) {
-      case 1: // Connect Instagram
-        return instagramConnected ? 100 : 0;
-      case 2: // Unlock Analytics (Has any activity/users)
-        return stats.followersLastUpdated ? 100 : 0;
-      case 3: // Create Automation
-        return stats.activeAutomations > 0 ? 100 : 0;
-      case 4: // Test Automation (Has triggered DMs/Comments)
-        return (stats.dmsTriggered > 0 || stats.commentReplies > 0) ? 100 : 0;
-      default:
-        return 0;
-    }
-  };
-
-  const steps = [
-    { id: 1, title: 'Connect Instagram', desc: 'Link your Business/Creator account.' },
-    { id: 2, title: 'Unlock Advance Analytics', desc: 'Enable performance insights (Updates every 12h).' },
-    { id: 3, title: 'Create Automation', desc: 'Set a trigger and activate it.' },
-    { id: 4, title: 'Test Automation', desc: 'Run a quick test to confirm it works.' },
+  const setupTasks = [
+    { label: 'Connect Instagram', completed: getStepProgress(1) },
+    { label: 'Create Automation', completed: getStepProgress(2) },
+    { label: 'Test Automation', completed: getStepProgress(3) },
+    { label: 'Unlock Advance Analytics', completed: getStepProgress(4) },
   ];
 
-  const showAnalytics = !!stats.followersLastUpdated;
+  const overallProgress = Math.round((setupTasks.filter(t => t.completed).length / setupTasks.length) * 100);
 
   return (
-    <div className="flex-1 overflow-auto bg-gradient-to-br from-gray-50 via-white to-blue-50/30">
-      <div className="max-w-7xl mx-auto p-8">
-        {/* Pro Upgrade Banner */}
-        <div className="bg-gradient-to-r from-red-600 to-red-400 text-white rounded-2xl p-6 mb-8 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg shadow-red-100">
-          <div>
-            <h2 className="text-xl font-bold mb-1">Unlock Pro Power!</h2>
-            <p className="text-red-50">Get unlimited automations, contacts & advanced analytics.</p>
+    <div className="flex-1 relative min-h-screen overflow-x-hidden">
+      {/* Animated Background Blobs */}
+      <div className="fixed inset-0 -z-10 bg-[#f8fafc]">
+        <div className="absolute top-0 -left-4 w-96 h-96 bg-slate-300/30 rounded-full mix-blend-multiply filter blur-3xl animate-blob"></div>
+        <div className="absolute top-0 -right-4 w-96 h-96 bg-slate-500/10 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-8 left-20 w-96 h-96 bg-slate-400/20 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000"></div>
+        <div className="absolute inset-0 opacity-10" style={{
+          backgroundImage: `url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS1vcGFjaXR5PSIwLjA1IiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=")`
+        }}></div>
+      </div>
+
+      <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex items-center gap-3">
+            <h2 className="text-3xl font-bold text-gray-800 tracking-tight">
+              Hello, {displayName?.split(' ')[0] || 'Creator'}! <Hand className="inline w-8 h-8 text-yellow-500 animate-bounce" />
+            </h2>
           </div>
-          <button
-            onClick={openModal}
-            className="bg-white text-red-600 px-6 py-2.5 rounded-xl font-bold hover:bg-red-50 transition-colors shadow-sm whitespace-nowrap flex items-center gap-2"
-          >
-            <Crown className="w-5 h-5 fill-red-600" />
-            Upgrade to Pro
-          </button>
-        </div>
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Hello, {displayName?.split(' ')[0] || 'Creator'}! 👋</h1>
-            <p className="text-gray-600 flex items-center gap-2">
-              <a
-                href="https://quickrevert.tech/contact"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-green-600 hover:text-green-700 font-medium hover:underline lg:hidden"
-              >
-                Contact Support
-              </a>
-            </p>
+          <div className="flex items-center gap-3">
+            <button className="p-3 rounded-xl backdrop-blur-xl bg-white/60 border border-white/40 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110">
+              <Bell className="w-5 h-5 text-gray-700" />
+            </button>
+            <a
+              href="https://quickrevert.tech/contact"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-6 py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 flex items-center gap-2"
+            >
+              <Headset className="w-5 h-5" />
+              Contact Support
+            </a>
           </div>
-          <a
-            href="https://quickrevert.tech/contact"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden lg:flex items-center gap-3 bg-green-600 px-6 py-3 rounded-xl shadow-sm border border-green-600 hover:bg-green-700 cursor-pointer transition-colors"
-          >
-            <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-            <span className="text-sm font-medium text-white">Contact Support</span>
-          </a>
         </div>
 
-        <div className="mb-8">
-          <InstagramConnectionStatus />
-        </div>
+        {/* Main Dashboard Grid */}
+        <div className="space-y-6">
+          {/* Pro Banner Full Width - Always at the very top */}
+          <ProBanner isCompact={false} />
 
-        <div className={`grid grid-cols-1 md:grid-cols-2 ${showAnalytics ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-5 mb-10`}>
-          <KPICard
-            title="DMs Triggered"
-            value={loading ? '-' : (stats.dmsTriggered || 0).toLocaleString()}
-            icon={MessageSquare}
-            iconColor="text-blue-600"
-            iconBgColor="bg-gradient-to-br from-blue-50 to-blue-100"
-          />
-          <KPICard
-            title="Active Automations"
-            value={loading ? '-' : (stats.activeAutomations || 0).toString()}
-            icon={Zap}
-            iconColor="text-amber-600"
-            iconBgColor="bg-gradient-to-br from-amber-50 to-amber-100"
-          />
-          <KPICard
-            title="Comment Replies"
-            value={loading ? '-' : (stats.commentReplies || 0).toLocaleString()}
-            icon={MessageCircle}
-            iconColor="text-rose-600"
-            iconBgColor="bg-gradient-to-br from-rose-50 to-rose-100"
-          />
-          <KPICard
-            title="Unique Users Contacted"
-            value={loading ? '-' : (stats.uniqueUsers || 0).toLocaleString()}
-            icon={Users}
-            iconColor="text-cyan-600"
-            iconBgColor="bg-gradient-to-br from-cyan-50 to-cyan-100"
-          />
-          {showAnalytics && (
-            <>
-              <KPICard
-                title="Current Followers"
-                value={loading ? '-' : (stats.followersCount || 0).toLocaleString()}
-                icon={Users}
-                iconColor="text-purple-600"
-                iconBgColor="bg-gradient-to-br from-purple-50 to-purple-100"
-              />
-              <KPICard
-                title="Followers Gained"
-                value={loading ? '-' : ((stats.followersCount || 0) - (stats.initialFollowersCount || 0)).toLocaleString()}
-                icon={TrendingUp}
-                iconColor="text-emerald-600"
-                iconBgColor="bg-gradient-to-br from-emerald-50 to-emerald-100"
-              />
-            </>
-          )}
-        </div>
-
-        {/* Usage Graph Section */}
-
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
-          {/* Onboarding Steps (Left) */}
-          <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">Onboarding Steps</h2>
-            <div className="space-y-8">
-              {steps.map((step) => {
-                const progress = getProgress(step.id);
-                return (
-                  <div key={step.id}>
-                    <div className="flex justify-between items-end mb-2">
-                      <div>
-                        <h3 className="text-lg font-medium text-gray-900">
-                          {step.id}. {step.title}
-                        </h3>
-                        <p className="text-gray-500 text-sm mt-1">{step.desc}</p>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Left Column: Banners & Analytics */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Connection Status Banner (Thin) */}
+              <div>
+                {instagramAccount ? (
+                  <div className="rounded-2xl bg-gradient-to-r from-blue-500 to-purple-600 p-4 shadow-xl shadow-purple-500/20 group transition-all hover:scale-[1.01]">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30 transition-transform group-hover:rotate-6">
+                        <Instagram className="w-5 h-5 text-white" />
                       </div>
-                      {step.id === 2 && progress < 100 ? (
-                        <button
-                          onClick={handleUnlockAnalytics}
-                          disabled={!instagramConnected || activatingAnalytics}
-                          className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors
-                            ${!instagramConnected
-                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                              : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm'
-                            }`}
-                        >
-                          {activatingAnalytics ? 'Activating...' : 'Enable'}
-                        </button>
-                      ) : (
-                        <span className="font-bold text-gray-900">{progress}%</span>
-                      )}
-                    </div>
-                    <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-green-600 rounded-full transition-all duration-1000 ease-out"
-                        style={{ width: `${progress}%` }}
-                      ></div>
+                      <div className="min-w-0">
+                        <h3 className="text-white font-bold text-base truncate">@{instagramAccount.username}</h3>
+                        <p className="text-white/80 text-xs font-medium">Instagram Connected</p>
+                      </div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
+                ) : (
+                  <div className="rounded-2xl bg-blue-600/10 backdrop-blur-xl border border-blue-500/20 p-4 shadow-xl shadow-blue-500/5 group transition-all hover:scale-[1.01]">
+                    <div className="flex items-center justify-between gap-6">
+                      <div className="flex items-center gap-4 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-blue-500/20 backdrop-blur-sm flex items-center justify-center border border-blue-400/30 shrink-0">
+                          <AlertCircle className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-blue-900 font-bold text-base truncate">Instagram Not Connected</h3>
+                          <p className="text-blue-600/70 text-xs font-medium">Connect your account now</p>
+                        </div>
+                      </div>
+                      <a
+                        href="/connect-accounts"
+                        className="px-5 py-2 bg-blue-600 text-white font-bold rounded-lg shadow-md hover:shadow-blue-500/20 transition-all hover:scale-105 whitespace-nowrap text-sm"
+                      >
+                        Connect Now
+                      </a>
+                    </div>
+                  </div>
+                )}
+              </div>
 
-          {/* Placeholder/Other Content (Right) */}
-          <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 flex flex-col items-center justify-center min-h-[400px]">
-            <div className="bg-gray-50 p-4 rounded-full mb-4">
-              <span className="text-4xl">✨</span>
+              {/* Unified 6 KPI Cards Grid - Shifted UP */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+                <KPICard
+                  title="DMs Triggered"
+                  value={loading ? '-' : stats.dmsTriggered.toLocaleString()}
+                  icon={MessageSquare}
+                  iconColor="text-blue-600"
+                  iconBgColor="bg-blue-500/20"
+                />
+                <KPICard
+                  title="Active Automations"
+                  value={loading ? '-' : stats.activeAutomations.toString()}
+                  icon={Zap}
+                  iconColor="text-purple-600"
+                  iconBgColor="bg-purple-500/20"
+                />
+                <KPICard
+                  title="Comment Replies"
+                  value={loading ? '-' : stats.commentReplies.toLocaleString()}
+                  icon={MessageCircle}
+                  iconColor="text-green-600"
+                  iconBgColor="bg-green-500/20"
+                />
+                <KPICard
+                  title="Unique Users"
+                  value={loading ? '-' : stats.uniqueUsers.toLocaleString()}
+                  icon={Users}
+                  iconColor="text-emerald-600"
+                  iconBgColor="bg-emerald-500/20"
+                />
+                <KPICard
+                  title="Current Followers"
+                  value={loading ? '-' : (stats.followersCount || 0).toLocaleString()}
+                  icon={Users}
+                  iconColor="text-orange-600"
+                  iconBgColor="bg-orange-500/20"
+                />
+                <KPICard
+                  title="Followers Gained"
+                  value={loading ? '-' : ((stats.followersCount || 0) - (stats.initialFollowersCount || 0)).toLocaleString()}
+                  icon={TrendingUp}
+                  iconColor="text-cyan-600"
+                  iconBgColor="bg-cyan-500/20"
+                />
+              </div>
+
+              {/* Main Chart */}
+              <DMsChart />
             </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">Coming Soon</h3>
-            <p className="text-gray-500 text-center max-w-sm">
-              We are building more features to help you grow. Stay tuned for advanced analytics and more.
-            </p>
+
+            {/* Right Column: Sidebar */}
+            <div className="space-y-6">
+              <SetupProgress progress={overallProgress} tasks={setupTasks} />
+              <TopPerforming />
+            </div>
           </div>
         </div>
 
-
-
-        <div className="mb-8">
+        {/* Bottom Feed Section */}
+        <div className="mt-8">
           <InstagramFeed />
         </div>
       </div>

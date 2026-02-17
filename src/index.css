@@ -5,5 +5,20 @@
 @layer base {
     html {
         font-size: 85%;
+        scroll-behavior: smooth;
+    }
+
+    body {
+        @apply antialiased text-slate-900;
+    }
+}
+
+@layer utilities {
+    .animation-delay-2000 {
+        animation-delay: 2s;
+    }
+
+    .animation-delay-4000 {
+        animation-delay: 4s;
     }
 }

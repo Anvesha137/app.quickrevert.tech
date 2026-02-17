@@ -14,19 +14,21 @@ interface KPICardProps {
 
 export default function KPICard({ title, value, icon: Icon, trend, iconColor, iconBgColor }: KPICardProps) {
   return (
-    <div className="group bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-xl hover:scale-105 hover:-translate-y-1 transition-all duration-300 cursor-pointer flex items-center gap-4">
-      <div className={`${iconBgColor} p-4 rounded-xl shadow-sm group-hover:shadow-md transition-shadow shrink-0`}>
-        <Icon className={`w-8 h-8 ${iconColor}`} />
-      </div>
-      <div className="flex flex-col">
-        <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-1">{title}</p>
-        <p className="text-3xl font-bold text-gray-900 tracking-tight">{value}</p>
+    <div className="group relative overflow-hidden rounded-2xl backdrop-blur-xl bg-white/60 border border-white/40 p-6 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer">
+      <div className="relative space-y-3">
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-xl ${iconBgColor} flex items-center justify-center`}>
+            <Icon className={`w-5 h-5 ${iconColor}`} />
+          </div>
+          <p className="text-sm text-gray-600 font-medium">{title}</p>
+        </div>
+        <p className="text-4xl font-bold text-gray-800 tracking-tight">{value}</p>
         {trend && (
           <div className="flex items-center gap-1.5 mt-1">
             <span className={`text-xs font-bold ${trend.isPositive ? 'text-green-600' : 'text-red-600'}`}>
               {trend.isPositive ? '↑' : '↓'} {trend.value}
             </span>
-            <span className="text-xs text-gray-500 font-medium">vs last week</span>
+            <span className="text-xs text-gray-500 font-medium">vs last month</span>
           </div>
         )}
       </div>

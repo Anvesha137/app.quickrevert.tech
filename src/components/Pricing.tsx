@@ -65,6 +65,24 @@ export default function Pricing() {
             icon: <Crown className="w-6 h-6 text-amber-500" />,
             buttonStyle: 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white hover:from-amber-600 hover:to-yellow-600 shadow-lg shadow-amber-500/30',
         },
+        {
+            name: 'ENTERPRISE',
+            id: 'enterprise',
+            description: 'For agencies and large teams with custom needs.',
+            price: 'Custom',
+            period: '',
+            cta: 'Contact Sales',
+            features: [
+                'Unlimited IG accounts',
+                'Custom Integrations',
+                'White-label options',
+                '24/7 Priority Support',
+                'Custom SLA',
+            ],
+            highlighted: false,
+            icon: <Sparkles className="w-6 h-6 text-purple-500" />,
+            buttonStyle: 'bg-gray-900 text-white hover:bg-black',
+        },
     ];
 
     return (
@@ -98,8 +116,8 @@ export default function Pricing() {
                         <div
                             key={plan.name}
                             className={`relative rounded-[2.5rem] bg-[#141417] border transition-all duration-500 flex flex-col h-full group ${plan.highlighted
-                                    ? 'border-blue-500 shadow-[0_0_40px_-10px_rgba(59,130,246,0.3)] z-10 scale-105'
-                                    : 'border-gray-800 hover:border-gray-700'
+                                ? 'border-blue-500 shadow-[0_0_40px_-10px_rgba(59,130,246,0.3)] z-10 scale-105'
+                                : 'border-gray-800 hover:border-gray-700'
                                 }`}
                         >
                             {plan.highlighted && (

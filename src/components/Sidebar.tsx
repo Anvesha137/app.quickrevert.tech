@@ -5,12 +5,17 @@ import {
   CreditCard,
   Link2,
   Settings as SettingsIcon,
-  LogOut
+  LogOut,
+  User,
+  Crown,
+  Headset
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import UsageStats from './UsageStats';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useSubscription } from '../contexts/SubscriptionContext';
+import { useUpgradeModal } from '../contexts/UpgradeModalContext';
 
 export const navigation = [
   { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
@@ -24,51 +29,9 @@ export const navigation = [
 export default function Sidebar() {
   const location = useLocation();
   const { user, signOut } = useAuth();
-  const { displayName, colorPalette } = useTheme();
-
-  const getGradientClass = () => {
-    const gradients: Record<string, string> = {
-      default: 'from-blue-500 to-cyan-500',
-      sunset: 'from-orange-500 to-amber-500',
-      forest: 'from-emerald-500 to-green-500',
-      lavender: 'from-violet-500 to-purple-500',
-      rose: 'from-pink-500 to-rose-500',
-      slate: 'from-slate-500 to-gray-500',
-    };
-    return gradients[colorPalette] || gradients.default;
-  };
-
-
-
-  const getShadowClass = () => {
-    const shadows: Record<string, string> = {
-      default: 'shadow-blue-500/30',
-      sunset: 'shadow-orange-500/30',
-      forest: 'shadow-emerald-500/30',
-      lavender: 'shadow-violet-500/30',
-      rose: 'shadow-pink-500/30',
-      slate: 'shadow-slate-500/30',
-    };
-    return shadows[colorPalette] || shadows.default;
-  };
-
-  const getRingClass = () => {
-    const rings: Record<string, string> = {
-      default: 'ring-blue-500',
-      sunset: 'ring-orange-500',
-      forest: 'ring-emerald-500',
-      lavender: 'ring-violet-500',
-      rose: 'ring-pink-500',
-      slate: 'ring-slate-500',
-    };
-    return rings[colorPalette] || rings.default;
-  };
-
-  const getUserInitials = () => {
-    if (!user) return 'U';
-    const name = displayName || user.user_metadata?.full_name || user.email || 'User';
-    return name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
-  };
+  const { displayName } = useTheme();
+  const { isPremium } = useSubscription();
+  const { openModal } = useUpgradeModal();
 
   const getUserName = () => {
     return displayName || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
@@ -83,74 +46,94 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="hidden md:flex fixed left-0 top-0 h-full w-64 bg-slate-900 border-r border-slate-800 flex-col shadow-lg z-50">
-      <div className="pt-8 pb-4 px-4 border-b border-slate-800 flex flex-col items-start bg-slate-900">
-        <div className="flex items-center gap-0 mb-0 w-full justify-center">
-          <div className="w-14 h-14 flex items-center justify-center overflow-hidden">
-            <img src="/Logo.png" alt="QuickRevert" className="w-full h-full object-contain scale-150" />
-          </div>
-          <span className="text-2xl font-bold text-white tracking-tight -mt-2">QuickRevert</span>
+    <aside className="hidden md:flex fixed left-0 top-0 h-full w-64 backdrop-blur-xl bg-white/40 border-r border-white/20 shadow-2xl flex-col z-50 p-4">
+      {/* Logo Section */}
+      <div className="mb-6 p-3 rounded-2xl bg-gradient-to-br from-blue-500/10 to-purple-500/10 backdrop-blur-md border border-white/20">
+        <div className="flex items-center gap-0 justify-center mb-1">
+          <img src="/Logo.png" alt="QuickRevert Logo" className="w-12 h-12 object-contain -mr-1" />
+          <h1 className="font-bold text-gray-800 text-2xl tracking-tighter -mt-1">QuickRevert</h1>
         </div>
-        <p className="text-[10px] text-slate-400 font-medium tracking-wide w-full text-center">Intelligent Responses | Zero Wait Time | 24x7</p>
+        <p className="text-[9px] text-gray-500 tracking-tight text-center leading-none">
+          Intelligent Responses | Zero Wait Time | 24x7
+        </p>
       </div>
 
-      <div className="flex-1 flex flex-col bg-slate-900 overflow-y-auto">
-        <nav className="p-4">
-          <ul className="space-y-1.5">
-            {navigation.map((item) => {
-              const Icon = item.icon;
-              const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+      {/* Navigation */}
+      <nav className="space-y-2 flex-1 overflow-y-auto custom-scrollbar">
+        {navigation.map((item) => {
+          const Icon = item.icon;
+          const isActive = location.pathname === item.path ||
+            location.pathname.startsWith(item.path + '/') ||
+            (item.id === 'dashboard' && location.pathname === '/');
 
-              return (
-                <li key={item.id}>
-                  <Link
-                    to={item.path}
-                    className={`group w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all duration-200 ${isActive
-                      ? `bg-blue-600 text-white shadow-md shadow-blue-900/20`
-                      : 'text-gray-400 hover:bg-slate-800 hover:text-white'
-                      }`}
-                  >
-                    <Icon className={`w-5 h-5 transition-transform group-hover:scale-110 ${isActive ? 'text-white' : 'text-gray-500 group-hover:text-white'}`} />
-                    {item.name}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
+          return (
+            <Link
+              key={item.id}
+              to={item.path}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${isActive
+                ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-purple-500/50'
+                : 'text-gray-700 hover:bg-white/50 hover:backdrop-blur-md transition-colors'
+                }`}
+            >
+              <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-gray-500'}`} />
+              <span className="font-medium text-sm">{item.name}</span>
+            </Link>
+          );
+        })}
+      </nav>
 
-        <div className="mt-auto">
-          <UsageStats />
-        </div>
-      </div>
-
-      <div className="p-4 border-t border-slate-800 bg-slate-900">
-        <div className="bg-slate-800 rounded-xl p-3 mb-3 shadow-sm border border-slate-700">
-          <div className="flex items-center gap-3 mb-3">
-            {user?.user_metadata?.avatar_url ? (
-              <img
-                src={user.user_metadata.avatar_url}
-                alt={getUserName()}
-                className={`w-11 h-11 rounded-full ring-2 ${getRingClass()} ring-offset-2`}
-              />
-            ) : (
-              <div className={`w-11 h-11 bg-gradient-to-br ${getGradientClass()} rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md`}>
-                {getUserInitials()}
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-white truncate">{getUserName()}</p>
-              <p className="text-xs text-slate-400 truncate">{user?.email}</p>
-            </div>
+      {/* Usage Stats Section */}
+      <div className="mt-auto space-y-2 -mx-1">
+        <UsageStats />
+        {!isPremium && (
+          <div className="px-4">
+            <button
+              onClick={openModal}
+              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 text-white text-sm font-bold shadow-lg shadow-red-500/40 hover:shadow-red-500/60 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 group"
+            >
+              <Crown className="w-4 h-4 text-white fill-white group-hover:animate-pulse" />
+              Upgrade to Pro
+            </button>
           </div>
-          <button
-            onClick={handleSignOut}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-300 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition-all border border-slate-600 hover:border-red-900/30"
+        )}
+        <div className="px-4">
+          <a
+            href="https://quickrevert.tech/contact"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-bold shadow-lg shadow-green-500/30 hover:shadow-green-500/50 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 group"
           >
-            <LogOut className="w-4 h-4" />
-            Sign Out
-          </button>
+            <Headset className="w-4 h-4 text-white group-hover:animate-bounce" />
+            Contact Support
+          </a>
         </div>
+      </div>
+
+      {/* User & Sign Out Section */}
+      <div className="mt-4 space-y-2">
+        <div className="flex items-center gap-3 p-3 rounded-xl bg-white/30 backdrop-blur-md border border-white/40 cursor-pointer hover:bg-white/40 transition-all">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center shadow-sm relative">
+            {user?.user_metadata?.avatar_url ? (
+              <img src={user.user_metadata.avatar_url} alt={getUserName()} className="w-full h-full rounded-full object-cover" />
+            ) : (
+              <User className="w-5 h-5 text-white" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-1">
+              <p className="text-sm font-semibold text-gray-800 truncate">{getUserName()}</p>
+            </div>
+            <p className="text-[10px] text-gray-600 truncate">{user?.email}</p>
+          </div>
+        </div>
+
+        <button
+          onClick={handleSignOut}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold text-gray-600 hover:text-red-600 transition-colors"
+        >
+          <LogOut className="w-4 h-4" />
+          Sign Out
+        </button>
       </div>
     </aside>
   );

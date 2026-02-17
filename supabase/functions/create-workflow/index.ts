@@ -228,13 +228,58 @@ Deno.serve(async (req: Request) => {
         parameters: { httpMethod: "POST", path: webhookPath, responseMode: "onReceived", options: {} },
         webhookId: webhookPath
       });
-      nodeX += 300;
+      nodeX += 250;
 
-      let previousNode = "Worker Webhook";
-      let triggerAnchorNode = "Worker Webhook";
-      let postbackEntryNode = null; // Node to connect postback flows to
-      let postbackNodeX = -300;
-      let postbackNodeY = 600;
+      // --- ADDED: IDENTITY RESOLUTION NODE ---
+      const resolverNodeName = "Identity Resolver";
+      const supabaseUpdateNodeName = "Update Contact in Supabase";
+
+      nodes.push({
+        id: "identity-resolver", name: resolverNodeName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.2, position: [nodeX, 300],
+        parameters: {
+          url: "=https://graph.instagram.com/v24.0/{{ $json.body.from?.id || $json.body.entry?.[0]?.messaging?.[0]?.sender?.id || $json.body.entry?.[0]?.changes?.[0]?.value?.from?.id }}",
+          authentication: "predefinedCredentialType",
+          nodeCredentialType: "facebookGraphApi",
+          sendQuery: true,
+          queryParameters: {
+            parameters: [
+              { name: "fields", value: "username,name,is_user_follow_business,profile_pic" }
+            ]
+          },
+          options: {}
+        },
+        credentials: { facebookGraphApi: { id: credentialId } },
+        continueOnFail: true
+      });
+      nodeX += 250;
+
+      nodes.push({
+        id: "update-contact-supabase", name: supabaseUpdateNodeName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.2, position: [nodeX, 300],
+        parameters: {
+          method: "POST",
+          url: `${supabaseUrl}/rest/v1/contacts`,
+          headers: {
+            parameters: [
+              { name: "apikey", value: supabaseServiceKey },
+              { name: "Authorization", value: `Bearer ${supabaseServiceKey}` },
+              { name: "Content-Type", value: "application/json" },
+              { name: "Prefer", value: "resolution=merge-duplicates" }
+            ]
+          },
+          sendBody: true,
+          specifyBody: "json",
+          jsonBody: "={\n  \"user_id\": \"{{ $('Worker Webhook').item.json.userId }}\",\n  \"instagram_account_id\": \"{{ $('Worker Webhook').item.json.instagramAccountId }}\",\n  \"instagram_user_id\": \"{{ $node[\"Identity Resolver\"].json.id }}\",\n  \"username\": \"{{ $node[\"Identity Resolver\"].json.username }}\",\n  \"full_name\": \"{{ $node[\"Identity Resolver\"].json.name }}\",\n  \"follows_us\": {{ $node[\"Identity Resolver\"].json.is_user_follow_business || false }},\n  \"last_interaction_at\": \"{{ new Date().toISOString() }}\"\n}",
+          options: {}
+        },
+        continueOnFail: true
+      });
+      nodeX += 250;
+
+      connections["Worker Webhook"] = { main: [[{ node: resolverNodeName, type: "main", index: 0 }]] };
+      connections[resolverNodeName] = { main: [[{ node: supabaseUpdateNodeName, type: "main", index: 0 }]] };
+
+      let previousNode = supabaseUpdateNodeName;
+      let triggerAnchorNode = supabaseUpdateNodeName;
 
       // --- ADVANCED ASK TO FOLLOW: Event Type Switch ---
       if (hasAskToFollow) {
@@ -252,7 +297,7 @@ Deno.serve(async (req: Request) => {
                 {
                   conditions: {
                     options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
-                    conditions: [{ id: "is-comment", leftValue: "={{ $json.body.sub_type }}", rightValue: "comments", operator: { type: "string", operation: "equals" } }],
+                    conditions: [{ id: "is-comment", leftValue: "={{ $('Worker Webhook').item.json.body.sub_type }}", rightValue: "comments", operator: { type: "string", operation: "equals" } }],
                     combinator: "and"
                   },
                   renameOutput: true, outputKey: "Trigger Event"
@@ -260,7 +305,7 @@ Deno.serve(async (req: Request) => {
                 {
                   conditions: {
                     options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
-                    conditions: [{ id: "is-postback", leftValue: "={{ $json.body.sub_type }}", rightValue: "postback", operator: { type: "string", operation: "equals" } }],
+                    conditions: [{ id: "is-postback", leftValue: "={{ $('Worker Webhook').item.json.body.sub_type }}", rightValue: "postback", operator: { type: "string", operation: "equals" } }],
                     combinator: "and"
                   },
                   renameOutput: true, outputKey: "Button Click"
@@ -268,7 +313,7 @@ Deno.serve(async (req: Request) => {
                 {
                   conditions: {
                     options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
-                    conditions: [{ id: "is-message", leftValue: "={{ $json.body.sub_type }}", rightValue: "message", operator: { type: "string", operation: "equals" } }],
+                    conditions: [{ id: "is-message", leftValue: "={{ $('Worker Webhook').item.json.body.sub_type }}", rightValue: "message", operator: { type: "string", operation: "equals" } }],
                     combinator: "and"
                   },
                   renameOutput: true, outputKey: "message"
@@ -279,7 +324,7 @@ Deno.serve(async (req: Request) => {
           }
         });
 
-        connections["Worker Webhook"] = { main: [[{ node: "Event Type Switch", type: "main", index: 0 }]] };
+        connections[supabaseUpdateNodeName] = { main: [[{ node: "Event Type Switch", type: "main", index: 0 }]] };
 
         // Initial Anchor
         let triggerChainAnchor = "Event Type Switch";

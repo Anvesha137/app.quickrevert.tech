@@ -16,6 +16,8 @@ import Settings from './components/Settings';
 import Pricing from './components/Pricing';
 import UpgradeModal from './components/UpgradeModal';
 import CelebrationModal from './components/CelebrationModal';
+import PlanBanner from './components/PlanBanner';
+import { SubscriptionProvider, useSubscription } from './contexts/SubscriptionContext';
 
 
 function AppContent() {
@@ -41,6 +43,7 @@ function AppContent() {
   if (location.pathname === '/pricing') {
     return (
       <ErrorBoundary>
+        <PlanBanner />
         <Routes>
           <Route path="/pricing" element={<Pricing />} />
         </Routes>
@@ -48,24 +51,32 @@ function AppContent() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <Sidebar />
-      <MobileNav />
-      <ErrorBoundary>
-        <Routes>
-          <Route path="/" element={<div className="ml-0 md:ml-64 pb-20 md:pb-0 flex-1"><Dashboard /></div>} />
-          <Route path="/dashboard" element={<Navigate to="/" replace />} />
-          <Route path="/automation" element={<div className="ml-0 md:ml-64 pb-20 md:pb-0 flex-1"><Automations /></div>} />
-          <Route path="/automation/create" element={<div className="ml-0 md:ml-64 pb-20 md:pb-0 flex-1"><AutomationCreate /></div>} />
-          <Route path="/automation/edit/:id" element={<div className="ml-0 md:ml-64 pb-20 md:pb-0 flex-1"><AutomationCreate /></div>} />
-          <Route path="/contacts" element={<Contacts />} />
+  return <AuthenticatedApp />;
+}
 
-          <Route path="/billing" element={<Billing />} />
-          <Route path="/connect-accounts" element={<div className="ml-0 md:ml-64 pb-20 md:pb-0 flex-1"><ConnectedAccounts /></div>} />
-          <Route path="/settings" element={<Settings />} />
-        </Routes>
-      </ErrorBoundary>
+function AuthenticatedApp() {
+  const { isPremium } = useSubscription();
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <div className={`transition-all duration-300 ${!isPremium ? 'pt-6' : ''}`}>
+        <PlanBanner />
+        <Sidebar />
+        <MobileNav />
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/" element={<div className="ml-0 md:ml-64 pb-20 md:pb-0 flex-1"><Dashboard /></div>} />
+            <Route path="/dashboard" element={<Navigate to="/" replace />} />
+            <Route path="/automation" element={<div className="ml-0 md:ml-64 pb-20 md:pb-0 flex-1"><Automations /></div>} />
+            <Route path="/automation/create" element={<div className="ml-0 md:ml-64 pb-20 md:pb-0 flex-1"><AutomationCreate /></div>} />
+            <Route path="/automation/edit/:id" element={<div className="ml-0 md:ml-64 pb-20 md:pb-0 flex-1"><AutomationCreate /></div>} />
+            <Route path="/contacts" element={<div className="ml-0 md:ml-64 pb-20 md:pb-0 flex-1"><Contacts /></div>} />
+            <Route path="/billing" element={<div className="ml-0 md:ml-64 pb-20 md:pb-0 flex-1"><Billing /></div>} />
+            <Route path="/connect-accounts" element={<div className="ml-0 md:ml-64 pb-20 md:pb-0 flex-1"><ConnectedAccounts /></div>} />
+            <Route path="/settings" element={<div className="ml-0 md:ml-64 pb-20 md:pb-0 flex-1"><Settings /></div>} />
+          </Routes>
+        </ErrorBoundary>
+      </div>
     </div>
   );
 }
@@ -104,15 +115,17 @@ function App() {
 
   return (
     <AuthProvider>
-      <ThemeProvider>
-        <UpgradeModalProvider>
-          <BrowserRouter>
-            <AppContent />
-            <UpgradeModal />
-            <CelebrationModal />
-          </BrowserRouter>
-        </UpgradeModalProvider>
-      </ThemeProvider>
+      <SubscriptionProvider>
+        <ThemeProvider>
+          <UpgradeModalProvider>
+            <BrowserRouter>
+              <AppContent />
+              <UpgradeModal />
+              <CelebrationModal />
+            </BrowserRouter>
+          </UpgradeModalProvider>
+        </ThemeProvider>
+      </SubscriptionProvider>
     </AuthProvider>
   );
 }
