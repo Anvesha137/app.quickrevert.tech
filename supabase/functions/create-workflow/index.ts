@@ -837,7 +837,8 @@ Deno.serve(async (req: Request) => {
             return;
           } else {
             nodeName = `Send DM ${index + 1}`;
-            const messagePayload = { recipient: { id: senderIdPath }, message: { text: action.title || "Hello!" } };
+            const recipient = triggerType === 'post_comment' ? { comment_id: "{{ $json.body.entry[0].changes[0].value.id }}" } : { id: senderIdPath };
+            const messagePayload = { recipient, message: { text: action.title || "Hello!" } };
             nodeParams = { method: "POST", url: "https://graph.instagram.com/v24.0/me/messages", authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi", sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify(messagePayload, null, 2)}`, options: {} };
           }
         }

@@ -352,6 +352,7 @@ Deno.serve(async (req: Request) => {
             automationId: automation.id,
             userId,
             instagramAccountId,
+            triggerType,
           });
           console.log("      ✅ Action executed successfully");
         } catch (actionError: any) {
@@ -503,7 +504,7 @@ Deno.serve(async (req: Request) => {
 });
 
 async function executeAction(params: any) {
-  const { action, eventData, accessToken, instagramUserId, supabase, automationId, userId, instagramAccountId } = params;
+  const { action, eventData, accessToken, instagramUserId, supabase, automationId, userId, instagramAccountId, triggerType } = params;
 
   let messageText = '';
   let buttons: any[] = [];
@@ -555,8 +556,12 @@ async function executeAction(params: any) {
   // ✅ FIXED: Use Instagram Platform API
   const apiUrl = `https://graph.instagram.com/v21.0/me/messages`;
 
+  const recipient = (triggerType === 'post_comment' && eventData.commentId)
+    ? { comment_id: eventData.commentId }
+    : { id: eventData.from.id };
+
   let messagePayload: any = {
-    recipient: { id: eventData.from.id },
+    recipient,
     message: {}
   };
 
