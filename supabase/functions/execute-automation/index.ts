@@ -74,15 +74,16 @@ Deno.serve(async (req: Request) => {
 
     console.log("✅ Account found:", instagramAccount.instagram_user_id);
 
-    // 2. Resolve Profile & Follow Status
+    // Resolve Profile & Follow Status
     const isUnknown = !eventData.from.username || eventData.from.username === 'Unknown' || eventData.from.username === eventData.from.id;
     if (isUnknown || true) { // Always fetch to get latest follow status and profile info
       console.log('\n🔍 STEP 2: Fetching user profile & follow status...');
       try {
-        // Use v21.0 or newer (v24.0 is current in n8n builder)
-        const apiVersion = 'v24.0';
-        const userProfileUrl = `https://graph.instagram.com/${apiVersion}/${eventData.from.id}?fields=username,name,is_user_follow_business,profile_pic&access_token=${instagramAccount.access_token}`;
-        console.log(`Fetching profile for ${eventData.from.id} via ${apiVersion}`);
+        // Use v21.0 or newer
+        const apiVersion = 'v21.0';
+        // USE graph.facebook.com which is more reliable for business-to-user profile lookups
+        const userProfileUrl = `https://graph.facebook.com/${apiVersion}/${eventData.from.id}?fields=username,name,is_user_follow_business,profile_pic&access_token=${instagramAccount.access_token}`;
+        console.log(`Fetching profile for ${eventData.from.id} via ${apiVersion} (facebook graph)`);
 
         const userProfileRes = await fetch(userProfileUrl);
         const resText = await userProfileRes.text();
@@ -105,14 +106,14 @@ Deno.serve(async (req: Request) => {
           });
         } else {
           console.error(`❌ Failed to fetch user profile (${userProfileRes.status}):`, resText);
-          // If we already have a username from the webhook, don't overwrite it with 'Unknown'
-          if (!eventData.from.username || eventData.from.username === eventData.from.id) {
-            eventData.from.username = 'Unknown';
+          // If profile fetch fails, ensure we have at least the IG ID as username
+          if (!eventData.from.username || eventData.from.username === 'Unknown') {
+            eventData.from.username = eventData.from.id;
           }
         }
       } catch (err) {
         console.error('❌ Error fetching user profile:', err);
-        if (!eventData.from.username) eventData.from.username = 'UnknownError';
+        if (!eventData.from.username) eventData.from.username = eventData.from.id;
       }
     }
 
@@ -131,13 +132,16 @@ Deno.serve(async (req: Request) => {
 
       const newInteractionCount = (existingContact?.interaction_count || 0) + 1;
 
-      // Update automations list if we find matches later
-      // For now, prepare the base data
+      // Ensure we have a non-empty username fallback
+      const finalUsername = eventData.from.username && eventData.from.username !== 'Unknown' && eventData.from.username !== 'UnknownError'
+        ? eventData.from.username
+        : eventData.from.id;
+
       const contactData: any = {
         user_id: userId,
         instagram_account_id: instagramAccountId,
         instagram_user_id: eventData.from.id,
-        username: eventData.from.username,
+        username: finalUsername,
         full_name: eventData.from.name || null,
         last_interaction_at: new Date().toISOString(),
         interaction_count: newInteractionCount,
