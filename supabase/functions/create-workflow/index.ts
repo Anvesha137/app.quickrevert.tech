@@ -250,7 +250,7 @@ Deno.serve(async (req: Request) => {
                 {
                   conditions: {
                     options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
-                    conditions: [{ id: "is-comment", leftValue: "={{ $json.body.sub_type }}", rightValue: "comments", operator: { type: "string", operation: "equals" } }],
+                    conditions: [{ id: "is-comment", leftValue: "={{ $('Worker Webhook').item.json.body.sub_type }}", rightValue: "comments", operator: { type: "string", operation: "equals" } }],
                     combinator: "and"
                   },
                   renameOutput: true, outputKey: "Trigger Event"
@@ -258,7 +258,7 @@ Deno.serve(async (req: Request) => {
                 {
                   conditions: {
                     options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
-                    conditions: [{ id: "is-postback", leftValue: "={{ $json.body.sub_type }}", rightValue: "postback", operator: { type: "string", operation: "equals" } }],
+                    conditions: [{ id: "is-postback", leftValue: "={{ $('Worker Webhook').item.json.body.sub_type }}", rightValue: "postback", operator: { type: "string", operation: "equals" } }],
                     combinator: "and"
                   },
                   renameOutput: true, outputKey: "Button Click"
@@ -286,7 +286,7 @@ Deno.serve(async (req: Request) => {
               options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
               conditions: specificPosts.map((id: string, i: number) => ({
                 id: `post-${i}`,
-                leftValue: "={{ $json.body.entry?.[0]?.changes?.[0]?.value?.media?.id || $json.body.payload?.value?.media?.id }}",
+                leftValue: "={{ $('Worker Webhook').item.json.body.entry?.[0]?.changes?.[0]?.value?.media?.id || $('Worker Webhook').item.json.body.payload?.value?.media?.id }}",
                 rightValue: id,
                 operator: { type: "string", operation: "equals" }
               })),
@@ -313,7 +313,7 @@ Deno.serve(async (req: Request) => {
               options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
               conditions: keywords.map((k: string, i: number) => ({
                 id: `comment-kw-${i}`,
-                leftValue: "={{ $json.body.entry?.[0]?.changes?.[0]?.value?.text }}",
+                leftValue: "={{ $('Worker Webhook').item.json.body.entry?.[0]?.changes?.[0]?.value?.text }}",
                 rightValue: k,
                 operator: { type: "string", operation: "contains" }
               })),
@@ -343,7 +343,7 @@ Deno.serve(async (req: Request) => {
                 {
                   conditions: {
                     options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 3 },
-                    conditions: [{ id: "loop-check-1", leftValue: "={{ $json.body.entry?.[0]?.changes?.[0]?.value?.from?.username }}", rightValue: instagramUsername, operator: { type: "string", operation: "notEquals", name: "filter.operator.notEquals" } }],
+                    conditions: [{ id: "loop-check-1", leftValue: "={{ $('Worker Webhook').item.json.body.entry?.[0]?.changes?.[0]?.value?.from?.username }}", rightValue: instagramUsername, operator: { type: "string", operation: "notEquals", name: "filter.operator.notEquals" } }],
                     combinator: "and"
                   }
                 },
@@ -404,7 +404,7 @@ Deno.serve(async (req: Request) => {
               options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
               conditions: [{
                 id: `kw-${index}`,
-                leftValue: "={{ $json.body.entry[0].messaging[0].message.text }}",
+                leftValue: "={{ $('Worker Webhook').item.json.body.entry[0].messaging[0].message.text }}",
                 rightValue: k,
                 operator: { type: "string", operation: "contains" }
               }],
@@ -422,7 +422,7 @@ Deno.serve(async (req: Request) => {
               options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
               conditions: [{
                 id: `pb-${index}`,
-                leftValue: "={{ $json.body.entry[0].messaging[0].postback.payload }}",
+                leftValue: "={{ $('Worker Webhook').item.json.body.entry[0].messaging[0].postback.payload }}",
                 rightValue: b.payload,
                 operator: { type: "string", operation: "equals", name: "filter.operator.equals" }
               }],
@@ -469,7 +469,7 @@ Deno.serve(async (req: Request) => {
             }
 
             const messagePayload: any = {
-              recipient: { id: `{{ $json.body.payload.sender.id }}` },
+              recipient: { id: `{{ $('Worker Webhook').item.json.body.payload.sender.id }}` },
               message: {
                 attachment: {
                   type: "template",
@@ -491,7 +491,7 @@ Deno.serve(async (req: Request) => {
             jsonBody = `=${JSON.stringify(messagePayload, null, 2)}`;
           } else {
             jsonBody = `={
-              "recipient": { "id": "{{ $json.body.payload.sender.id }}" },
+              "recipient": { "id": "{{ $('Worker Webhook').item.json.body.payload.sender.id }}" },
               "message": { "text": "${text.replace(/"/g, '\\"')}" }
             }`;
           }
