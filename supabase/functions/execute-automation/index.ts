@@ -449,19 +449,21 @@ async function executeAction(params: any) {
 
   messageText = messageText.replace('{{username}}', eventData.from.username);
 
-  // ✅ FIXED: Use Instagram Platform API
-  const apiUrl = `https://graph.instagram.com/v21.0/me/messages`;
+  // ✅ FIXED: Distinguish between Public Reply and Private DM
+  const isPublicReply = action.type === 'reply_to_comment';
+  const apiUrl = isPublicReply
+    ? `https://graph.instagram.com/v21.0/${eventData.commentId}/replies`
+    : `https://graph.instagram.com/v21.0/me/messages`;
 
-  const recipient = (triggerType === 'post_comment' && eventData.commentId)
+  const recipient = (triggerType === 'post_comment' && eventData.commentId && !isPublicReply)
     ? { comment_id: eventData.commentId }
     : { id: eventData.from.id };
 
-  let messagePayload: any = {
-    recipient,
-    message: {}
-  };
+  let messagePayload: any = isPublicReply
+    ? { message: messageText } // Simple message for /replies
+    : { recipient, message: {} }; // Full payload for /messages
 
-  if (buttons.length > 0) {
+  if (!isPublicReply && buttons.length > 0) {
     // Switch from quick_replies to Generic Template as requested
     const elements: any[] = [{
       title: messageText.substring(0, 80), // Max 80 chars for title
@@ -494,7 +496,7 @@ async function executeAction(params: any) {
         }
       }
     };
-  } else {
+  } else if (!isPublicReply) {
     messagePayload.message = { text: messageText };
   }
 

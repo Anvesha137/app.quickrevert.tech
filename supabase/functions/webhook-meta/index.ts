@@ -419,7 +419,8 @@ async function processEvent(body: any) {
                     continue;
                 }
 
-                // 🔥 CRITICAL FIX: Call execute-automation for dashboard automations (comments)
+                // 🔥 CRITICAL FIX: Removed redundant execute-automation call. 
+                // Dashboard automations are now handled exclusively via n8n workflows triggered by routeAndTrigger() below.
                 if (change.field === 'comments' && accountsData && accountsData.length > 0) {
                     // RESOLVE IDENTITY for comments too
                     let resolvedUsername = change.value?.from?.username;
@@ -437,7 +438,7 @@ async function processEvent(body: any) {
                     }
 
                     for (const account of accountsData) {
-                        // Upsert Contact for comments
+                        // Upsert Contact for comments (Keep this piece for tracking)
                         await upsertContact(supabase, {
                             user_id: account.user_id,
                             instagram_account_id: account.id,
@@ -447,43 +448,6 @@ async function processEvent(body: any) {
                             avatar_url: profilePic,
                             platform: 'instagram'
                         });
-
-                        try {
-                            const executeUrl = `${SUPABASE_URL}/functions/v1/execute-automation`;
-                            console.log(`Calling execute-automation for comment on user ${account.user_id}`);
-
-                            const executeResponse = await fetch(executeUrl, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-                                },
-                                body: JSON.stringify({
-                                    userId: account.user_id,
-                                    instagramAccountId: account.id,
-                                    triggerType: 'post_comment',
-                                    eventData: {
-                                        commentId: change.value?.id,
-                                        commentText: change.value?.text,
-                                        postId: change.value?.media?.id,
-                                        from: {
-                                            id: change.value?.from?.id,
-                                            username: change.value?.from?.username || change.value?.from?.id
-                                        },
-                                        timestamp: change.value?.timestamp
-                                    }
-                                })
-                            });
-
-                            if (!executeResponse.ok) {
-                                const errorText = await executeResponse.text();
-                                console.error(`execute-automation (comment) failed: ${errorText}`);
-                            } else {
-                                console.log('✅ execute-automation (comment) called successfully');
-                            }
-                        } catch (execError: any) {
-                            console.error('Error calling execute-automation for comment:', execError);
-                        }
                     }
                 }
 

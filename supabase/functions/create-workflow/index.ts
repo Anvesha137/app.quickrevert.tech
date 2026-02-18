@@ -743,15 +743,15 @@ Deno.serve(async (req: Request) => {
         let usernamePath = "";
 
         if (triggerType === 'post_comment') {
-          commentIdPath = "{{ $json.body.entry[0].changes[0].value.id }}";
-          senderIdPath = "{{ $json.body.entry[0].changes[0].value.from.id }}";
-          usernamePath = "{{ $json.body.entry[0].changes[0].value.from.username }}";
+          commentIdPath = "{{ $('Worker Webhook').item.json.body.entry[0].changes[0].value.id }}";
+          senderIdPath = "{{ $('Worker Webhook').item.json.body.entry[0].changes[0].value.from.id }}";
+          usernamePath = "{{ $('Worker Webhook').item.json.body.entry[0].changes[0].value.from.username }}";
         } else {
-          senderIdPath = "{{ $json.body.entry[0].messaging[0].sender.id }}";
+          senderIdPath = "{{ $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id }}";
         }
 
         if (action.type === 'reply_to_comment') {
-          nodeName = `Reply to Comment `;
+          nodeName = `Reply to Comment`;
           const replyText = `@${usernamePath} ${action.replyTemplates?.[0] || action.text || "Thanks!"}`;
           nodes.push({
             id: `act-reply-${index}`, name: nodeName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3,
@@ -769,9 +769,12 @@ Deno.serve(async (req: Request) => {
             credentials: { facebookGraphApi: { id: credentialId } }
           });
 
-          if (!connections[triggerAnchorNode]) connections[triggerAnchorNode] = { main: [[]] };
-          if (!connections[triggerAnchorNode].main[0]) connections[triggerAnchorNode].main[0] = [];
-          connections[triggerAnchorNode].main[0].push({ node: nodeName, type: "main", index: 0 });
+          const hasTeaser = actions.some((a: any) => a.type === 'send_dm' && a.askToFollow);
+          if (!hasTeaser) {
+            if (!connections[triggerAnchorNode]) connections[triggerAnchorNode] = { main: [[]] };
+            if (!connections[triggerAnchorNode].main[0]) connections[triggerAnchorNode].main[0] = [];
+            connections[triggerAnchorNode].main[0].push({ node: nodeName, type: "main", index: 0 });
+          }
           return;
         }
 
@@ -819,18 +822,23 @@ Deno.serve(async (req: Request) => {
               credentials: { facebookGraphApi: { id: credentialId } }
             });
 
-            // 1. Connect Loop Protection to Teaser
+            // 1. Connect Loop Protection to Teaser (Sequential start)
             if (!connections[triggerAnchorNode]) connections[triggerAnchorNode] = { main: [[]] };
             if (!connections[triggerAnchorNode].main[0]) connections[triggerAnchorNode].main[0] = [];
             connections[triggerAnchorNode].main[0].push({ node: teaserNodeName, type: "main", index: 0 });
 
-            // Remove sequential connection to Reply (handled in parallel above)
+            // 2. Connect Teaser to Reply (Sequential chain)
+            const hasReply = actions.some((a: any) => a.type === 'reply_to_comment');
+            if (hasReply) {
+              connections[teaserNodeName] = { main: [[{ node: "Reply to Comment", type: "main", index: 0 }]] };
+            }
+
             nodeX += 300;
             postbackActions.push({ ...action, index });
             return;
           }
           nodeName = `Send DM ${index + 1}`;
-          const recipient = triggerType === 'post_comment' ? { comment_id: "{{ $json.body.entry[0].changes[0].value.id }}" } : { id: senderIdPath };
+          const recipient = triggerType === 'post_comment' ? { comment_id: "{{ $('Worker Webhook').item.json.body.entry[0].changes[0].value.id }}" } : { id: senderIdPath };
           const messagePayload = { recipient, message: { text: action.title || "Hello!" } };
           nodeParams = { method: "POST", url: "https://graph.instagram.com/v24.0/me/messages", authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi", sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify(messagePayload, null, 2)}`, options: {} };
         }
@@ -865,7 +873,7 @@ Deno.serve(async (req: Request) => {
 
           // 3.1 Button Action Switch
           const teaserBtnText = action.teaserBtnText || "Yes, send me link";
-          const payloadPath = "={{ $json.body.entry?.[0]?.messaging?.[0]?.postback?.payload || $json.body.entry?.[0]?.messaging?.[0]?.message?.quick_reply?.payload }}";
+          const payloadPath = "={{ $('Worker Webhook').item.json.body.entry?.[0]?.messaging?.[0]?.postback?.payload || $('Worker Webhook').item.json.body.entry?.[0]?.messaging?.[0]?.message?.quick_reply?.payload }}";
 
           const switchRules = [
             {
@@ -887,7 +895,7 @@ Deno.serve(async (req: Request) => {
             {
               conditions: {
                 options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
-                conditions: [{ id: "qr-check", leftValue: "={{ $json.body.entry?.[0]?.messaging?.[0]?.message?.text }}", rightValue: "send link please ", operator: { type: "string", operation: "equals" } }],
+                conditions: [{ id: "qr-check", leftValue: "={{ $('Worker Webhook').item.json.body.entry?.[0]?.messaging?.[0]?.message?.text }}", rightValue: "send link please ", operator: { type: "string", operation: "equals" } }],
                 combinator: "and"
               },
               renameOutput: true, outputKey: "qr"
@@ -901,12 +909,10 @@ Deno.serve(async (req: Request) => {
             parameters: { rules: { values: switchRules }, options: { ignoreCase: true } }
           });
 
-          // Connect "Event Type Switch" (Index 1: Button Click AND Index 2: message) to this.
-          if (!connections["Event Type Switch"]) connections["Event Type Switch"] = { main: [[], [], []] };
+          // Connect "Event Type Switch" (Index 1: Button Click) to this.
+          if (!connections["Event Type Switch"]) connections["Event Type Switch"] = { main: [[], []] };
           if (!connections["Event Type Switch"].main[1]) connections["Event Type Switch"].main[1] = [];
-          if (!connections["Event Type Switch"].main[2]) connections["Event Type Switch"].main[2] = [];
           connections["Event Type Switch"].main[1].push({ node: switchName, type: "main", index: 0 }); // Postback Click (SEND_LINK/CHECK_FOLLOW)
-          connections["Event Type Switch"].main[2].push({ node: switchName, type: "main", index: 0 }); // Message (Quick Reply Click - "qr")
 
           postbackNodeX += 250;
 
@@ -1076,31 +1082,9 @@ return { json: { userId, username, isFollowing } };`
         });
       }
 
-      // Final wiring for loop protection switch (ONLY for non-post_comment triggers or if handled differently)
-      // For post_comment, we handled connections inside the loop above.
-      if (triggerType !== 'post_comment') {
-        const lpNode = nodes.find(n => n.name === "Loop Protection Switch" || n.name === "Loop Protection Switch1");
-        if (lpNode) {
-          // Find the first action node
-          const firstActionNode = nodes.find(n =>
-            n.name !== "Worker Webhook" &&
-            n.name !== lpNode.name &&
-            n.name !== "Post Filter Switch" &&
-            n.name !== "Comment Switch" &&
-            n.name !== "Event Type Switch" &&
-            n.name !== "Button Action Switch" &&
-            n.name !== "Message Switch"
-          );
-
-          if (firstActionNode) {
-            connections[lpNode.name] = {
-              main: [
-                [{ node: firstActionNode.name, type: "main", index: 0 }], // Output 0: Continue
-                [] // Output 1: Stop (no connection)
-              ]
-            };
-          }
-        }
+      // Final cleanup: Ensure Event Type Switch only has 2 outputs in the connections object
+      if (connections["Event Type Switch"] && connections["Event Type Switch"].main) {
+        connections["Event Type Switch"].main = connections["Event Type Switch"].main.slice(0, 2);
       }
 
       return { name: finalWorkflowName, nodes, connections, settings: { saveExecutionProgress: true, timezone: "Asia/Kolkata" } };
