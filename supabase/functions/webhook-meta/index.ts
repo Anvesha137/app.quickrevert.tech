@@ -338,49 +338,6 @@ async function processEvent(body: any) {
                 const internalAccountId = accountsData?.[0]?.id;
 
                 if (internalAccountId) {
-                    // 🔥 CRITICAL FIX: Call execute-automation for dashboard automations
-                    // This triggers automations created in the dashboard (automations table)
-                    for (const account of accountsData) {
-                        try {
-                            const executeUrl = `${SUPABASE_URL}/functions/v1/execute-automation`;
-                            console.log(`Calling execute-automation for user ${account.user_id}`);
-
-                            const executeResponse = await fetch(executeUrl, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-                                },
-                                body: JSON.stringify({
-                                    userId: account.user_id,
-                                    instagramAccountId: account.id,
-                                    triggerType: 'user_directed_messages',
-                                    eventData: {
-                                        messageId: msg.message?.mid,
-                                        messageText: msg.message?.text,
-                                        from: {
-                                            id: msg.sender?.id,
-                                            username: resolvedUsername || msg.sender?.id,
-                                            name: profileName
-                                        },
-                                        timestamp: msg.timestamp
-                                    }
-                                })
-                            });
-
-                            if (!executeResponse.ok) {
-                                const errorText = await executeResponse.text();
-                                console.error(`execute-automation failed: ${errorText}`);
-                                await logFailedEvent({ event_id: eventId, payload: msg }, `execute-automation failed: ${errorText}`);
-                            } else {
-                                console.log('✅ execute-automation called successfully');
-                            }
-                        } catch (execError: any) {
-                            console.error('Error calling execute-automation:', execError);
-                            await logFailedEvent({ event_id: eventId, payload: msg }, `execute-automation error: ${execError.message}`);
-                        }
-                    }
-
                     // Also route to n8n workflows via automation_routes (existing system)
                     await routeAndTrigger({
                         platform: object,
@@ -654,6 +611,18 @@ async function routeAndTrigger(normalized: any) {
         console.log(`[ROUTING FAILED] All routes for this account:`, JSON.stringify(allRoutes));
         return;
     }
+
+    // 🔥 FIX: Deduplicate routes by n8n_workflow_id to prevent the same workflow from firing twice
+    // for the same event (e.g. if one route matches sub_type and another is a catch-all)
+    const uniqueRoutes = [];
+    const seenWorkflows = new Set();
+    for (const route of routes) {
+        if (!seenWorkflows.has(route.n8n_workflow_id)) {
+            seenWorkflows.add(route.n8n_workflow_id);
+            uniqueRoutes.push(route);
+        }
+    }
+    routes = uniqueRoutes;
 
     // Resolve Webhook Paths
     const workflowIds = routes.map((r: any) => r.n8n_workflow_id);
