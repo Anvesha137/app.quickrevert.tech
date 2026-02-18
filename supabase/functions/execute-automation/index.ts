@@ -374,113 +374,6 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // 8. N8N Workflow Execution
-    console.log('\n🔍 STEP 8: Triggering N8N workflows...');
-    try {
-      const n8nBaseUrl = Deno.env.get('N8N_BASE_URL') || 'https://n8n.quickrevert.tech';
-
-      const { data: n8nWorkflows, error: n8nError } = await supabase
-        .from('n8n_workflows')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('is_active', true)
-        .eq('trigger_type', triggerType);
-
-      if (n8nError) {
-        console.error('❌ Error fetching n8n workflows:', n8nError);
-      } else if (n8nWorkflows && n8nWorkflows.length > 0) {
-        console.log(`✅ Found ${n8nWorkflows.length} active n8n workflows`);
-
-        for (const workflow of n8nWorkflows) {
-          let targetUrl = workflow.webhook_url;
-
-          if (!targetUrl && workflow.webhook_path) {
-            targetUrl = `${n8nBaseUrl}/webhook/${workflow.webhook_path}`;
-          }
-
-          if (!targetUrl) {
-            console.warn(`⚠️  Workflow ${workflow.name} has no webhook URL`);
-            continue;
-          }
-
-          console.log(`  Triggering: ${workflow.name} → ${targetUrl}`);
-
-          let n8nPayload: any = {
-            userId,
-            instagramAccountId,
-            triggerType,
-            eventData,
-            workflowId: workflow.id,
-            timestamp: new Date().toISOString()
-          };
-
-          if (triggerType === 'user_directed_messages') {
-            n8nPayload = {
-              object: "instagram",
-              entry: [
-                {
-                  id: instagramAccount.instagram_user_id || "unknown_ig_id",
-                  messaging: [
-                    {
-                      sender: { id: eventData.from.id },
-                      recipient: { id: instagramAccount.instagram_user_id || "unknown_ig_id" },
-                      timestamp: eventData.timestamp || Date.now(),
-                      message: {
-                        mid: eventData.messageId,
-                        text: eventData.messageText
-                      }
-                    }
-                  ]
-                }
-              ]
-            };
-          }
-
-          try {
-            fetch(targetUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(n8nPayload)
-            }).then(async (res) => {
-              const status = res.ok ? 'success' : 'failed';
-              console.log(`  N8N response: ${res.status} (${status})`);
-
-              await supabase.from('automation_activities').insert({
-                user_id: userId,
-                instagram_account_id: instagramAccountId,
-                activity_type: 'n8n_trigger',
-                target_username: eventData.from.username,
-                message: `Triggered workflow: ${workflow.name}`,
-                status: status,
-                metadata: {
-                  workflow_id: workflow.id,
-                  response_status: res.status,
-                  webhook_url: workflow.webhook_url
-                }
-              });
-            }).catch(err => {
-              console.error('  ❌ N8N trigger failed:', err);
-              supabase.from('automation_activities').insert({
-                user_id: userId,
-                instagram_account_id: instagramAccountId,
-                activity_type: 'n8n_trigger',
-                target_username: eventData.from.username,
-                message: `Failed to trigger workflow: ${workflow.name}`,
-                status: 'failed',
-                metadata: { error: err.message, workflow_id: workflow.id }
-              });
-            });
-          } catch (e) {
-            console.error('  ❌ Error initiating n8n request:', e);
-          }
-        }
-      } else {
-        console.log(`ℹ️  No active n8n workflows found`);
-      }
-    } catch (n8nMainError) {
-      console.error('❌ Unexpected error in n8n execution:', n8nMainError);
-    }
-
     console.log("\n═══════════════════════════════════════");
     console.log("✅ EXECUTION COMPLETE");
     console.log(`   Matched: ${matchedAutomations.length} automations`);
@@ -488,8 +381,7 @@ Deno.serve(async (req: Request) => {
 
     return new Response(JSON.stringify({
       success: true,
-      executed: matchedAutomations.length,
-      n8n_triggered: true
+      executed: matchedAutomations.length
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

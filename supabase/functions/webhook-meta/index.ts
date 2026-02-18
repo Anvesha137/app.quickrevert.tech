@@ -692,7 +692,7 @@ async function routeAndTrigger(normalized: any) {
     }
 
     // Resolve Webhook Paths
-    const workflowIds = routes.map(r => r.n8n_workflow_id);
+    const workflowIds = routes.map((r: any) => r.n8n_workflow_id);
     const { data: workflows, error: wfError } = await supabase
         .from('n8n_workflows')
         .select('n8n_workflow_id, webhook_path')
