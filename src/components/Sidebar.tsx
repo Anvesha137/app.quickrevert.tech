@@ -46,7 +46,7 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="hidden md:flex fixed left-0 top-0 h-full w-64 backdrop-blur-xl bg-white/40 border-r border-white/20 shadow-2xl flex-col z-50 p-4">
+    <aside className="hidden md:flex fixed left-0 top-0 h-full w-80 backdrop-blur-xl bg-white/40 border-r border-white/20 shadow-2xl flex-col z-50 p-4">
       {/* Logo Section */}
       <div className="mb-6 p-3 rounded-2xl bg-gradient-to-br from-blue-500/10 to-purple-500/10 backdrop-blur-md border border-white/20">
         <div className="flex items-center gap-0 justify-center mb-1">
