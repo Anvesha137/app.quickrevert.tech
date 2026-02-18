@@ -1,7 +1,17 @@
 import { useState, useEffect } from "react";
 import {
-  User, Save, Type, MapPin, Camera, Phone, Loader2, Briefcase, ChevronDown, Shield, Trash2, Mail
-} from "lucide-react";
+  Mail,
+  User,
+  MapPin,
+  Phone,
+  Briefcase,
+  Loader2,
+  ChevronDown,
+  Type,
+  Save,
+  Shield,
+  Trash2
+} from 'lucide-react';
 import { motion } from "motion/react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -116,16 +126,6 @@ const GlassButton = ({ children, variant = "primary", className, icon: Icon, onC
   );
 };
 
-const PREBUILT_AVATARS = [
-  "1c369b9f-5b2f-41c8-94e0-ed96a1e13bb9.jpg",
-  "62424a3e-9cdc-422f-a2c8-5cce272934e2.jpg",
-  "68f0932f-a411-4b7d-b82e-bff250a88f4b.jpg",
-  "a39c74b4-2bfe-4404-97d5-daca5a22b51d.jpg",
-  "bc110031-06a7-460a-bf9c-545e5e896824.jpg",
-  "bc666226-d3cf-43ef-91dd-47c2b21d3eec.jpg",
-  "bc9fd4bd-de9b-4555-976c-8360576c6708.jpg",
-  "e67eb556-f125-4e24-95ad-8aff21b9926a.jpg"
-];
 
 export default function Settings() {
   const { user } = useAuth();
@@ -138,16 +138,13 @@ export default function Settings() {
     bio: "",
     location: "",
     phone: "",
-    category: "",
-    avatarUrl: ""
+    category: ""
   });
 
   const [loading, setLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
 
   useEffect(() => {
     loadUserProfile();
@@ -171,50 +168,14 @@ export default function Settings() {
           bio: data.bio || "",
           location: data.location || "",
           phone: data.phone || "",
-          category: data.business_category || "",
-          avatarUrl: data.avatar_url || ""
+          category: data.business_category || ""
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading profile:', error);
     }
   }
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    try {
-      setUploading(true);
-      const file = event.target.files?.[0];
-      if (!file) return;
-
-      const fileExt = file.name.split('.').pop();
-      const filePath = `${user?.id}/${Math.random()}.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
-
-      setFormData(prev => ({ ...prev, avatarUrl: publicUrl }));
-      theme.setAvatarUrl(publicUrl);
-    } catch (error: any) {
-      console.error('Error uploading avatar:', error);
-      alert(`Error uploading avatar: ${error.message || 'Unknown error'}. Make sure you have run the storage migration.`);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const selectAvatar = (filename: string) => {
-    const url = `/${filename}`;
-    setFormData(prev => ({ ...prev, avatarUrl: url }));
-    theme.setAvatarUrl(url);
-    setShowAvatarPicker(false);
-  };
 
   async function handleSaveSettings() {
     if (!user) return;
@@ -234,7 +195,6 @@ export default function Settings() {
           phone: formData.phone,
           location: formData.location,
           business_category: formData.category,
-          avatar_url: formData.avatarUrl,
           updated_at: new Date().toISOString(),
         }, {
           onConflict: 'id'
@@ -246,7 +206,7 @@ export default function Settings() {
 
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving settings:', error);
       alert('Failed to save settings. Please verify if you have run the database migrations.');
     } finally {
@@ -266,7 +226,7 @@ export default function Settings() {
       if (data && data.error) throw new Error(data.error);
 
       await supabase.auth.signOut();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting account:', error);
       alert(`Failed to delete account: ${error.message || JSON.stringify(error)}`);
     } finally {
@@ -308,100 +268,6 @@ export default function Settings() {
           <p className="text-slate-500 font-medium">Manage your public profile and business details.</p>
         </motion.div>
 
-        {/* Avatar Selection Section */}
-        <GlassCard
-          className={cn(
-            "relative",
-            showAvatarPicker ? "z-[60]" : "z-10"
-          )}
-          delay={0.1}
-        >
-          <div className="flex flex-col sm:flex-row items-center gap-8">
-            <div
-              className="relative group cursor-pointer shrink-0"
-              onClick={() => setShowAvatarPicker(!showAvatarPicker)}
-            >
-              <div className="h-40 w-40 rounded-full bg-white/50 p-1 shadow-2xl transition-transform hover:scale-105 border border-white/60 backdrop-blur-sm">
-                <div className="h-full w-full rounded-full bg-white overflow-hidden relative border border-slate-200/50">
-                  {uploading ? (
-                    <div className="h-full w-full flex items-center justify-center bg-slate-50">
-                      <Loader2 className="h-10 w-10 text-blue-500 animate-spin" />
-                    </div>
-                  ) : (
-                    <img
-                      src={formData.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email}`}
-                      alt="Avatar"
-                      className="h-full w-full object-contain p-1"
-                    />
-                  )}
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px]">
-                    <Camera className="h-10 w-10 text-white" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4 text-center sm:text-left flex-1">
-              <h2 className="text-2xl font-bold text-slate-800">Profile Picture</h2>
-              <p className="text-sm text-slate-500 max-w-md font-medium leading-relaxed">
-                Choose a pre-built character or upload your own image to represent yourself or your business.
-              </p>
-
-              <div className="flex flex-wrap gap-3 pt-2 justify-center sm:justify-start">
-                <GlassButton
-                  variant="secondary"
-                  className="px-6"
-                  onClick={() => setShowAvatarPicker(!showAvatarPicker)}
-                >
-                  Selection Grid
-                </GlassButton>
-
-                <label className="relative">
-                  <span className="flex items-center justify-center gap-2 rounded-xl px-6 py-2.5 font-semibold transition-all border border-slate-200/50 text-sm cursor-pointer bg-white/60 text-slate-700 hover:bg-white/90 shadow-sm hover:shadow-md">
-                    <Save className="h-4 w-4" />
-                    Upload Image
-                  </span>
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept="image/*"
-                    onChange={handleFileUpload}
-                    disabled={uploading}
-                  />
-                </label>
-              </div>
-            </div>
-          </div>
-
-          {/* Avatar Selection Grid */}
-          {showAvatarPicker && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              className="absolute top-full left-0 right-0 mt-4 z-50 p-6 rounded-3xl border border-white/60 bg-white/95 shadow-2xl backdrop-blur-2xl grid grid-cols-4 gap-6 justify-items-center"
-            >
-              <div className="col-span-4 flex justify-between items-center mb-2 w-full px-2">
-                <h3 className="font-bold text-slate-800">Choose your look</h3>
-                <button onClick={() => setShowAvatarPicker(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
-                  <ChevronDown className="h-5 w-5 rotate-180" />
-                </button>
-              </div>
-              {PREBUILT_AVATARS.map((seed) => (
-                <button
-                  key={seed}
-                  onClick={() => selectAvatar(seed)}
-                  className="group relative h-28 w-28 rounded-2xl bg-slate-50 border-2 border-transparent hover:border-blue-500 hover:bg-blue-50 transition-all p-2 overflow-hidden shadow-sm"
-                >
-                  <img
-                    src={`/${seed}`}
-                    alt={seed}
-                    className="h-full w-full object-contain transition-transform group-hover:scale-105"
-                  />
-                </button>
-              ))}
-            </motion.div>
-          )}
-        </GlassCard>
 
         {/* Inputs Grid */}
         <GlassCard delay={0.2} className="grid md:grid-cols-2 gap-x-8 gap-y-6">

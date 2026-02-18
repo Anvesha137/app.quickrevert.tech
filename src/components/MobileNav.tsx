@@ -99,17 +99,9 @@ export default function MobileNav() {
                         {/* User Profile */}
                         <div className="bg-gray-50 rounded-xl p-4 mb-6 border border-gray-100">
                             <div className="flex items-center gap-3 mb-3">
-                                {user?.user_metadata?.avatar_url ? (
-                                    <img
-                                        src={user.user_metadata.avatar_url}
-                                        alt={getUserName()}
-                                        className="w-12 h-12 rounded-full ring-2 ring-white"
-                                    />
-                                ) : (
-                                    <div className={`w-12 h-12 bg-gradient-to-br ${getGradientClass()} rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md`}>
-                                        {getUserInitials()}
-                                    </div>
-                                )}
+                                <div className={`w-12 h-12 bg-gradient-to-br ${getGradientClass()} rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md ring-2 ring-white`}>
+                                    {getUserInitials()}
+                                </div>
                                 <div className="flex-1 min-w-0">
                                     <p className="text-base font-bold text-gray-900 truncate">{getUserName()}</p>
                                     <p className="text-sm text-gray-500 truncate">{user?.email}</p>

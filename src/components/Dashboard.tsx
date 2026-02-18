@@ -34,7 +34,7 @@ interface DashboardStats {
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { displayName, avatarUrl } = useTheme();
+  const { displayName } = useTheme();
   const [stats, setStats] = useState<DashboardStats>({
     dmsTriggered: 0,
     activeAutomations: 0,
@@ -158,11 +158,9 @@ export default function Dashboard() {
               to="/settings"
               className="w-11 h-11 rounded-xl backdrop-blur-xl bg-white/60 border border-white/40 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 flex items-center justify-center overflow-hidden"
             >
-              {avatarUrl ? (
-                <img src={avatarUrl} alt="Profile" className="w-full h-full object-contain p-1" />
-              ) : (
-                <User className="w-5 h-5 text-gray-700" />
-              )}
+              <div className="w-full h-full flex items-center justify-center bg-gray-50">
+                <User className="w-5 h-5 text-gray-500" />
+              </div>
             </Link>
             <a
               href="https://quickrevert.tech/contact"
