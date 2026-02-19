@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { Search, Plus, ChevronDown, Trash2, Edit, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 import { motion } from "motion/react";
 import { clsx, type ClassValue } from "clsx";
@@ -210,7 +211,7 @@ export default function Automations() {
 
   const handleCreateAutomation = () => {
     if (!hasInstagramAccount) {
-      alert('Please connect an Instagram account before creating automations.');
+      toast.error('Please connect an Instagram account before creating automations.');
       navigate('/connect-accounts');
       return;
     }
@@ -259,7 +260,7 @@ export default function Automations() {
       }
     } catch (error) {
       console.error('Error updating automation status:', error);
-      alert('Failed to update automation status. Reverting changes.');
+      toast.error('Failed to update automation status. Reverting changes.');
 
       // Revert optimistic update on error
       setAutomations(automations.map(auto =>
@@ -311,7 +312,7 @@ export default function Automations() {
       setAutomations(automations.filter(auto => auto.id !== id));
     } catch (error) {
       console.error('Error deleting automation:', error);
-      alert('Failed to delete automation. Please try again.');
+      toast.error('Failed to delete automation. Please try again.');
     }
   };
 

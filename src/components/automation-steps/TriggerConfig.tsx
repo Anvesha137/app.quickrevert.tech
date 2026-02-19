@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { X, Image as ImageIcon, Video, Filter, CheckCircle2, Search, ArrowRight, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from "motion/react";
 import { TriggerType, TriggerConfig, PostCommentTriggerConfig, StoryReplyTriggerConfig, UserDirectMessageTriggerConfig } from '../../types/automation';
@@ -67,7 +68,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
       setPosts(data.media || []);
     } catch (error: any) {
       console.error('Error fetching posts:', error);
-      alert('Failed to fetch Instagram posts: ' + (error.message || 'Unknown error'));
+      toast.error('Failed to fetch Instagram posts: ' + (error.message || 'Unknown error'));
     } finally {
       setLoadingMedia(false);
     }
@@ -154,7 +155,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
     if (!keyword.trim()) return;
 
     if (getKeywords().length >= 2) {
-      alert("You can only add up to 2 keywords.");
+      toast.error("You can only add up to 2 keywords.");
       return;
     }
 

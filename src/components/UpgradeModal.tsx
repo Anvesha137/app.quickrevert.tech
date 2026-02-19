@@ -1,4 +1,5 @@
 import { X, CheckCircle2, Sparkles, Zap, Crown } from 'lucide-react';
+import { toast } from 'sonner';
 import { useUpgradeModal } from '../contexts/UpgradeModalContext';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
@@ -82,7 +83,7 @@ export default function UpgradeModal() {
 
     const handleUpgrade = async () => {
         if (!instagramHandle.trim()) {
-            alert("Please enter your Instagram ID.");
+            toast.error("Please enter your Instagram ID.");
             return;
         }
 
@@ -93,7 +94,7 @@ export default function UpgradeModal() {
             const razorpayKey = (import.meta.env.VITE_RAZORPAY_KEY_ID || '').trim();
 
             if (!supabaseUrl || !supabaseAnonKey || !razorpayKey) {
-                alert(`Configuration Error: Missing Environment Variables.`);
+                toast.error("Configuration Error: Missing Environment Variables.");
                 setLoading(false);
                 return;
             }
@@ -132,7 +133,7 @@ export default function UpgradeModal() {
                 });
 
                 if (verifyError) {
-                    alert(`Upgrade failed: ${verifyError.message || JSON.stringify(verifyError)}`);
+                    toast.error(`Upgrade failed: ${verifyError.message || JSON.stringify(verifyError)}`);
                     return;
                 }
 
@@ -169,7 +170,7 @@ export default function UpgradeModal() {
                     });
 
                     if (verifyError) {
-                        alert(`Payment verification failed: ${verifyError.message || JSON.stringify(verifyError)}`);
+                        toast.error(`Payment verification failed: ${verifyError.message || JSON.stringify(verifyError)}`);
                         return;
                     }
 
@@ -188,9 +189,9 @@ export default function UpgradeModal() {
             const rzp1 = new window.Razorpay(options);
             rzp1.open();
 
-        } catch (error) {
+        } catch (error: any) {
             console.error('Payment failed:', error);
-            alert(`Payment Failed: ${error.message}`);
+            toast.error(`Payment Failed: ${error.message}`);
         } finally {
             setLoading(false);
         }

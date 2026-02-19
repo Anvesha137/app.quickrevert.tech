@@ -81,6 +81,7 @@ function AuthenticatedApp() {
 }
 
 
+import { Toaster } from 'sonner';
 import { isSupabaseConfigured } from './lib/supabase';
 
 function App() {
@@ -121,6 +122,7 @@ function App() {
               <AppContent />
               <UpgradeModal />
               <CelebrationModal />
+              <Toaster richColors position="top-right" />
             </BrowserRouter>
           </UpgradeModalProvider>
         </ThemeProvider>

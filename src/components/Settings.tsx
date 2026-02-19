@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import {
   Mail,
   User,
@@ -208,7 +209,7 @@ export default function Settings() {
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error: any) {
       console.error('Error saving settings:', error);
-      alert('Failed to save settings. Please verify if you have run the database migrations.');
+      toast.error('Failed to save settings. Please verify if you have run the database migrations.');
     } finally {
       setLoading(false);
     }
@@ -228,7 +229,7 @@ export default function Settings() {
       await supabase.auth.signOut();
     } catch (error: any) {
       console.error('Error deleting account:', error);
-      alert(`Failed to delete account: ${error.message || JSON.stringify(error)}`);
+      toast.error(`Failed to delete account: ${error.message || JSON.stringify(error)}`);
     } finally {
       setDeleteLoading(false);
       setShowDeleteConfirm(false);

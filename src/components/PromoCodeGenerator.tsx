@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 import { Copy, Check, Gift, Download, Package, Sparkles, Tag } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -138,7 +139,7 @@ const PromoCodeGenerator = () => {
 
   const generatePromoCodes = async () => {
     if (!user || !username) {
-      alert('Please wait for user profile to load');
+      toast.error('Please wait for user profile to load');
       return;
     }
 
@@ -172,7 +173,7 @@ const PromoCodeGenerator = () => {
       setPromoCodes(prev => [...newCodes, ...prev]);
     } catch (error) {
       console.error('Error generating promo codes:', error);
-      alert('Failed to generate promo codes. Please try again.');
+      toast.error('Failed to generate promo codes. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -181,6 +182,7 @@ const PromoCodeGenerator = () => {
   const copyToClipboard = (code: string) => {
     navigator.clipboard.writeText(code);
     setCopiedCode(code);
+    toast.success("Code copied to clipboard!");
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
@@ -258,11 +260,10 @@ const PromoCodeGenerator = () => {
                   <button
                     key={type}
                     onClick={() => setPackType(type)}
-                    className={`relative p-5 rounded-xl border-2 transition-all duration-200 ${
-                      isSelected
-                        ? 'border-purple-500 bg-gradient-to-br from-purple-50 to-pink-50 shadow-md scale-105'
-                        : 'border-gray-200 bg-white hover:border-purple-300 hover:shadow-sm'
-                    }`}
+                    className={`relative p-5 rounded-xl border-2 transition-all duration-200 ${isSelected
+                      ? 'border-purple-500 bg-gradient-to-br from-purple-50 to-pink-50 shadow-md scale-105'
+                      : 'border-gray-200 bg-white hover:border-purple-300 hover:shadow-sm'
+                      }`}
                   >
                     {isSelected && (
                       <div className="absolute top-2 right-2 w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center">
@@ -384,11 +385,10 @@ const PromoCodeGenerator = () => {
                         <div className="font-mono text-xl font-bold text-gray-900 tracking-wider">
                           {promo.code}
                         </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                          promo.packType === 'starter'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-purple-100 text-purple-800'
-                        }`}>
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${promo.packType === 'starter'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-purple-100 text-purple-800'
+                          }`}>
                           {pack.name}
                         </span>
                       </div>
@@ -409,11 +409,10 @@ const PromoCodeGenerator = () => {
                     </div>
                     <button
                       onClick={() => copyToClipboard(promo.code)}
-                      className={`ml-4 p-3 rounded-lg transition-colors ${
-                        copiedCode === promo.code
-                          ? 'bg-green-100 text-green-600'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
+                      className={`ml-4 p-3 rounded-lg transition-colors ${copiedCode === promo.code
+                        ? 'bg-green-100 text-green-600'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
                       title={copiedCode === promo.code ? 'Copied!' : 'Copy code'}
                     >
                       {copiedCode === promo.code ? (
