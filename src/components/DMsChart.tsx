@@ -21,14 +21,28 @@ export default function DMsChart() {
             sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
             sevenDaysAgo.setHours(0, 0, 0, 0);
 
-            const { data: activities, error } = await supabase
+            const { data: allActivities, error } = await supabase
                 .from('automation_activities')
-                .select('created_at')
+                .select('created_at, activity_type, metadata')
                 .eq('user_id', user!.id)
-                .gte('created_at', sevenDaysAgo.toISOString())
-                .in('activity_type', ['dm', 'dm_sent', 'send_dm', 'user_directed_messages']);
+                .gte('created_at', sevenDaysAgo.toISOString());
 
             if (error) throw error;
+
+            // Filter for DM-like activities
+            const dmActivities = (allActivities || []).filter(a => {
+                const type = (a.activity_type || '').toLowerCase();
+                return (
+                    type.includes('dm') ||
+                    type.includes('message') ||
+                    type.includes('interaction') ||
+                    (a.metadata as any)?.direction === 'inbound' ||
+                    (a.metadata as any)?.direction === 'outbound'
+                );
+            });
+
+            // Process data for the chart using the filtered set
+            const activities = dmActivities;
 
             // Process data for the chart
             const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

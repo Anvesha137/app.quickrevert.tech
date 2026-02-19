@@ -287,6 +287,10 @@ async function processEvent(body: any) {
                     }
                 }
 
+                let sub_type = 'other';
+                if (msg.postback || msg.message?.quick_reply) sub_type = 'postback';
+                else if (msg.message) sub_type = 'message';
+
                 // 2. ACTIVITY LOGGING (Source of Truth for Events)
                 // Log immediately linked to the contact(s)
                 const activityMsg = msg.message?.text || (msg.message?.attachments ? 'Sent an attachment' : 'Interaction');
@@ -303,24 +307,24 @@ async function processEvent(body: any) {
 
                     const contactId = contactIds[i] || null;
 
-                    if (msg.message) {
-                        // Only log DMs here, or whatever we decided (event_type check)
-                        await supabase.from('automation_activities').insert({
-                            user_id: account.user_id,
-                            instagram_account_id: account.id,
-                            contact_id: contactId,
-                            activity_type: 'dm', // Assume DM for messaging entry
-                            target_username: 'system_managed',
-                            message: activityMsg,
-                            status: 'success',
-                            metadata: { direction: 'inbound', raw_id: msg.sender.id, resolved: !!resolvedUsername }
-                        });
-                    }
+                    // ALWAYS LOG ACTIVITY (Source of Truth for Dashboard)
+                    await supabase.from('automation_activities').insert({
+                        user_id: account.user_id,
+                        instagram_account_id: account.id,
+                        contact_id: contactId,
+                        activity_type: sub_type === 'postback' ? 'interaction' : 'dm',
+                        target_username: resolvedUsername || 'Instagram User',
+                        message: activityMsg,
+                        status: 'success',
+                        metadata: {
+                            direction: 'inbound',
+                            raw_id: msg.sender.id,
+                            resolved: !!resolvedUsername,
+                            sub_type: sub_type,
+                            mid: msg.message?.mid || msg.postback?.mid
+                        }
+                    });
                 }
-
-                let sub_type = 'other';
-                if (msg.postback || msg.message?.quick_reply) sub_type = 'postback';
-                else if (msg.message) sub_type = 'message';
 
                 // 3. TRIGGER AUTOMATION
                 // Enrich payload with contact_id for N8n (so it can use it if needed)
@@ -396,7 +400,7 @@ async function processEvent(body: any) {
 
                     for (const account of accountsData) {
                         // Upsert Contact for comments (Keep this piece for tracking)
-                        await upsertContact(supabase, {
+                        const contact = await upsertContact(supabase, {
                             user_id: account.user_id,
                             instagram_account_id: account.id,
                             instagram_user_id: change.value?.from?.id,
@@ -404,6 +408,24 @@ async function processEvent(body: any) {
                             full_name: profileName,
                             avatar_url: profilePic,
                             platform: 'instagram'
+                        });
+
+                        // 🔥 LOG COMMENT AS ACTIVITY
+                        await supabase.from('automation_activities').insert({
+                            user_id: account.user_id,
+                            instagram_account_id: account.id,
+                            contact_id: contact?.id || null,
+                            activity_type: 'comment',
+                            target_username: resolvedUsername || 'Instagram User',
+                            message: change.value?.text || 'Post comment',
+                            status: 'success',
+                            metadata: {
+                                direction: 'inbound',
+                                field: change.field,
+                                verb: change.value?.verb,
+                                media_id: change.value?.media?.id,
+                                resolved: !!resolvedUsername
+                            }
                         });
                     }
                 }
