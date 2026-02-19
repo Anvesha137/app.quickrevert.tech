@@ -43,6 +43,6 @@
     }
 
     .animate-jump {
-        animation: jump 2s ease-in-out infinite;
+        animation: jump 1.50s ease-in-out infinite;
     }
 }
