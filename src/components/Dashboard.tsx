@@ -153,8 +153,9 @@ export default function Dashboard() {
               <div className="w-1 h-1 rounded-full bg-gray-300" />
               <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">Overview</p>
             </div>
-            <h2 className="text-4xl md:text-5xl font-black text-gray-900 tracking-tight leading-tight">
-              Hello, {displayName?.split(' ')[0] || 'Creator'} <span className="inline-block animate-bounce-slow">👋</span>
+            <h2 className="text-4xl md:text-5xl font-black text-gray-900 tracking-tight leading-tight flex items-center gap-4">
+              Hello, {displayName?.split(' ')[0] || 'Creator'}
+              <Hand className="w-10 h-10 text-amber-400 fill-amber-400/20 animate-jump" />
             </h2>
             <p className="text-lg text-gray-500 font-medium">
               Here's what's happening with your Instagram today.
