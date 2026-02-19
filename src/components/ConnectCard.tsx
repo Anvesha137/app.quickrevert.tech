@@ -3,32 +3,40 @@ import { Instagram, ArrowRight } from "lucide-react";
 interface ConnectCardProps {
     username?: string;
     isConnected: boolean;
+    planId?: string;
+    profilePicture?: string;
 }
 
-export function ConnectCard({ username, isConnected }: ConnectCardProps) {
+export function ConnectCard({ username, isConnected, planId, profilePicture }: ConnectCardProps) {
+    const getPlanLabel = () => {
+        if (!planId) return 'Basic';
+        const p = planId.toLowerCase();
+        if (p.includes('quarterly')) return 'Premium Quarterly';
+        if (p.includes('annual')) return 'Premium Annual';
+        if (p.includes('gold')) return 'Gold';
+        if (p.includes('enterprise')) return 'Enterprise';
+        return p.charAt(0).toUpperCase() + p.slice(1);
+    };
+
     return (
         <div className="bg-white rounded-2xl border border-gray-100 p-5 flex gap-4 items-center shadow-sm min-h-[140px]">
             {/* Text side */}
-            <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                    <p className="text-lg font-black text-gray-800">Hello @{username || 'username'}</p>
-                    <span
-                        className="text-xl"
-                        style={{
-                            display: "inline-block",
-                            animation: "wave-jump 0.8s ease-in-out infinite",
-                        }}
-                    >
-                        🤚
+            <div className="flex-1 min-w-0">
+                <div className="flex flex-col gap-0.5 mb-2">
+                    <span className="text-[10px] font-black text-cyan-500 uppercase tracking-[0.1em]">
+                        {getPlanLabel()}
                     </span>
+                    <p className="text-xl font-black text-gray-800 flex items-center gap-2">
+                        Hello @{username || 'username'}
+                    </p>
                 </div>
 
                 {/* Connect button */}
                 <button className={`flex items-center gap-2 border transition rounded-xl px-4 py-2 ${isConnected
-                    ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
+                    ? 'border-cyan-100 bg-cyan-50/50 text-cyan-700'
                     : 'border-gray-100 hover:border-cyan-300 hover:bg-cyan-50 text-gray-700'
                     }`}>
-                    <Instagram size={14} className={isConnected ? "text-emerald-500" : "text-pink-500"} />
+                    <Instagram size={14} className={isConnected ? "text-cyan-500" : "text-pink-500"} />
                     <div className="text-left">
                         <p className="text-[11px] font-black">{isConnected ? 'Account Connected' : 'Connect your account now'}</p>
                         <p className="text-[9px] opacity-60 tracking-tight font-black uppercase">
@@ -39,31 +47,22 @@ export function ConnectCard({ username, isConnected }: ConnectCardProps) {
                 </button>
             </div>
 
-            {/* Compact donut illustration */}
+            {/* Profile Image or Fallback */}
             <div className="flex-shrink-0 relative hidden sm:block">
-                <svg width="80" height="80" viewBox="0 0 100 100">
-                    <circle cx="50" cy="50" r="38" fill="none" stroke="#f3f4f6" strokeWidth="12" />
-                    <circle
-                        cx="50"
-                        cy="50"
-                        r="38"
-                        fill="none"
-                        stroke={isConnected ? "#10b981" : "#e5e7eb"}
-                        strokeWidth="12"
-                        strokeDasharray={`${2 * Math.PI * 38 * (isConnected ? 1 : 0.25)} ${2 * Math.PI * 38 * (isConnected ? 0 : 0.75)}`}
-                        strokeDashoffset={2 * Math.PI * 38 * 0.05}
-                        strokeLinecap="round"
-                        className="transition-all duration-1000"
-                    />
-                </svg>
+                <div className="w-20 h-20 rounded-full border-4 border-gray-50 overflow-hidden shadow-xl shadow-cyan-100/30">
+                    {profilePicture ? (
+                        <img
+                            src={profilePicture}
+                            alt={username}
+                            className="w-full h-full object-cover"
+                        />
+                    ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                            <Instagram size={32} className="text-gray-400 opacity-30" />
+                        </div>
+                    )}
+                </div>
             </div>
-
-            <style>{`
-        @keyframes wave-jump {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-10px); }
-        }
-      `}</style>
         </div>
     );
 }

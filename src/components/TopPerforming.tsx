@@ -54,7 +54,7 @@ export default function TopPerforming() {
                 };
             });
 
-            const sortedAutos = processedAutos.sort((a, b) => b.count - a.count).slice(0, 5);
+            const sortedAutos = processedAutos.sort((a, b) => b.count - a.count).slice(0, 3);
             const maxCount = Math.max(...sortedAutos.map(a => a.count), 1);
             const finalAutos = sortedAutos.map(a => ({
                 ...a,

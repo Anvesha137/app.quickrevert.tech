@@ -37,13 +37,13 @@ export default function SetupProgress({ progress, tasks }: SetupProgressProps) {
                     />
                     <defs>
                         <linearGradient id="progress-gradient-mini" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" stopColor="#3B82F6" />
-                            <stop offset="100%" stopColor="#8B5CF6" />
+                            <stop offset="0%" stopColor="#22d3ee" /> {/* cyan-400 */}
+                            <stop offset="100%" stopColor="#14b8a6" /> {/* teal-500 */}
                         </linearGradient>
                     </defs>
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-xl font-black bg-gradient-to-br from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                    <span className="text-xl font-black bg-gradient-to-br from-cyan-500 to-teal-600 bg-clip-text text-transparent">
                         {progress}<span className="text-sm">%</span>
                     </span>
                 </div>

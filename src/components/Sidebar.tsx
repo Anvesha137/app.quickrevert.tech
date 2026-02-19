@@ -89,20 +89,21 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* User Profile */}
-      <div className="mx-4 mb-4 p-4 bg-gray-50/50 backdrop-blur rounded-[1.5rem] border border-white">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-indigo-500 flex items-center justify-center shadow-lg text-white text-xs font-black flex-shrink-0">
+      {/* User Profile - Redesigned Blue Box */}
+      <div className="mx-4 mb-6 p-5 bg-gradient-to-br from-cyan-400 to-teal-500 rounded-[2rem] shadow-xl shadow-cyan-100 border border-white/20">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shadow-inner text-white text-sm font-black flex-shrink-0 border border-white/30">
             {getUserName().substring(0, 2).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-black text-gray-800 truncate">{getUserName()}</p>
-            <p className="text-[10px] text-gray-400 font-bold truncate tracking-tight">{user?.email}</p>
+            <p className="text-[13px] font-black text-white truncate leading-tight mb-0.5">{getUserName()}</p>
+            <p className="text-[10px] text-white/70 font-bold truncate tracking-tight">{user?.email}</p>
           </div>
         </div>
+
         <button
           onClick={handleSignOut}
-          className="w-full flex items-center justify-center gap-2 text-[11px] font-black text-rose-400 hover:text-rose-600 transition-all py-2 rounded-xl hover:bg-rose-50 border border-transparent hover:border-rose-100"
+          className="w-full flex items-center justify-center gap-2 text-[11px] font-black text-cyan-600 bg-white hover:bg-cyan-50 transition-all py-2.5 rounded-xl shadow-lg shadow-cyan-900/10 active:scale-95"
         >
           <LogOut size={14} />
           Sign Out

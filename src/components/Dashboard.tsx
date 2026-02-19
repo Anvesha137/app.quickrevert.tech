@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { useSubscription } from '../contexts/SubscriptionContext';
 import StatsCard from './StatsCard';
 import { ConnectCard } from './ConnectCard';
 import SetupProgress from './SetupProgress';
@@ -25,6 +26,7 @@ interface DashboardStats {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { subscription } = useSubscription();
   const [stats, setStats] = useState<DashboardStats>({
     dmsTriggered: 0,
     activeAutomations: 0,
@@ -126,6 +128,8 @@ export default function Dashboard() {
         <ConnectCard
           username={instagramAccount?.username}
           isConnected={!!instagramAccount}
+          planId={subscription?.plan_id}
+          profilePicture={instagramAccount?.profile_picture_url}
         />
         <SetupProgress
           progress={overallProgress}
@@ -138,25 +142,25 @@ export default function Dashboard() {
         <StatsCard
           label="Total DMs"
           value={loading ? '-' : stats.dmsTriggered.toLocaleString()}
-          iconBg="bg-gradient-to-br from-cyan-400 to-teal-500 shadow-cyan-100"
+          iconBg="bg-gradient-to-r from-cyan-400 to-teal-500 shadow-xl shadow-cyan-100/50"
           icon={<MessageSquare size={18} className="text-white" />}
         />
         <StatsCard
           label="Active Automations"
           value={loading ? '-' : stats.activeAutomations.toString()}
-          iconBg="bg-gradient-to-br from-pink-400 to-rose-500 shadow-rose-100"
+          iconBg="bg-gradient-to-r from-cyan-400 to-teal-500 shadow-xl shadow-cyan-100/50"
           icon={<Zap size={18} className="text-white" />}
         />
         <StatsCard
           label="Comments"
           value={loading ? '-' : stats.commentReplies.toLocaleString()}
-          iconBg="bg-gradient-to-br from-orange-400 to-amber-500 shadow-amber-100"
+          iconBg="bg-gradient-to-r from-cyan-400 to-teal-500 shadow-xl shadow-cyan-100/50"
           icon={<MessageCircle size={18} className="text-white" />}
         />
         <StatsCard
           label="Total Reach"
           value={loading ? '-' : stats.uniqueUsers.toLocaleString()}
-          iconBg="bg-gradient-to-br from-violet-500 to-purple-600 shadow-purple-100"
+          iconBg="bg-gradient-to-r from-cyan-400 to-teal-500 shadow-xl shadow-cyan-100/50"
           icon={<Users size={18} className="text-white" />}
         />
       </div>

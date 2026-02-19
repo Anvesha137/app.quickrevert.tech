@@ -86,8 +86,6 @@ function AuthenticatedApp() {
 }
 
 
-import { isSupabaseConfigured } from './lib/supabase';
-
 function App() {
   if (!isSupabaseConfigured()) {
     return (
