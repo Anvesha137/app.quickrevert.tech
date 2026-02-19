@@ -22,9 +22,10 @@ import { SubscriptionProvider, useSubscription } from './contexts/SubscriptionCo
 
 function AppContent() {
   const { user, loading } = useAuth();
+  const { isPremium, loading: subLoading } = useSubscription();
   const location = useLocation();
 
-  if (loading) {
+  if (loading || (user && subLoading)) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -41,6 +42,10 @@ function AppContent() {
 
   // Standalone pages (no sidebar)
   if (location.pathname === '/pricing') {
+    // Premium users should never see the pricing page — send them to dashboard
+    if (isPremium) {
+      return <Navigate to="/" replace />;
+    }
     return (
       <ErrorBoundary>
         <Routes>

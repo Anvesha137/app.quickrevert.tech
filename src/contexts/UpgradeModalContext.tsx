@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, ReactNode } from 'react';
+import { useSubscription } from './SubscriptionContext';
 
 interface UpgradeModalContextType {
     isOpen: boolean;
@@ -14,8 +15,13 @@ const UpgradeModalContext = createContext<UpgradeModalContextType | undefined>(u
 export function UpgradeModalProvider({ children }: { children: ReactNode }) {
     const [isOpen, setIsOpen] = useState(false);
     const [showCelebration, setShowCelebration] = useState(false);
+    const { isPremium } = useSubscription();
 
-    const openModal = () => setIsOpen(true);
+    // Never open the upgrade modal for premium users
+    const openModal = () => {
+        if (isPremium) return;
+        setIsOpen(true);
+    };
     const closeModal = () => setIsOpen(false);
 
     const openCelebration = () => setShowCelebration(true);

@@ -4,6 +4,7 @@ import { useUpgradeModal } from '../contexts/UpgradeModalContext';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { useSubscription } from '../contexts/SubscriptionContext';
 
 declare global {
     interface Window {
@@ -24,6 +25,7 @@ interface CouponState {
 export default function UpgradeModal() {
     const { isOpen, closeModal, openCelebration } = useUpgradeModal();
     const { user } = useAuth();
+    const { isPremium } = useSubscription();
     const [planTier] = useState<PlanTier>('premium');
     const [billingCycle, setBillingCycle] = useState<'annual' | 'quarterly'>('annual');
     const [loading, setLoading] = useState(false);
@@ -54,7 +56,8 @@ export default function UpgradeModal() {
         }
     }, [billingCycle]);
 
-    if (!isOpen) return null;
+    // Double safety: never render for premium users
+    if (!isOpen || isPremium) return null;
 
     const premiumFeatures = [
         'Unlimited Auto DM',
