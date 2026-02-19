@@ -8,7 +8,7 @@
       - `instagram_account_id` (uuid, references instagram_accounts) - The IG account this contact interacted with
       - `instagram_user_id` (text) - The IG ID of the contact (sender)
       - `username` (text)
-      - `full_name` (text, nullable)
+      - `full_name` (text, nullable)`
       - `avatar_url` (text, nullable)
       - `first_interaction_at` (timestamptz)
       - `last_interaction_at` (timestamptz)

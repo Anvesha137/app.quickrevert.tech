@@ -57,7 +57,6 @@ Deno.serve(async (req: Request) => {
     console.log("  instagramAccountId:", instagramAccountId);
     console.log("  triggerType:", triggerType);
     console.log("  eventData.from.id:", eventData.from.id);
-    console.log("  eventData.messageText:", eventData.messageText);
 
     // 1. Fetch Instagram Account
     console.log("\n🔍 STEP 1: Fetching Instagram account...");
@@ -72,58 +71,28 @@ Deno.serve(async (req: Request) => {
       throw new Error('Instagram account not found');
     }
 
-    console.log("✅ Account found:", instagramAccount.instagram_user_id);
-
     // Resolve Profile & Follow Status
-    const isUnknown = !eventData.from.username || eventData.from.username === 'Unknown' || eventData.from.username === eventData.from.id;
-    if (isUnknown || true) { // Always fetch to get latest follow status and profile info
-      console.log('\n🔍 STEP 2: Fetching user profile & follow status...');
-      try {
-        // Use v21.0 or newer
-        const apiVersion = 'v21.0';
-        // USE graph.facebook.com which is more reliable for business-to-user profile lookups
-        const userProfileUrl = `https://graph.facebook.com/${apiVersion}/${eventData.from.id}?fields=name,profile_pic,is_user_follow_business&access_token=${instagramAccount.access_token}`;
-        console.log(`Fetching profile for ${eventData.from.id} via ${apiVersion} (facebook graph)`);
-
-        const userProfileRes = await fetch(userProfileUrl);
-        const resText = await userProfileRes.text();
-
-        if (userProfileRes.ok) {
-          const userProfile = JSON.parse(resText);
-          console.log("✅ Profile Data:", JSON.stringify(userProfile));
-
-          if (userProfile.name) eventData.from.name = userProfile.name;
-          // Set username to email or ID if not already resolved, but IG Messaging doesn't return username
-          if (!eventData.from.username || eventData.from.username === 'Unknown') {
-            eventData.from.username = userProfile.name || eventData.from.id;
-          }
-
-          // Store follow status
-          (eventData as any).isFollowing = userProfile.is_user_follow_business || false;
-          (eventData as any).profilePic = userProfile.profile_pic || null;
-
-          console.log('✅ Resolved identity:', {
-            username: eventData.from.username,
-            name: eventData.from.name,
-            isFollowing: (eventData as any).isFollowing
-          });
-        } else {
-          console.error(`❌ Failed to fetch user profile (${userProfileRes.status}):`, resText);
-          // If profile fetch fails, ensure we have at least the IG ID as username
-          if (!eventData.from.username || eventData.from.username === 'Unknown') {
-            eventData.from.username = eventData.from.id;
-          }
+    console.log('\n🔍 STEP 2: Fetching user profile...');
+    try {
+      const apiVersion = 'v21.0';
+      const userProfileUrl = `https://graph.facebook.com/${apiVersion}/${eventData.from.id}?fields=name,profile_pic,is_user_follow_business&access_token=${instagramAccount.access_token}`;
+      const userProfileRes = await fetch(userProfileUrl);
+      if (userProfileRes.ok) {
+        const userProfile = await userProfileRes.json();
+        if (userProfile.name) eventData.from.name = userProfile.name;
+        if (!eventData.from.username || eventData.from.username === 'Unknown') {
+          eventData.from.username = userProfile.name || eventData.from.id;
         }
-      } catch (err) {
-        console.error('❌ Error fetching user profile:', err);
-        if (!eventData.from.username) eventData.from.username = eventData.from.id;
+        (eventData as any).isFollowing = userProfile.is_user_follow_business || false;
+        (eventData as any).profilePic = userProfile.profile_pic || null;
       }
+    } catch (err) {
+      console.error('❌ Error fetching user profile:', err);
     }
-
-    // ... (usage limit checks) ...
 
     // 3. Upsert Contact
     console.log('\n🔍 STEP 3: Upserting contact...');
+    let newInteractionCount = 1;
     try {
       const { data: existingContact } = await supabase
         .from('contacts')
@@ -133,18 +102,13 @@ Deno.serve(async (req: Request) => {
         .eq('instagram_user_id', eventData.from.id)
         .maybeSingle();
 
-      const newInteractionCount = (existingContact?.interaction_count || 0) + 1;
-
-      // Ensure we have a non-empty username fallback
-      const finalUsername = eventData.from.username && eventData.from.username !== 'Unknown' && eventData.from.username !== 'UnknownError'
-        ? eventData.from.username
-        : eventData.from.id;
+      newInteractionCount = (existingContact?.interaction_count || 0) + 1;
 
       const contactData: any = {
         user_id: userId,
         instagram_account_id: instagramAccountId,
         instagram_user_id: eventData.from.id,
-        username: finalUsername,
+        username: eventData.from.username || eventData.from.id,
         full_name: eventData.from.name || null,
         avatar_url: (eventData as any).profilePic || null,
         last_interaction_at: new Date().toISOString(),
@@ -152,172 +116,76 @@ Deno.serve(async (req: Request) => {
         follows_us: (eventData as any).isFollowing || false,
       };
 
-      const { error: contactError } = await supabase
-        .from('contacts')
-        .upsert(contactData, {
-          onConflict: 'user_id,instagram_account_id,instagram_user_id',
-          ignoreDuplicates: false
-        });
-
-      if (contactError) {
-        console.error('❌ Contact upsert error:', contactError);
-      } else {
-        console.log('✅ Contact upserted successfully');
-      }
-    } catch (contactErr) {
-      console.error('❌ Unexpected error handling contact:', contactErr);
-    }
-
-    // 4. Log the incoming event
-    console.log('\n🔍 STEP 4: Logging incoming event...');
-    try {
-      const activityType = triggerType === 'post_comment' ? 'incoming_comment' :
-        triggerType === 'user_directed_messages' ? 'incoming_message' :
-          'incoming_event';
-
-      const messageContent = eventData.commentText || eventData.messageText || '';
-
-      await supabase.from('automation_activities').insert({
-        user_id: userId,
-        instagram_account_id: instagramAccountId,
-        activity_type: activityType,
-        target_username: eventData.from.username || eventData.from.id,
-        message: messageContent,
-        status: 'success',
-        metadata: {
-          ...eventData,
-          direction: 'inbound'
-        }
+      await supabase.from('contacts').upsert(contactData, {
+        onConflict: 'user_id,instagram_account_id,instagram_user_id',
+        ignoreDuplicates: false
       });
-      console.log('✅ Event logged successfully');
-    } catch (logError) {
-      console.error('❌ Error logging incoming event:', logError);
+    } catch (contactErr) {
+      console.error('❌ Contact upsert error:', contactErr);
     }
 
-    // 5. Fetch Automations
-    console.log('\n🔍 STEP 5: Fetching automations...');
-    console.log("  Query conditions:");
-    console.log("    user_id =", userId);
-    console.log("    trigger_type =", triggerType);
-    console.log("    status = 'active'");
-
-    const { data: automations, error: automationError } = await supabase
+    // 4. Fetch and Match Automations
+    console.log('\n🔍 STEP 4: Matching automations...');
+    const { data: automations } = await supabase
       .from('automations')
       .select('*')
       .eq('user_id', userId)
       .eq('trigger_type', triggerType)
       .eq('status', 'active');
 
-    if (automationError) {
-      console.error('❌ Automation fetch error:', automationError);
-      throw automationError;
-    }
-
-    console.log(`✅ Found ${automations?.length || 0} active automation(s)`);
-
-    if (automations && automations.length > 0) {
-      automations.forEach((auto, i) => {
-        console.log(`\n  Automation ${i + 1}:`);
-        console.log("    ID:", auto.id);
-        console.log("    Config:", JSON.stringify(auto.trigger_config, null, 2));
-        console.log("    Actions:", auto.actions?.length || 0);
-      });
-    }
-
-    if (!automations || automations.length === 0) {
-      console.log('⚠️  No active automations found - returning early');
-      return new Response(JSON.stringify({
-        success: true,
-        message: 'No automations to execute',
-        debug: { userId, triggerType, foundAutomations: 0 }
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // 6. Filter Matching Automations
-    console.log('\n🔍 STEP 6: Filtering matching automations...');
-
-    const matchedAutomations = automations.filter((automation, index) => {
-      console.log(`\n  Checking automation ${index + 1} (ID: ${automation.id})...`);
+    const matchedAutomations = (automations || []).filter(automation => {
       const config = automation.trigger_config || {};
-      console.log("    Config:", JSON.stringify(config, null, 2));
-
       if (triggerType === 'post_comment') {
         if (config.postsType === 'specific') {
           const allowedPosts = config.specificPosts || [];
-          if (!eventData.postId || !allowedPosts.includes(eventData.postId)) {
-            console.log("    ❌ NO MATCH: Post not in allowed list");
-            return false;
-          }
+          if (!eventData.postId || !allowedPosts.includes(eventData.postId)) return false;
         }
-
         if (config.commentsType === 'keywords' && config.keywords && eventData.commentText) {
           const text = eventData.commentText.toLowerCase();
-          const matched = config.keywords.some((keyword: string) => text.includes(keyword.toLowerCase()));
-          console.log(`    ${matched ? '✅ MATCH' : '❌ NO MATCH'}: Keyword matching`);
-          return matched;
+          return config.keywords.some((keyword: string) => text.includes(keyword.toLowerCase()));
         }
-
-        const matchAll = config.commentsType === 'all';
-        console.log(`    ${matchAll ? '✅ MATCH' : '❌ NO MATCH'}: Trigger on all comments`);
-        return matchAll;
+        return config.commentsType === 'all';
       }
-
       if (triggerType === 'user_directed_messages') {
-        console.log("    Message type:", config.messageType);
-
-        if (config.messageType === 'all') {
-          console.log("    ✅ MATCH: Triggers on ALL messages");
-          return true;
-        }
-
-        if (config.messageType === 'keywords') {
-          console.log("    Keywords:", config.keywords);
-          console.log("    Message text:", eventData.messageText);
-
-          if (!config.keywords || !eventData.messageText) {
-            console.log("    ❌ NO MATCH: Missing keywords or message text");
-            return false;
-          }
-
+        if (config.messageType === 'all') return true;
+        if (config.messageType === 'keywords' && config.keywords && eventData.messageText) {
           const text = eventData.messageText.toLowerCase();
-          const matched = config.keywords.some((keyword: string) => {
-            const match = text.includes(keyword.toLowerCase());
-            console.log(`      '${keyword}' in '${text}': ${match}`);
-            return match;
-          });
-
-          console.log(`    ${matched ? '✅ MATCH' : '❌ NO MATCH'}: Keyword matching`);
-          return matched;
+          return config.keywords.some((k: string) => text.includes(k.toLowerCase()));
         }
-
-        console.log("    ❌ NO MATCH: Unknown messageType");
-        return false;
       }
-
-      if (triggerType === 'story_reply') {
-        const matchAll = config.storiesType === 'all';
-        console.log(`    ${matchAll ? '✅ MATCH' : '❌ NO MATCH'}: Story reply`);
-        return matchAll;
-      }
-
-      console.log("    ❌ NO MATCH: Unknown trigger type");
+      if (triggerType === 'story_reply') return config.storiesType === 'all';
       return false;
     });
 
-    console.log(`\n✅ ${matchedAutomations.length} automation(s) matched`);
+    console.log(`✅ Matches found: ${matchedAutomations.length}`);
 
-    // 7. Execute Actions
-    console.log('\n🚀 STEP 7: Executing actions...');
+    // 5. Log Inbound Event
+    const primaryAutomationId = matchedAutomations.length > 0 ? matchedAutomations[0].id : null;
+    try {
+      const activityType = triggerType === 'post_comment' ? 'incoming_comment' :
+        triggerType === 'user_directed_messages' ? 'incoming_message' : 'incoming_event';
 
+      await supabase.from('automation_activities').insert({
+        user_id: userId,
+        automation_id: primaryAutomationId,
+        instagram_account_id: instagramAccountId,
+        activity_type: activityType,
+        target_username: eventData.from.username || eventData.from.id,
+        message: eventData.commentText || eventData.messageText || '',
+        status: 'success',
+        metadata: { ...eventData, direction: 'inbound', matchedCount: matchedAutomations.length }
+      });
+    } catch (err) {
+      console.error('❌ Error logging event:', err);
+    }
+
+    // 6. Execute Actions
     for (const automation of matchedAutomations) {
-      console.log(`\n  Processing automation ${automation.id}...`);
+      const automationName = automation.name || 'Unnamed Automation';
 
-      // Update contact's interacted_automations list
+      // Update contact's interacted_automations
       try {
-        const { data: currentContact } = await supabase
+        const { data: contact } = await supabase
           .from('contacts')
           .select('interacted_automations')
           .eq('user_id', userId)
@@ -325,174 +193,79 @@ Deno.serve(async (req: Request) => {
           .eq('instagram_user_id', eventData.from.id)
           .single();
 
-        const currentAutomations = currentContact?.interacted_automations || [];
-        const automationName = automation.name || 'Unnamed Automation';
-
-        if (!currentAutomations.includes(automationName)) {
-          await supabase
-            .from('contacts')
-            .update({
-              interacted_automations: [...currentAutomations, automationName]
-            })
-            .eq('user_id', userId)
-            .eq('instagram_account_id', instagramAccountId)
-            .eq('instagram_user_id', eventData.from.id);
+        const current = contact?.interacted_automations || [];
+        if (!current.includes(automationName)) {
+          await supabase.from('contacts').update({
+            interacted_automations: [...current, automationName]
+          }).eq('user_id', userId).eq('instagram_account_id', instagramAccountId).eq('instagram_user_id', eventData.from.id);
         }
-      } catch (err) {
-        console.error('❌ Error updating contact automations:', err);
-      }
-
-      console.log("    Actions count:", automation.actions?.length || 0);
+      } catch (err) { console.error('❌ Contact list update error:', err); }
 
       for (const action of automation.actions || []) {
-        console.log(`\n    Executing action: ${action.type}`);
         try {
           await executeAction({
-            action,
-            eventData,
-            accessToken: instagramAccount.access_token,
-            instagramUserId: instagramAccount.instagram_user_id,
-            supabase,
-            automationId: automation.id,
-            userId,
-            instagramAccountId,
-            triggerType,
+            action, eventData, accessToken: instagramAccount.access_token,
+            instagramUserId: instagramAccount.instagram_user_id, supabase,
+            automationId: automation.id, userId, instagramAccountId, triggerType
           });
-          console.log("      ✅ Action executed successfully");
-        } catch (actionError: any) {
-          console.error('      ❌ Action execution failed:', actionError.message);
+        } catch (err: any) {
+          console.error('❌ Action failed:', err.message);
           await logActivity(supabase, {
-            userId,
-            automationId: automation.id,
-            instagramAccountId,
-            activityType: action.type,
-            targetUsername: eventData.from.username,
-            status: 'failed',
-            metadata: { error: actionError.message },
+            userId, automationId: automation.id, instagramAccountId,
+            activityType: action.type, targetUsername: eventData.from.username,
+            status: 'failed', metadata: { error: err.message }
           });
         }
       }
     }
 
-    console.log("\n═══════════════════════════════════════");
-    console.log("✅ EXECUTION COMPLETE");
-    console.log(`   Matched: ${matchedAutomations.length} automations`);
-    console.log("═══════════════════════════════════════\n");
-
-    return new Response(JSON.stringify({
-      success: true,
-      executed: matchedAutomations.length
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    return new Response(JSON.stringify({ success: true, executed: matchedAutomations.length }), {
+      status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
-  } catch (error: any) {
-    console.error("\n❌❌❌ FATAL ERROR ❌❌❌");
-    console.error("Error:", error);
-    console.error("Stack:", error.stack);
-    console.error("═══════════════════════════════════════\n");
 
+  } catch (error: any) {
+    console.error("❌ FATAL ERROR:", error.message);
     return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 });
 
 async function executeAction(params: any) {
   const { action, eventData, accessToken, instagramUserId, supabase, automationId, userId, instagramAccountId, triggerType } = params;
-
   let messageText = '';
   let buttons: any[] = [];
 
-  switch (action.type) {
-    case 'reply_to_comment':
-      if (action.replyTemplates && action.replyTemplates.length > 0) {
-        messageText = action.replyTemplates[Math.floor(Math.random() * action.replyTemplates.length)];
-        buttons = action.actionButtons || [];
-      }
-      break;
-
-    case 'send_dm':
-      // --- DM USAGE LIMIT CHECK ---
-      const startOfMonth = new Date();
-      startOfMonth.setDate(1);
-      startOfMonth.setHours(0, 0, 0, 0);
-
-      const { count, error: countError } = await supabase
-        .from('automation_activities')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .eq('activity_type', 'send_dm')
-        .gte('executed_at', startOfMonth.toISOString());
-
-      if (!countError && (count || 0) >= 1000) {
-        console.warn(`⚠️ Monthly DM limit reached (${count}/1000). Skipping DM action.`);
-        await logActivity(supabase, {
-          userId,
-          automationId,
-          instagramAccountId,
-          activityType: 'send_dm_skipped',
-          targetUsername: eventData.from.username,
-          status: 'skipped',
-          message: 'Monthly DM limit reached',
-          metadata: { limit: 1000, current: count }
-        });
-        return; // Skip this action
-      }
-      // -----------------------------
-
-      messageText = action.messageTemplate || '';
-      buttons = action.actionButtons || [];
-      break;
+  if (action.type === 'reply_to_comment') {
+    messageText = action.replyTemplates?.[Math.floor(Math.random() * action.replyTemplates.length)] || '';
+    buttons = action.actionButtons || [];
+  } else if (action.type === 'send_dm') {
+    messageText = action.messageTemplate || '';
+    buttons = action.actionButtons || [];
   }
 
   messageText = messageText.replace('{{username}}', eventData.from.username);
-
-  // ✅ FIXED: Distinguish between Public Reply and Private DM
   const isPublicReply = action.type === 'reply_to_comment';
-  const apiUrl = isPublicReply
-    ? `https://graph.instagram.com/v21.0/${eventData.commentId}/replies`
-    : `https://graph.instagram.com/v21.0/me/messages`;
+  const apiUrl = isPublicReply ? `https://graph.instagram.com/v21.0/${eventData.commentId}/replies` : `https://graph.instagram.com/v21.0/me/messages`;
 
-  const recipient = (triggerType === 'post_comment' && eventData.commentId && !isPublicReply)
-    ? { comment_id: eventData.commentId }
-    : { id: eventData.from.id };
-
-  let messagePayload: any = isPublicReply
-    ? { message: messageText } // Simple message for /replies
-    : { recipient, message: {} }; // Full payload for /messages
+  const recipient = (triggerType === 'post_comment' && eventData.commentId && !isPublicReply) ? { comment_id: eventData.commentId } : { id: eventData.from.id };
+  let messagePayload: any = isPublicReply ? { message: messageText } : { recipient, message: {} };
 
   if (!isPublicReply && buttons.length > 0) {
-    // Switch from quick_replies to Generic Template as requested
-    const elements: any[] = [{
-      title: messageText.substring(0, 80), // Max 80 chars for title
-      subtitle: "Powered By Quickrevert.tech",
-      buttons: buttons.slice(0, 3).map((btn: any) => {
-        // If it starts with http, it's a web_url, otherwise it's a postback
-        const isUrl = btn.url && btn.url.startsWith('http');
-        if (isUrl) {
-          return {
-            type: 'web_url',
-            url: btn.url,
-            title: btn.text.substring(0, 20)
-          };
-        } else {
-          return {
-            type: 'postback',
-            title: btn.text.substring(0, 20),
-            payload: btn.text.toUpperCase()
-          };
-        }
-      })
-    }];
-
     messagePayload.message = {
       attachment: {
         type: 'template',
         payload: {
           template_type: 'generic',
-          elements
+          elements: [{
+            title: messageText.substring(0, 80),
+            subtitle: "Powered By Quickrevert.tech",
+            buttons: buttons.slice(0, 3).map((btn: any) => ({
+              type: btn.url?.startsWith('http') ? 'web_url' : 'postback',
+              url: btn.url, title: btn.text.substring(0, 20),
+              payload: btn.url?.startsWith('http') ? undefined : btn.text.toUpperCase()
+            }))
+          }]
         }
       }
     };
@@ -500,56 +273,26 @@ async function executeAction(params: any) {
     messagePayload.message = { text: messageText };
   }
 
-  console.log('      Sending message payload:', JSON.stringify(messagePayload, null, 2));
-
-  // ✅ FIXED: Access token in URL params
   const response = await fetch(`${apiUrl}?access_token=${accessToken}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(messagePayload),
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(messagePayload)
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('      Instagram API error:', errorText);
-    throw new Error(`Instagram API error: ${response.status} - ${errorText}`);
-  }
-
+  if (!response.ok) throw new Error(`Instagram API error: ${response.status} - ${await response.text()}`);
   const result = await response.json();
-  console.log('      Message sent successfully:', result);
 
   await logActivity(supabase, {
-    userId,
-    automationId,
-    instagramAccountId,
-    activityType: action.type,
-    targetUsername: eventData.from.username,
-    message: messageText,
-    status: 'success',
-    metadata: {
-      messageId: result.message_id,
-      recipientId: result.recipient_id,
-    },
+    userId, automationId, instagramAccountId, activityType: action.type,
+    targetUsername: eventData.from.username, message: messageText,
+    status: 'success', metadata: { messageId: result.message_id, recipientId: result.recipient_id }
   });
 }
 
 async function logActivity(supabase: any, data: any) {
-  const { error } = await supabase
-    .from('automation_activities')
-    .insert({
-      user_id: data.userId,
-      automation_id: data.automationId,
-      instagram_account_id: data.instagramAccountId,
-      activity_type: data.activityType,
-      target_username: data.targetUsername,
-      message: data.message,
-      status: data.status,
-      metadata: data.metadata || {},
-    });
-
-  if (error) {
-    console.error('Error logging activity:', error);
-  }
+  await supabase.from('automation_activities').insert({
+    user_id: data.userId, automation_id: data.automationId,
+    instagram_account_id: data.instagramAccountId, activity_type: data.activityType,
+    target_username: data.targetUsername, message: data.message,
+    status: data.status, metadata: data.metadata || {}
+  });
 }

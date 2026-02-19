@@ -113,8 +113,11 @@ export default function Contacts() {
           const key = `${act.instagram_account_id}-${psid}`;
           const current = uniqueContactsMap.get(key);
 
-          const automationName = act.automation_id ? automationMap.get(act.automation_id) : null;
-          const interacted_automations = current?.interacted_automations || [];
+          const automationIdFromMetadata = act.metadata?.automation_id || act.metadata?.automationId;
+          const aId = act.automation_id || automationIdFromMetadata;
+          const automationName = aId ? automationMap.get(aId) : null;
+
+          let interacted_automations = [...(current?.interacted_automations || [])];
           if (automationName && !interacted_automations.includes(automationName)) {
             interacted_automations.push(automationName);
           }
@@ -133,10 +136,9 @@ export default function Contacts() {
               interacted_automations: interacted_automations
             });
           } else {
-            // Just update automations and count if earlier activity
             uniqueContactsMap.set(key, {
               ...current,
-              interaction_count: current.interaction_count + 1,
+              interaction_count: (current?.interaction_count || 0) + 1,
               interacted_automations: interacted_automations
             });
           }
