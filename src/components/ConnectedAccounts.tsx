@@ -20,7 +20,6 @@ export default function ConnectedAccounts() {
   const { user } = useAuth();
   const [accounts, setAccounts] = useState<InstagramAccount[]>([]);
   const [loading, setLoading] = useState(true);
-  const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showConnectModal, setShowConnectModal] = useState(false);

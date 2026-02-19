@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Client } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
 
@@ -7,10 +6,15 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
+  // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  const neonDbUrl = Deno.env.get('NEON_DB_URL');
 
   try {
     // 1. Authenticate User
@@ -20,78 +24,84 @@ serve(async (req) => {
     }
 
     const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
+      supabaseUrl,
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       { global: { headers: { Authorization: authHeader } } }
     );
 
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
     if (authError || !user) {
-      throw new Error('Unauthorized');
+      console.error("Auth Error:", authError);
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized', details: authError }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      );
     }
 
     const userId = user.id;
+    console.log(`Starting account deletion for user: ${userId} (${user.email})`);
 
     // 2. Update Neon DB (Soft Delete)
-    const neonDbUrl = Deno.env.get('NEON_DB_URL');
     if (!neonDbUrl) {
-      throw new Error('NEON_DB_URL is not set');
-    }
+      console.error("Missing NEON_DB_URL environment variable");
+      // Continue anyway, as Supabase deletion is more critical to stop billing/access
+    } else {
+      const pgClient = new Client(neonDbUrl);
+      try {
+        await pgClient.connect();
+        // Use BOTH ID and Email to ensure we catch them in Neon
+        const result = await pgClient.queryArray(`
+          UPDATE users 
+          SET deleted = TRUE, 
+              status = 'inactive',
+              last_active = NOW() + INTERVAL '5 hours 30 minutes' 
+          WHERE id = $1 OR email = $2
+        `, [userId, user.email]);
 
-    const pgClient = new Client(neonDbUrl);
-    await pgClient.connect();
-
-    try {
-      // Assuming 'email' is the key based on previous sync logic, but usually IDs are better.
-      // However, sync-user-neon used email. Let's try to update by email if possible, or we need to know the Neon ID.
-      // Since we synced ID as well, we should use ID if that column exists in Neon, but sync-user-neon inserted 'id' as well.
-      // Let's check sync-user-neon logic: 
-      //    INSERT INTO users (id, email, ...) VALUES ('${id}', ...)
-      // So we can use ID.
-
-      await pgClient.queryArray(`
-        UPDATE users 
-        SET deleted = TRUE, last_active = NOW() + INTERVAL '5 hours 30 minutes' 
-        WHERE id = $1 OR email = $2
-      `, [userId, user.email]);
-
-      console.log(`Soft deleted user ${userId} in Neon DB`);
-
-    } catch (neonError) {
-      console.error('Neon DB Update Error:', neonError);
-      // We might want to continue even if Neon fails, or abort. 
-      // Let's log but continue to ensure Supabase account is deleted.
-    } finally {
-      await pgClient.end();
+        console.log(`Soft deleted user in Neon DB. Rows affected: ${result.rowCount}`);
+      } catch (neonError) {
+        console.error('Neon DB Update Error (Non-Fatal):', neonError);
+        // We continue even if Neon fails to ensure the Supabase account (source of truth) is removed
+      } finally {
+        try {
+          await pgClient.end();
+        } catch (e) {
+          console.error("Error closing Neon connection:", e);
+        }
+      }
     }
 
     // 3. Delete from Supabase (Hard Delete) using Admin Client
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     if (!serviceRoleKey) {
       throw new Error("Server Misconfiguration: Missing SUPABASE_SERVICE_ROLE_KEY");
     }
 
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      serviceRoleKey
-    );
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
     if (deleteError) {
-      throw deleteError;
+      console.error("Supabase Admin Deletion Error:", deleteError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to delete user from Supabase', details: deleteError }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      );
     }
 
+    console.log(`Successfully deleted user ${userId} from Supabase Auth`);
+
     return new Response(
-      JSON.stringify({ message: 'Account deleted successfully' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ message: 'Account deleted successfully', success: true }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
 
-  } catch (error) {
-    console.error("Delete Account Error:", error);
-    // Return 200 with error property so client can parse the message
+  } catch (error: any) {
+    console.error("Global Delete Account Error:", error);
     return new Response(
-      JSON.stringify({ error: error.message || "Unknown server error", details: JSON.stringify(error) }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      JSON.stringify({
+        error: error.message || "Unknown server error",
+        success: false
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }
 });

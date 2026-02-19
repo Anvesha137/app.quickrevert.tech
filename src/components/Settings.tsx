@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Mail,
@@ -131,6 +132,7 @@ const GlassButton = ({ children, variant = "primary", className, icon: Icon, onC
 export default function Settings() {
   const { user } = useAuth();
   const theme = useTheme();
+  const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -221,15 +223,27 @@ export default function Settings() {
     setDeleteLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('delete-account');
+      const { data, error: invokeError } = await supabase.functions.invoke('delete-account');
 
-      if (error) throw error;
-      if (data && data.error) throw new Error(data.error);
+      if (invokeError) {
+        throw new Error(invokeError.message || 'Server connection failed');
+      }
 
-      await supabase.auth.signOut();
+      if (data && data.error) {
+        throw new Error(data.error);
+      }
+
+      toast.success('Account deleted successfully. Logging you out...');
+
+      // Short delay for the toast to be seen
+      setTimeout(async () => {
+        await supabase.auth.signOut();
+        navigate('/');
+      }, 1500);
+
     } catch (error: any) {
       console.error('Error deleting account:', error);
-      toast.error(`Failed to delete account: ${error.message || JSON.stringify(error)}`);
+      toast.error(`Deletion Failed: ${error.message || 'Please contact support.'}`);
     } finally {
       setDeleteLoading(false);
       setShowDeleteConfirm(false);
