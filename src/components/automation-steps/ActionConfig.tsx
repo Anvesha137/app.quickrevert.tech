@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, X, Sparkles, Send, MessageSquare, ChevronDown, Crown, ArrowRight, Save, Trash, AlertCircle, UserPlus } from 'lucide-react';
 import { motion, AnimatePresence } from "motion/react";
 import { TriggerType, Action, ActionType, ReplyToCommentAction, SendDmAction } from '../../types/automation';
@@ -543,9 +544,9 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
       </AnimatePresence>
 
       {/* Action Selector Modal */}
-      <AnimatePresence>
-        {showActionSelector && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+      {showActionSelector && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+          <AnimatePresence>
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -553,56 +554,57 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
               onClick={() => setShowActionSelector(false)}
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl"
             />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl overflow-hidden"
-            >
-              <div className="p-10">
-                <div className="flex items-center justify-between mb-8">
-                  <div>
-                    <h3 className="text-2xl font-extrabold text-slate-800 font-outfit">Choose Action</h3>
-                    <p className="text-sm font-normal text-slate-500">Select how to respond to "{getTriggerName(triggerType)}"</p>
-                  </div>
-                  <button onClick={() => setShowActionSelector(false)} className="p-3 bg-slate-100 text-slate-400 rounded-2xl hover:bg-slate-200 transition-colors">
-                    <X size={24} />
-                  </button>
+          </AnimatePresence>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            className="relative w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl overflow-hidden"
+          >
+            <div className="p-10">
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="text-2xl font-extrabold text-slate-800 font-outfit">Choose Action</h3>
+                  <p className="text-sm font-normal text-slate-500">Select how to respond to "{getTriggerName(triggerType)}"</p>
                 </div>
-
-                <div className="grid gap-4">
-                  {availableActions.map((option, idx) => (
-                    <motion.button
-                      key={option.type}
-                      whileHover={{ scale: 1.02, x: 5 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => addAction(option.type)}
-                      className="group flex items-start gap-6 p-6 rounded-[2rem] border-2 border-slate-100 hover:border-blue-500 hover:bg-blue-50/50 transition-all text-left"
-                    >
-                      <div className={cn(
-                        "w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-white shadow-lg shrink-0",
-                        option.color
-                      )}>
-                        <option.icon size={30} />
-                      </div>
-                      <div className="pt-1">
-                        <div className="flex items-center gap-3 mb-1">
-                          <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-400 text-[10px] font-semibold flex items-center justify-center">{idx + 1}</span>
-                          <h4 className="text-xl font-extrabold text-slate-800">{option.name}</h4>
-                        </div>
-                        <p className="text-sm font-normal text-slate-500 leading-relaxed">{option.description}</p>
-                      </div>
-                      <div className="ml-auto self-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <ArrowRight className="text-blue-500" />
-                      </div>
-                    </motion.button>
-                  ))}
-                </div>
+                <button onClick={() => setShowActionSelector(false)} className="p-3 bg-slate-100 text-slate-400 rounded-2xl hover:bg-slate-200 transition-colors">
+                  <X size={24} />
+                </button>
               </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+
+              <div className="grid gap-4">
+                {availableActions.map((option, idx) => (
+                  <motion.button
+                    key={option.type}
+                    whileHover={{ scale: 1.02, x: 5 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => addAction(option.type)}
+                    className="group flex items-start gap-6 p-6 rounded-[2rem] border-2 border-slate-100 hover:border-blue-500 hover:bg-blue-50/50 transition-all text-left"
+                  >
+                    <div className={cn(
+                      "w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-white shadow-lg shrink-0",
+                      option.color
+                    )}>
+                      <option.icon size={30} />
+                    </div>
+                    <div className="pt-1">
+                      <div className="flex items-center gap-3 mb-1">
+                        <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-400 text-[10px] font-semibold flex items-center justify-center">{idx + 1}</span>
+                        <h4 className="text-xl font-extrabold text-slate-800">{option.name}</h4>
+                      </div>
+                      <p className="text-sm font-normal text-slate-500 leading-relaxed">{option.description}</p>
+                    </div>
+                    <div className="ml-auto self-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <ArrowRight className="text-blue-500" />
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        </div>,
+        document.body
+      )}
 
       {/* Navigation Footer */}
       <div className="flex justify-between items-center pt-8 border-t border-slate-100">
