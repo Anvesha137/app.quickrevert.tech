@@ -23,18 +23,18 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen bg-white font-outfit">
+    <div className="h-screen overflow-hidden bg-white font-outfit flex">
       {/* Left Side: Login Form */}
-      <div className="w-full lg:w-1/2 flex flex-col justify-center px-6 md:px-12 py-12 bg-[#fafbff]">
+      <div className="w-full lg:w-1/2 flex flex-col justify-center px-6 md:px-12 py-6 bg-[#fafbff]">
         <div className="max-w-[480px] mx-auto w-full">
-          <div className="bg-white p-8 md:p-12 rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 animate-in fade-in slide-in-from-bottom-8 duration-1000">
-            <div className="mb-10 flex flex-col items-center text-center">
+          <div className="bg-white p-8 md:p-10 rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 animate-in fade-in slide-in-from-bottom-8 duration-1000">
+            <div className="mb-8 flex flex-col items-center text-center">
               <img
                 src="/Logo_optimized.png"
                 alt="QuickRevert Logo"
-                className="h-32 mb-10 object-contain mx-auto"
+                className="h-28 mb-8 object-contain mx-auto"
               />
-              <h1 className="text-3xl font-black text-slate-900 mb-3 tracking-tight">
+              <h1 className="text-3xl font-black text-slate-900 mb-2 tracking-tight">
                 Welcome Back
               </h1>
               <p className="text-base text-slate-500 font-medium">
@@ -42,7 +42,7 @@ export default function Login() {
               </p>
             </div>
 
-            <div className="space-y-8">
+            <div className="space-y-6">
               <div className="space-y-4">
                 <button
                   onClick={handleGoogleSignIn}
@@ -82,7 +82,7 @@ export default function Login() {
                 </div>
               )}
 
-              <div className="pt-8 flex flex-col items-center gap-4">
+              <div className="pt-6 flex flex-col items-center gap-4">
                 <p className="text-[11px] text-slate-400 font-medium text-center leading-relaxed max-w-[280px]">
                   By signing in, you agree to our{' '}
                   <button onClick={() => setShowTerms(true)} className="text-slate-900 font-bold">Terms</button>
@@ -96,7 +96,7 @@ export default function Login() {
       </div>
 
       {/* Right Side: Hero Image */}
-      <div className="hidden lg:flex lg:w-1/2 items-center justify-end py-8 pl-8 bg-slate-50">
+      <div className="hidden lg:flex lg:w-1/2 items-center justify-end py-8 pl-8 bg-slate-50 h-full">
         <div className="relative w-full h-full rounded-l-[2.5rem] overflow-hidden shadow-2xl border-y border-l border-gray-200">
           <div className="absolute inset-0 bg-gradient-to-tr from-blue-600/5 to-purple-600/5 z-10 pointer-events-none" />
           <img
