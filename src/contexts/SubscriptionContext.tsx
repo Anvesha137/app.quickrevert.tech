@@ -53,32 +53,39 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
             if (subError) throw subError;
             setSubscription(subData as Subscription | null);
 
-            // 2. Fetch Total Usage (All-time to match Dashboard counts)
-            const { count: dmCount } = await supabase
+            // 2. Fetch All Activities for Usage Counting
+            const { data: allActivities } = await supabase
                 .from('automation_activities')
-                .select('*', { count: 'exact', head: true })
-                .eq('user_id', user.id)
-                .in('activity_type', ['dm', 'dm_sent', 'send_dm', 'user_directed_messages']);
+                .select('activity_type, metadata, target_username')
+                .eq('user_id', user.id);
 
-            // 3. Fetch Total Contacts (Match Dashboard Unique Users logic)
+            // 3. Robust Usage Categorization
+            const dmCount = allActivities?.filter(a => {
+                const type = (a.activity_type || '').toLowerCase();
+                return (
+                    type.includes('dm') ||
+                    type.includes('message') ||
+                    type.includes('event') ||
+                    type.includes('interaction') ||
+                    (a.metadata as any)?.direction === 'inbound' ||
+                    (a.metadata as any)?.direction === 'outbound'
+                );
+            }).length || 0;
+
+            // 4. Contacts Count
             const { count: uniqueUsersCount } = await supabase
                 .from('contacts')
                 .select('*', { count: 'exact', head: true })
                 .eq('user_id', user.id);
 
-            const { data: activities } = await supabase
-                .from('automation_activities')
-                .select('target_username')
-                .eq('user_id', user.id);
-
             const uniqueFromActivities = new Set(
-                activities
+                allActivities
                     ?.map(a => a.target_username)
                     .filter(u => u && u !== 'Unknown' && !u.includes('undefined'))
             ).size;
 
             setUsage({
-                dms: dmCount || 0,
+                dms: dmCount,
                 contacts: Math.max(uniqueUsersCount || 0, uniqueFromActivities)
             });
         } catch (err) {
