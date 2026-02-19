@@ -10,7 +10,8 @@ import {
   User,
   Headset,
   Instagram,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -50,6 +51,7 @@ export default function Dashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [enablingAnalytics, setEnablingAnalytics] = useState(false);
+  const [refreshingAnalytics, setRefreshingAnalytics] = useState(false);
   const [instagramAccount, setInstagramAccount] = useState<any>(null);
   const { isPremium } = useSubscription();
   const { openModal } = useUpgradeModal();
@@ -146,6 +148,20 @@ export default function Dashboard() {
     }
   };
 
+  const handleRefreshAnalytics = async () => {
+    setRefreshingAnalytics(true);
+    try {
+      await N8nWorkflowService.refreshAnalytics();
+      toast.success('Analytics refreshed successfully!');
+      await fetchDashboardStats();
+    } catch (error: any) {
+      console.error('Error refreshing analytics:', error);
+      toast.error(error.message || 'Failed to refresh analytics');
+    } finally {
+      setRefreshingAnalytics(false);
+    }
+  };
+
   const getStepProgress = (id: number) => {
     switch (id) {
       case 1: return instagramAccount ? true : false;
@@ -165,7 +181,8 @@ export default function Dashboard() {
       completed: getStepProgress(4),
       action: handleEnableAnalytics,
       actionLabel: 'Enable',
-      loading: enablingAnalytics
+      loading: enablingAnalytics,
+      disabled: !getStepProgress(1) || !getStepProgress(2) || !getStepProgress(3)
     },
   ];
 
@@ -287,15 +304,15 @@ export default function Dashboard() {
                   iconColor="text-pink-600"
                   iconBgColor="bg-pink-50"
                 />
-                <KPICard
-                  title="Total Reach"
-                  value={loading ? '-' : stats.uniqueUsers.toLocaleString()}
-                  icon={Users}
-                  iconColor="text-indigo-600"
-                  iconBgColor="bg-indigo-50"
-                />
                 {getStepProgress(4) && (
                   <>
+                    <KPICard
+                      title="Total Reach"
+                      value={loading ? '-' : stats.uniqueUsers.toLocaleString()}
+                      icon={Users}
+                      iconColor="text-indigo-600"
+                      iconBgColor="bg-indigo-50"
+                    />
                     <KPICard
                       title="Followers"
                       value={loading ? '-' : (stats.followersCount || 0).toLocaleString()}
@@ -303,13 +320,23 @@ export default function Dashboard() {
                       iconColor="text-rose-600"
                       iconBgColor="bg-rose-50"
                     />
-                    <KPICard
-                      title="Growth"
-                      value={loading ? '-' : ((stats.followersCount || 0) - (stats.initialFollowersCount || 0)).toLocaleString()}
-                      icon={TrendingUp}
-                      iconColor="text-emerald-600"
-                      iconBgColor="bg-emerald-50"
-                    />
+                    <div className="relative group/refresh">
+                      <KPICard
+                        title="Growth"
+                        value={loading ? '-' : ((stats.followersCount || 0) - (stats.initialFollowersCount || 0)).toLocaleString()}
+                        icon={TrendingUp}
+                        iconColor="text-emerald-600"
+                        iconBgColor="bg-emerald-50"
+                      />
+                      <button
+                        onClick={handleRefreshAnalytics}
+                        disabled={refreshingAnalytics || loading}
+                        className="absolute top-3 right-3 p-1.5 rounded-lg bg-white/50 backdrop-blur-sm border border-white/40 shadow-sm opacity-0 group-hover/refresh:opacity-100 transition-opacity hover:bg-white hover:scale-110 disabled:opacity-50"
+                        title="Refresh Analytics"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${refreshingAnalytics ? 'animate-spin' : ''}`} />
+                      </button>
+                    </div>
                   </>
                 )}
               </div>

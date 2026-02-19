@@ -148,6 +148,42 @@ export class N8nWorkflowService {
     }
   }
 
+  static async refreshAnalytics(): Promise<{ success: boolean; message: string; data?: any }> {
+    try {
+      let { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      if (!session || sessionError) {
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError || !refreshData.session) {
+          throw new Error('No authentication token available. Please log in again.');
+        }
+        session = refreshData.session;
+      }
+
+      const authToken = session.access_token;
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/refresh-analytics`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+        }
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error refreshing analytics:', error);
+      throw error;
+    }
+  }
+
   static async activateWorkflow(workflowId: string, userId: string): Promise<{ success: boolean; message: string }> {
     try {
       let { data: { session }, error: sessionError } = await supabase.auth.getSession();

@@ -2,7 +2,7 @@ import { Check, AlertCircle } from 'lucide-react';
 
 interface SetupProgressProps {
     progress: number;
-    tasks: { label: string; completed: boolean; action?: () => void; actionLabel?: string; loading?: boolean }[];
+    tasks: { label: string; completed: boolean; action?: () => void; actionLabel?: string; loading?: boolean; disabled?: boolean }[];
 }
 
 export default function SetupProgress({ progress, tasks }: SetupProgressProps) {
@@ -73,8 +73,12 @@ export default function SetupProgress({ progress, tasks }: SetupProgressProps) {
                         {!task.completed && task.action && (
                             <button
                                 onClick={task.action}
-                                disabled={task.loading}
-                                className="px-3 py-1 bg-blue-600 text-white text-[10px] font-bold uppercase rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                                disabled={task.loading || task.disabled}
+                                className={`px-3 py-1 text-white text-[10px] font-bold uppercase rounded-lg transition-colors shadow-sm ${task.disabled
+                                    ? 'bg-gray-400 cursor-not-allowed opacity-50'
+                                    : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
+                                    }`}
+                                title={task.disabled ? 'Complete the previous steps first' : (task.actionLabel || 'Enable')}
                             >
                                 {task.loading ? 'Enabling...' : (task.actionLabel || 'Enable')}
                             </button>
