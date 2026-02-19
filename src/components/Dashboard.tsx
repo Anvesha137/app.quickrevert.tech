@@ -120,7 +120,7 @@ export default function Dashboard() {
         dmsTriggered: dmsCount,
         activeAutomations: activeAutomationsCount,
         commentReplies: commentsCount,
-        uniqueUsers: uniqueUsersCount,
+        uniqueUsers: uniqueUsersCount || 0,
         followersCount: instaAccount?.followers_count ?? null,
         initialFollowersCount: instaAccount?.initial_followers_count ?? null,
         followersLastUpdated: instaAccount?.followers_last_updated ?? null

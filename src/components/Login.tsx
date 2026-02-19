@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { TermsOfServiceModal, PrivacyPolicyModal } from './LegalModals';
 
@@ -21,6 +21,24 @@ export default function Login() {
       setLoading(null);
     }
   };
+
+  const carouselImages = [
+    '/1.png',
+    '/2.jpeg',
+    '/3.png',
+    '/4.png',
+    '/5.png'
+  ];
+
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentImageIndex((prev) => (prev + 1) % carouselImages.length);
+    }, 5000); // Change image every 5 seconds
+
+    return () => clearInterval(timer);
+  }, []);
 
   return (
     <div className="h-screen overflow-hidden bg-white font-outfit flex">
@@ -95,15 +113,39 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Right Side: Hero Image */}
+      {/* Right Side: Carousel */}
       <div className="hidden lg:flex lg:w-1/2 items-center justify-end py-8 pl-8 bg-slate-50 h-full">
-        <div className="relative w-full h-full rounded-l-[2.5rem] overflow-hidden shadow-2xl border-y border-l border-gray-200">
+        <div className="relative w-full h-full rounded-l-[2.5rem] overflow-hidden shadow-2xl border-y border-l border-gray-200 group">
           <div className="absolute inset-0 bg-gradient-to-tr from-blue-600/5 to-purple-600/5 z-10 pointer-events-none" />
-          <img
-            src="/login.png"
-            alt="QuickRevert Login"
-            className="w-full h-full object-cover"
-          />
+
+          {carouselImages.map((src, index) => (
+            <div
+              key={src}
+              className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentImageIndex ? 'opacity-100 z-0' : 'opacity-0 -z-10'
+                }`}
+            >
+              <img
+                src={src}
+                alt={`Slide ${index + 1}`}
+                className={`w-full h-full object-cover transition-transform duration-[5000ms] linear ${index === currentImageIndex ? 'scale-110' : 'scale-100'
+                  }`}
+              />
+            </div>
+          ))}
+
+          {/* Carousel Indicators */}
+          <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-20 flex gap-2">
+            {carouselImages.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => setCurrentImageIndex(index)}
+                className={`h-1.5 transition-all duration-300 rounded-full ${index === currentImageIndex ? 'w-8 bg-white' : 'w-2 bg-white/40 hover:bg-white/60'
+                  }`}
+              />
+            ))}
+          </div>
+
+          <div className="absolute inset-0 bg-black/10 z-[5] pointer-events-none" />
         </div>
       </div>
 
