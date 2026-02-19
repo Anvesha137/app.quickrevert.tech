@@ -89,9 +89,6 @@ export default function Login() {
                   {' '}and{' '}
                   <button onClick={() => setShowPrivacy(true)} className="text-slate-900 font-bold">Privacy Policy</button>
                 </p>
-                <p className="text-sm text-slate-500 font-bold">
-                  Already have an account? <span className="text-indigo-600 cursor-pointer hover:underline underline-offset-4">Log in</span>
-                </p>
               </div>
             </div>
           </div>
