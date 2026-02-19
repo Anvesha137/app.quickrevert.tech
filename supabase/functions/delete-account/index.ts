@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  console.log("Delete Account Function Triggered");
+  console.log("Delete Account Process Started");
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
@@ -19,56 +19,53 @@ Deno.serve(async (req) => {
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
     const neonDbUrl = Deno.env.get('NEON_DB_URL');
 
-    // 2. Validate Request
+    // 2. Validate Authorization
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      console.error("No Authorization header");
       return new Response(
-        JSON.stringify({ success: false, error: 'Authorization header missing' }),
+        JSON.stringify({ success: false, error: 'Unauthorized: Missing token' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // 3. Initialize User Client
+    // 3. Authenticate User
     const supabaseClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } }
     });
 
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
     if (authError || !user) {
-      console.error("Auth verification failed:", authError);
+      console.error("Auth error:", authError);
       return new Response(
-        JSON.stringify({ success: false, error: 'Authentication failed', details: authError }),
+        JSON.stringify({ success: false, error: 'Session expired. Please log in again.' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const userId = user.id;
-    console.log(`Verified user ${userId}. Proceeding with deletion...`);
+    console.log(`Verified user ${userId}. Proceeding with clean-up...`);
 
-    // 4. Update Neon DB (Soft Delete) - Wrapped in isolated try/catch
+    // 4. Update Neon DB (Soft Delete) - Isolated & Non-Fatal
     if (neonDbUrl) {
       try {
         const { Client } = await import("https://deno.land/x/postgres@v0.17.0/mod.ts");
-        const pgClient = new Client(neonDbUrl);
-        await pgClient.connect();
-        await pgClient.queryArray(`
-          UPDATE users 
-          SET deleted = TRUE, status = 'inactive' 
-          WHERE id = $1 OR email = $2
-        `, [userId, user.email]);
-        await pgClient.end();
-        console.log("Neon DB soft-delete successful.");
+        const client = new Client(neonDbUrl);
+        await client.connect();
+        await client.queryArray(
+          "UPDATE users SET deleted = TRUE, status = 'inactive' WHERE id = $1 OR email = $2",
+          [userId, user.email]
+        );
+        await client.end();
+        console.log("Neon DB sync successful.");
       } catch (neonErr: any) {
-        console.warn("Neon DB update failed (skipping):", neonErr.message);
+        console.warn("Neon DB failure (ignoring):", neonErr.message);
       }
     }
 
-    // 5. Hard Delete from Supabase Auth - The Critical Step
+    // 5. Purge from Supabase Auth - Fatal Step
     if (!serviceRoleKey) {
-      console.error("Missing SUPABASE_SERVICE_ROLE_KEY");
       return new Response(
-        JSON.stringify({ success: false, error: 'Server secret missing (SERVICE_ROLE_KEY)' }),
+        JSON.stringify({ success: false, error: 'Server Misconfiguration: Admin key missing.' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -77,23 +74,23 @@ Deno.serve(async (req) => {
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
     if (deleteError) {
-      console.error("Supabase Admin delete error:", deleteError);
+      console.error("Supabase Admin error:", deleteError);
       return new Response(
-        JSON.stringify({ success: false, error: 'Supabase deletion failed', details: deleteError }),
+        JSON.stringify({ success: false, error: 'Failed to purge account data', details: deleteError }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log("User successfully deleted.");
+    console.log("User successfully purged.");
     return new Response(
-      JSON.stringify({ success: true, message: 'Account deleted successfully' }),
+      JSON.stringify({ success: true, message: 'Account deleted' }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (err: any) {
-    console.error("Top-level function crash:", err.message);
+    console.error("Critical Function Failure:", err.message);
     return new Response(
-      JSON.stringify({ success: false, error: 'Critical function error: ' + err.message }),
+      JSON.stringify({ success: false, error: 'Critical failure: ' + err.message }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

@@ -187,6 +187,23 @@ export default function Settings() {
     setSaveSuccess(false);
 
     try {
+      // 1. Proactive Username Conflict Check
+      if (formData.username) {
+        const { data: existingUser, error: checkError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('username', formData.username)
+          .neq('id', user.id)
+          .maybeSingle();
+
+        if (checkError) console.warn('Username check error:', checkError);
+
+        if (existingUser) {
+          throw new Error('This username is already taken by another user. Please choose a unique one.');
+        }
+      }
+
+      // 2. Perform Upsert
       const { error } = await supabase
         .from('profiles')
         .upsert({
@@ -208,17 +225,16 @@ export default function Settings() {
       theme.setDisplayName(`${formData.firstName} ${formData.lastName}`.trim() || formData.username);
 
       setSaveSuccess(true);
+      toast.success('Settings saved successfully!');
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error: any) {
       console.error('Error saving settings:', error);
 
       let errorMsg = error.message || error.details || 'Unknown error';
 
-      // Specifically handle username unique constraint violation
+      // Secondary check for constraint violations from DB
       if (errorMsg.includes('profiles_username_key')) {
         errorMsg = 'This username is already taken. Please choose another one.';
-      } else if (errorMsg.includes('duplicate key value')) {
-        errorMsg = 'This information is already in use by another account.';
       }
 
       toast.error(`Save Failed: ${errorMsg}`);
