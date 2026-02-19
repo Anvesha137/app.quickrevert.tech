@@ -146,13 +146,6 @@ export default function Dashboard() {
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 animate-in fade-in slide-in-from-top-4 duration-700">
           <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <span className="px-3 py-1 bg-blue-600 text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-full shadow-lg shadow-blue-200">
-                Dashboard
-              </span>
-              <div className="w-1 h-1 rounded-full bg-gray-300" />
-              <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">Overview</p>
-            </div>
             <h2 className="text-4xl md:text-5xl font-black text-gray-900 tracking-tight leading-tight flex items-center gap-4">
               Hello, {displayName?.split(' ')[0] || 'Creator'}
               <Hand className="w-10 h-10 text-amber-400 fill-amber-400/20 animate-jump" />
