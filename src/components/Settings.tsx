@@ -211,7 +211,8 @@ export default function Settings() {
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error: any) {
       console.error('Error saving settings:', error);
-      toast.error('Failed to save settings. Please verify if you have run the database migrations.');
+      const errorMsg = error.message || error.details || 'Unknown error';
+      toast.error(`Failed to save settings: ${errorMsg}. Please verify if you have run the database migrations using "supabase db push".`);
     } finally {
       setLoading(false);
     }
@@ -229,8 +230,9 @@ export default function Settings() {
         throw new Error(invokeError.message || 'Server connection failed');
       }
 
-      if (data && data.error) {
-        throw new Error(data.error);
+      // Check the success flag from my new function logic
+      if (data && data.success === false) {
+        throw new Error(data.error || 'Server reported a failure');
       }
 
       toast.success('Account deleted successfully. Logging you out...');
