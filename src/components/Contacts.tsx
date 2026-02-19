@@ -3,6 +3,13 @@ import { Search, User, CheckCircle2, XCircle, MessageSquare, Clock, Users as Use
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
 interface Contact {
   id: string;
   username: string;
@@ -19,6 +26,7 @@ export default function Contacts() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -78,10 +86,20 @@ export default function Contacts() {
 
   async function syncHistoricalContacts() {
     try {
+      setIsSyncing(true);
+      // Fetch automations to map IDs to names
+      const { data: automations } = await supabase
+        .from('automations')
+        .select('id, name')
+        .eq('user_id', user!.id);
+
+      const automationMap = new Map();
+      automations?.forEach(a => automationMap.set(a.id, a.name));
+
       // Fetch unique identities from activities
       const { data: activities } = await supabase
         .from('automation_activities')
-        .select('instagram_account_id, target_username, metadata, created_at')
+        .select('instagram_account_id, target_username, metadata, created_at, automation_id')
         .eq('user_id', user!.id);
 
       if (!activities || activities.length === 0) return;
@@ -93,7 +111,15 @@ export default function Contacts() {
 
         if (psid && username && username !== 'system_managed' && username !== 'Unknown') {
           const key = `${act.instagram_account_id}-${psid}`;
-          if (!uniqueContactsMap.has(key)) {
+          const current = uniqueContactsMap.get(key);
+
+          const automationName = act.automation_id ? automationMap.get(act.automation_id) : null;
+          const interacted_automations = current?.interacted_automations || [];
+          if (automationName && !interacted_automations.includes(automationName)) {
+            interacted_automations.push(automationName);
+          }
+
+          if (!current || new Date(act.created_at) > new Date(current.last_interaction_at)) {
             uniqueContactsMap.set(key, {
               user_id: user!.id,
               instagram_account_id: act.instagram_account_id,
@@ -101,9 +127,17 @@ export default function Contacts() {
               username: username,
               full_name: act.metadata?.name || username,
               avatar_url: act.metadata?.profilePic || null,
-              interaction_count: 1,
+              interaction_count: (current?.interaction_count || 0) + 1,
               last_interaction_at: act.created_at,
-              platform: 'instagram'
+              platform: 'instagram',
+              interacted_automations: interacted_automations
+            });
+          } else {
+            // Just update automations and count if earlier activity
+            uniqueContactsMap.set(key, {
+              ...current,
+              interaction_count: current.interaction_count + 1,
+              interacted_automations: interacted_automations
             });
           }
         }
@@ -117,6 +151,8 @@ export default function Contacts() {
       }
     } catch (err) {
       console.error('Sync failed:', err);
+    } finally {
+      setIsSyncing(false);
     }
   }
 
@@ -168,15 +204,28 @@ export default function Contacts() {
             <p className="text-gray-600 mt-1">Track and manage your automated audience interactions</p>
           </div>
 
-          <div className="relative w-full md:w-96">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search by username or name..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3.5 backdrop-blur-xl bg-white/60 border border-white/40 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-lg transition-all"
-            />
+          <div className="flex items-center gap-4 w-full md:w-auto">
+            <button
+              onClick={() => {
+                syncHistoricalContacts().then(() => fetchContacts());
+              }}
+              disabled={isSyncing}
+              className="flex items-center gap-2 px-6 py-3.5 bg-white/60 backdrop-blur-xl border border-white/40 rounded-2xl text-sm font-bold text-gray-700 hover:bg-white hover:shadow-lg transition-all disabled:opacity-50"
+            >
+              <Clock className={cn("w-4 h-4 text-blue-500", isSyncing && "animate-spin")} />
+              {isSyncing ? 'Syncing...' : 'Sync History'}
+            </button>
+
+            <div className="relative w-full md:w-96">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search by username or name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-12 pr-4 py-3.5 backdrop-blur-xl bg-white/60 border border-white/40 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-lg transition-all"
+              />
+            </div>
           </div>
         </div>
 
@@ -247,17 +296,13 @@ export default function Contacts() {
                         )}
                       </td>
                       <td className="px-6 py-5">
-                        <div className="flex flex-wrap gap-2 max-w-xs">
-                          {contact.interacted_automations?.length > 0 ? (
-                            contact.interacted_automations.map((auto, idx) => (
-                              <span key={idx} className="px-2.5 py-1 bg-gradient-to-r from-blue-500/10 to-purple-500/10 text-blue-600 text-[9px] font-bold rounded-lg uppercase tracking-widest border border-blue-100 shadow-sm">
-                                {auto}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-gray-400 text-[10px] font-medium italic">No triggers yet</span>
-                          )}
-                        </div>
+                        {contact.interacted_automations?.length > 0 ? (
+                          <div className="text-xs font-bold text-blue-600 bg-blue-50/50 px-3 py-1.5 rounded-xl border border-blue-100 inline-block max-w-[200px] truncate" title={contact.interacted_automations.join(', ')}>
+                            {contact.interacted_automations.join(', ')}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-[10px] font-medium italic">No triggers yet</span>
+                        )}
                       </td>
                       <td className="px-6 py-5 text-center">
                         <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/60 rounded-xl text-gray-800 font-bold text-sm shadow-sm border border-white/50">
