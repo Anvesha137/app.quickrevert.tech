@@ -212,8 +212,8 @@ export default function Dashboard() {
                     <div className="absolute top-0 right-0 w-64 h-64 bg-blue-200/20 rounded-full -mr-32 -mt-32 blur-3xl animate-pulse" />
                     <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10 text-center md:text-left">
                       <div className="space-y-2">
-                        <h3 className="text-2xl font-black text-gray-900">Unlock Your Potential</h3>
-                        <p className="text-gray-600 font-medium max-w-sm">Connect your Instagram to start automating messages and engage with your audience.</p>
+                        <h3 className="text-2xl font-black text-gray-900">Connect your account now</h3>
+                        <p className="text-gray-600 font-medium max-w-sm">Instagram Not Connected</p>
                       </div>
                       <Link
                         to="/connect-accounts"

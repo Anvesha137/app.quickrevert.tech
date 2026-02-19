@@ -1,4 +1,4 @@
-import { X, CheckCircle2, Sparkles, Zap, Crown } from 'lucide-react';
+import { X, CheckCircle2, Sparkles, Crown } from 'lucide-react';
 import { toast } from 'sonner';
 import { useUpgradeModal } from '../contexts/UpgradeModalContext';
 import { useState, useEffect } from 'react';
