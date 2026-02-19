@@ -239,7 +239,6 @@ export default function Dashboard() {
                   icon={MessageSquare}
                   iconColor="text-blue-600"
                   iconBgColor="bg-blue-50"
-                  trend={{ value: '12%', isPositive: true }}
                 />
                 <KPICard
                   title="Automations"
@@ -254,7 +253,6 @@ export default function Dashboard() {
                   icon={MessageCircle}
                   iconColor="text-pink-600"
                   iconBgColor="bg-pink-50"
-                  trend={{ value: '5%', isPositive: true }}
                 />
                 <KPICard
                   title="Total Reach"
@@ -281,21 +279,11 @@ export default function Dashboard() {
 
               {/* Chart Section */}
               <div className="bg-white border border-gray-100 rounded-[2.5rem] p-8 shadow-sm hover:shadow-md transition-shadow duration-500">
-                <div className="flex items-center justify-between mb-8">
-                  <div>
-                    <h3 className="text-xl font-black text-gray-900">Performance Analytics</h3>
-                    <p className="text-sm font-medium text-gray-400">Activity over the last 30 days</p>
-                  </div>
-                </div>
                 <DMsChart />
               </div>
 
               {/* Feed Section */}
-              <div className="space-y-6">
-                <div className="flex items-center justify-between px-2">
-                  <h3 className="text-2xl font-black text-gray-900 tracking-tight">Recent Content</h3>
-                  <button className="text-sm font-bold text-blue-600 hover:underline">View all posts</button>
-                </div>
+              <div className="space-y-6 pt-4">
                 <InstagramFeed />
               </div>
             </div>
