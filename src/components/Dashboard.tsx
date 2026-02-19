@@ -84,39 +84,40 @@ export default function Dashboard() {
       // 1. Active Automations
       const activeAutomationsCount = automations?.filter(a => a.status === 'active').length || 0;
 
-      // 2. Fetch Activities for DMs and Comments
-      const { data: activities, error: activitiesError } = await supabase
-        .from('automation_activities')
-        .select('activity_type, target_username')
-        .eq('user_id', user!.id);
+      // 2. Fetch Detailed Counts from Database (Source of Truth)
+      const dmTypes = ['dm', 'dm_sent', 'send_dm', 'incoming_message', 'incoming_event', 'user_directed_messages', 'message', 'dm_received', 'interaction'];
+      const commentTypes = ['reply', 'comment', 'reply_to_comment', 'incoming_comment', 'post_comment', 'story_reply', 'comment_reply'];
 
-      if (activitiesError) throw activitiesError;
+      const [dmsResult, commentsResult, contactsResult] = await Promise.all([
+        supabase
+          .from('automation_activities')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user!.id)
+          .in('activity_type', dmTypes),
+        supabase
+          .from('automation_activities')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user!.id)
+          .in('activity_type', commentTypes),
+        supabase
+          .from('contacts')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user!.id)
+      ]);
 
-      const dmsCount = activities?.filter(a =>
-        ['dm', 'dm_sent', 'send_dm', 'incoming_message', 'incoming_event', 'user_directed_messages'].includes(a.activity_type)
-      ).length || 0;
+      if (dmsResult.error) throw dmsResult.error;
+      if (commentsResult.error) throw commentsResult.error;
+      if (contactsResult.error) throw contactsResult.error;
 
-      const commentsCount = activities?.filter(a =>
-        ['reply', 'comment', 'reply_to_comment', 'incoming_comment', 'post_comment', 'story_reply'].includes(a.activity_type)
-      ).length || 0;
-
-      // 3. Unique Users (Source of Truth: Contacts Table)
-      const { count: uniqueUsersCount } = await supabase
-        .from('contacts')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user!.id);
-
-      const uniqueFromActivities = new Set(
-        activities
-          ?.map(a => a.target_username)
-          .filter(u => u && u !== 'Unknown' && !u.includes('undefined'))
-      ).size;
+      const dmsCount = dmsResult.count || 0;
+      const commentsCount = commentsResult.count || 0;
+      const uniqueUsersCount = contactsResult.count || 0;
 
       setStats({
         dmsTriggered: dmsCount,
         activeAutomations: activeAutomationsCount,
         commentReplies: commentsCount,
-        uniqueUsers: Math.max(uniqueUsersCount || 0, uniqueFromActivities),
+        uniqueUsers: uniqueUsersCount,
         followersCount: instaAccount?.followers_count,
         initialFollowersCount: instaAccount?.initial_followers_count,
         followersLastUpdated: instaAccount?.followers_last_updated
