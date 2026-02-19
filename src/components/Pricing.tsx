@@ -8,7 +8,7 @@ export default function Pricing() {
     const { signOut } = useAuth();
     const navigate = useNavigate();
     const { openModal } = useUpgradeModal();
-    const [billingCycle, setBillingCycle] = useState<'annual' | 'quarterly'>('quarterly');
+    const [billingCycle, setBillingCycle] = useState<'annual' | 'quarterly'>('annual');
 
     const plans = [
         {
