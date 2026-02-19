@@ -89,7 +89,7 @@ export default function DMsChart() {
                             }}
                             cursor={{ fill: "rgba(255,255,255,0.04)" }}
                         />
-                        <Bar dataKey="value" fill="rgba(255,255,255,0.7)" radius={[3, 3, 0, 0]} />
+                        <Bar dataKey="value" fill="#22d3ee" radius={[4, 4, 0, 0]} />
                     </BarChart>
                 </ResponsiveContainer>
             </div>

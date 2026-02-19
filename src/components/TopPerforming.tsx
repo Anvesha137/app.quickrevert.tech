@@ -38,11 +38,9 @@ export default function TopPerforming() {
             if (activitiesError) throw activitiesError;
 
             const colors = [
-                'from-blue-500 to-cyan-500',
-                'from-purple-500 to-indigo-500',
-                'from-emerald-500 to-teal-500',
-                'from-pink-500 to-rose-500',
-                'from-orange-500 to-amber-500'
+                'from-cyan-400 to-teal-500',
+                'from-cyan-500 to-teal-600',
+                'from-cyan-300 to-teal-400'
             ];
 
             const processedAutos = autos.map((auto, index) => {
