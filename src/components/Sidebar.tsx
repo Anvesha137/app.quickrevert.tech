@@ -6,36 +6,24 @@ import {
   Link2,
   Settings as SettingsIcon,
   LogOut,
-  User,
-  Crown,
-  Headset
-} from 'lucide-react';
+} from "lucide-react";
 import { Link, useLocation } from 'react-router-dom';
-import UsageStats from './UsageStats';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { useSubscription } from '../contexts/SubscriptionContext';
-import { useUpgradeModal } from '../contexts/UpgradeModalContext';
 
-export const navigation = [
-  { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-  { id: 'automations', name: 'Automations', icon: Zap, path: '/automation' },
-  { id: 'contacts', name: 'Contacts', icon: Users, path: '/contacts' },
-  { id: 'billing', name: 'Billing', icon: CreditCard, path: '/billing' },
-  { id: 'connected', name: 'Connected Accounts', icon: Link2, path: '/connect-accounts' },
-  { id: 'settings', name: 'Settings', icon: SettingsIcon, path: '/settings' },
+const navItems = [
+  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: '/' },
+  { id: "automations", label: "Automations", icon: Zap, path: '/automation' },
+  { id: "contacts", label: "Contacts", icon: Users, path: '/contacts' },
+  { id: "billing", label: "Billing", icon: CreditCard, path: '/billing' },
+  { id: "connected-accounts", label: "Connected Accounts", icon: Link2, path: '/connect-accounts' },
+  { id: "settings", label: "Settings", icon: SettingsIcon, path: '/settings' },
 ];
 
 export default function Sidebar() {
   const location = useLocation();
   const { user, signOut } = useAuth();
   const { displayName } = useTheme();
-  const { isPremium, isGold } = useSubscription();
-  const { openModal } = useUpgradeModal();
-
-  const getUserName = () => {
-    return displayName || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
-  };
 
   const handleSignOut = async () => {
     try {
@@ -45,99 +33,81 @@ export default function Sidebar() {
     }
   };
 
+  const getUserName = () => {
+    return displayName || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
+  };
+
   return (
-    <aside className="hidden md:flex fixed left-0 top-0 h-full w-80 backdrop-blur-xl bg-white/40 border-r border-white/20 shadow-2xl flex-col z-50 p-4">
-      {/* Logo Section */}
-      <div className="mb-6 p-3 rounded-2xl bg-gradient-to-br from-blue-500/10 to-purple-500/10 backdrop-blur-md border border-white/20">
-        <div className="flex items-center gap-0 justify-center mb-1">
-          <img src="/Logo.png" alt="QuickRevert Logo" className="w-12 h-12 object-contain -mr-1" />
-          <h1 className="font-bold text-gray-800 text-2xl tracking-tighter -mt-1">QuickRevert</h1>
+    <div className="flex flex-col h-full w-64 bg-white/80 backdrop-blur-xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-white/40">
+      {/* Logo */}
+      <div className="px-6 pt-8 pb-6 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-teal-500 flex items-center justify-center shadow-lg shadow-cyan-200">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="3" width="8" height="8" rx="2" fill="white" opacity="0.9" />
+            <rect x="13" y="3" width="8" height="8" rx="2" fill="white" opacity="0.6" />
+            <rect x="3" y="13" width="8" height="8" rx="2" fill="white" opacity="0.6" />
+            <rect x="13" y="13" width="8" height="8" rx="2" fill="white" opacity="0.3" />
+          </svg>
         </div>
-        <p className="text-[9px] text-gray-500 tracking-tight text-center leading-none">
-          Intelligent Responses | Zero Wait Time | 24x7
-        </p>
+        <span className="text-[12px] tracking-[0.2em] text-gray-500 uppercase font-black">
+          QuickRevert
+        </span>
       </div>
 
+      <div className="h-px bg-gray-100/60 mx-6 mb-6" />
+
       {/* Navigation */}
-      <nav className="space-y-2 flex-1 overflow-y-auto custom-scrollbar">
-        {navigation.map((item) => {
-          const Icon = item.icon;
-          const isActive = location.pathname === item.path ||
-            location.pathname.startsWith(item.path + '/') ||
-            (item.id === 'dashboard' && location.pathname === '/');
-
-          const activeGradient = isPremium
-            ? 'bg-gradient-to-r from-indigo-600 to-violet-700 shadow-indigo-500/50'
-            : 'bg-gradient-to-r from-blue-500 to-purple-600 shadow-purple-500/50';
-
+      <nav className="flex-1 px-4 space-y-2 overflow-y-auto custom-scrollbar">
+        {navItems.map(({ id, label, icon: Icon, path }) => {
+          const isActive = location.pathname === path || (path === '/' && location.pathname === '/dashboard');
           return (
             <Link
-              key={item.id}
-              to={item.path}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${isActive
-                ? `${activeGradient} text-white shadow-lg`
-                : 'text-gray-700 hover:bg-white/50 hover:backdrop-blur-md transition-colors'
+              key={id}
+              to={path}
+              className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl text-left transition-all duration-300 transform ${isActive
+                  ? "bg-gradient-to-r from-cyan-400 to-teal-500 shadow-xl shadow-cyan-100 scale-[1.02]"
+                  : "hover:bg-gray-50 active:scale-95"
                 }`}
             >
-              <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-gray-500'}`} />
-              <span className="font-medium text-sm">{item.name}</span>
+              <span
+                className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${isActive ? "bg-white/20 shadow-inner" : "bg-gray-100"
+                  }`}
+              >
+                <Icon
+                  size={16}
+                  className={isActive ? "text-white" : "text-gray-500"}
+                />
+              </span>
+              <span
+                className={`text-sm font-black tracking-tight ${isActive ? "text-white" : "text-gray-600"
+                  }`}
+              >
+                {label}
+              </span>
             </Link>
           );
         })}
       </nav>
 
-      {/* Usage Stats Section */}
-      <div className="mt-auto space-y-2 -mx-1">
-        <UsageStats />
-        {!isGold && (
-          <div className="px-4">
-            <button
-              onClick={openModal}
-              className={`w-full py-2.5 px-4 rounded-xl text-white text-sm font-bold shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 group ${isPremium
-                ? 'bg-gradient-to-r from-amber-500 to-orange-600 shadow-amber-500/40 hover:shadow-amber-500/60'
-                : 'bg-gradient-to-r from-red-500 to-rose-600 shadow-red-500/40 hover:shadow-red-500/60'
-                }`}
-            >
-              <Crown className="w-4 h-4 text-white fill-white group-hover:animate-pulse" />
-              {isPremium ? 'Upgrade to GOLD' : 'Upgrade to Pro'}
-            </button>
-          </div>
-        )}
-        <div className="px-4">
-          <a
-            href="https://quickrevert.tech/contact"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-bold shadow-lg shadow-green-500/30 hover:shadow-green-500/50 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 group"
-          >
-            <Headset className="w-4 h-4 text-white group-hover:animate-bounce" />
-            Contact Support
-          </a>
-        </div>
-      </div>
-
-      {/* User & Sign Out Section */}
-      <div className="mt-4 space-y-2">
-        <div className="flex items-center gap-3 p-3 rounded-xl bg-white/30 backdrop-blur-md border border-white/40 cursor-pointer hover:bg-white/40 transition-all">
-          <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center shadow-sm relative overflow-hidden border border-blue-500/20">
-            <User className="w-5 h-5 text-blue-600" />
+      {/* User Profile */}
+      <div className="mx-4 mb-4 p-4 bg-gray-50/50 backdrop-blur rounded-[1.5rem] border border-white">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-indigo-500 flex items-center justify-center shadow-lg text-white text-xs font-black flex-shrink-0">
+            {getUserName().substring(0, 2).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between gap-1">
-              <p className="text-sm font-semibold text-gray-800 truncate">{getUserName()}</p>
-            </div>
-            <p className="text-[10px] text-gray-600 truncate">{user?.email}</p>
+            <p className="text-sm font-black text-gray-800 truncate">{getUserName()}</p>
+            <p className="text-[10px] text-gray-400 font-bold truncate tracking-tight">{user?.email}</p>
           </div>
         </div>
-
         <button
           onClick={handleSignOut}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold text-gray-600 hover:text-red-600 transition-colors"
+          className="w-full flex items-center justify-center gap-2 text-[11px] font-black text-rose-400 hover:text-rose-600 transition-all py-2 rounded-xl hover:bg-rose-50 border border-transparent hover:border-rose-100"
         >
-          <LogOut className="w-4 h-4" />
+          <LogOut size={14} />
           Sign Out
         </button>
       </div>
-    </aside>
+    </div>
   );
 }
