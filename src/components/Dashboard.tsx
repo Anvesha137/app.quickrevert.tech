@@ -92,8 +92,13 @@ export default function Dashboard() {
 
       if (activitiesError) throw activitiesError;
 
-      const dmsCount = activities?.filter(a => ['dm', 'dm_sent', 'send_dm', 'user_directed_messages'].includes(a.activity_type)).length || 0;
-      const commentsCount = activities?.filter(a => ['reply', 'comment', 'reply_to_comment', 'incoming_comment', 'post_comment'].includes(a.activity_type)).length || 0;
+      const dmsCount = activities?.filter(a =>
+        ['dm', 'dm_sent', 'send_dm', 'incoming_message', 'incoming_event', 'user_directed_messages'].includes(a.activity_type)
+      ).length || 0;
+
+      const commentsCount = activities?.filter(a =>
+        ['reply', 'comment', 'reply_to_comment', 'incoming_comment', 'post_comment', 'story_reply'].includes(a.activity_type)
+      ).length || 0;
 
       // 3. Unique Users (Source of Truth: Contacts Table)
       const { count: uniqueUsersCount } = await supabase
@@ -291,7 +296,7 @@ export default function Dashboard() {
                   iconBgColor="bg-blue-50"
                 />
                 <KPICard
-                  title="Automations"
+                  title="Active Automations"
                   value={loading ? '-' : stats.activeAutomations.toString()}
                   icon={Zap}
                   iconColor="text-purple-600"
