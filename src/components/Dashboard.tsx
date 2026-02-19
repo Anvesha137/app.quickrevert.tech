@@ -142,7 +142,7 @@ export default function Dashboard() {
           icon={<MessageSquare size={18} className="text-white" />}
         />
         <StatsCard
-          label="Automations"
+          label="Active Automations"
           value={loading ? '-' : stats.activeAutomations.toString()}
           iconBg="bg-gradient-to-br from-pink-400 to-rose-500 shadow-rose-100"
           icon={<Zap size={18} className="text-white" />}
