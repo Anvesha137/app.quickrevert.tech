@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { TrendingUp, Reply } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import confetti from 'canvas-confetti';
 
 export default function TopPerforming() {
     const { user } = useAuth();
@@ -57,8 +58,8 @@ export default function TopPerforming() {
                 };
             });
 
-            // Sort by count descending and take top 5
-            const sortedAutos = processedAutos.sort((a, b) => b.count - a.count).slice(0, 5);
+            // Sort by count descending and take top 3
+            const sortedAutos = processedAutos.sort((a, b) => b.count - a.count).slice(0, 3);
 
             // Calculate relative percentages for progress bars
             const maxCount = Math.max(...sortedAutos.map(a => a.count), 1);
@@ -129,8 +130,18 @@ export default function TopPerforming() {
                 </>
             )}
 
-            <button className="mt-6 w-full py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]">
-                View Details →
+            <button
+                onClick={() => {
+                    confetti({
+                        particleCount: 150,
+                        spread: 70,
+                        origin: { y: 0.6 },
+                        colors: ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444']
+                    });
+                }}
+                className="mt-6 w-full py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
+            >
+                Congratulations
             </button>
         </div>
     );
