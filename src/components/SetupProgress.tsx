@@ -2,7 +2,7 @@ import { Check, AlertCircle } from 'lucide-react';
 
 interface SetupProgressProps {
     progress: number;
-    tasks: { label: string; completed: boolean }[];
+    tasks: { label: string; completed: boolean; action?: () => void; actionLabel?: string; loading?: boolean }[];
 }
 
 export default function SetupProgress({ progress, tasks }: SetupProgressProps) {
@@ -54,20 +54,31 @@ export default function SetupProgress({ progress, tasks }: SetupProgressProps) {
                 </div>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-4">
                 {tasks.map((task, index) => (
-                    <div key={index} className="flex items-center gap-3">
-                        <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${task.completed ? 'bg-gradient-to-br from-green-400 to-emerald-500 shadow-sm' : 'bg-orange-500 shadow-sm'
-                            }`}>
-                            {task.completed ? (
-                                <Check className="w-3 h-3 text-white" />
-                            ) : (
-                                <AlertCircle className="w-3 h-3 text-white" />
-                            )}
+                    <div key={index} className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                            <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${task.completed ? 'bg-gradient-to-br from-green-400 to-emerald-500 shadow-sm' : 'bg-orange-500 shadow-sm'
+                                }`}>
+                                {task.completed ? (
+                                    <Check className="w-3 h-3 text-white" />
+                                ) : (
+                                    <AlertCircle className="w-3 h-3 text-white" />
+                                )}
+                            </div>
+                            <span className={`text-sm ${task.completed ? 'text-gray-700 font-medium' : 'text-orange-600 font-semibold'}`}>
+                                {task.label}
+                            </span>
                         </div>
-                        <span className={`text-sm ${task.completed ? 'text-gray-700 font-medium' : 'text-orange-600 font-semibold'}`}>
-                            {task.label}
-                        </span>
+                        {!task.completed && task.action && (
+                            <button
+                                onClick={task.action}
+                                disabled={task.loading}
+                                className="px-3 py-1 bg-blue-600 text-white text-[10px] font-bold uppercase rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                            >
+                                {task.loading ? 'Enabling...' : (task.actionLabel || 'Enable')}
+                            </button>
+                        )}
                     </div>
                 ))}
             </div>

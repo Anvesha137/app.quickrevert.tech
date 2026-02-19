@@ -14,6 +14,10 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useSubscription } from '../contexts/SubscriptionContext';
+import { useUpgradeModal } from '../contexts/UpgradeModalContext';
+import { N8nWorkflowService } from '../lib/n8nService';
+import { toast } from 'sonner';
 import { supabase } from '../lib/supabase';
 import KPICard from './KPICard';
 import InstagramFeed from './InstagramFeed';
@@ -45,7 +49,10 @@ export default function Dashboard() {
     followersLastUpdated: null
   });
   const [loading, setLoading] = useState(true);
+  const [enablingAnalytics, setEnablingAnalytics] = useState(false);
   const [instagramAccount, setInstagramAccount] = useState<any>(null);
+  const { isPremium } = useSubscription();
+  const { openModal } = useUpgradeModal();
 
   useEffect(() => {
     if (user) {
@@ -114,6 +121,31 @@ export default function Dashboard() {
     }
   };
 
+  const handleEnableAnalytics = async () => {
+    if (!isPremium) {
+      openModal();
+      return;
+    }
+
+    if (!instagramAccount) {
+      toast.error('Please connect your Instagram account first');
+      return;
+    }
+
+    setEnablingAnalytics(true);
+    try {
+      await N8nWorkflowService.createAnalyticsWorkflow(user!.id, instagramAccount.id);
+      toast.success('Advanced Analytics enabled successfully!');
+      // Refresh stats to show the new data/progress
+      await fetchDashboardStats();
+    } catch (error: any) {
+      console.error('Error enabling analytics:', error);
+      toast.error(error.message || 'Failed to enable Advanced Analytics');
+    } finally {
+      setEnablingAnalytics(false);
+    }
+  };
+
   const getStepProgress = (id: number) => {
     switch (id) {
       case 1: return instagramAccount ? true : false;
@@ -128,7 +160,13 @@ export default function Dashboard() {
     { label: 'Connect Instagram', completed: getStepProgress(1) },
     { label: 'Create Automation', completed: getStepProgress(2) },
     { label: 'Test Automation', completed: getStepProgress(3) },
-    { label: 'Unlock Advance Analytics', completed: getStepProgress(4) },
+    {
+      label: 'Unlock Advance Analytics',
+      completed: getStepProgress(4),
+      action: handleEnableAnalytics,
+      actionLabel: 'Enable',
+      loading: enablingAnalytics
+    },
   ];
 
   const overallProgress = Math.round((setupTasks.filter(t => t.completed).length / setupTasks.length) * 100);
@@ -256,20 +294,24 @@ export default function Dashboard() {
                   iconColor="text-indigo-600"
                   iconBgColor="bg-indigo-50"
                 />
-                <KPICard
-                  title="Followers"
-                  value={loading ? '-' : (stats.followersCount || 0).toLocaleString()}
-                  icon={Instagram}
-                  iconColor="text-rose-600"
-                  iconBgColor="bg-rose-50"
-                />
-                <KPICard
-                  title="Growth"
-                  value={loading ? '-' : ((stats.followersCount || 0) - (stats.initialFollowersCount || 0)).toLocaleString()}
-                  icon={TrendingUp}
-                  iconColor="text-emerald-600"
-                  iconBgColor="bg-emerald-50"
-                />
+                {getStepProgress(4) && (
+                  <>
+                    <KPICard
+                      title="Followers"
+                      value={loading ? '-' : (stats.followersCount || 0).toLocaleString()}
+                      icon={Instagram}
+                      iconColor="text-rose-600"
+                      iconBgColor="bg-rose-50"
+                    />
+                    <KPICard
+                      title="Growth"
+                      value={loading ? '-' : ((stats.followersCount || 0) - (stats.initialFollowersCount || 0)).toLocaleString()}
+                      icon={TrendingUp}
+                      iconColor="text-emerald-600"
+                      iconBgColor="bg-emerald-50"
+                    />
+                  </>
+                )}
               </div>
 
               {/* Chart Section */}

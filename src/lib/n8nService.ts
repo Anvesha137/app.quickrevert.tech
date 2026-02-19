@@ -41,13 +41,13 @@ interface ExecutionResponse {
 
 export class N8nWorkflowService {
   static async createWorkflow(
-    data: Omit<WorkflowCreationData, 'userId'>, 
+    data: Omit<WorkflowCreationData, 'userId'>,
     userId: string
   ): Promise<WorkflowCreationResponse> {
     try {
       // Get auth token - try to refresh if needed
       let { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
+
       // If no session or session expired, try to refresh
       if (!session || sessionError) {
         const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
@@ -56,9 +56,9 @@ export class N8nWorkflowService {
         }
         session = refreshData.session;
       }
-      
+
       const authToken = session.access_token;
-      
+
       if (!authToken) {
         throw new Error('No authentication token available');
       }
@@ -111,10 +111,10 @@ export class N8nWorkflowService {
     }
   }
 
-  static async activateWorkflow(workflowId: string, userId: string): Promise<{ success: boolean; message: string }> {
+  static async createAnalyticsWorkflow(userId: string, instagramAccountId: string): Promise<WorkflowCreationResponse> {
     try {
       let { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
+
       if (!session || sessionError) {
         const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
         if (refreshError || !refreshData.session) {
@@ -122,9 +122,46 @@ export class N8nWorkflowService {
         }
         session = refreshData.session;
       }
-      
+
       const authToken = session.access_token;
-      
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-analytics-workflow`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ userId, instagramAccountId })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return result as WorkflowCreationResponse;
+    } catch (error) {
+      console.error('Error creating Analytics workflow:', error);
+      throw error;
+    }
+  }
+
+  static async activateWorkflow(workflowId: string, userId: string): Promise<{ success: boolean; message: string }> {
+    try {
+      let { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      if (!session || sessionError) {
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError || !refreshData.session) {
+          throw new Error('No authentication token available. Please log in again.');
+        }
+        session = refreshData.session;
+      }
+
+      const authToken = session.access_token;
+
       if (!authToken) {
         throw new Error('No authentication token available');
       }
@@ -155,7 +192,7 @@ export class N8nWorkflowService {
   static async deactivateWorkflow(workflowId: string, userId: string): Promise<{ success: boolean; message: string }> {
     try {
       let { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
+
       if (!session || sessionError) {
         const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
         if (refreshError || !refreshData.session) {
@@ -163,9 +200,9 @@ export class N8nWorkflowService {
         }
         session = refreshData.session;
       }
-      
+
       const authToken = session.access_token;
-      
+
       if (!authToken) {
         throw new Error('No authentication token available');
       }
@@ -196,7 +233,7 @@ export class N8nWorkflowService {
   static async getExecution(executionId: string, userId: string): Promise<ExecutionResponse> {
     try {
       let { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
+
       if (!session || sessionError) {
         const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
         if (refreshError || !refreshData.session) {
@@ -204,9 +241,9 @@ export class N8nWorkflowService {
         }
         session = refreshData.session;
       }
-      
+
       const authToken = session.access_token;
-      
+
       if (!authToken) {
         throw new Error('No authentication token available');
       }
@@ -235,7 +272,7 @@ export class N8nWorkflowService {
   static async getExecutions(workflowId?: string, limit: number = 50, userId?: string): Promise<ExecutionResponse> {
     try {
       let { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
+
       if (!session || sessionError) {
         const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
         if (refreshError || !refreshData.session) {
@@ -243,9 +280,9 @@ export class N8nWorkflowService {
         }
         session = refreshData.session;
       }
-      
+
       const authToken = session.access_token;
-      
+
       if (!authToken) {
         throw new Error('No authentication token available');
       }
@@ -278,7 +315,7 @@ export class N8nWorkflowService {
   static async deleteWorkflow(workflowId: string, userId: string): Promise<{ success: boolean; message: string }> {
     try {
       let { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
+
       if (!session || sessionError) {
         const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
         if (refreshError || !refreshData.session) {
@@ -286,9 +323,9 @@ export class N8nWorkflowService {
         }
         session = refreshData.session;
       }
-      
+
       const authToken = session.access_token;
-      
+
       if (!authToken) {
         throw new Error('No authentication token available');
       }
