@@ -194,22 +194,23 @@ export default function Dashboard() {
               {/* Connection Status Banner */}
               <div className="group">
                 {instagramAccount ? (
-                  <div className="relative overflow-hidden rounded-[2rem] bg-white border border-gray-100 p-6 shadow-sm hover:shadow-lg transition-all duration-500">
-                    <div className="absolute right-0 top-0 w-32 h-32 bg-blue-500/5 rounded-full -mr-16 -mt-16 blur-3xl group-hover:bg-blue-500/10 transition-colors" />
+                  <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-purple-600 p-4 shadow-lg group hover:shadow-xl transition-all duration-300">
                     <div className="flex items-center justify-between gap-4 relative z-10">
-                      <div className="flex items-center gap-5">
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 p-[1px]">
-                          <div className="w-full h-full rounded-2xl bg-white flex items-center justify-center transition-transform group-hover:scale-95">
-                            <Instagram className="w-7 h-7 text-blue-600" />
-                          </div>
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 backdrop-blur-md flex items-center justify-center transition-transform group-hover:scale-105">
+                          <Instagram className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                          <p className="text-xs font-black text-blue-600 uppercase tracking-widest mb-1">Authenticated</p>
-                          <h3 className="text-xl font-black text-gray-900 leading-none">@{instagramAccount.username}</h3>
+                          <h3 className="text-sm font-black text-white leading-tight">@{instagramAccount.username}</h3>
+                          <p className="text-[10px] font-bold text-blue-100 uppercase tracking-wider">Instagram Connected</p>
                         </div>
                       </div>
-                      <Link to="/connect-accounts" className="p-3 rounded-xl bg-gray-50 text-gray-400 hover:text-blue-600 transition-colors">
-                        <TrendingUp className="w-5 h-5" />
+                      <Link
+                        to="/connect-accounts"
+                        className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+                        title="Manage Accounts"
+                      >
+                        <TrendingUp className="w-4 h-4" />
                       </Link>
                     </div>
                   </div>
@@ -233,48 +234,48 @@ export default function Dashboard() {
               </div>
 
               {/* KPI Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-5">
                 <KPICard
                   title="Total DMs"
                   value={loading ? '-' : stats.dmsTriggered.toLocaleString()}
                   icon={MessageSquare}
-                  iconColor="text-blue-600"
-                  iconBgColor="bg-blue-50"
+                  iconColor="text-white"
+                  iconBgColor="bg-cyan-500"
                 />
                 <KPICard
                   title="Automations"
                   value={loading ? '-' : stats.activeAutomations.toString()}
                   icon={Zap}
-                  iconColor="text-purple-600"
-                  iconBgColor="bg-purple-50"
+                  iconColor="text-white"
+                  iconBgColor="bg-cyan-500"
                 />
                 <KPICard
                   title="Comments"
                   value={loading ? '-' : stats.commentReplies.toLocaleString()}
                   icon={MessageCircle}
-                  iconColor="text-pink-600"
-                  iconBgColor="bg-pink-50"
+                  iconColor="text-white"
+                  iconBgColor="bg-cyan-500"
                 />
                 <KPICard
                   title="Total Reach"
                   value={loading ? '-' : stats.uniqueUsers.toLocaleString()}
                   icon={Users}
-                  iconColor="text-indigo-600"
-                  iconBgColor="bg-indigo-50"
+                  iconColor="text-white"
+                  iconBgColor="bg-cyan-500"
                 />
                 <KPICard
                   title="Followers"
                   value={loading ? '-' : (stats.followersCount || 0).toLocaleString()}
                   icon={Instagram}
-                  iconColor="text-rose-600"
-                  iconBgColor="bg-rose-50"
+                  iconColor="text-white"
+                  iconBgColor="bg-cyan-500"
                 />
                 <KPICard
                   title="Growth"
                   value={loading ? '-' : ((stats.followersCount || 0) - (stats.initialFollowersCount || 0)).toLocaleString()}
                   icon={TrendingUp}
-                  iconColor="text-emerald-600"
-                  iconBgColor="bg-emerald-50"
+                  iconColor="text-white"
+                  iconBgColor="bg-cyan-500"
                 />
               </div>
 
