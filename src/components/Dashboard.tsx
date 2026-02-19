@@ -215,19 +215,19 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded-[2rem] bg-blue-600 p-8 shadow-2xl shadow-blue-200 group relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 blur-3xl animate-pulse" />
+                  <div className="rounded-[2rem] bg-blue-50/50 backdrop-blur-xl border border-blue-100 p-8 shadow-xl shadow-blue-900/5 group relative overflow-hidden transition-all duration-500 hover:bg-blue-50/80">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-blue-200/20 rounded-full -mr-32 -mt-32 blur-3xl animate-pulse" />
                     <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10 text-center md:text-left">
                       <div className="space-y-2">
-                        <h3 className="text-2xl font-black text-white">Unlock Your Potential</h3>
-                        <p className="text-blue-100 font-medium">Connect your Instagram to start automating messages.</p>
+                        <h3 className="text-2xl font-black text-gray-900">Unlock Your Potential</h3>
+                        <p className="text-gray-600 font-medium max-w-sm">Connect your Instagram to start automating messages and engage with your audience.</p>
                       </div>
-                      <a
-                        href="/connect-accounts"
-                        className="px-8 py-4 bg-white text-blue-600 font-black rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-all whitespace-nowrap"
+                      <Link
+                        to="/connect-accounts"
+                        className="px-10 py-4 bg-blue-600 text-white font-black rounded-2xl shadow-lg shadow-blue-200 hover:scale-105 active:scale-95 transition-all whitespace-nowrap"
                       >
                         Connect Now
-                      </a>
+                      </Link>
                     </div>
                   </div>
                 )}
@@ -239,43 +239,43 @@ export default function Dashboard() {
                   title="Total DMs"
                   value={loading ? '-' : stats.dmsTriggered.toLocaleString()}
                   icon={MessageSquare}
-                  iconColor="text-white"
-                  iconBgColor="bg-cyan-500"
+                  iconColor="text-blue-600"
+                  iconBgColor="bg-blue-50"
                 />
                 <KPICard
                   title="Automations"
                   value={loading ? '-' : stats.activeAutomations.toString()}
                   icon={Zap}
-                  iconColor="text-white"
-                  iconBgColor="bg-cyan-500"
+                  iconColor="text-purple-600"
+                  iconBgColor="bg-purple-50"
                 />
                 <KPICard
                   title="Comments"
                   value={loading ? '-' : stats.commentReplies.toLocaleString()}
                   icon={MessageCircle}
-                  iconColor="text-white"
-                  iconBgColor="bg-cyan-500"
+                  iconColor="text-pink-600"
+                  iconBgColor="bg-pink-50"
                 />
                 <KPICard
                   title="Total Reach"
                   value={loading ? '-' : stats.uniqueUsers.toLocaleString()}
                   icon={Users}
-                  iconColor="text-white"
-                  iconBgColor="bg-cyan-500"
+                  iconColor="text-indigo-600"
+                  iconBgColor="bg-indigo-50"
                 />
                 <KPICard
                   title="Followers"
                   value={loading ? '-' : (stats.followersCount || 0).toLocaleString()}
                   icon={Instagram}
-                  iconColor="text-white"
-                  iconBgColor="bg-cyan-500"
+                  iconColor="text-rose-600"
+                  iconBgColor="bg-rose-50"
                 />
                 <KPICard
                   title="Growth"
                   value={loading ? '-' : ((stats.followersCount || 0) - (stats.initialFollowersCount || 0)).toLocaleString()}
                   icon={TrendingUp}
-                  iconColor="text-white"
-                  iconBgColor="bg-cyan-500"
+                  iconColor="text-emerald-600"
+                  iconBgColor="bg-emerald-50"
                 />
               </div>
 
