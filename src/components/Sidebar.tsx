@@ -11,13 +11,13 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 
-const navItems = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: '/' },
-  { id: "automations", label: "Automations", icon: Zap, path: '/automation' },
-  { id: "contacts", label: "Contacts", icon: Users, path: '/contacts' },
-  { id: "billing", label: "Billing", icon: CreditCard, path: '/billing' },
-  { id: "connected-accounts", label: "Connected Accounts", icon: Link2, path: '/connect-accounts' },
-  { id: "settings", label: "Settings", icon: SettingsIcon, path: '/settings' },
+export const navigation = [
+  { id: "dashboard", name: "Dashboard", icon: LayoutDashboard, path: '/' },
+  { id: "automations", name: "Automations", icon: Zap, path: '/automation' },
+  { id: "contacts", name: "Contacts", icon: Users, path: '/contacts' },
+  { id: "billing", name: "Billing", icon: CreditCard, path: '/billing' },
+  { id: "connected-accounts", name: "Connected Accounts", icon: Link2, path: '/connect-accounts' },
+  { id: "settings", name: "Settings", icon: SettingsIcon, path: '/settings' },
 ];
 
 export default function Sidebar() {
@@ -58,15 +58,15 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-4 space-y-2 overflow-y-auto custom-scrollbar">
-        {navItems.map(({ id, label, icon: Icon, path }) => {
+        {navigation.map(({ id, name, icon: Icon, path }) => {
           const isActive = location.pathname === path || (path === '/' && location.pathname === '/dashboard');
           return (
             <Link
               key={id}
               to={path}
               className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl text-left transition-all duration-300 transform ${isActive
-                  ? "bg-gradient-to-r from-cyan-400 to-teal-500 shadow-xl shadow-cyan-100 scale-[1.02]"
-                  : "hover:bg-gray-50 active:scale-95"
+                ? "bg-gradient-to-r from-cyan-400 to-teal-500 shadow-xl shadow-cyan-100 scale-[1.02]"
+                : "hover:bg-gray-50 active:scale-95"
                 }`}
             >
               <span
@@ -82,7 +82,7 @@ export default function Sidebar() {
                 className={`text-sm font-black tracking-tight ${isActive ? "text-white" : "text-gray-600"
                   }`}
               >
-                {label}
+                {name}
               </span>
             </Link>
           );
