@@ -30,6 +30,7 @@ export default function Contacts() {
     if (!user) return;
 
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('contacts')
         .select('*')
@@ -38,21 +39,84 @@ export default function Contacts() {
 
       if (error) throw error;
 
-      // Show all contacts, fallback to ID if username is missing
-      const validContacts = (data || []).map(c => {
-        const hasValidUsername = c.username && c.username !== 'Unknown' && c.username !== 'UnknownError' && !c.username.includes('undefined') && !c.username.includes('null');
-        return {
-          ...c,
-          username: hasValidUsername ? c.username : `IG:${c.instagram_user_id?.substring(0, 8)}`,
-          full_name: c.full_name || (hasValidUsername ? c.username : `User ${c.instagram_user_id?.substring(0, 4)}`)
-        };
-      });
+      if (!data || data.length === 0) {
+        // Try to sync from historical activities if table is empty
+        await syncHistoricalContacts();
+        // Re-fetch after sync
+        const { data: syncedData } = await supabase
+          .from('contacts')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('last_interaction_at', { ascending: false });
 
-      setContacts(validContacts);
+        if (syncedData) {
+          processAndSetContacts(syncedData);
+        } else {
+          setContacts([]);
+        }
+      } else {
+        processAndSetContacts(data);
+      }
     } catch (error) {
       console.error('Error fetching contacts:', error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  const processAndSetContacts = (data: any[]) => {
+    const validContacts = (data || []).map(c => {
+      const hasValidUsername = c.username && c.username !== 'Unknown' && c.username !== 'UnknownError' && !c.username.includes('undefined') && !c.username.includes('null');
+      return {
+        ...c,
+        username: hasValidUsername ? c.username : `IG:${c.instagram_user_id?.substring(0, 8)}`,
+        full_name: c.full_name || (hasValidUsername ? c.username : `User ${c.instagram_user_id?.substring(0, 4)}`)
+      };
+    });
+    setContacts(validContacts);
+  };
+
+  async function syncHistoricalContacts() {
+    try {
+      // Fetch unique identities from activities
+      const { data: activities } = await supabase
+        .from('automation_activities')
+        .select('instagram_account_id, target_username, metadata, created_at')
+        .eq('user_id', user!.id);
+
+      if (!activities || activities.length === 0) return;
+
+      const uniqueContactsMap = new Map();
+      activities.forEach(act => {
+        const psid = act.metadata?.raw_id || act.metadata?.sender_id || act.metadata?.from?.id;
+        const username = act.target_username;
+
+        if (psid && username && username !== 'system_managed' && username !== 'Unknown') {
+          const key = `${act.instagram_account_id}-${psid}`;
+          if (!uniqueContactsMap.has(key)) {
+            uniqueContactsMap.set(key, {
+              user_id: user!.id,
+              instagram_account_id: act.instagram_account_id,
+              instagram_user_id: String(psid),
+              username: username,
+              full_name: act.metadata?.name || username,
+              avatar_url: act.metadata?.profilePic || null,
+              interaction_count: 1,
+              last_interaction_at: act.created_at,
+              platform: 'instagram'
+            });
+          }
+        }
+      });
+
+      const contactsToInsert = Array.from(uniqueContactsMap.values());
+      if (contactsToInsert.length > 0) {
+        await supabase.from('contacts').upsert(contactsToInsert, {
+          onConflict: 'user_id, instagram_account_id, instagram_user_id'
+        });
+      }
+    } catch (err) {
+      console.error('Sync failed:', err);
     }
   }
 
