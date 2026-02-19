@@ -114,8 +114,8 @@ export default function Login() {
       </div>
 
       {/* Right Side: Carousel */}
-      <div className="hidden lg:flex lg:w-1/2 items-center justify-center p-12 bg-slate-50 h-full">
-        <div className="relative w-full h-[85%] rounded-[3rem] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-slate-200 group bg-white">
+      <div className="hidden lg:flex lg:w-1/2 items-center justify-end py-8 pl-8 bg-slate-50 h-full">
+        <div className="relative w-full h-full rounded-l-[2.5rem] overflow-hidden shadow-2xl border-y border-l border-gray-200 group">
           <div className="absolute inset-0 bg-gradient-to-tr from-blue-600/5 to-purple-600/5 z-10 pointer-events-none" />
 
           {carouselImages.map((src, index) => (
@@ -127,25 +127,25 @@ export default function Login() {
               <img
                 src={src}
                 alt={`Slide ${index + 1}`}
-                className={`w-full h-full object-cover transition-transform duration-[5000ms] linear ${index === currentImageIndex ? 'scale-105' : 'scale-100'
+                className={`w-full h-full object-cover transition-transform duration-[5000ms] linear ${index === currentImageIndex ? 'scale-110' : 'scale-100'
                   }`}
               />
             </div>
           ))}
 
-          {/* Carousel Indicators - Refined */}
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 flex gap-2.5">
+          {/* Carousel Indicators */}
+          <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-20 flex gap-2">
             {carouselImages.map((_, index) => (
               <button
                 key={index}
                 onClick={() => setCurrentImageIndex(index)}
-                className={`h-1.5 transition-all duration-300 rounded-full ${index === currentImageIndex ? 'w-8 bg-white shadow-sm' : 'w-2 bg-white/40 hover:bg-white/60'
+                className={`h-1.5 transition-all duration-300 rounded-full ${index === currentImageIndex ? 'w-8 bg-white' : 'w-2 bg-white/40 hover:bg-white/60'
                   }`}
               />
             ))}
           </div>
 
-          <div className="absolute inset-0 bg-black/5 z-[5] pointer-events-none" />
+          <div className="absolute inset-0 bg-black/10 z-[5] pointer-events-none" />
         </div>
       </div>
 
