@@ -279,9 +279,7 @@ export default function Dashboard() {
               </div>
 
               {/* Chart Section */}
-              <div className="bg-white border border-gray-100 rounded-[2.5rem] p-8 shadow-sm hover:shadow-md transition-shadow duration-500">
-                <DMsChart />
-              </div>
+              <DMsChart />
 
               {/* Feed Section */}
               <div className="space-y-6 pt-4">
@@ -292,12 +290,8 @@ export default function Dashboard() {
             {/* Right Column: Insights & Progress */}
             <div className="space-y-8">
               <div className="sticky top-10 space-y-8">
-                <div className="bg-white p-2 rounded-[2.5rem] border border-gray-100 shadow-sm">
-                  <SetupProgress progress={overallProgress} tasks={setupTasks} />
-                </div>
-                <div className="bg-white p-2 rounded-[2.5rem] border border-gray-100 shadow-sm">
-                  <TopPerforming />
-                </div>
+                <SetupProgress progress={overallProgress} tasks={setupTasks} />
+                <TopPerforming />
               </div>
             </div>
           </div>
