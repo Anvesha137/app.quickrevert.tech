@@ -7,11 +7,11 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import InstagramFeed from './InstagramFeed';
 import StatsCard from './StatsCard';
-import { BarChartCard } from './BarChartCard';
 import { ConnectCard } from './ConnectCard';
 import SetupProgress from './SetupProgress';
+import DMsChart from './DMsChart';
+import TopPerforming from './TopPerforming';
 
 interface DashboardStats {
   dmsTriggered: number;
@@ -22,34 +22,6 @@ interface DashboardStats {
   initialFollowersCount?: number | null;
   followersLastUpdated?: string | null;
 }
-
-const mockFollowersData = [
-  { name: "Apr", value: 250 },
-  { name: "May", value: 320 },
-  { name: "Jun", value: 180 },
-  { name: "Jul", value: 400 },
-  { name: "Aug", value: 280 },
-  { name: "Sep", value: 500 },
-  { name: "Oct", value: 350 },
-  { name: "Nov", value: 420 },
-  { name: "Dec", value: 290 },
-  { name: "Jan", value: 460 },
-  { name: "Feb", value: 380 },
-];
-
-const mockAutomationData = [
-  { name: "Apr", value: 120 },
-  { name: "May", value: 200 },
-  { name: "Jun", value: 150 },
-  { name: "Jul", value: 310 },
-  { name: "Aug", value: 220 },
-  { name: "Sep", value: 480 },
-  { name: "Oct", value: 260 },
-  { name: "Nov", value: 370 },
-  { name: "Dec", value: 190 },
-  { name: "Jan", value: 430 },
-  { name: "Feb", value: 340 },
-];
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -166,32 +138,24 @@ export default function Dashboard() {
         <StatsCard
           label="Total DMs"
           value={loading ? '-' : stats.dmsTriggered.toLocaleString()}
-          change="+12%"
-          positive={true}
           iconBg="bg-gradient-to-br from-cyan-400 to-teal-500 shadow-cyan-100"
           icon={<MessageSquare size={18} className="text-white" />}
         />
         <StatsCard
           label="Automations"
           value={loading ? '-' : stats.activeAutomations.toString()}
-          change="+5%"
-          positive={true}
           iconBg="bg-gradient-to-br from-pink-400 to-rose-500 shadow-rose-100"
           icon={<Zap size={18} className="text-white" />}
         />
         <StatsCard
           label="Comments"
           value={loading ? '-' : stats.commentReplies.toLocaleString()}
-          change="+2%"
-          positive={true}
           iconBg="bg-gradient-to-br from-orange-400 to-amber-500 shadow-amber-100"
           icon={<MessageCircle size={18} className="text-white" />}
         />
         <StatsCard
           label="Total Reach"
           value={loading ? '-' : stats.uniqueUsers.toLocaleString()}
-          change="+8%"
-          positive={true}
           iconBg="bg-gradient-to-br from-violet-500 to-purple-600 shadow-purple-100"
           icon={<Users size={18} className="text-white" />}
         />
@@ -199,27 +163,10 @@ export default function Dashboard() {
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <BarChartCard
-          title="Followers Gained"
-          subtitle="Monthly Instagram follower growth"
-          data={mockFollowersData}
-          color="rgba(255,255,255,0.7)"
-          footer={`${loading ? '0' : (stats.followersCount || 0).toLocaleString()} total followers`}
-        />
-        <BarChartCard
-          title="Top Performing Automation"
-          subtitle="Triggered DMs per automation"
-          data={mockAutomationData}
-          color="rgba(255,255,255,0.7)"
-          footer={`${loading ? '0' : stats.activeAutomations} active automations`}
-        />
+        <DMsChart />
+        <TopPerforming />
       </div>
 
-      {/* Feed Section - Preserved */}
-      <div className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-sm">
-        <h3 className="text-lg font-black text-gray-800 mb-6 uppercase tracking-wider">Instagram Feed</h3>
-        <InstagramFeed />
-      </div>
     </div>
   );
 }
