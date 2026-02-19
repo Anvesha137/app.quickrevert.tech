@@ -16,10 +16,8 @@ import Settings from './components/Settings';
 import Pricing from './components/Pricing';
 import UpgradeModal from './components/UpgradeModal';
 import CelebrationModal from './components/CelebrationModal';
-import { Search, Bell } from 'lucide-react';
-import PlanBanner from './components/PlanBanner';
-import { SubscriptionProvider, useSubscription } from './contexts/SubscriptionContext';
-
+import { SubscriptionProvider } from './contexts/SubscriptionContext';
+import { isSupabaseConfigured } from './lib/supabase';
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -55,8 +53,6 @@ function AppContent() {
 }
 
 function AuthenticatedApp() {
-  const { isPremium } = useSubscription();
-
   return (
     <div className="min-h-screen bg-gray-50 flex font-outfit">
       {/* Sidebar */}
@@ -65,37 +61,9 @@ function AuthenticatedApp() {
       </div>
 
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Topbar */}
-        <header className="bg-white/70 backdrop-blur-md border-b border-gray-100 px-8 py-4 flex items-center justify-between sticky top-0 z-40">
-          <div className="hidden sm:block">
-            <h1 className="text-xl font-black text-gray-900 tracking-tight">QuickRevert</h1>
-          </div>
-
-          <div className="flex items-center gap-6">
-            <div className="relative hidden lg:block">
-              <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                placeholder="Search analytics..."
-                className="pl-12 pr-6 py-2.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-medium text-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-300 w-64 transition-all"
-              />
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button className="relative w-11 h-11 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center hover:bg-gray-100 transition-all group">
-                <Bell size={18} className="text-gray-500 group-hover:rotate-12 transition-transform" />
-                <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-rose-500 border-2 border-white rounded-full" />
-              </button>
-
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-purple-400 to-indigo-500 border-2 border-white shadow-lg flex items-center justify-center text-white text-xs font-black cursor-pointer transform hover:scale-105 transition-transform">
-                AR
-              </div>
-            </div>
-          </div>
-        </header>
 
         <main className="flex-1 p-8">
-          <div className={`transition-all duration-300 ${!isPremium ? 'pt-2' : ''}`}>
-            <PlanBanner />
+          <div>
             <MobileNav />
             <ErrorBoundary>
               <Routes>
