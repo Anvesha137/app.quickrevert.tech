@@ -1099,78 +1099,115 @@ return { json: { userId, username, isFollowing } };`
 
     if (autoActivate) await fetch(`${n8nBaseUrl}/api/v1/workflows/${n8nResult.id}/activate`, { method: "POST", headers: { "X-N8N-API-KEY": n8nApiKey } });
 
-    // ATOMIC DATABASE REGISTRATION
-    if (autoActivate) {
-      const globalRoutesPayload: any[] = [];
-      const trackedPostsPayload: any[] = [];
+    // ATOMIC DATABASE REGISTRATION & CLEANUP
+    if (automationId) {
+      console.log(`Checking for existing workflows for Automation ID: ${automationId}`);
 
-      // ALWAYS REGISTER GLOBAL ROUTES for messaging/postback/changes 
-      // This ensures that even for 'specific post' triggers, follow-up messages/buttons will find the route.
-      globalRoutesPayload.push(
-        {
-          account_id: instagramAccount.id,
-          event_type: 'messaging',
-          sub_type: null,
-          is_active: true
-        },
-        {
-          account_id: instagramAccount.id,
-          event_type: 'messaging',
-          sub_type: 'postback',
-          is_active: true
-        },
-        {
-          account_id: instagramAccount.id,
-          event_type: 'changes',
-          sub_type: null,
-          is_active: true
+      // 1. Find existing workflows for this automation
+      const { data: existingWorkflows } = await supabase
+        .from('n8n_workflows')
+        .select('n8n_workflow_id')
+        .eq('automation_id', automationId);
+
+      if (existingWorkflows && existingWorkflows.length > 0) {
+        const oldWorkflowIds = existingWorkflows.map((w: any) => w.n8n_workflow_id);
+        console.log(`Found ${oldWorkflowIds.length} old workflows to cleanup:`, oldWorkflowIds);
+
+        // 2. Delete Routes for old workflows
+        const { error: routeDelError } = await supabase
+          .from('automation_routes')
+          .delete()
+          .in('n8n_workflow_id', oldWorkflowIds);
+
+        if (routeDelError) console.error("Error cleaning up old routes:", routeDelError);
+
+        // 3. Delete from n8n_workflows table
+        const { error: wfDelError } = await supabase
+          .from('n8n_workflows')
+          .delete()
+          .in('n8n_workflow_id', oldWorkflowIds);
+
+        if (wfDelError) console.error("Error cleaning up old workflow records:", wfDelError);
+
+        // 4. (Optional) Request n8n to delete old workflows to keep things clean
+        // We do this asynchronously and don't block on failures
+        for (const oldId of oldWorkflowIds) {
+          try {
+            fetch(`${n8nBaseUrl}/api/v1/workflows/${oldId}`, {
+              method: "DELETE",
+              headers: { "X-N8N-API-KEY": n8nApiKey }
+            }).catch(e => console.warn(`Failed to delete old n8n workflow ${oldId}`, e));
+          } catch (e) {
+            // Ignore
+          }
         }
-      );
+      }
+    }
 
-      const isSpecificPostTrigger = automationData && automationData.trigger_type === 'post_comment' && automationData.trigger_config && automationData.trigger_config.postsType === 'specific';
+    // INSERT NEW WORKFLOW RECORD
+    const { error: insertError } = await supabase.from("n8n_workflows").insert({
+      user_id: user.id,
+      n8n_workflow_id: n8nResult.id,
+      n8n_workflow_name: n8nResult.name,
+      webhook_path: webhookPath,
+      instagram_account_id: instagramAccount.id,
+      template: template || 'instagram_automation_v1',
+      variables: variables || {},
+      automation_id: automationId || null,
+      is_active: autoActivate // Set initial active state
+    });
 
-      if (isSpecificPostTrigger) {
-        const specificPosts = (automationData && automationData.trigger_config && Array.isArray(automationData.trigger_config.specificPosts))
-          ? automationData.trigger_config.specificPosts
-          : [];
-        if (specificPosts.length > 0) {
-          specificPosts.forEach((pid: string) => {
-            trackedPostsPayload.push({
-              media_id: pid,
-              platform: 'instagram'
-            });
+    if (insertError) {
+      console.error("Failed to insert n8n_workflow record:", insertError);
+      throw new Error("Database Insert Failed: " + insertError.message);
+    }
+
+    // ALWAYS CREATE ROUTES (Inactive by default if autoActivate is false)
+    // This ensues that toggling "Active" in UI works immediately because routes exist.
+    // Fetch ALL active Instagram accounts for this user to ensure broad coverage
+    const { data: userAccounts } = await supabase
+      .from('instagram_accounts')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('status', 'active');
+
+    if (userAccounts && userAccounts.length > 0) {
+      const newRoutes: any[] = [];
+      const finalTriggerType = bodyTriggerType || automationData?.trigger_type || 'user_dm';
+
+      for (const account of userAccounts) {
+        if (finalTriggerType === 'post_comment') {
+          // Comment automations: only changes/comments routes
+          newRoutes.push({
+            account_id: account.id, user_id: user.id, n8n_workflow_id: n8nResult.id,
+            event_type: 'changes', sub_type: 'comments', is_active: autoActivate
+          });
+        } else if (finalTriggerType === 'story_reply') {
+          // Story reply: only messaging routes (stories come as messaging events with story_reply sub_type)
+          newRoutes.push({
+            account_id: account.id, user_id: user.id, n8n_workflow_id: n8nResult.id,
+            event_type: 'messaging', sub_type: null, is_active: autoActivate
+          });
+        } else {
+          // Default: DM automation (user_dm / user_directed_messages)
+          // Broad messaging route (catches all DMs)
+          newRoutes.push({
+            account_id: account.id, user_id: user.id, n8n_workflow_id: n8nResult.id,
+            event_type: 'messaging', sub_type: null, is_active: autoActivate
+          });
+          // Postback route (for quick replies / button clicks)
+          newRoutes.push({
+            account_id: account.id, user_id: user.id, n8n_workflow_id: n8nResult.id,
+            event_type: 'messaging', sub_type: 'postback', is_active: autoActivate
           });
         }
       }
 
-      const { error: dbError } = await supabase.rpc('register_automation', {
-        p_user_id: user.id,
-        p_n8n_id: n8nResult.id,
-        p_n8n_name: n8nResult.name,
-        p_webhook_path: webhookPath,
-        p_instagram_account_id: instagramAccount.id,
-        p_template: template || 'instagram_automation_v1',
-        p_variables: variables || {},
-        p_automation_id: automationId || null,
-        p_global_routes: globalRoutesPayload,
-        p_tracked_posts: trackedPostsPayload
-      });
-
-      if (dbError) {
-        console.error("RPC Error:", dbError);
-        throw new Error("Database Transaction Failed: " + dbError.message);
-      }
+      const { error: routeError } = await supabase.from('automation_routes').insert(newRoutes);
+      if (routeError) console.error("Failed to create default routes:", routeError);
+      else console.log(`Created ${newRoutes.length} default routes (Active: ${autoActivate})`);
     } else {
-      await supabase.from("n8n_workflows").insert({
-        user_id: user.id,
-        n8n_workflow_id: n8nResult.id,
-        n8n_workflow_name: n8nResult.name,
-        webhook_path: webhookPath,
-        instagram_account_id: instagramAccount.id,
-        template: template || 'instagram_automation_v1',
-        variables: variables || {},
-        ...(automationId && { automation_id: automationId })
-      });
+      console.warn("No active Instagram accounts found. Routes not created.");
     }
 
     return new Response(JSON.stringify({

@@ -386,12 +386,12 @@ async function processEvent(body: any) {
 
                 // 🔥 CRITICAL FIX: Removed redundant execute-automation call. 
                 // Dashboard automations are now handled exclusively via n8n workflows triggered by routeAndTrigger() below.
+                let primaryActivityId: string | null = null; // Declare here so routeAndTrigger can access it
                 if (change.field === 'comments' && accountsData && accountsData.length > 0) {
                     // RESOLVE IDENTITY for comments too
                     let resolvedUsername = change.value?.from?.username;
                     let profileName = null;
                     let profilePic = null;
-                    let primaryActivityId: string | null = null;
 
                     const primaryAccount = accountsData[0];
                     if (primaryAccount && change.value?.from?.id) {

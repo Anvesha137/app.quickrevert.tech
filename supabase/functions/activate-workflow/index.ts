@@ -75,36 +75,44 @@ Deno.serve(async (req: Request) => {
 
       if (delError) console.error("Cleanup Error:", delError);
 
-      // B. INSERT ROUTES (Messaging + Comments) FOR ALL User's Accounts
+      // B. Determine trigger type from linked automation
+      let triggerType = 'user_dm'; // default
+      if (existingWf.automation_id) {
+        const { data: automationData } = await supabase
+          .from('automations')
+          .select('trigger_type')
+          .eq('id', existingWf.automation_id)
+          .single();
+        if (automationData?.trigger_type) triggerType = automationData.trigger_type;
+      }
+      console.log(`Creating routes for trigger_type: ${triggerType}`);
+
+      // C. INSERT ROUTES based on trigger type
       const newRoutes = [];
       for (const account of accountMappings) {
-        // Broad Messaging Route (Wildcard)
-        newRoutes.push({
-          account_id: account.id,
-          user_id: user.id,
-          n8n_workflow_id: workflowId,
-          event_type: 'messaging',
-          sub_type: null,
-          is_active: true
-        });
-        // Explicit Postback Route
-        newRoutes.push({
-          account_id: account.id,
-          user_id: user.id,
-          n8n_workflow_id: workflowId,
-          event_type: 'messaging',
-          sub_type: 'postback',
-          is_active: true
-        });
-        // Broad Changes Route (Comments)
-        newRoutes.push({
-          account_id: account.id,
-          user_id: user.id,
-          n8n_workflow_id: workflowId,
-          event_type: 'changes',
-          sub_type: null,
-          is_active: true
-        });
+        if (triggerType === 'post_comment') {
+          // Comment automations: ONLY changes/comments routes
+          newRoutes.push({
+            account_id: account.id, user_id: user.id, n8n_workflow_id: workflowId,
+            event_type: 'changes', sub_type: 'comments', is_active: true
+          });
+        } else if (triggerType === 'story_reply') {
+          // Story reply: messaging only
+          newRoutes.push({
+            account_id: account.id, user_id: user.id, n8n_workflow_id: workflowId,
+            event_type: 'messaging', sub_type: null, is_active: true
+          });
+        } else {
+          // DM automations (user_dm / user_directed_messages)
+          newRoutes.push({
+            account_id: account.id, user_id: user.id, n8n_workflow_id: workflowId,
+            event_type: 'messaging', sub_type: null, is_active: true
+          });
+          newRoutes.push({
+            account_id: account.id, user_id: user.id, n8n_workflow_id: workflowId,
+            event_type: 'messaging', sub_type: 'postback', is_active: true
+          });
+        }
       }
 
       if (newRoutes.length > 0) {
