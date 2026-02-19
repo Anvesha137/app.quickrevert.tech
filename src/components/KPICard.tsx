@@ -14,23 +14,28 @@ interface KPICardProps {
 
 export default function KPICard({ title, value, icon: Icon, trend, iconColor, iconBgColor }: KPICardProps) {
   return (
-    <div className="group relative overflow-hidden rounded-2xl backdrop-blur-xl bg-white/60 border border-white/40 p-6 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer">
-      <div className="relative space-y-3">
-        <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-xl ${iconBgColor} flex items-center justify-center`}>
-            <Icon className={`w-5 h-5 ${iconColor}`} />
+    <div className="group relative overflow-hidden rounded-[1.5rem] bg-white border border-gray-100 p-6 shadow-sm hover:shadow-xl hover:shadow-blue-500/5 transition-all duration-300 hover:-translate-y-1 cursor-pointer">
+      {/* Decorative Background Element */}
+      <div className={`absolute top-0 right-0 w-24 h-24 -mr-8 -mt-8 rounded-full ${iconBgColor} opacity-20 blur-2xl group-hover:opacity-30 transition-opacity`} />
+
+      <div className="relative z-10 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className={`w-12 h-12 rounded-2xl ${iconBgColor} flex items-center justify-center shadow-inner`}>
+            <Icon className={`w-6 h-6 ${iconColor}`} />
           </div>
-          <p className="text-sm text-gray-600 font-medium">{title}</p>
-        </div>
-        <p className="text-4xl font-bold text-gray-800 tracking-tight">{value}</p>
-        {trend && (
-          <div className="flex items-center gap-1.5 mt-1">
-            <span className={`text-xs font-bold ${trend.isPositive ? 'text-green-600' : 'text-red-600'}`}>
+          {trend && (
+            <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${trend.isPositive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
               {trend.isPositive ? '↑' : '↓'} {trend.value}
-            </span>
-            <span className="text-xs text-gray-500 font-medium">vs last month</span>
-          </div>
-        )}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <p className="text-sm font-semibold text-gray-500 mb-1">{title}</p>
+          <p className="text-3xl font-extrabold text-gray-900 tracking-tight">
+            {value}
+          </p>
+        </div>
       </div>
     </div>
   );

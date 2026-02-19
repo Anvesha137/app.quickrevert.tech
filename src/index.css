@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -6,10 +8,12 @@
     html {
         font-size: 85%;
         scroll-behavior: smooth;
+        font-family: 'Outfit', sans-serif;
     }
 
     body {
         @apply antialiased text-slate-900;
+        font-family: 'Outfit', sans-serif;
     }
 }
 
@@ -20,5 +24,9 @@
 
     .animation-delay-4000 {
         animation-delay: 4s;
+    }
+
+    .fill-mode-both {
+        animation-fill-mode: both;
     }
 }

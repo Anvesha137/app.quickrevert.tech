@@ -134,83 +134,95 @@ export default function Dashboard() {
   const overallProgress = Math.round((setupTasks.filter(t => t.completed).length / setupTasks.length) * 100);
 
   return (
-    <div className="flex-1 relative min-h-screen overflow-x-hidden">
-      {/* Animated Background Blobs */}
-      <div className="fixed inset-0 -z-10 bg-[#f8fafc]">
-        <div className="absolute top-0 -left-4 w-96 h-96 bg-slate-300/30 rounded-full mix-blend-multiply filter blur-3xl animate-blob"></div>
-        <div className="absolute top-0 -right-4 w-96 h-96 bg-slate-500/10 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-8 left-20 w-96 h-96 bg-slate-400/20 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000"></div>
-        <div className="absolute inset-0 opacity-10" style={{
-          backgroundImage: `url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS1vcGFjaXR5PSIwLjA1IiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=")`
-        }}></div>
+    <div className="flex-1 relative min-h-screen overflow-x-hidden bg-[#fafbff] font-outfit">
+      {/* Animated Background Blobs - Refined */}
+      <div className="fixed inset-0 -z-10 bg-slate-50/50">
+        <div className="absolute top-0 -left-10 w-[500px] h-[500px] bg-blue-100/30 rounded-full mix-blend-multiply filter blur-3xl animate-blob"></div>
+        <div className="absolute top-0 -right-10 w-[500px] h-[500px] bg-purple-100/30 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000"></div>
+        <div className="absolute bottom-20 left-1/4 w-[600px] h-[600px] bg-indigo-100/20 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000"></div>
       </div>
 
-      <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex items-center gap-3">
-            <h2 className="text-3xl font-bold text-gray-800 tracking-tight">
-              Hello, {displayName?.split(' ')[0] || 'Creator'}! <Hand className="inline w-8 h-8 text-yellow-500 animate-bounce" />
+      <div className="max-w-7xl mx-auto p-6 md:p-10 space-y-10">
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 animate-in fade-in slide-in-from-top-4 duration-700">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <span className="px-3 py-1 bg-blue-600 text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-full shadow-lg shadow-blue-200">
+                Dashboard
+              </span>
+              <div className="w-1 h-1 rounded-full bg-gray-300" />
+              <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">Overview</p>
+            </div>
+            <h2 className="text-4xl md:text-5xl font-black text-gray-900 tracking-tight leading-tight">
+              Hello, {displayName?.split(' ')[0] || 'Creator'} <span className="inline-block animate-bounce-slow">👋</span>
             </h2>
+            <p className="text-lg text-gray-500 font-medium">
+              Here's what's happening with your Instagram today.
+            </p>
           </div>
-          <div className="flex items-center gap-3">
+
+          <div className="flex items-center gap-4">
             <Link
               to="/settings"
-              className="w-11 h-11 rounded-xl backdrop-blur-xl bg-white/60 border border-white/40 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 flex items-center justify-center overflow-hidden"
+              className="w-12 h-12 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 hover:scale-110 flex items-center justify-center group"
             >
-              <div className="w-full h-full flex items-center justify-center bg-gray-50">
-                <User className="w-5 h-5 text-gray-500" />
-              </div>
+              <User className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
             </Link>
             <a
               href="https://quickrevert.tech/contact"
               target="_blank"
               rel="noopener noreferrer"
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 flex items-center gap-2"
+              className="px-8 py-3.5 rounded-2xl bg-gray-900 text-white font-bold shadow-2xl shadow-gray-200 hover:bg-gray-800 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2 group"
             >
-              <Headset className="w-5 h-5" />
-              Contact Support
+              <Headset className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+              Support
             </a>
           </div>
         </div>
 
-        {/* Main Dashboard Grid */}
-        <div className="space-y-6">
-          {/* Pro Banner Full Width - Always at the very top */}
-          <ProBanner isCompact={false} />
+        {/* Main Content Area */}
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-1000 fill-mode-both">
+          {/* Pro Banner */}
+          <div className="transform transition-transform hover:scale-[1.005]">
+            <ProBanner isCompact={false} />
+          </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Left Column: Banners & Analytics */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Connection Status Banner (Thin) */}
-              <div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+            {/* Left Column: Metrics & Analytics */}
+            <div className="lg:col-span-2 space-y-8">
+              {/* Connection Status Banner */}
+              <div className="group">
                 {instagramAccount ? (
-                  <div className="rounded-2xl bg-gradient-to-r from-blue-500 to-purple-600 p-4 shadow-xl shadow-purple-500/20 group transition-all hover:scale-[1.01]">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30 transition-transform group-hover:rotate-6">
-                        <Instagram className="w-5 h-5 text-white" />
+                  <div className="relative overflow-hidden rounded-[2rem] bg-white border border-gray-100 p-6 shadow-sm hover:shadow-lg transition-all duration-500">
+                    <div className="absolute right-0 top-0 w-32 h-32 bg-blue-500/5 rounded-full -mr-16 -mt-16 blur-3xl group-hover:bg-blue-500/10 transition-colors" />
+                    <div className="flex items-center justify-between gap-4 relative z-10">
+                      <div className="flex items-center gap-5">
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 p-[1px]">
+                          <div className="w-full h-full rounded-2xl bg-white flex items-center justify-center transition-transform group-hover:scale-95">
+                            <Instagram className="w-7 h-7 text-blue-600" />
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-xs font-black text-blue-600 uppercase tracking-widest mb-1">Authenticated</p>
+                          <h3 className="text-xl font-black text-gray-900 leading-none">@{instagramAccount.username}</h3>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <h3 className="text-white font-bold text-base truncate">@{instagramAccount.username}</h3>
-                        <p className="text-white/80 text-xs font-medium">Instagram Connected</p>
-                      </div>
+                      <Link to="/connect-accounts" className="p-3 rounded-xl bg-gray-50 text-gray-400 hover:text-blue-600 transition-colors">
+                        <TrendingUp className="w-5 h-5" />
+                      </Link>
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded-2xl bg-blue-600/10 backdrop-blur-xl border border-blue-500/20 p-4 shadow-xl shadow-blue-500/5 group transition-all hover:scale-[1.01]">
-                    <div className="flex items-center justify-between gap-6">
-                      <div className="flex items-center gap-4 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-blue-500/20 backdrop-blur-sm flex items-center justify-center border border-blue-400/30 shrink-0">
-                          <AlertCircle className="w-5 h-5 text-blue-600" />
-                        </div>
-                        <div className="min-w-0">
-                          <h3 className="text-blue-900 font-bold text-base truncate">Instagram Not Connected</h3>
-                          <p className="text-blue-600/70 text-xs font-medium">Connect your account now</p>
-                        </div>
+                  <div className="rounded-[2rem] bg-blue-600 p-8 shadow-2xl shadow-blue-200 group relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 blur-3xl animate-pulse" />
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10 text-center md:text-left">
+                      <div className="space-y-2">
+                        <h3 className="text-2xl font-black text-white">Unlock Your Potential</h3>
+                        <p className="text-blue-100 font-medium">Connect your Instagram to start automating messages.</p>
                       </div>
                       <a
                         href="/connect-accounts"
-                        className="px-5 py-2 bg-blue-600 text-white font-bold rounded-lg shadow-md hover:shadow-blue-500/20 transition-all hover:scale-105 whitespace-nowrap text-sm"
+                        className="px-8 py-4 bg-white text-blue-600 font-black rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-all whitespace-nowrap"
                       >
                         Connect Now
                       </a>
@@ -219,67 +231,87 @@ export default function Dashboard() {
                 )}
               </div>
 
-              {/* Unified 6 KPI Cards Grid - Shifted UP */}
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+              {/* KPI Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                 <KPICard
-                  title="DMs Triggered"
+                  title="Total DMs"
                   value={loading ? '-' : stats.dmsTriggered.toLocaleString()}
                   icon={MessageSquare}
                   iconColor="text-blue-600"
-                  iconBgColor="bg-blue-500/20"
+                  iconBgColor="bg-blue-50"
+                  trend={{ value: '12%', isPositive: true }}
                 />
                 <KPICard
-                  title="Active Automations"
+                  title="Automations"
                   value={loading ? '-' : stats.activeAutomations.toString()}
                   icon={Zap}
                   iconColor="text-purple-600"
-                  iconBgColor="bg-purple-500/20"
+                  iconBgColor="bg-purple-50"
                 />
                 <KPICard
-                  title="Comment Replies"
+                  title="Comments"
                   value={loading ? '-' : stats.commentReplies.toLocaleString()}
                   icon={MessageCircle}
-                  iconColor="text-green-600"
-                  iconBgColor="bg-green-500/20"
+                  iconColor="text-pink-600"
+                  iconBgColor="bg-pink-50"
+                  trend={{ value: '5%', isPositive: true }}
                 />
                 <KPICard
-                  title="Unique Users"
+                  title="Total Reach"
                   value={loading ? '-' : stats.uniqueUsers.toLocaleString()}
                   icon={Users}
-                  iconColor="text-emerald-600"
-                  iconBgColor="bg-emerald-500/20"
+                  iconColor="text-indigo-600"
+                  iconBgColor="bg-indigo-50"
                 />
                 <KPICard
-                  title="Current Followers"
+                  title="Followers"
                   value={loading ? '-' : (stats.followersCount || 0).toLocaleString()}
-                  icon={Users}
-                  iconColor="text-orange-600"
-                  iconBgColor="bg-orange-500/20"
+                  icon={Instagram}
+                  iconColor="text-rose-600"
+                  iconBgColor="bg-rose-50"
                 />
                 <KPICard
-                  title="Followers Gained"
+                  title="Growth"
                   value={loading ? '-' : ((stats.followersCount || 0) - (stats.initialFollowersCount || 0)).toLocaleString()}
                   icon={TrendingUp}
-                  iconColor="text-cyan-600"
-                  iconBgColor="bg-cyan-500/20"
+                  iconColor="text-emerald-600"
+                  iconBgColor="bg-emerald-50"
                 />
               </div>
 
-              {/* Main Chart */}
-              <DMsChart />
+              {/* Chart Section */}
+              <div className="bg-white border border-gray-100 rounded-[2.5rem] p-8 shadow-sm hover:shadow-md transition-shadow duration-500">
+                <div className="flex items-center justify-between mb-8">
+                  <div>
+                    <h3 className="text-xl font-black text-gray-900">Performance Analytics</h3>
+                    <p className="text-sm font-medium text-gray-400">Activity over the last 30 days</p>
+                  </div>
+                </div>
+                <DMsChart />
+              </div>
+
+              {/* Feed Section */}
+              <div className="space-y-6">
+                <div className="flex items-center justify-between px-2">
+                  <h3 className="text-2xl font-black text-gray-900 tracking-tight">Recent Content</h3>
+                  <button className="text-sm font-bold text-blue-600 hover:underline">View all posts</button>
+                </div>
+                <InstagramFeed />
+              </div>
             </div>
 
-            {/* Right Column: Sidebar */}
-            <div className="space-y-6">
-              <SetupProgress progress={overallProgress} tasks={setupTasks} />
-              <TopPerforming />
+            {/* Right Column: Insights & Progress */}
+            <div className="space-y-8">
+              <div className="sticky top-10 space-y-8">
+                <div className="bg-white p-2 rounded-[2.5rem] border border-gray-100 shadow-sm">
+                  <SetupProgress progress={overallProgress} tasks={setupTasks} />
+                </div>
+                <div className="bg-white p-2 rounded-[2.5rem] border border-gray-100 shadow-sm">
+                  <TopPerforming />
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-
-        {/* Bottom Feed Section */}
-        <div className="mt-8">
-          <InstagramFeed />
         </div>
       </div>
     </div>
