@@ -16,7 +16,7 @@ export default function BasicInfo({ name, onNameChange, onNext, isCondensed }: B
   };
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-6">
       {!isCondensed && (
         <div>
           <h2 className="text-3xl font-extrabold text-slate-800 mb-2">Automation Name</h2>
@@ -26,8 +26,8 @@ export default function BasicInfo({ name, onNameChange, onNext, isCondensed }: B
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-8">
-        <div className="space-y-3">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-2">
           <label htmlFor="name" className="block text-sm font-semibold text-slate-700 uppercase tracking-widest pl-1">
             Name your creation <span className="text-blue-500 font-extrabold">*</span>
           </label>
@@ -38,7 +38,7 @@ export default function BasicInfo({ name, onNameChange, onNext, isCondensed }: B
               value={name}
               onChange={(e) => onNameChange(e.target.value)}
               placeholder="e.g., Smart Comment Handler"
-              className="w-full px-6 py-4 border-2 border-slate-100 bg-white/50 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 text-lg font-semibold text-slate-800 placeholder-slate-300 transition-all shadow-sm hover:bg-white"
+              className="w-full px-5 py-3 border-2 border-slate-100 bg-white/50 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 text-base font-semibold text-slate-800 placeholder-slate-300 transition-all shadow-sm hover:bg-white"
               required
               autoFocus={!isCondensed}
             />

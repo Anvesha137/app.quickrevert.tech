@@ -272,7 +272,7 @@ export default function AutomationCreate() {
         <div className="absolute -bottom-20 left-1/4 w-[600px] h-[600px] bg-slate-200/30 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000 opacity-50"></div>
       </div>
 
-      <div className="max-w-4xl mx-auto space-y-10">
+      <div className="max-w-6xl mx-auto space-y-8">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -286,10 +286,10 @@ export default function AutomationCreate() {
               <ArrowLeft size={16} className="transition-transform group-hover:-translate-x-1" />
               Exit Journey
             </button>
-            <h1 className="text-4xl font-black text-slate-800 tracking-tight">
+            <h1 className="text-3xl font-black text-slate-800 tracking-tight">
               {id ? 'Refine Automation' : 'Design Automation'}
             </h1>
-            <p className="text-slate-500 font-medium mt-1">
+            <p className="text-slate-500 font-medium mt-0.5 text-sm">
               {id ? 'Make your strategy even sharper' : 'Craft a beautiful interaction flow for your audience'}
             </p>
           </div>
@@ -351,16 +351,16 @@ export default function AutomationCreate() {
             transition={{ duration: 0.3 }}
           >
             <GlassCard className="!p-0 overflow-hidden shadow-2xl shadow-blue-500/5">
-              <div className="p-8 md:p-12 space-y-16">
+              <div className="p-6 md:p-10 space-y-12">
                 {currentStep === 'setup' && (
-                  <div className="space-y-16">
+                  <div className="space-y-12">
                     <BasicInfo
                       name={formData.name}
                       onNameChange={(name) => setFormData({ ...formData, name })}
                       onNext={() => { }} // Internal next not needed if we show both
                       isCondensed={true}
                     />
-                    <div className="pt-8 border-t border-slate-100">
+                    <div className="pt-6 border-t border-slate-100">
                       <TriggerSelection
                         selectedTrigger={formData.triggerType}
                         onTriggerSelect={(triggerType: TriggerType) => {
@@ -394,7 +394,7 @@ export default function AutomationCreate() {
                 )}
 
                 {currentStep === 'configuration' && formData.triggerType && (
-                  <div className="space-y-16">
+                  <div className="space-y-12">
                     <TriggerConfigStep
                       triggerType={formData.triggerType}
                       config={formData.triggerConfig}
@@ -406,7 +406,7 @@ export default function AutomationCreate() {
                       }}
                       isCondensed={true}
                     />
-                    <div className="pt-8 border-t border-slate-100">
+                    <div className="pt-6 border-t border-slate-100">
                       <ActionConfig
                         triggerType={formData.triggerType}
                         actions={formData.actions}

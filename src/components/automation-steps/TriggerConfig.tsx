@@ -206,10 +206,10 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
   return (
     <div className="space-y-10">
       {!isCondensed && (
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-100">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
           <div>
-            <h2 className="text-3xl font-extrabold text-slate-800 mb-2 font-outfit">Configure Logic</h2>
-            <p className="text-slate-500 font-normal font-outfit">Fine-tune exactly when your automation should fire.</p>
+            <h2 className="text-2xl font-extrabold text-slate-800 mb-1 font-outfit">Configure Logic</h2>
+            <p className="text-slate-400 font-normal font-outfit text-sm">Fine-tune exactly when your automation should fire.</p>
           </div>
           <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-2xl border border-blue-100 shrink-0 self-start">
             <Filter className="h-4 w-4 text-blue-600" />
@@ -234,14 +234,14 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
         </div>
       )}
 
-      <div className="space-y-12">
+      <div className="space-y-8">
         {triggerType === 'post_comment' && (
           <>
             {/* Posts monitor section */}
-            <div className="space-y-6">
+            <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-extrabold text-xs">A</div>
-                <h3 className="text-lg font-extrabold text-slate-800 uppercase tracking-tight">Scope: Which posts?</h3>
+                <h3 className="text-base font-extrabold text-slate-800 uppercase tracking-tight">Scope: Which posts?</h3>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -257,7 +257,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                   )}>
                     <div className="flex items-center justify-between mb-2">
                       <span className={cn(
-                        "font-bold text-lg transition-colors",
+                        "font-bold text-base transition-colors",
                         (currentConfig as PostCommentTriggerConfig).postsType === option.id ? "text-blue-700" : "text-slate-800"
                       )}>
                         {option.label}
@@ -344,10 +344,10 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
             </div>
 
             {/* Comments monitor section */}
-            <div className="space-y-6 pt-6">
+            <div className="space-y-4 pt-4">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 font-extrabold text-xs">B</div>
-                <h3 className="text-lg font-extrabold text-slate-800 uppercase tracking-tight">Logic: Which comments?</h3>
+                <h3 className="text-base font-extrabold text-slate-800 uppercase tracking-tight">Logic: Which comments?</h3>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -363,7 +363,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                   )}>
                     <div className="flex items-center justify-between mb-2">
                       <span className={cn(
-                        "font-bold text-lg transition-colors",
+                        "font-bold text-base transition-colors",
                         (currentConfig as PostCommentTriggerConfig).commentsType === option.id ? "text-indigo-700" : "text-slate-800"
                       )}>
                         {option.label}
@@ -606,7 +606,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
       </div>
 
       {!isCondensed && (
-        <div className="flex justify-between items-center pt-10 border-t border-slate-100">
+        <div className="flex justify-between items-center pt-8 border-t border-slate-100">
           <button
             onClick={onBack}
             className="px-8 py-3.5 text-slate-500 hover:text-slate-800 font-semibold text-sm uppercase tracking-widest transition-all"

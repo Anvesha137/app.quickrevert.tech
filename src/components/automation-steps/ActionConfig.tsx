@@ -182,13 +182,13 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
   const canSave = actions.length > 0 && actions.every(isActionValid);
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
       {/* Step Header */}
       {!isCondensed && (
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-100">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
           <div>
-            <h2 className="text-3xl font-extrabold text-slate-800 mb-2 font-outfit">Design Actions</h2>
-            <p className="text-slate-500 font-normal font-outfit">Define what happens when the trigger fires.</p>
+            <h2 className="text-2xl font-extrabold text-slate-800 mb-1 font-outfit">Design Actions</h2>
+            <p className="text-slate-400 font-normal font-outfit text-sm">Define what happens when the trigger fires.</p>
           </div>
           <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-2xl border border-blue-100 shrink-0 self-start">
             <Sparkles className="h-4 w-4 text-blue-600" />
@@ -244,7 +244,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="relative bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-xl shadow-slate-200/40 group overflow-hidden"
+                className="relative bg-white rounded-[2.5rem] border border-slate-100 p-6 shadow-xl shadow-slate-200/40 group overflow-hidden"
               >
                 {/* Visual Accent */}
                 <div className={cn(
@@ -261,7 +261,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                       {action.type === 'reply_to_comment' ? <MessageSquare size={22} /> : <Send size={22} />}
                     </div>
                     <div>
-                      <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">
+                      <h3 className="text-lg font-extrabold text-slate-800 tracking-tight">
                         {getActionName(action)}
                       </h3>
                       <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Action #{index + 1}</p>
@@ -605,7 +605,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
       </AnimatePresence>
 
       {/* Navigation Footer */}
-      <div className="flex justify-between items-center pt-10 border-t border-slate-100">
+      <div className="flex justify-between items-center pt-8 border-t border-slate-100">
         <button
           onClick={onBack}
           className="px-8 py-3.5 text-slate-500 hover:text-slate-800 font-semibold text-sm uppercase tracking-widest transition-all"

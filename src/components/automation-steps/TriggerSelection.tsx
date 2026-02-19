@@ -51,13 +51,13 @@ export default function TriggerSelection({
   };
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
       <div className="flex justify-between items-start">
         <div>
-          <h2 className="text-3xl font-extrabold text-slate-800 mb-2 font-outfit">
+          <h2 className="text-2xl font-extrabold text-slate-800 mb-1 font-outfit">
             {isCondensed ? 'Select Trigger Type' : 'Choose Your Event'}
           </h2>
-          <p className="text-slate-500 font-normal">
+          <p className="text-slate-400 font-normal text-sm">
             Select the spark that ignites this automation.
           </p>
         </div>
@@ -80,7 +80,7 @@ export default function TriggerSelection({
               whileHover={{ scale: 1.01, y: -2 }}
               whileTap={{ scale: 0.99 }}
               onClick={() => onTriggerSelect(trigger.type)}
-              className={`w-full text-left p-8 rounded-3xl transition-all relative overflow-hidden group ${isSelected
+              className={`w-full text-left p-6 rounded-3xl transition-all relative overflow-hidden group ${isSelected
                 ? 'bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 text-white shadow-xl shadow-blue-600/20'
                 : 'bg-white/50 border-2 border-slate-100 hover:border-blue-200 hover:bg-white hover:shadow-lg'
                 }`}
@@ -92,9 +92,9 @@ export default function TriggerSelection({
               )}
 
               <div className="flex items-start gap-6 relative z-10">
-                <div className={`flex items-center justify-center w-16 h-16 rounded-2xl shadow-inner transition-colors duration-300 ${isSelected ? 'bg-white/20' : 'bg-slate-50 text-blue-500'
+                <div className={`flex items-center justify-center w-14 h-14 rounded-2xl shadow-inner transition-colors duration-300 ${isSelected ? 'bg-white/20' : 'bg-slate-50 text-blue-500'
                   }`}>
-                  <Icon className={`w-8 h-8 ${isSelected ? 'text-white' : 'text-blue-500'}`} />
+                  <Icon className={`w-7 h-7 ${isSelected ? 'text-white' : 'text-blue-500'}`} />
                 </div>
 
                 <div className="flex-1">
@@ -103,11 +103,11 @@ export default function TriggerSelection({
                       }`}>
                       {index + 1}
                     </span>
-                    <h3 className={`text-xl font-extrabold tracking-tight ${isSelected ? 'text-white' : 'text-slate-800'}`}>
+                    <h3 className={`text-lg font-extrabold tracking-tight ${isSelected ? 'text-white' : 'text-slate-800'}`}>
                       {trigger.title}
                     </h3>
                   </div>
-                  <p className={`font-normal mb-4 ${isSelected ? 'text-blue-50' : 'text-slate-500'}`}>
+                  <p className={`font-normal mb-3 text-sm ${isSelected ? 'text-blue-50' : 'text-slate-400'}`}>
                     {trigger.description}
                   </p>
 
