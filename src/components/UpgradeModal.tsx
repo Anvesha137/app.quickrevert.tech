@@ -62,11 +62,12 @@ export default function UpgradeModal() {
     const premiumFeatures = [
         'Unlimited Auto DM',
         'Unlimited Comment automation',
-        '2 keyword triggers / post',
+        'Ask to follow - Growth Tool',
+        'Unlimited keyword triggers / post',
         'Live & Story automation',
         'Analytics dashboard',
-        'Lead manager',
-        'Ask to follow'
+        'Lead manager*',
+        'Priority Support'
     ];
 
     const getBaseTotal = () => {

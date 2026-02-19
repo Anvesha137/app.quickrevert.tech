@@ -184,9 +184,6 @@ const Billing = () => {
                   <span className="text-blue-400 font-black text-xs tracking-widest uppercase">Premium Plan Active</span>
                 </div>
               )}
-              <button className="flex-1 py-4 bg-white/[0.03] hover:bg-white/[0.07] text-white font-black text-xs tracking-widest rounded-xl border border-white/10 transition-all uppercase">
-                Download Receipt
-              </button>
             </div>
           </div>
         </div>
@@ -218,8 +215,22 @@ const Billing = () => {
                 </div>
                 <div className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl">
                   <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Automations</p>
-                  <p className="text-xl font-black text-white">{usage.automations}</p>
+                  <div className="flex items-baseline gap-1">
+                    <p className="text-xl font-black text-white">{usage.automations}</p>
+                    {!isPremium && <span className="text-xs text-gray-500 font-bold">/ 3</span>}
+                  </div>
                 </div>
+                {!isPremium && (
+                  <div className="col-span-2 p-4 bg-white/[0.02] border border-white/5 rounded-2xl flex justify-between items-center">
+                    <div>
+                      <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Keyword Triggers</p>
+                      <p className="text-sm font-bold text-gray-400">2 per post</p>
+                    </div>
+                    <div className="px-2 py-1 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                      <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Basic Limit</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -232,7 +243,7 @@ const Billing = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Calendar className="w-5 h-5 text-gray-400" />
-                <span className="text-xs font-black uppercase tracking-widest text-white">Billing History</span>
+                <span className="text-xs font-black uppercase tracking-widest text-black">Billing History</span>
               </div>
               <ChevronRight className="w-4 h-4 text-gray-500" />
             </div>

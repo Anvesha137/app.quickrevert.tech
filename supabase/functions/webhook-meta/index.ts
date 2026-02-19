@@ -254,6 +254,7 @@ async function processEvent(body: any) {
                 let resolvedUsername: string | null = null;
                 let profileName: string | null = null;
                 let profilePic: string | null = null;
+                let primaryActivityId: string | null = null;
 
                 // Try to fetch profile using the FIRST available token
                 const primaryAccount = accountsData?.[0];
@@ -308,7 +309,7 @@ async function processEvent(body: any) {
                     const contactId = contactIds[i] || null;
 
                     // ALWAYS LOG ACTIVITY (Source of Truth for Dashboard)
-                    await supabase.from('automation_activities').insert({
+                    const { data: loggedActivity } = await supabase.from('automation_activities').insert({
                         user_id: account.user_id,
                         instagram_account_id: account.id,
                         contact_id: contactId,
@@ -323,7 +324,9 @@ async function processEvent(body: any) {
                             sub_type: sub_type,
                             mid: msg.message?.mid || msg.postback?.mid
                         }
-                    });
+                    }).select('id').single();
+
+                    if (i === 0 && loggedActivity) primaryActivityId = loggedActivity.id;
                 }
 
                 // 3. TRIGGER AUTOMATION
@@ -351,7 +354,8 @@ async function processEvent(body: any) {
                         payload: msg,
                         entry: [legacyEntry],
                         event_id: eventId,
-                        is_basic_display: true
+                        is_basic_display: true,
+                        activity_id: primaryActivityId // Pass primary activity ID for linking
                     });
                 } else {
                     console.error("No Internal Account ID found for routing.");
@@ -387,6 +391,7 @@ async function processEvent(body: any) {
                     let resolvedUsername = change.value?.from?.username;
                     let profileName = null;
                     let profilePic = null;
+                    let primaryActivityId: string | null = null;
 
                     const primaryAccount = accountsData[0];
                     if (primaryAccount && change.value?.from?.id) {
@@ -411,7 +416,7 @@ async function processEvent(body: any) {
                         });
 
                         // 🔥 LOG COMMENT AS ACTIVITY
-                        await supabase.from('automation_activities').insert({
+                        const { data: loggedActivity } = await supabase.from('automation_activities').insert({
                             user_id: account.user_id,
                             instagram_account_id: account.id,
                             contact_id: contact?.id || null,
@@ -426,7 +431,9 @@ async function processEvent(body: any) {
                                 media_id: change.value?.media?.id,
                                 resolved: !!resolvedUsername
                             }
-                        });
+                        }).select('id').single();
+
+                        if (account.id === internalAccountId && loggedActivity) primaryActivityId = loggedActivity.id;
                     }
                 }
 
@@ -438,7 +445,8 @@ async function processEvent(body: any) {
                     sub_type: change.field,
                     payload: change,
                     entry: [legacyEntry],
-                    event_id: eventId
+                    event_id: eventId,
+                    activity_id: primaryActivityId // Pass primary activity ID for linking
                 });
             }
         }
@@ -650,7 +658,7 @@ async function routeAndTrigger(normalized: any) {
     const workflowIds = routes.map((r: any) => r.n8n_workflow_id);
     const { data: workflows, error: wfError } = await supabase
         .from('n8n_workflows')
-        .select('n8n_workflow_id, webhook_path')
+        .select('n8n_workflow_id, webhook_path, automation_id')
         .in('n8n_workflow_id', workflowIds);
 
     if (wfError) console.error("Workflow Lookup Error:", wfError);
@@ -660,6 +668,20 @@ async function routeAndTrigger(normalized: any) {
         workflows.forEach((w: any) => {
             if (w.webhook_path) pathMap.set(w.n8n_workflow_id, w.webhook_path);
         });
+
+        // 🔥 LINK ACTIVITY TO AUTOMATION ID
+        if (normalized.activity_id) {
+            const matchedWf = workflows.find((w: any) => w.automation_id && routes.some((r: any) => r.n8n_workflow_id === w.n8n_workflow_id));
+            if (matchedWf) {
+                console.log(`🔗 Linking Activity ${normalized.activity_id} to Automation ${matchedWf.automation_id}`);
+                const { error: updateError } = await supabase
+                    .from('automation_activities')
+                    .update({ automation_id: matchedWf.automation_id })
+                    .eq('id', normalized.activity_id);
+
+                if (updateError) console.error("❌ Failed to link activity to automation:", updateError);
+            }
+        }
     }
 
     for (const route of routes) {
