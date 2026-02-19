@@ -3,6 +3,8 @@ import { Instagram, Trash2, AlertCircle, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import InstagramConnectModal from './InstagramConnectModal';
+import ConfirmationModal from './ui/ConfirmationModal';
+import { toast } from 'sonner';
 
 interface InstagramAccount {
   id: string;
@@ -22,6 +24,9 @@ export default function ConnectedAccounts() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showConnectModal, setShowConnectModal] = useState(false);
+  const [isDisconnectModalOpen, setIsDisconnectModalOpen] = useState(false);
+  const [accountToDisconnect, setAccountToDisconnect] = useState<string | null>(null);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -80,23 +85,33 @@ export default function ConnectedAccounts() {
     setShowConnectModal(false);
   };
 
-  const handleDisconnect = async (accountId: string) => {
-    if (!confirm('Are you sure you want to disconnect this Instagram account?')) {
-      return;
-    }
+  const handleDisconnect = (accountId: string) => {
+    setAccountToDisconnect(accountId);
+    setIsDisconnectModalOpen(true);
+  };
 
+  const confirmDisconnect = async () => {
+    if (!accountToDisconnect) return;
+
+    setIsDisconnecting(true);
     try {
       const { error } = await supabase
         .from('instagram_accounts')
         .delete()
-        .eq('id', accountId);
+        .eq('id', accountToDisconnect);
 
       if (error) throw error;
 
-      setAccounts(accounts.filter(acc => acc.id !== accountId));
+      setAccounts(accounts.filter(acc => acc.id !== accountToDisconnect));
+      toast.success('Instagram account disconnected successfully');
+      setIsDisconnectModalOpen(false);
     } catch (err) {
       console.error('Error disconnecting account:', err);
       setError('Failed to disconnect account');
+      toast.error('Failed to disconnect account');
+    } finally {
+      setIsDisconnecting(false);
+      setAccountToDisconnect(null);
     }
   };
 
@@ -220,10 +235,10 @@ export default function ConnectedAccounts() {
                       <div className="flex items-center gap-3 mt-2">
                         <span
                           className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${account.status === 'active'
-                              ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white shadow-md'
-                              : account.status === 'expired'
-                                ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-white shadow-md'
-                                : 'bg-gradient-to-r from-red-400 to-rose-500 text-white shadow-md'
+                            ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white shadow-md'
+                            : account.status === 'expired'
+                              ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-white shadow-md'
+                              : 'bg-gradient-to-r from-red-400 to-rose-500 text-white shadow-md'
                             }`}
                         >
                           {account.status}
@@ -261,6 +276,17 @@ export default function ConnectedAccounts() {
         isOpen={showConnectModal}
         onClose={() => setShowConnectModal(false)}
         onConnect={handleModalConnect}
+      />
+
+      <ConfirmationModal
+        isOpen={isDisconnectModalOpen}
+        onClose={() => setIsDisconnectModalOpen(false)}
+        onConfirm={confirmDisconnect}
+        title="Disconnect Account"
+        message="Are you sure you want to disconnect this Instagram account? You will need to re-authenticate to use it again."
+        confirmLabel="Disconnect Now"
+        variant="danger"
+        loading={isDisconnecting}
       />
     </div>
   );

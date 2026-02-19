@@ -45,7 +45,6 @@ export default function AutomationCreate() {
   const { id } = useParams<{ id: string }>();
   const [currentStep, setCurrentStep] = useState<Step>('setup');
   const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<AutomationFormData>({
     name: '',
     triggerType: null,
@@ -62,7 +61,6 @@ export default function AutomationCreate() {
 
   const fetchAutomation = async (automationId: string) => {
     if (!user) return;
-    setLoading(true);
     try {
       const { data, error } = await supabase
         .from('automations')
@@ -85,7 +83,6 @@ export default function AutomationCreate() {
       toast.error('Failed to load automation details');
       navigate('/automation');
     } finally {
-      setLoading(false);
     }
   };
 

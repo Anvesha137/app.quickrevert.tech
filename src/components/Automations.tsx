@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Search, Plus, ChevronDown, Trash2, Edit, Loader2, Sparkles, AlertCircle } from 'lucide-react';
+import { Search, Plus, ChevronDown, Trash2, Edit, Loader2, Sparkles } from 'lucide-react';
 import { motion } from "motion/react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
 import { N8nWorkflowService } from '../lib/n8nService';
+import ConfirmationModal from './ui/ConfirmationModal';
 
 // Utility for class merging
 function cn(...inputs: ClassValue[]) {
@@ -83,7 +83,6 @@ const triggerLabels = {
 export default function Automations() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const theme = useTheme();
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [filteredAutomations, setFilteredAutomations] = useState<Automation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,6 +92,9 @@ export default function Automations() {
   const [triggerFilter, setTriggerFilter] = useState<'all' | 'post_comment' | 'story_reply' | 'user_directed_messages'>('all');
   const [hasInstagramAccount, setHasInstagramAccount] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [automationToDelete, setAutomationToDelete] = useState<{ id: string, name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     fetchAutomations();
@@ -271,10 +273,16 @@ export default function Automations() {
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) {
-      return;
-    }
+  const handleDelete = (id: string, name: string) => {
+    setAutomationToDelete({ id, name });
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!automationToDelete) return;
+
+    setIsDeleting(true);
+    const { id } = automationToDelete;
 
     try {
       // First, get the n8n workflow ID if it exists
@@ -297,7 +305,6 @@ export default function Automations() {
         } catch (n8nError) {
           console.error('Error deleting n8n workflow:', n8nError);
           // Continue with database deletion even if n8n deletion fails
-          // User can manually clean up in n8n if needed
         }
       }
 
@@ -310,9 +317,14 @@ export default function Automations() {
       if (error) throw error;
 
       setAutomations(automations.filter(auto => auto.id !== id));
+      toast.success('Automation deleted successfully');
+      setIsDeleteModalOpen(false);
     } catch (error) {
       console.error('Error deleting automation:', error);
       toast.error('Failed to delete automation. Please try again.');
+    } finally {
+      setIsDeleting(false);
+      setAutomationToDelete(null);
     }
   };
 
@@ -555,6 +567,17 @@ export default function Automations() {
           </GlassCard>
         )}
       </div>
+
+      <ConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={confirmDelete}
+        title="Delete Automation"
+        message={`Are you sure you want to delete "${automationToDelete?.name}"? This action cannot be undone and all associated workflows will be removed.`}
+        confirmLabel="Delete Permanently"
+        variant="danger"
+        loading={isDeleting}
+      />
     </div>
   );
 }
