@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 
-export type PlanId = 'basic' | 'premium' | 'gold' | 'enterprise';
+export type PlanId = 'basic' | 'premium' | 'enterprise';
 
 interface Subscription {
     id: string;
@@ -100,13 +100,12 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     // Robust detection: If it's not basic, and it has any premium-tier signal or is a paid interval, it's premium
     const isPremium = planId !== 'basic' && (
         planId.includes('premium') ||
-        planId.includes('gold') ||
         planId.includes('enterprise') ||
         planId.includes('quarterly') ||
         planId.includes('annual')
     );
 
-    const isGold = planId.includes('gold') || planId.includes('enterprise');
+    const isGold = planId.includes('enterprise');
 
     const canUseAskToFollow = isPremium;
     const dmLimit = isPremium ? 'Unlimited' : 1000;

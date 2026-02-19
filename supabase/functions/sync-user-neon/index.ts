@@ -73,11 +73,7 @@ serve(async (req) => {
       discountAmount = subData.discount_amount || 0;
 
       const planId = (subData.plan_id || '').toLowerCase();
-      if (planId.includes('gold')) {
-        packageName = 'Gold';
-      } else {
-        packageName = 'Premium';
-      }
+      packageName = 'Premium';
 
       if (planId.includes('quarterly')) {
         packageName += ' Quarterly';

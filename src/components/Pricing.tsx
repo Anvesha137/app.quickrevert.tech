@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Sparkles, Zap, Crown } from 'lucide-react';
+import { Check, Sparkles, Zap } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useUpgradeModal } from '../contexts/UpgradeModalContext';
@@ -30,24 +30,6 @@ export default function Pricing() {
             highlighted: true,
             icon: <Sparkles className="w-6 h-6 text-blue-500" />,
             buttonStyle: 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-600/30 font-extrabold',
-        },
-        {
-            name: 'GOLD',
-            id: 'gold',
-            description: 'For serious brands running revenue via IG.',
-            price: billingCycle === 'annual' ? '₹3499' : '₹4999',
-            period: '/ mo',
-            cta: 'Upgrade Gold',
-            features: [
-                'Up to 2 IG accounts',
-                'All features unlocked',
-                'Dedicated Automation Expert',
-                'Mailchimp (10k emails/mo)',
-                'Advanced workflows',
-            ],
-            highlighted: false,
-            icon: <Crown className="w-6 h-6 text-amber-500" />,
-            buttonStyle: 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white hover:from-amber-600 hover:to-yellow-600 shadow-lg shadow-amber-500/30 font-extrabold',
         },
     ];
 
@@ -102,59 +84,56 @@ export default function Pricing() {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
-                        {plans.map((plan) => (
-                            <div
-                                key={plan.name}
-                                className={`relative rounded-[2rem] bg-white border transition-all duration-500 flex flex-col group ${plan.highlighted
-                                    ? 'border-blue-500 shadow-[0_0_30px_-10px_rgba(59,130,246,0.2)] z-10 scale-[1.02]'
-                                    : 'border-gray-100 hover:border-gray-200 shadow-sm'
-                                    }`}
-                            >
-                                {plan.highlighted && (
+                    <div className="flex justify-center items-stretch">
+                        <div className="w-full max-w-md">
+                            {plans.map((plan) => (
+                                <div
+                                    key={plan.name}
+                                    className={`relative rounded-[2rem] bg-white border transition-all duration-500 flex flex-col group border-blue-500 shadow-[0_0_30px_-10px_rgba(59,130,246,0.2)] z-10 scale-[1.02]`}
+                                >
                                     <div className="absolute -top-3 left-0 right-0 mx-auto w-fit">
                                         <span className="bg-blue-600 text-[10px] text-white font-black uppercase tracking-widest px-4 py-1 rounded-full shadow-lg">
                                             MOST POPULAR
                                         </span>
                                     </div>
-                                )}
 
-                                <div className="p-6 md:p-8 flex-1">
-                                    <div className="mb-4 flex items-center justify-between">
-                                        <div className={`p-2 rounded-xl ${plan.highlighted ? 'bg-blue-500/10' : 'bg-gray-50'}`}>
-                                            {plan.icon}
+                                    <div className="p-6 md:p-8 flex-1">
+                                        <div className="mb-4 flex items-center justify-between">
+                                            <div className={`p-2 rounded-xl bg-blue-500/10`}>
+                                                {plan.icon}
+                                            </div>
+                                            <div className="flex flex-col items-end">
+                                                <span className="text-3xl font-black text-gray-900">{plan.price}</span>
+                                                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">{plan.period}</span>
+                                            </div>
                                         </div>
-                                        <div className="flex flex-col items-end">
-                                            <span className="text-3xl font-black text-gray-900">{plan.price}</span>
-                                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">{plan.period}</span>
-                                        </div>
+
+                                        <h3 className="text-xl font-black mb-1 text-gray-900">{plan.name}</h3>
+                                        <p className="text-xs text-gray-400 mb-6 font-medium leading-tight">{plan.description}</p>
+
+                                        <ul className="space-y-3 mb-6">
+                                            {plan.features.map((feature, index) => (
+                                                <li key={index} className="flex items-start gap-2">
+                                                    <div className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center bg-blue-500/20`}>
+                                                        <Check className={`w-2.5 h-2.5 text-blue-600`} />
+                                                    </div>
+                                                    <p className="text-[11px] text-gray-700 font-bold leading-tight">{feature}</p>
+                                                </li>
+                                            ))}
+                                        </ul>
                                     </div>
 
-                                    <h3 className="text-xl font-black mb-1 text-gray-900">{plan.name}</h3>
-                                    <p className="text-xs text-gray-400 mb-6 font-medium leading-tight">{plan.description}</p>
-
-                                    <ul className="space-y-3 mb-6">
-                                        {plan.features.map((feature, index) => (
-                                            <li key={index} className="flex items-start gap-2">
-                                                <div className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center ${plan.highlighted ? 'bg-blue-500/20' : 'bg-gray-100'}`}>
-                                                    <Check className={`w-2.5 h-2.5 ${plan.highlighted ? 'text-blue-600' : 'text-gray-400'}`} />
-                                                </div>
-                                                <p className="text-[11px] text-gray-700 font-bold leading-tight">{feature}</p>
-                                            </li>
-                                        ))}
-                                    </ul>
+                                    <div className="p-6 md:p-8 pt-0">
+                                        <button
+                                            onClick={openModal}
+                                            className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all duration-300 transform group-hover:scale-[1.02] active:scale-[0.98] uppercase tracking-wider ${plan.buttonStyle}`}
+                                        >
+                                            {plan.cta}
+                                        </button>
+                                    </div>
                                 </div>
-
-                                <div className="p-6 md:p-8 pt-0">
-                                    <button
-                                        onClick={openModal}
-                                        className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all duration-300 transform group-hover:scale-[1.02] active:scale-[0.98] uppercase tracking-wider ${plan.buttonStyle}`}
-                                    >
-                                        {plan.cta}
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
                     </div>
 
                     <div className="mt-8 flex flex-col md:flex-row items-center justify-between gap-4 py-6 border-t border-gray-100 mt-12">

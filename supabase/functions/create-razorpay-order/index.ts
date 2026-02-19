@@ -34,14 +34,15 @@ serve(async (req) => {
 
     // Calculate Base Amount (in paise)
     // PREMIUM: Q: 899/mo (3 months), Y: 599/mo (12 months)
-    // GOLD: Q: 4999/mo (3 months), Y: 3499/mo (12 months)
-    let amount = 0;
     if (planTier === 'gold') {
-      amount = planType === 'annual' ? (3499 * 12 * 100) : (4999 * 3 * 100);
-    } else {
-      // Default to Premium
-      amount = planType === 'annual' ? (599 * 12 * 100) : (899 * 3 * 100);
+      return new Response(
+        JSON.stringify({ error: "The Gold Tier is no longer available. Please select the Premium plan." }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
     }
+
+    // Default to Premium
+    const amount = planType === 'annual' ? (599 * 12 * 100) : (899 * 3 * 100);
     const currency = 'INR';
 
     // Coupon Logic

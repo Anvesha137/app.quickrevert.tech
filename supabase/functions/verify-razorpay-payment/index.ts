@@ -123,12 +123,7 @@ serve(async (req) => {
     }
 
     // Default price before discount
-    let baseAmountRs = 0;
-    if (planTier === 'gold') {
-      baseAmountRs = planType === 'annual' ? (3499 * 12) : (4999 * 3);
-    } else {
-      baseAmountRs = planType === 'annual' ? (599 * 12) : (899 * 3);
-    }
+    const baseAmountRs = planType === 'annual' ? (599 * 12) : (899 * 3);
 
     if (isFree) {
       amountPaidRs = 0;
@@ -223,7 +218,7 @@ serve(async (req) => {
         }
 
         // Determine Package Name 
-        let packageName = planTier === 'gold' ? 'Gold' : 'Premium';
+        let packageName = 'Premium';
         if (planType === 'quarterly') packageName += ' Quarterly';
         if (planType === 'annual') packageName += ' Annual';
 

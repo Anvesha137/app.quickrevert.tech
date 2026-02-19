@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Check, Zap, Tag, Calendar, CreditCard, ChevronRight, RefreshCw, Plus } from 'lucide-react';
+import { Zap, Calendar, ChevronRight } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useUpgradeModal } from '../contexts/UpgradeModalContext';
@@ -94,7 +94,6 @@ const Billing = () => {
   const getPlanName = (id?: string) => {
     if (!id || id === 'basic') return 'BASIC';
     const lowerId = id.toLowerCase();
-    if (lowerId.includes('gold')) return 'GOLD';
     if (lowerId.includes('enterprise')) return 'ENTERPRISE';
     if (lowerId.includes('premium')) return 'PREMIUM';
     return lowerId.toUpperCase(); // Fallback for things like 'QUARTERLY'
@@ -118,12 +117,10 @@ const Billing = () => {
   const planId = (subscription?.plan_id || 'basic').toLowerCase();
   const isPremium = planId !== 'basic' && (
     planId.includes('premium') ||
-    planId.includes('gold') ||
     planId.includes('enterprise') ||
     planId.includes('quarterly') ||
     planId.includes('annual')
   );
-  const isGold = planId.includes('gold') || planId.includes('enterprise');
   const planLimit = isPremium ? 'Unlimited' : 1000;
 
   return (
@@ -174,13 +171,19 @@ const Billing = () => {
             </div>
 
             <div className="mt-auto flex flex-col sm:flex-row gap-4">
-              <button
-                onClick={openUpgradeModal}
-                className="flex-1 py-4 bg-white text-black font-black text-xs tracking-widest rounded-xl hover:bg-gray-100 transition-all uppercase flex items-center justify-center gap-2"
-              >
-                {isPremium ? 'Upgrade to GOLD' : 'Upgrade Plan'}
-                <ChevronRight className="w-4 h-4" />
-              </button>
+              {!isPremium ? (
+                <button
+                  onClick={openUpgradeModal}
+                  className="flex-1 py-4 bg-white text-black font-black text-xs tracking-widest rounded-xl hover:bg-gray-100 transition-all uppercase flex items-center justify-center gap-2"
+                >
+                  Upgrade Plan
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              ) : (
+                <div className="flex-1 py-4 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center justify-center gap-2">
+                  <span className="text-blue-400 font-black text-xs tracking-widest uppercase">Premium Plan Active</span>
+                </div>
+              )}
               <button className="flex-1 py-4 bg-white/[0.03] hover:bg-white/[0.07] text-white font-black text-xs tracking-widest rounded-xl border border-white/10 transition-all uppercase">
                 Download Receipt
               </button>

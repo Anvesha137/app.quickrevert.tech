@@ -1,10 +1,9 @@
-import { X, CheckCircle2, Sparkles, Crown } from 'lucide-react';
+import { X, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useUpgradeModal } from '../contexts/UpgradeModalContext';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { useSubscription } from '../contexts/SubscriptionContext';
 
 declare global {
     interface Window {
@@ -12,30 +11,21 @@ declare global {
     }
 }
 
-type PlanTier = 'premium' | 'gold';
+type PlanTier = 'premium';
 
 export default function UpgradeModal() {
     const { isOpen, closeModal, openCelebration } = useUpgradeModal();
     const { user } = useAuth();
-    const { isPremium, isGold } = useSubscription();
-    const [planTier, setPlanTier] = useState<PlanTier>('premium');
+    const [planTier] = useState<PlanTier>('premium');
     const [billingCycle, setBillingCycle] = useState<'annual' | 'quarterly'>('annual');
     const [loading, setLoading] = useState(false);
 
-    // Default to Gold if already Premium
     useEffect(() => {
         if (isOpen) {
-            if (isPremium && !isGold) {
-                setPlanTier('gold');
-            } else {
-                setPlanTier('premium');
-            }
             setStep(1);
         }
-    }, [isOpen, isPremium, isGold]);
+    }, [isOpen]);
 
-    // Step 1: Select Plan
-    // Step 2: Enter Details (Insta ID, Coupon)
     const [step, setStep] = useState<1 | 2>(1);
     const [instagramHandle, setInstagramHandle] = useState('');
     const [couponCode, setCouponCode] = useState('');
@@ -52,20 +42,8 @@ export default function UpgradeModal() {
         'Ask to follow'
     ];
 
-    const goldFeatures = [
-        'Up to 2 IG accounts',
-        'All features unlocked',
-        'Dedicated Automation Expert',
-        'Mailchimp (10k emails/mo)',
-        'Advanced workflows'
-    ];
-
     const getPrice = () => {
-        if (planTier === 'premium') {
-            return billingCycle === 'annual' ? 599 : 899;
-        } else {
-            return billingCycle === 'annual' ? 3499 : 4999;
-        }
+        return billingCycle === 'annual' ? 599 : 899;
     };
 
     const getTotalPayable = () => {
@@ -147,7 +125,7 @@ export default function UpgradeModal() {
                 amount: data.amount,
                 currency: data.currency,
                 name: "QuickRevert",
-                description: `${planTier.toUpperCase()} Plan - ${billingCycle === 'annual' ? 'Annual' : 'Quarterly'}`,
+                description: `PREMIUM Plan - ${billingCycle === 'annual' ? 'Annual' : 'Quarterly'}`,
                 image: "/Logo.png",
                 order_id: data.id,
                 notes: {
@@ -182,7 +160,7 @@ export default function UpgradeModal() {
                     email: user?.email,
                 },
                 theme: {
-                    color: planTier === 'gold' ? "#D97706" : "#2563EB"
+                    color: "#2563EB"
                 }
             };
 
@@ -210,14 +188,10 @@ export default function UpgradeModal() {
                         <X size={24} />
                     </button>
                     <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                        Upgrade to <span className={planTier === 'gold' ? 'text-amber-600' : 'text-blue-600'}>
-                            {planTier === 'gold' ? 'Gold' : 'Premium'}
-                        </span>
+                        Upgrade to <span className="text-blue-600">Premium</span>
                     </h2>
                     <p className="text-gray-500 text-sm mt-1">
-                        {planTier === 'gold'
-                            ? 'For serious brands running revenue via IG.'
-                            : 'For creators and brands ready to scale.'}
+                        For creators and brands ready to scale.
                     </p>
                 </div>
 
@@ -226,35 +200,11 @@ export default function UpgradeModal() {
                     {step === 1 && (
                         <div className="animate-in fade-in slide-in-from-right-4 duration-300">
 
-                            {/* Tier Selection */}
-                            <div className="flex gap-2 mb-6">
-                                <button
-                                    onClick={() => setPlanTier('premium')}
-                                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all ${planTier === 'premium'
-                                        ? 'border-blue-600 bg-blue-50 text-blue-700'
-                                        : 'border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-200'
-                                        }`}
-                                >
-                                    <Sparkles className="w-4 h-4" />
-                                    <span className="font-bold">Premium</span>
-                                </button>
-                                <button
-                                    onClick={() => setPlanTier('gold')}
-                                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all ${planTier === 'gold'
-                                        ? 'border-amber-600 bg-amber-50 text-amber-700'
-                                        : 'border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-200'
-                                        }`}
-                                >
-                                    <Crown className="w-4 h-4" />
-                                    <span className="font-bold">Gold</span>
-                                </button>
-                            </div>
-
                             {/* Features Grid */}
                             <div className="grid grid-cols-1 gap-y-2 mb-8 bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
-                                {(planTier === 'gold' ? goldFeatures : premiumFeatures).map((feature, idx) => (
+                                {premiumFeatures.map((feature, idx) => (
                                     <div key={idx} className="flex items-center gap-2.5">
-                                        <CheckCircle2 className={`w-4 h-4 flex-shrink-0 ${planTier === 'gold' ? 'text-amber-500' : 'text-blue-500'}`} />
+                                        <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-blue-500" />
                                         <span className="text-gray-700 font-medium text-xs">{feature}</span>
                                     </div>
                                 ))}
@@ -286,7 +236,7 @@ export default function UpgradeModal() {
                             </div>
 
                             {/* Pricing Card */}
-                            <div className={`rounded-2xl p-6 text-center mb-6 border ${planTier === 'gold' ? 'bg-amber-50 border-amber-100' : 'bg-blue-50 border-blue-100'}`}>
+                            <div className="rounded-2xl p-6 text-center mb-6 border bg-blue-50 border-blue-100">
                                 <p className="text-gray-500 font-medium text-sm mb-1 uppercase tracking-wider">
                                     {billingCycle === 'annual' ? 'ANNUAL BILLING' : 'QUARTERLY BILLING'}
                                 </p>
@@ -296,7 +246,7 @@ export default function UpgradeModal() {
                                     </span>
                                     <span className="text-xl text-gray-500 font-medium">/mo</span>
                                 </div>
-                                <p className={`font-bold text-sm mt-2 ${planTier === 'gold' ? 'text-amber-700' : 'text-blue-700'}`}>
+                                <p className="font-bold text-sm mt-2 text-blue-700">
                                     Total: ₹{getTotalPayable().toLocaleString()}
                                 </p>
                             </div>
@@ -304,10 +254,7 @@ export default function UpgradeModal() {
                             {/* CTA Button */}
                             <button
                                 onClick={handleNextStep}
-                                className={`w-full text-white text-lg font-bold py-4 rounded-xl shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] ${planTier === 'gold'
-                                    ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20'
-                                    : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'
-                                    }`}
+                                className="w-full text-white text-lg font-bold py-4 rounded-xl shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] bg-blue-600 hover:bg-blue-700 shadow-blue-600/20"
                             >
                                 Next
                             </button>
@@ -359,10 +306,7 @@ export default function UpgradeModal() {
                                 <button
                                     onClick={handleUpgrade}
                                     disabled={loading}
-                                    className={`flex-1 text-white text-lg font-bold py-4 rounded-xl shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed ${planTier === 'gold'
-                                        ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20'
-                                        : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'
-                                        }`}
+                                    className="flex-1 text-white text-lg font-bold py-4 rounded-xl shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700 shadow-blue-600/20"
                                 >
                                     {loading ? 'Processing...' : 'Proceed to Pay'}
                                 </button>
