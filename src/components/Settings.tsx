@@ -232,7 +232,8 @@ export default function Settings() {
 
       // Check the success flag from my new function logic
       if (data && data.success === false) {
-        throw new Error(data.error || 'Server reported a failure');
+        const errorDetail = data.details ? JSON.stringify(data.details) : '';
+        throw new Error(`${data.error}${errorDetail ? ': ' + errorDetail : ''}`);
       }
 
       toast.success('Account deleted successfully. Logging you out...');

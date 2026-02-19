@@ -1,5 +1,4 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Client } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,95 +6,95 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
-  // Handle CORS
+  // 1. Handle CORS Preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
-  const neonDbUrl = Deno.env.get('NEON_DB_URL');
-
-  // Helper to return error information inside a 200 response to ensure frontend can read the body
-  const returnError = (msg: string, details: any = null, status = 200) => {
-    return new Response(
-      JSON.stringify({ success: false, error: msg, details }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status }
-    );
-  };
+  console.log("Delete Account Function Triggered");
 
   try {
-    // 1. Authenticate User
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    const neonDbUrl = Deno.env.get('NEON_DB_URL');
+
+    // 2. Validate Request
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return returnError('Missing Authorization header');
+      console.error("No Authorization header");
+      return new Response(
+        JSON.stringify({ success: false, error: 'Authorization header missing' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    if (!supabaseUrl || !anonKey) {
-      return returnError('Internal configuration error: Missing platform keys (SUPABASE_URL/ANON_KEY)');
-    }
-
+    // 3. Initialize User Client
     const supabaseClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } }
     });
 
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
-
     if (authError || !user) {
-      return returnError('Unauthorized: User not found or session expired', authError);
+      console.error("Auth verification failed:", authError);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Authentication failed', details: authError }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const userId = user.id;
-    const userEmail = user.email;
-    console.log(`Authenticated request for user: ${userId} (${userEmail})`);
+    console.log(`Verified user ${userId}. Proceeding with deletion...`);
 
-    // 2. Update Neon DB (Soft Delete) - Non-fatal
-    if (!neonDbUrl) {
-      console.warn("NEON_DB_URL is missing. Skipping external database update.");
-    } else {
-      const pgClient = new Client(neonDbUrl);
+    // 4. Update Neon DB (Soft Delete) - Wrapped in isolated try/catch
+    if (neonDbUrl) {
       try {
+        const { Client } = await import("https://deno.land/x/postgres@v0.17.0/mod.ts");
+        const pgClient = new Client(neonDbUrl);
         await pgClient.connect();
         await pgClient.queryArray(`
           UPDATE users 
-          SET deleted = TRUE, 
-              status = 'inactive',
-              last_active = NOW() + INTERVAL '5 hours 30 minutes' 
+          SET deleted = TRUE, status = 'inactive' 
           WHERE id = $1 OR email = $2
-        `, [userId, userEmail || 'no-email-provided']);
-        console.log("Neon DB soft delete completed.");
-      } catch (neonError: any) {
-        console.error('Neon DB Update Error (Non-Fatal):', neonError.message);
-        // We continue, but we can log this for debugging
-      } finally {
-        try {
-          await pgClient.end();
-        } catch (e) { }
+        `, [userId, user.email]);
+        await pgClient.end();
+        console.log("Neon DB soft-delete successful.");
+      } catch (neonErr: any) {
+        console.warn("Neon DB update failed (skipping):", neonErr.message);
       }
     }
 
-    // 3. Delete from Supabase Auth (Hard Delete) - FATAL
+    // 5. Hard Delete from Supabase Auth - The Critical Step
     if (!serviceRoleKey) {
-      return returnError('Server Misconfiguration: SUPABASE_SERVICE_ROLE_KEY is missing on the server.');
+      console.error("Missing SUPABASE_SERVICE_ROLE_KEY");
+      return new Response(
+        JSON.stringify({ success: false, error: 'Server secret missing (SERVICE_ROLE_KEY)' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
     if (deleteError) {
-      return returnError('Supabase Auth purge failed', deleteError);
+      console.error("Supabase Admin delete error:", deleteError);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Supabase deletion failed', details: deleteError }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    console.log(`Account ${userId} successfully purged from Supabase.`);
-
+    console.log("User successfully deleted.");
     return new Response(
       JSON.stringify({ success: true, message: 'Account deleted successfully' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error: any) {
-    console.error("Global Catch-All Error:", error.message);
-    return returnError('A critical server error occurred during deletion', error.message);
+  } catch (err: any) {
+    console.error("Top-level function crash:", err.message);
+    return new Response(
+      JSON.stringify({ success: false, error: 'Critical function error: ' + err.message }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 });
