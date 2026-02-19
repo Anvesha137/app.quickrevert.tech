@@ -16,8 +16,9 @@ import Settings from './components/Settings';
 import Pricing from './components/Pricing';
 import UpgradeModal from './components/UpgradeModal';
 import CelebrationModal from './components/CelebrationModal';
-import { SubscriptionProvider } from './contexts/SubscriptionContext';
-import { isSupabaseConfigured } from './lib/supabase';
+import PlanBanner from './components/PlanBanner';
+import { SubscriptionProvider, useSubscription } from './contexts/SubscriptionContext';
+
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -25,7 +26,7 @@ function AppContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600">Loading...</p>
@@ -53,43 +54,39 @@ function AppContent() {
 }
 
 function AuthenticatedApp() {
+  const { isPremium } = useSubscription();
+
   return (
-    <div className="min-h-screen bg-gray-100 flex font-outfit">
-      {/* Sidebar */}
-      <div className="hidden md:flex flex-col w-64 flex-shrink-0 p-4 h-screen sticky top-0">
+    <div className="min-h-screen bg-slate-50">
+      <div className={`transition-all duration-300 ${!isPremium ? 'pt-6' : ''}`}>
+        <PlanBanner />
         <Sidebar />
-      </div>
-
-      <div className="flex-1 flex flex-col min-w-0">
-
-        <main className="flex-1 p-8">
-          <div>
-            <MobileNav />
-            <ErrorBoundary>
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/dashboard" element={<Navigate to="/" replace />} />
-                <Route path="/automation" element={<Automations />} />
-                <Route path="/automation/create" element={<AutomationCreate />} />
-                <Route path="/automation/edit/:id" element={<AutomationCreate />} />
-                <Route path="/contacts" element={<Contacts />} />
-                <Route path="/billing" element={<Billing />} />
-                <Route path="/connect-accounts" element={<ConnectedAccounts />} />
-                <Route path="/settings" element={<Settings />} />
-              </Routes>
-            </ErrorBoundary>
-          </div>
-        </main>
+        <MobileNav />
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><Dashboard /></div>} />
+            <Route path="/dashboard" element={<Navigate to="/" replace />} />
+            <Route path="/automation" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><Automations /></div>} />
+            <Route path="/automation/create" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><AutomationCreate /></div>} />
+            <Route path="/automation/edit/:id" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><AutomationCreate /></div>} />
+            <Route path="/contacts" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><Contacts /></div>} />
+            <Route path="/billing" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><Billing /></div>} />
+            <Route path="/connect-accounts" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><ConnectedAccounts /></div>} />
+            <Route path="/settings" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><Settings /></div>} />
+          </Routes>
+        </ErrorBoundary>
       </div>
     </div>
   );
 }
 
 
+import { isSupabaseConfigured } from './lib/supabase';
+
 function App() {
   if (!isSupabaseConfigured()) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6">
           <div className="flex items-center justify-center w-12 h-12 bg-red-100 rounded-full mx-auto mb-4">
             <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">

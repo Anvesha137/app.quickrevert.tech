@@ -1,13 +1,5 @@
 import { useState, useEffect } from 'react';
-import {
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-} from "recharts";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -38,6 +30,7 @@ export default function DMsChart() {
 
             if (error) throw error;
 
+            // Process data for the chart
             const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
             const chartData = [];
 
@@ -60,48 +53,68 @@ export default function DMsChart() {
     };
 
     return (
-        <div className="rounded-2xl overflow-hidden shadow-sm border border-gray-100">
-            {/* Dark chart area */}
-            <div className="bg-[#1b1f3b] p-5 pb-4">
-                <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={data} barCategoryGap="40%">
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
-                        <XAxis
-                            dataKey="name"
-                            tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 10 }}
-                            axisLine={false}
-                            tickLine={false}
-                        />
-                        <YAxis
-                            tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 10 }}
-                            axisLine={false}
-                            tickLine={false}
-                            width={32}
-                            allowDecimals={false}
-                        />
-                        <Tooltip
-                            contentStyle={{
-                                background: "#2d3361",
-                                border: "none",
-                                borderRadius: 8,
-                                color: "#fff",
-                                fontSize: 12,
-                            }}
-                            cursor={{ fill: "rgba(255,255,255,0.04)" }}
-                        />
-                        <Bar dataKey="value" fill="#22d3ee" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                </ResponsiveContainer>
+        <div className="rounded-2xl backdrop-blur-xl bg-white/60 border border-white/40 p-6 shadow-xl">
+            <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
+                    <span className="text-white text-lg font-bold">📈</span>
+                </div>
+                <div>
+                    <h3 className="font-bold text-lg text-gray-800">DMs Sent per Day</h3>
+                    <p className="text-sm text-gray-600">Last 7 days activity</p>
+                </div>
             </div>
 
-            {/* White footer area */}
-            <div className="bg-white px-5 py-4 min-h-[100px] flex flex-col justify-center">
-                <p className="text-sm font-bold text-gray-800 uppercase tracking-wider">DMs Sent per Day</p>
-                <p className="text-xs text-gray-400 mt-0.5 font-medium">Last 7 days real-time activity</p>
-                <div className="h-px bg-gray-100 my-3" />
-                <p className="text-xs text-gray-500 font-medium">
-                    {loading ? 'Crunching data...' : `${data.reduce((acc, curr) => acc + curr.value, 0)} messages total`}
-                </p>
+            <div className="h-64 w-full">
+                {loading ? (
+                    <div className="h-full w-full flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                    </div>
+                ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={data}>
+                            <defs>
+                                <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.3} />
+                                    <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                            <XAxis
+                                dataKey="name"
+                                stroke="#9ca3af"
+                                tick={{ fontSize: 12, fontWeight: 500 }}
+                                axisLine={false}
+                                tickLine={false}
+                                dy={10}
+                            />
+                            <YAxis
+                                stroke="#9ca3af"
+                                tick={{ fontSize: 12, fontWeight: 500 }}
+                                axisLine={false}
+                                tickLine={false}
+                                dx={-10}
+                                allowDecimals={false}
+                            />
+                            <Tooltip
+                                contentStyle={{
+                                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                                    backdropFilter: 'blur(10px)',
+                                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                                    borderRadius: '12px',
+                                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+                                }}
+                            />
+                            <Area
+                                type="monotone"
+                                dataKey="value"
+                                stroke="#8B5CF6"
+                                strokeWidth={3}
+                                fill="url(#colorValue)"
+                                animationDuration={1500}
+                            />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                )}
             </div>
         </div>
     );
