@@ -211,8 +211,17 @@ export default function Settings() {
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error: any) {
       console.error('Error saving settings:', error);
-      const errorMsg = error.message || error.details || 'Unknown error';
-      toast.error(`Failed to save settings: ${errorMsg}. Please verify if you have run the database migrations using "supabase db push".`);
+
+      let errorMsg = error.message || error.details || 'Unknown error';
+
+      // Specifically handle username unique constraint violation
+      if (errorMsg.includes('profiles_username_key')) {
+        errorMsg = 'This username is already taken. Please choose another one.';
+      } else if (errorMsg.includes('duplicate key value')) {
+        errorMsg = 'This information is already in use by another account.';
+      }
+
+      toast.error(`Save Failed: ${errorMsg}`);
     } finally {
       setLoading(false);
     }
