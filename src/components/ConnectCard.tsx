@@ -60,12 +60,8 @@ export function ConnectCard({ username, isConnected }: ConnectCardProps) {
 
             <style>{`
         @keyframes wave-jump {
-          0%   { transform: translateY(0px) rotate(0deg); }
-          20%  { transform: translateY(-6px) rotate(-10deg); }
-          40%  { transform: translateY(-10px) rotate(10deg); }
-          60%  { transform: translateY(-6px) rotate(-8deg); }
-          80%  { transform: translateY(-2px) rotate(5deg); }
-          100% { transform: translateY(0px) rotate(0deg); }
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-10px); }
         }
       `}</style>
         </div>
