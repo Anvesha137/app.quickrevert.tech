@@ -15,25 +15,18 @@ serve(async (req) => {
   try {
     const { planTier, planType, instagramHandle, couponCode } = await req.json()
 
-    // Initialize Razorpay
     const key_id = Deno.env.get('RAZORPAY_KEY_ID');
     const key_secret = Deno.env.get('RAZORPAY_KEY_SECRET');
 
     if (!key_id || !key_secret) {
-      console.error("Missing Razorpay keys");
       return new Response(
         JSON.stringify({ error: "Server misconfiguration: Missing Razorpay keys" }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
       );
     }
 
-    const razorpay = new Razorpay({
-      key_id,
-      key_secret,
-    });
+    const razorpay = new Razorpay({ key_id, key_secret });
 
-    // Calculate Base Amount (in paise)
-    // PREMIUM: Q: 899/mo (3 months), Y: 599/mo (12 months)
     if (planTier === 'gold') {
       return new Response(
         JSON.stringify({ error: "The Gold Tier is no longer available. Please select the Premium plan." }),
@@ -41,76 +34,59 @@ serve(async (req) => {
       );
     }
 
-    // Default to Premium
-    const amount = planType === 'annual' ? (599 * 12 * 100) : (899 * 3 * 100);
+    // Base amount in paise: Premium Annual = 599*12, Quarterly = 899*3
+    let amount = planType === 'annual' ? (599 * 12 * 100) : (899 * 3 * 100);
     const currency = 'INR';
 
-    // Coupon Logic
+    // Coupon Logic — check Neon DB using actual column names
     if (couponCode) {
-      const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-
-      if (supabaseUrl && supabaseKey) {
+      const neonDbUrl = Deno.env.get('NEON_DB_URL');
+      if (neonDbUrl) {
+        const client = new Client(neonDbUrl);
         try {
-          const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
-          const supabaseClient = createClient(supabaseUrl, supabaseKey);
+          await client.connect();
 
-          // Check coupon in Supabase promo_codes table
-          const { data: coupon, error: couponError } = await supabaseClient
-            .from('promo_codes')
-            .select('*')
-            .ilike('code', couponCode.trim())
-            .eq('status', 'active')
-            .maybeSingle();
+          const result = await client.queryObject(`
+            SELECT id, promo_code, discount_percentage, max_usage,
+                   total_usage_tilldate, expiry_date
+            FROM promo_codes
+            WHERE LOWER(promo_code) = LOWER($1)
+            LIMIT 1
+          `, [couponCode.trim()]);
 
-          if (couponError) throw couponError;
-
-          if (coupon) {
+          if (result.rows.length > 0) {
+            const coupon = result.rows[0] as any;
             const now = new Date();
-            const expiresAt = new Date(coupon.expires_at);
+            const expiresAt = new Date(coupon.expiry_date);
 
-            if (expiresAt >= now && coupon.used_count < coupon.usage_limit) {
-              let discountPaise = 0;
-
-              // Apply Discount
-              if (coupon.pack_type === 'starter') {
-                // Starter pack is treated as 100% OFF (Free)
-                discountPaise = amount;
-              } else if (coupon.discount_amount > 0) {
-                // Flat discount in rupees
-                discountPaise = coupon.discount_amount * 100;
-              } else if (coupon.discount_percentage > 0) {
-                // Percentage based
-                discountPaise = Math.floor(amount * (coupon.discount_percentage / 100));
-              }
-
-              let finalAmount = amount - discountPaise;
+            if (expiresAt >= now && coupon.total_usage_tilldate < coupon.max_usage) {
+              const discountPct = coupon.discount_percentage || 0;
+              const discountPaise = Math.floor(amount * (discountPct / 100));
+              const finalAmount = amount - discountPaise;
 
               if (finalAmount <= 0) {
-                console.log(`Coupon Applied: ${couponCode}, 100% OFF. Returning free status.`);
+                console.log(`Coupon ${couponCode}: 100% OFF → free`);
                 return new Response(
                   JSON.stringify({ free: true, amount: 0 }),
                   { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
                 );
               }
 
-              // Enforce minimum ₹1 (100 paise) for Razorpay if not free
               amount = Math.max(100, finalAmount);
-              console.log(`Coupon Applied: ${couponCode}, Discount: ${discountPaise}, Final: ${amount}`);
+              console.log(`Coupon ${couponCode}: ${discountPct}% off, final=${amount} paise`);
             } else {
-              console.log(`Coupon Expired or Max Usage Reached: ${couponCode}`);
+              console.log(`Coupon ${couponCode}: expired or max usage reached`);
             }
           } else {
-            console.log(`Invalid Coupon: ${couponCode}`);
+            console.log(`Coupon ${couponCode}: not found in Neon DB`);
           }
-        } catch (supaError) {
-          console.error("Supabase Promo Check Error:", supaError);
+        } catch (neonError) {
+          console.error("Neon DB Coupon Check Error:", neonError);
+        } finally {
+          await client.end();
         }
-      } else {
-        console.warn("Supabase credentials not set, skipping coupon check");
       }
     }
-
 
     const options = {
       amount,
@@ -128,7 +104,7 @@ serve(async (req) => {
         JSON.stringify(order),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
-    } catch (rzpError) {
+    } catch (rzpError: any) {
       console.error("Razorpay API Error:", rzpError);
       return new Response(
         JSON.stringify({ error: `Razorpay Error: ${rzpError.message || JSON.stringify(rzpError)}` }),
@@ -136,7 +112,7 @@ serve(async (req) => {
       )
     }
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("General Error:", error);
     return new Response(
       JSON.stringify({ error: error.message }),

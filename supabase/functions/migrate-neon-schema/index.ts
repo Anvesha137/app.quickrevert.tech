@@ -21,6 +21,22 @@ serve(async (req) => {
     await client.connect();
 
     try {
+      // Create promo_codes table in Neon DB
+      await client.queryArray(`
+        CREATE TABLE IF NOT EXISTS promo_codes (
+          id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+          code TEXT UNIQUE NOT NULL,
+          discount_percentage INTEGER DEFAULT 0,
+          discount_amount INTEGER DEFAULT 0,
+          pack_type TEXT DEFAULT 'standard',
+          usage_limit INTEGER DEFAULT 100,
+          used_count INTEGER DEFAULT 0,
+          status TEXT DEFAULT 'active',
+          expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+          generated_for TEXT
+        );
+      `);
+
       // Add 'deleted' column
       await client.queryArray(`
         ALTER TABLE users 

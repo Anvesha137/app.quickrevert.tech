@@ -6,15 +6,14 @@ import {
   Link2,
   Settings as SettingsIcon,
   LogOut,
-  User,
-  Headset
+  User
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import UsageStats from './UsageStats';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
-import { useUpgradeModal } from '../contexts/UpgradeModalContext';
+
 
 export const navigation = [
   { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
@@ -30,7 +29,6 @@ export default function Sidebar() {
   const { user, signOut } = useAuth();
   const { displayName } = useTheme();
   const { isPremium } = useSubscription();
-  const { openModal } = useUpgradeModal();
 
   const getUserName = () => {
     return displayName || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
@@ -88,28 +86,6 @@ export default function Sidebar() {
       {/* Usage Stats Section */}
       <div className="mt-auto space-y-2 -mx-1">
         <UsageStats />
-        {!isPremium && (
-          <div className="px-4">
-            <button
-              onClick={openModal}
-              className={`w-full py-2.5 px-4 rounded-xl text-white text-sm font-bold shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 group bg-gradient-to-r from-red-500 to-rose-600 shadow-red-500/40 hover:shadow-red-500/60`}
-            >
-              <Zap className="w-4 h-4 text-white fill-white group-hover:animate-pulse" />
-              Upgrade to Premium
-            </button>
-          </div>
-        )}
-        <div className="px-4">
-          <a
-            href="https://quickrevert.tech/contact"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-bold shadow-lg shadow-green-500/30 hover:shadow-green-500/50 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 group"
-          >
-            <Headset className="w-4 h-4 text-white group-hover:animate-bounce" />
-            Contact Support
-          </a>
-        </div>
       </div>
 
       {/* User & Sign Out Section */}

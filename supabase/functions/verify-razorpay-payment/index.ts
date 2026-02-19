@@ -25,45 +25,59 @@ serve(async (req) => {
         )
       }
 
-      const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-      const supabaseClient = createClient(supabaseUrl, supabaseKey);
+      const neonDbUrlFree = Deno.env.get('NEON_DB_URL') ?? '';
+      if (!neonDbUrlFree) {
+        return new Response(
+          JSON.stringify({ error: 'Server configuration error: Neon not configured' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
 
+      const freeClient = new Client(neonDbUrlFree);
       try {
-        const { data: coupon, error: couponError } = await supabaseClient
-          .from('promo_codes')
-          .select('*')
-          .ilike('code', couponCode.trim())
-          .eq('status', 'active')
-          .maybeSingle();
+        await freeClient.connect();
+        const freeResult = await freeClient.queryObject(`
+          SELECT id, promo_code, discount_percentage, max_usage,
+                 total_usage_tilldate, expiry_date
+          FROM promo_codes
+          WHERE LOWER(promo_code) = LOWER($1)
+          LIMIT 1
+        `, [couponCode.trim()]);
 
-        if (couponError || !coupon) {
+        if (freeResult.rows.length === 0) {
           return new Response(
             JSON.stringify({ error: 'Invalid or Expired Coupon' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
 
-        // Validate 100% off (Starter packs or explicit 100% discount)
-        const isActuallyFree = coupon.pack_type === 'starter' || coupon.discount_percentage === 100;
+        const coupon = freeResult.rows[0] as any;
 
-        if (!isActuallyFree) {
+        // Check expiry
+        if (new Date(coupon.expiry_date) < new Date()) {
+          return new Response(
+            JSON.stringify({ error: 'Coupon has expired' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        // Validate 100% off
+        if (coupon.discount_percentage !== 100) {
           return new Response(
             JSON.stringify({ error: 'Coupon is not 100% off' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
 
-        // Increment usage count in Supabase
-        await supabaseClient
-          .from('promo_codes')
-          .update({ used_count: coupon.used_count + 1 })
-          .eq('id', coupon.id);
+        // Increment total_usage_tilldate in Neon DB
+        await freeClient.queryObject(
+          `UPDATE promo_codes SET total_usage_tilldate = total_usage_tilldate + 1 WHERE id = $1`,
+          [coupon.id]
+        );
+        console.log(`Coupon ${couponCode} usage incremented in Neon DB (free flow).`);
 
-        console.log(`Coupon ${couponCode} usage incremented in Supabase.`);
-
-      } catch (e) {
-        throw e;
+      } finally {
+        await freeClient.end();
       }
 
     } else {
@@ -111,15 +125,29 @@ serve(async (req) => {
     let amountPaidRs = 0;
     let discountRs = 0;
 
-    // Fetch coupon details if any to calculate discount
+    // Fetch coupon details from Neon DB if any to calculate discount
     let couponData = null;
     if (couponCode) {
-      const { data: c } = await supabaseClient
-        .from('promo_codes')
-        .select('*')
-        .ilike('code', couponCode.trim())
-        .maybeSingle();
-      couponData = c;
+      const neonDbUrl2 = Deno.env.get('NEON_DB_URL');
+      if (neonDbUrl2) {
+        const couponClient = new Client(neonDbUrl2);
+        try {
+          await couponClient.connect();
+          const couponResult = await couponClient.queryObject(`
+            SELECT id, discount_percentage, max_usage, total_usage_tilldate
+            FROM promo_codes
+            WHERE LOWER(promo_code) = LOWER($1)
+            LIMIT 1
+          `, [couponCode.trim()]);
+          if (couponResult.rows.length > 0) {
+            couponData = couponResult.rows[0];
+          }
+        } catch (e) {
+          console.error('Error fetching coupon from Neon:', e);
+        } finally {
+          await couponClient.end();
+        }
+      }
     }
 
     // Default price before discount
@@ -130,13 +158,9 @@ serve(async (req) => {
       discountRs = baseAmountRs;
     } else {
       if (couponData) {
-        if (couponData.pack_type === 'starter') {
-          discountRs = baseAmountRs;
-        } else if (couponData.discount_amount > 0) {
-          discountRs = couponData.discount_amount;
-        } else if (couponData.discount_percentage > 0) {
-          discountRs = Math.floor(baseAmountRs * (couponData.discount_percentage / 100));
-        }
+        // Neon promo_codes only has discount_percentage
+        const discountPct = (couponData as any).discount_percentage || 0;
+        discountRs = Math.floor(baseAmountRs * (discountPct / 100));
       }
       // Allow 0 Rs if coupon covers 100%
       amountPaidRs = Math.max(0, baseAmountRs - discountRs);
@@ -313,22 +337,17 @@ serve(async (req) => {
         `;
 
 
-        // Increment Coupon Usage (for paid transactions) in Supabase
+        // Increment Coupon Usage in Neon DB (for paid transactions)
         if (couponCode) {
-          await supabaseClient
-            .from('promo_codes')
-            .select('id, used_count')
-            .ilike('code', couponCode.trim())
-            .maybeSingle()
-            .then(async ({ data: coupon }) => {
-              if (coupon) {
-                await supabaseClient
-                  .from('promo_codes')
-                  .update({ used_count: coupon.used_count + 1 })
-                  .eq('id', coupon.id);
-                console.log(`Paid Coupon ${couponCode} usage incremented in Supabase.`);
-              }
-            });
+          try {
+            await neonClient.queryObject(
+              `UPDATE promo_codes SET total_usage_tilldate = total_usage_tilldate + 1 WHERE LOWER(promo_code) = LOWER($1)`,
+              [couponCode.trim()]
+            );
+            console.log(`Paid Coupon ${couponCode} usage incremented in Neon DB.`);
+          } catch (couponErr) {
+            console.error('Failed to increment coupon usage in Neon:', couponErr);
+          }
         }
 
         await neonClient.end();
