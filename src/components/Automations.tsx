@@ -374,20 +374,28 @@ export default function Automations() {
             </div>
 
             <div className="flex flex-wrap gap-4 items-center">
-              <div className="relative h-full flex items-center gap-0">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 uppercase tracking-wide pointer-events-none z-10 whitespace-nowrap">
-                  Sort by →
-                </span>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as 'newest' | 'oldest' | 'name')}
-                  className="appearance-none pl-24 pr-10 py-3.5 border border-slate-200/60 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 bg-white/50 cursor-pointer font-bold text-slate-700 shadow-sm hover:bg-white/80 transition-all min-w-[200px] text-sm"
-                >
-                  <option value="newest">Newest First</option>
-                  <option value="oldest">Oldest First</option>
-                  <option value="name">Name</option>
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Sort by</span>
+                <div className="flex gap-1.5 p-1.5 bg-slate-100/50 backdrop-blur-sm rounded-2xl border border-slate-200/50 shadow-inner">
+                  {([
+                    { value: 'newest', label: 'Newest' },
+                    { value: 'oldest', label: 'Oldest' },
+                    { value: 'name', label: 'Name' },
+                  ] as const).map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setSortBy(option.value)}
+                      className={cn(
+                        "px-5 py-2 rounded-xl text-sm font-bold transition-all",
+                        sortBy === option.value
+                          ? "bg-white text-blue-600 shadow-md ring-1 ring-slate-200"
+                          : "text-slate-500 hover:text-slate-800 hover:bg-white/50"
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="flex gap-1.5 p-1.5 bg-slate-100/50 backdrop-blur-sm rounded-2xl border border-slate-200/50 shadow-inner">
