@@ -519,52 +519,69 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                                 <X size={14} />
                               </button>
                             )}
-                            <div className="space-y-2">
-                              <select
-                                value={button.buttonType || 'web_url'}
-                                onChange={(e) => {
-                                  const action = actions[index] as SendDmAction;
-                                  const newButtons = [...action.actionButtons];
-                                  const newType = e.target.value as 'web_url' | 'postback';
-                                  newButtons[buttonIndex] = { ...newButtons[buttonIndex], buttonType: newType, url: newType === 'postback' ? '' : newButtons[buttonIndex].url };
-                                  updateAction(index, { ...action, actionButtons: newButtons });
-                                }}
-                                disabled={readOnly}
-                                className="w-full px-3 py-1.5 rounded-xl border border-slate-100 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-widest appearance-none cursor-pointer focus:border-blue-500 transition-all"
-                              >
-                                <option value="web_url">🔗 Web URL</option>
-                                <option value="postback">⚡ Postback</option>
-                              </select>
+                            <div className="space-y-3">
+                              {/* Row 1: Button Label + Type Dropdown */}
+                              <div>
+                                <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1 pl-1">Button Label</label>
+                                <div className="flex gap-2">
+                                  <input
+                                    type="text"
+                                    value={button.text}
+                                    onChange={(e) => {
+                                      const action = actions[index] as SendDmAction;
+                                      const newButtons = [...action.actionButtons];
+                                      newButtons[buttonIndex] = { ...newButtons[buttonIndex], text: e.target.value };
+                                      updateAction(index, { ...action, actionButtons: newButtons });
+                                    }}
+                                    placeholder="e.g., Visit Website"
+                                    maxLength={20}
+                                    disabled={readOnly}
+                                    className={`flex-1 px-4 py-2.5 rounded-xl border-2 border-slate-100 bg-white focus:border-blue-500 font-semibold text-slate-700 text-xs transition-all ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
+                                  />
+                                  <select
+                                    value={button.buttonType || 'web_url'}
+                                    onChange={(e) => {
+                                      const action = actions[index] as SendDmAction;
+                                      const newButtons = [...action.actionButtons];
+                                      const newType = e.target.value as 'web_url' | 'postback';
+                                      newButtons[buttonIndex] = { ...newButtons[buttonIndex], buttonType: newType, url: newType === 'postback' ? '' : newButtons[buttonIndex].url };
+                                      updateAction(index, { ...action, actionButtons: newButtons });
+                                    }}
+                                    disabled={readOnly}
+                                    className="px-3 py-2.5 rounded-xl border-2 border-slate-100 bg-white text-xs font-bold text-slate-600 cursor-pointer focus:border-blue-500 transition-all min-w-[100px]"
+                                  >
+                                    <option value="web_url">Link</option>
+                                    <option value="postback">Postback</option>
+                                  </select>
+                                </div>
+                                <p className="text-right text-[10px] text-slate-300 mt-0.5 pr-1">{button.text.length}/20</p>
+                              </div>
 
-                              {(button.buttonType || 'web_url') === 'web_url' ? (
-                                <input
-                                  type="url"
-                                  value={button.text}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    const action = actions[index] as SendDmAction;
-                                    const newButtons = [...action.actionButtons];
-                                    newButtons[buttonIndex] = { ...newButtons[buttonIndex], text: val, url: val };
-                                    updateAction(index, { ...action, actionButtons: newButtons });
-                                  }}
-                                  placeholder="https://your-link.com"
-                                  disabled={readOnly}
-                                  className={`w-full px-4 py-2 rounded-xl border-2 border-slate-100 bg-white focus:border-blue-500 font-semibold text-slate-700 text-xs text-center transition-all ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
-                                />
-                              ) : (
-                                <input
-                                  type="text"
-                                  value={button.text}
-                                  onChange={(e) => {
-                                    const action = actions[index] as SendDmAction;
-                                    const newButtons = [...action.actionButtons];
-                                    newButtons[buttonIndex] = { ...newButtons[buttonIndex], text: e.target.value };
-                                    updateAction(index, { ...action, actionButtons: newButtons });
-                                  }}
-                                  placeholder="Button label (e.g. Yes, tell me more!)"
-                                  disabled={readOnly}
-                                  className={`w-full px-4 py-2 rounded-xl border-2 border-indigo-100 bg-indigo-50/30 focus:border-indigo-500 font-semibold text-indigo-700 text-xs text-center transition-all ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
-                                />
+                              {/* Row 2: URL (only for web_url) */}
+                              {(button.buttonType || 'web_url') === 'web_url' && (
+                                <div>
+                                  <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1 pl-1">Website URL</label>
+                                  <input
+                                    type="url"
+                                    value={button.url || ''}
+                                    onChange={(e) => {
+                                      const action = actions[index] as SendDmAction;
+                                      const newButtons = [...action.actionButtons];
+                                      newButtons[buttonIndex] = { ...newButtons[buttonIndex], url: e.target.value };
+                                      updateAction(index, { ...action, actionButtons: newButtons });
+                                    }}
+                                    placeholder="https://example.com"
+                                    disabled={readOnly}
+                                    className={`w-full px-4 py-2.5 rounded-xl border-2 border-slate-100 bg-white focus:border-blue-500 font-medium text-slate-500 text-xs transition-all ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
+                                  />
+                                </div>
+                              )}
+
+                              {/* Postback info banner */}
+                              {button.buttonType === 'postback' && (
+                                <div className="px-4 py-3 rounded-xl bg-purple-50 border border-purple-100">
+                                  <p className="text-xs text-purple-700"><span className="font-bold">Postback button:</span> Triggers a follow-up message without opening a URL.</p>
+                                </div>
                               )}
                             </div>
                           </motion.div>
