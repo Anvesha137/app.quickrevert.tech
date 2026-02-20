@@ -255,7 +255,7 @@ export default function ConnectedAccounts() {
                       title="Refresh access token"
                     >
                       <RefreshCw size={16} />
-                      Refresh
+                      Refresh Token
                     </button>
                     <button
                       onClick={() => handleDisconnect(account.id)}
