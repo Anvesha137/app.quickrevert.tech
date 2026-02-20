@@ -210,7 +210,7 @@ export default function Dashboard() {
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 animate-in fade-in slide-in-from-top-4 duration-700">
           <div className="space-y-2">
-            <h2 className="text-4xl md:text-5xl font-black text-gray-900 tracking-tight leading-tight flex items-center gap-4">
+            <h2 className="text-4xl md:text-4xl font-black text-gray-900 tracking-tight leading-tight flex items-center gap-4">
               Hello, {displayName?.split(' ')[0] || 'Creator'}
               <Hand className="w-10 h-10 text-amber-400 fill-amber-400/20 animate-jump" />
             </h2>
