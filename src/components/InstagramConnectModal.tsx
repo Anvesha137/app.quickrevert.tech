@@ -11,7 +11,10 @@ interface InstagramConnectModalProps {
 }
 
 const InstagramConnectModal = ({ isOpen, onClose, onConnect }: InstagramConnectModalProps) => {
-  const { signOut } = useAuth();
+  // const { signOut } = useAuth(); // Not needed anymore
+  // const { user } = useAuth(); // If needed later
+  // Or just empty if only signOut was there
+  const { } = useAuth();
   const [oauthUrl, setOauthUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,14 +80,7 @@ const InstagramConnectModal = ({ isOpen, onClose, onConnect }: InstagramConnectM
     if (oauthUrl) window.location.href = oauthUrl;
   };
 
-  const handleLogout = async () => {
-    try {
-      await signOut();
-      onClose();
-    } catch (err) {
-      console.error('Error signing out:', err);
-    }
-  };
+
 
   if (!isOpen) return null;
 
@@ -117,10 +113,7 @@ const InstagramConnectModal = ({ isOpen, onClose, onConnect }: InstagramConnectM
             <p className="text-gray-500 font-medium">Only a few steps away to go Viral!</p>
           </div>
 
-          {/* Meta Logo */}
-          <div className="flex items-center justify-center mb-6">
-            <img src="/meta_logo.png" alt="Meta Logo" className="h-8 object-contain" />
-          </div>
+
 
           {/* Info Block */}
           <div className="w-full p-6 rounded-2xl bg-[#FDF4FF] border border-purple-100 mb-8 text-left">
@@ -129,7 +122,7 @@ const InstagramConnectModal = ({ isOpen, onClose, onConnect }: InstagramConnectM
               <h3 className="font-bold text-purple-600 text-lg">Official Meta API Integration</h3>
             </div>
             <p className="text-gray-600 text-sm leading-relaxed">
-              We only use official Instagram APIs and processes. Your Instagram account is secure, and you stay in full control.
+              We only use official Instagram APIs and processes. Your Instagram account is secure.
             </p>
           </div>
 
@@ -179,12 +172,11 @@ const InstagramConnectModal = ({ isOpen, onClose, onConnect }: InstagramConnectM
               <button onClick={() => setShowPrivacy(true)} className="font-medium text-blue-500 hover:underline">Privacy Policy</button>
             </p>
 
-            <button
-              onClick={handleLogout}
-              className="text-gray-500 hover:text-gray-800 font-bold transition-colors"
-            >
-              Logout
-            </button>
+            <div className="mt-6 p-4 bg-orange-50 border border-orange-100 rounded-2xl">
+              <p className="text-xs text-orange-800 font-medium leading-relaxed">
+                <strong>Note:</strong> Please ensure you are connecting a <strong>Creator</strong> or <strong>Business</strong> Instagram account.
+              </p>
+            </div>
           </div>
         </div>
       </div>
