@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, X, Sparkles, Send, MessageSquare, Crown, ArrowRight, Save, Trash, AlertCircle, UserPlus, Zap } from 'lucide-react';
+import { Plus, X, Sparkles, Send, MessageSquare, ChevronDown, Crown, ArrowRight, Save, Trash, AlertCircle, UserPlus } from 'lucide-react';
 import { motion, AnimatePresence } from "motion/react";
 import { TriggerType, Action, ActionType, ReplyToCommentAction, SendDmAction } from '../../types/automation';
 import { useSubscription } from '../../contexts/SubscriptionContext';
@@ -66,30 +66,8 @@ const getAvailableActions = (triggerType: TriggerType): { type: ActionType; name
 
 export default function ActionConfig({ triggerType, actions, onActionsChange, onSave, onBack, saving, isCondensed, readOnly }: ActionConfigProps) {
   const [showActionSelector, setShowActionSelector] = useState(false);
-  const [showPostbackPicker, setShowPostbackPicker] = useState(false);
   const { canUseAskToFollow } = useSubscription();
   const { openModal } = useUpgradeModal();
-
-  // Collect all postback buttons across all actions
-  const getPostbackButtons = () => {
-    const postbackButtons: { actionIndex: number; actionName: string; buttonId: string; buttonText: string }[] = [];
-    actions.forEach((action, actionIndex) => {
-      if (action.type === 'send_dm') {
-        const dmAction = action as SendDmAction;
-        dmAction.actionButtons.forEach((btn) => {
-          if (btn.buttonType === 'postback') {
-            postbackButtons.push({
-              actionIndex,
-              actionName: dmAction.title || `Action ${actionIndex + 1}`,
-              buttonId: btn.id,
-              buttonText: btn.text || 'Untitled Button',
-            });
-          }
-        });
-      }
-    });
-    return postbackButtons;
-  };
 
   const availableActions = getAvailableActions(triggerType);
 
@@ -165,7 +143,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
     const action = actions[actionIndex] as SendDmAction;
     updateAction(actionIndex, {
       ...action,
-      actionButtons: [...action.actionButtons, { id: Date.now().toString(), text: '', url: '', buttonType: 'web_url' }],
+      actionButtons: [...action.actionButtons, { id: Date.now().toString(), text: '', url: '' }],
     });
   };
 
@@ -280,11 +258,6 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                     <div>
                       <h3 className="text-lg font-extrabold text-slate-800 tracking-tight">
                         {getActionName(action)}
-                        {action.type === 'send_dm' && (action as SendDmAction).respondToButtonId && (
-                          <span className="text-sm font-bold text-indigo-500 ml-1">
-                            - Response to "{(action as SendDmAction).respondToButtonLabel || 'Button'}"
-                          </span>
-                        )}
                       </h3>
                       <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Action #{index + 1}</p>
                     </div>
@@ -524,70 +497,25 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                                 <X size={14} />
                               </button>
                             )}
-                            <div className="space-y-3">
-                              {/* Row 1: Button Label + Type Dropdown */}
-                              <div>
-                                <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1 pl-1">Button Label</label>
-                                <div className="flex gap-2">
-                                  <input
-                                    type="text"
-                                    value={button.text}
-                                    onChange={(e) => {
-                                      const action = actions[index] as SendDmAction;
-                                      const newButtons = [...action.actionButtons];
-                                      newButtons[buttonIndex] = { ...newButtons[buttonIndex], text: e.target.value };
-                                      updateAction(index, { ...action, actionButtons: newButtons });
-                                    }}
-                                    placeholder="e.g., Visit Website"
-                                    maxLength={20}
-                                    disabled={readOnly}
-                                    className={`flex-1 px-4 py-2.5 rounded-xl border-2 border-slate-100 bg-white focus:border-blue-500 font-semibold text-slate-700 text-xs transition-all ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
-                                  />
-                                  <select
-                                    value={button.buttonType || 'web_url'}
-                                    onChange={(e) => {
-                                      const action = actions[index] as SendDmAction;
-                                      const newButtons = [...action.actionButtons];
-                                      const newType = e.target.value as 'web_url' | 'postback';
-                                      newButtons[buttonIndex] = { ...newButtons[buttonIndex], buttonType: newType, url: newType === 'postback' ? '' : newButtons[buttonIndex].url };
-                                      updateAction(index, { ...action, actionButtons: newButtons });
-                                    }}
-                                    disabled={readOnly}
-                                    className="px-3 py-2.5 rounded-xl border-2 border-slate-100 bg-white text-xs font-bold text-slate-600 cursor-pointer focus:border-blue-500 transition-all min-w-[100px]"
-                                  >
-                                    <option value="web_url">Link</option>
-                                    <option value="postback">Postback</option>
-                                  </select>
-                                </div>
-                                <p className="text-right text-[10px] text-slate-300 mt-0.5 pr-1">{button.text.length}/20</p>
+                            <div className="relative">
+                              <div className="flex items-center gap-1.5 px-3 py-1.5 mb-1.5 bg-slate-50 rounded-xl border border-slate-100">
+                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Web URL</span>
+                                <ChevronDown className="w-2.5 h-2.5 text-slate-300 ml-auto" />
                               </div>
-
-                              {/* Row 2: URL (only for web_url) */}
-                              {(button.buttonType || 'web_url') === 'web_url' && (
-                                <div>
-                                  <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1 pl-1">Website URL</label>
-                                  <input
-                                    type="url"
-                                    value={button.url || ''}
-                                    onChange={(e) => {
-                                      const action = actions[index] as SendDmAction;
-                                      const newButtons = [...action.actionButtons];
-                                      newButtons[buttonIndex] = { ...newButtons[buttonIndex], url: e.target.value };
-                                      updateAction(index, { ...action, actionButtons: newButtons });
-                                    }}
-                                    placeholder="https://example.com"
-                                    disabled={readOnly}
-                                    className={`w-full px-4 py-2.5 rounded-xl border-2 border-slate-100 bg-white focus:border-blue-500 font-medium text-slate-500 text-xs transition-all ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
-                                  />
-                                </div>
-                              )}
-
-                              {/* Postback info banner */}
-                              {button.buttonType === 'postback' && (
-                                <div className="px-4 py-3 rounded-xl bg-purple-50 border border-purple-100">
-                                  <p className="text-xs text-purple-700"><span className="font-bold">Postback button:</span> Triggers a follow-up message without opening a URL.</p>
-                                </div>
-                              )}
+                              <input
+                                type="url"
+                                value={button.text}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  const action = actions[index] as SendDmAction;
+                                  const newButtons = [...action.actionButtons];
+                                  newButtons[buttonIndex] = { ...newButtons[buttonIndex], text: val, url: val };
+                                  updateAction(index, { ...action, actionButtons: newButtons });
+                                }}
+                                placeholder="https://your-link.com"
+                                disabled={readOnly}
+                                className={`w-full px-4 py-2 rounded-xl border-2 border-slate-100 bg-white focus:border-blue-500 font-semibold text-slate-700 text-xs text-center transition-all ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
+                              />
                             </div>
                           </motion.div>
                         ))}
@@ -612,71 +540,15 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
               </motion.div>
             ))}
 
-            {!readOnly && !showPostbackPicker && (
+            {!readOnly && (
               <motion.button
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.99 }}
-                onClick={() => {
-                  const postbackBtns = getPostbackButtons();
-                  if (postbackBtns.length > 0) {
-                    setShowPostbackPicker(true);
-                  } else {
-                    setShowActionSelector(true);
-                  }
-                }}
+                onClick={() => setShowActionSelector(true)}
                 className="w-full py-6 border-2 border-dashed border-slate-200 rounded-[2.5rem] text-slate-400 font-semibold uppercase tracking-widest text-xs hover:border-blue-200 hover:text-blue-500 hover:bg-blue-50/10 transition-all flex items-center justify-center gap-3 mt-4"
               >
                 <Plus size={20} /> Add Another Action Step
               </motion.button>
-            )}
-
-            {/* Postback Button Picker */}
-            {showPostbackPicker && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-4 border-2 border-indigo-200 rounded-3xl p-6 bg-indigo-50/30 space-y-4"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-slate-700">Select which postback button this card responds to:</p>
-                  <button
-                    onClick={() => { setShowPostbackPicker(false); setShowActionSelector(true); }}
-                    className="text-xs font-bold text-blue-500 hover:text-blue-700 transition-colors"
-                  >
-                    Skip / New Action
-                  </button>
-                </div>
-                <div className="space-y-2">
-                  {getPostbackButtons().map((pb) => (
-                    <button
-                      key={pb.buttonId}
-                      onClick={() => {
-                        const newAction: SendDmAction = {
-                          type: 'send_dm',
-                          title: 'Hi\u{1F44B}',
-                          imageUrl: '',
-                          subtitle: 'Powered By Quickrevert.tech',
-                          messageTemplate: '',
-                          actionButtons: [],
-                          respondToButtonId: pb.buttonId,
-                          respondToButtonLabel: pb.buttonText,
-                        };
-                        onActionsChange([...actions, newAction]);
-                        setShowPostbackPicker(false);
-                      }}
-                      className="w-full flex items-start gap-3 p-4 rounded-2xl border-2 border-slate-100 bg-white hover:border-indigo-400 hover:bg-indigo-50/50 transition-all text-left group"
-                    >
-                      <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0 group-hover:bg-indigo-200 transition-colors">
-                        <Zap size={16} className="text-indigo-600" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-sm text-slate-800">{pb.buttonText}</p>
-                        <p className="text-[11px] text-slate-400 font-medium">from {pb.actionName}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </motion.div>
             )}
           </div>
         )}
