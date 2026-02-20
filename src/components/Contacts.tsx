@@ -197,18 +197,9 @@ export default function Contacts() {
           psid = usernameToIdMap.get(normalizedTarget);
         }
 
-        // Debug log for specific user
-        if (normalizedTarget.includes('admitgenie') || normalizedTarget.includes('tella') || normalizedTarget.includes('indiangirl')) {
-          const currentCount = uniqueContactsMap.get(`${act.instagram_account_id}-${psid}`)?.interaction_count;
-          console.log(`Processing act for ${normalizedTarget}:`, {
-            id: act.id,
-            psid,
-            foundPsid: !!psid,
-            currentCount
-          });
-        }
-
-
+        // Build a unique key per contact per instagram account
+        const key = `${act.instagram_account_id}-${psid || normalizedTarget}`;
+        const current = uniqueContactsMap.get(key);
 
         const automationIdFromMetadata = act.metadata?.automation_id || act.metadata?.automationId;
         const aId = act.automation_id || automationIdFromMetadata;
@@ -219,23 +210,17 @@ export default function Contacts() {
           interacted_automations.push(automationName);
         }
 
-        // Debug log for specific user
-        if (normalizedTarget.includes('admitgenie')) {
-          console.log('Processing activity for admitgenie:', { aId, automationName, interacted_automations });
-        }
-
         if (!current || new Date(act.created_at) > new Date(current.last_interaction_at)) {
           uniqueContactsMap.set(key, {
             user_id: user!.id,
             instagram_account_id: act.instagram_account_id,
-            instagram_user_id: String(psid),
+            instagram_user_id: String(psid || normalizedTarget),
             username: username,
             full_name: act.metadata?.name || username,
             avatar_url: act.metadata?.profilePic || null,
             interaction_count: (current?.interaction_count || 0) + 1,
             last_interaction_at: act.created_at,
             platform: 'instagram'
-            // interacted_automations removed from DB insert to avoid schema error
           });
         } else {
           uniqueContactsMap.set(key, {
