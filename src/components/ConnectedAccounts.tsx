@@ -248,20 +248,22 @@ export default function ConnectedAccounts() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <button
                       onClick={handleConnectInstagram}
-                      className="p-3 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all border-2 border-transparent hover:border-blue-200"
+                      className="px-4 py-2 flex items-center gap-2 text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
                       title="Refresh access token"
                     >
-                      <RefreshCw size={22} />
+                      <RefreshCw size={16} />
+                      Refresh
                     </button>
                     <button
                       onClick={() => handleDisconnect(account.id)}
-                      className="p-3 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all border-2 border-transparent hover:border-red-200"
+                      className="px-4 py-2 flex items-center gap-2 text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
                       title="Disconnect account"
                     >
-                      <Trash2 size={22} />
+                      <Trash2 size={16} />
+                      Disconnect
                     </button>
                   </div>
                 </div>
