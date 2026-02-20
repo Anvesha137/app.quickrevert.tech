@@ -119,6 +119,20 @@ export default function Contacts() {
       } else {
         processAndSetContacts(data);
         fetchAutomationNames(data.map(c => c.id));
+
+        // Background sync to update interaction counts + backfill
+        syncHistoricalContacts().then(async () => {
+          // Optional: Refetch after sync to show updated counts immediately
+          const { data: refreshed } = await supabase
+            .from('contacts')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('last_interaction_at', { ascending: false });
+          if (refreshed) {
+            processAndSetContacts(refreshed);
+            fetchAutomationNames(refreshed.map(c => c.id));
+          }
+        });
       }
     } catch (error) {
       console.error('Error fetching contacts:', error);
