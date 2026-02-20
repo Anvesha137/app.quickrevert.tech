@@ -513,39 +513,20 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                                 className={`w-full px-4 py-2 rounded-xl border-2 border-slate-100 bg-white focus:border-blue-500 font-semibold text-slate-700 text-xs text-center transition-all ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
                               />
 
-                              {/* Type Selector */}
-                              <select
-                                value={button.buttonType || 'web_url'}
+                              {/* URL Input */}
+                              <input
+                                type="url"
+                                value={button.url || ''}
                                 onChange={(e) => {
                                   const action = actions[index] as SendDmAction;
                                   const newButtons = [...action.actionButtons];
-                                  const newType = e.target.value as 'web_url' | 'postback';
-                                  newButtons[buttonIndex] = { ...newButtons[buttonIndex], buttonType: newType, url: newType === 'postback' ? '' : newButtons[buttonIndex].url };
+                                  newButtons[buttonIndex] = { ...newButtons[buttonIndex], url: e.target.value };
                                   updateAction(index, { ...action, actionButtons: newButtons });
                                 }}
+                                placeholder="https://your-link.com"
                                 disabled={readOnly}
-                                className="w-full px-3 py-1.5 rounded-xl border border-slate-100 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-widest appearance-none cursor-pointer focus:border-blue-500 transition-all"
-                              >
-                                <option value="web_url">🔗 Web URL</option>
-                                <option value="postback">⚡ Postback</option>
-                              </select>
-
-                              {/* URL Input (only for web_url) */}
-                              {(button.buttonType || 'web_url') === 'web_url' && (
-                                <input
-                                  type="url"
-                                  value={button.url || ''}
-                                  onChange={(e) => {
-                                    const action = actions[index] as SendDmAction;
-                                    const newButtons = [...action.actionButtons];
-                                    newButtons[buttonIndex] = { ...newButtons[buttonIndex], url: e.target.value };
-                                    updateAction(index, { ...action, actionButtons: newButtons });
-                                  }}
-                                  placeholder="https://your-link.com"
-                                  disabled={readOnly}
-                                  className={`w-full px-4 py-2 rounded-xl border-2 border-slate-100 bg-white focus:border-blue-500 font-medium text-slate-500 text-[10px] transition-all ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
-                                />
-                              )}
+                                className={`w-full px-4 py-2 rounded-xl border-2 border-slate-100 bg-white focus:border-blue-500 font-medium text-slate-500 text-[10px] transition-all ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
+                              />
                             </div>
                           </motion.div>
                         ))}

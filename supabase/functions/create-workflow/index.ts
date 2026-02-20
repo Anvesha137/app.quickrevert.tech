@@ -839,7 +839,45 @@ Deno.serve(async (req: Request) => {
           }
           nodeName = `Send DM ${index + 1}`;
           const recipient = triggerType === 'post_comment' ? { comment_id: "{{ $('Worker Webhook').item.json.body.entry[0].changes[0].value.id }}" } : { id: senderIdPath };
-          const messagePayload = { recipient, message: { text: action.title || "Hello!" } };
+          const hasButtons = action.actionButtons && action.actionButtons.length > 0;
+          const hasImage = !!action.imageUrl;
+
+          let messagePayload: any;
+          if (hasButtons || hasImage) {
+            // Build generic template with buttons
+            const templateButtons: any[] = [];
+            if (hasButtons) {
+              action.actionButtons.slice(0, 3).forEach((b: any) => {
+                const btnType = b.buttonType || (b.url ? 'web_url' : 'postback');
+                if (btnType === 'web_url') {
+                  templateButtons.push({ type: "web_url", url: b.url, title: (b.text || "Open").substring(0, 20) });
+                } else {
+                  templateButtons.push({ type: "postback", title: (b.text || "Click").substring(0, 20), payload: b.text });
+                }
+              });
+            }
+            const element: any = {
+              title: (action.title || "Hi 👋").substring(0, 80),
+              subtitle: (action.subtitle || "Powered by Quickrevert.tech").substring(0, 80),
+            };
+            if (action.imageUrl) element.image_url = action.imageUrl;
+            if (templateButtons.length > 0) element.buttons = templateButtons;
+
+            messagePayload = {
+              recipient,
+              message: {
+                attachment: {
+                  type: "template",
+                  payload: {
+                    template_type: "generic",
+                    elements: [element]
+                  }
+                }
+              }
+            };
+          } else {
+            messagePayload = { recipient, message: { text: action.title || "Hello!" } };
+          }
           nodeParams = { method: "POST", url: "https://graph.instagram.com/v24.0/me/messages", authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi", sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify(messagePayload, null, 2)}`, options: {} };
         }
 
