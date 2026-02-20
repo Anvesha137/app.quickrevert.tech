@@ -147,16 +147,6 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
     });
   };
 
-  const updateActionButton = (actionIndex: number, buttonIndex: number, field: 'text' | 'url', value: string) => {
-    const action = actions[actionIndex] as SendDmAction;
-    const newButtons = [...action.actionButtons];
-    newButtons[buttonIndex] = { ...newButtons[buttonIndex], [field]: value };
-
-    updateAction(actionIndex, {
-      ...action,
-      actionButtons: newButtons,
-    });
-  };
 
   const removeActionButton = (actionIndex: number, buttonIndex: number) => {
     const action = actions[actionIndex] as SendDmAction;
@@ -507,28 +497,26 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                                 <X size={14} />
                               </button>
                             )}
-                            <input
-                              type="text"
-                              value={button.text}
-                              onChange={(e) => updateActionButton(index, buttonIndex, 'text', e.target.value)}
-                              placeholder="Button Text"
-                              disabled={readOnly}
-                              className={`w-full px-4 py-2 rounded-xl border-2 border-slate-100 bg-white focus:border-blue-500 font-semibold text-slate-700 text-xs text-center transition-all ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
-                            />
                             <div className="relative">
-                              <select className="w-full px-4 py-2 rounded-xl border-2 border-slate-100 bg-white focus:border-blue-500 font-semibold text-slate-400 text-[10px] appearance-none disabled:opacity-100" disabled>
-                                <option>Web URL</option>
-                              </select>
-                              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-300" />
+                              <div className="flex items-center gap-1.5 px-3 py-1.5 mb-1.5 bg-slate-50 rounded-xl border border-slate-100">
+                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Web URL</span>
+                                <ChevronDown className="w-2.5 h-2.5 text-slate-300 ml-auto" />
+                              </div>
+                              <input
+                                type="url"
+                                value={button.text}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  const action = actions[index] as SendDmAction;
+                                  const newButtons = [...action.actionButtons];
+                                  newButtons[buttonIndex] = { ...newButtons[buttonIndex], text: val, url: val };
+                                  updateAction(index, { ...action, actionButtons: newButtons });
+                                }}
+                                placeholder="https://your-link.com"
+                                disabled={readOnly}
+                                className={`w-full px-4 py-2 rounded-xl border-2 border-slate-100 bg-white focus:border-blue-500 font-semibold text-slate-700 text-xs text-center transition-all ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
+                              />
                             </div>
-                            <input
-                              type="url"
-                              value={button.url || ''}
-                              onChange={(e) => updateActionButton(index, buttonIndex, 'url', e.target.value)}
-                              placeholder="https://..."
-                              disabled={readOnly}
-                              className={`w-full px-4 py-2 rounded-xl border-2 border-slate-100 bg-white focus:border-blue-500 font-medium text-slate-500 text-[10px] transition-all ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
-                            />
                           </motion.div>
                         ))}
 

@@ -374,11 +374,14 @@ export default function Automations() {
             </div>
 
             <div className="flex flex-wrap gap-4 items-center">
-              <div className="relative h-full">
+              <div className="relative h-full flex items-center gap-0">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 uppercase tracking-wide pointer-events-none z-10 whitespace-nowrap">
+                  Sort by →
+                </span>
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as 'newest' | 'oldest' | 'name')}
-                  className="appearance-none pl-4 pr-10 py-3.5 border border-slate-200/60 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 bg-white/50 cursor-pointer font-bold text-slate-700 shadow-sm hover:bg-white/80 transition-all min-w-[160px] text-sm"
+                  className="appearance-none pl-24 pr-10 py-3.5 border border-slate-200/60 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 bg-white/50 cursor-pointer font-bold text-slate-700 shadow-sm hover:bg-white/80 transition-all min-w-[200px] text-sm"
                 >
                   <option value="newest">Newest First</option>
                   <option value="oldest">Oldest First</option>

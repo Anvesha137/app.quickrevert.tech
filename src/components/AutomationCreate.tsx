@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, Sparkles } from 'lucide-react';
+import { ArrowLeft, Check } from 'lucide-react';
 import { motion, AnimatePresence } from "motion/react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -304,10 +304,7 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
               {readOnly ? 'Review your validation strategy' : (id ? 'Make your strategy even sharper' : 'Craft a beautiful interaction flow for your audience')}
             </p>
           </div>
-          <div className="flex items-center gap-2 bg-blue-600/5 px-4 py-2 rounded-2xl border border-blue-100 shadow-sm backdrop-blur-sm">
-            <Sparkles className="h-4 w-4 text-blue-500" />
-            <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">Visual Designer v2.0</span>
-          </div>
+
         </motion.div>
 
         {/* Stepper */}

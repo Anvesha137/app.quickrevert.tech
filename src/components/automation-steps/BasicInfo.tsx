@@ -30,7 +30,7 @@ export default function BasicInfo({ name, onNameChange, onNext, isCondensed, rea
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
           <label htmlFor="name" className="block text-sm font-semibold text-slate-700 uppercase tracking-widest pl-1">
-            Name your creation <span className="text-blue-500 font-extrabold">*</span>
+            Name your automation <span className="text-blue-500 font-extrabold">*</span>
           </label>
           <div className="relative group">
             <input
