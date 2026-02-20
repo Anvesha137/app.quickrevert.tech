@@ -105,14 +105,13 @@ export default function Contacts() {
               avatar_url: act.metadata?.profilePic || null,
               interaction_count: (current?.interaction_count || 0) + 1,
               last_interaction_at: act.created_at,
-              platform: 'instagram',
-              interacted_automations: interacted_automations
+              platform: 'instagram'
+              // interacted_automations removed from DB insert to avoid schema error
             });
           } else {
             uniqueContactsMap.set(key, {
               ...current,
-              interaction_count: (current?.interaction_count || 0) + 1,
-              interacted_automations: interacted_automations
+              interaction_count: (current?.interaction_count || 0) + 1
             });
           }
         }
