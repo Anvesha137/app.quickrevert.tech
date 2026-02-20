@@ -27,6 +27,7 @@ export default function Contacts() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [ownUsernames, setOwnUsernames] = useState<string[]>([]);
 
   useEffect(() => {
     if (user) {
@@ -93,6 +94,16 @@ export default function Contacts() {
 
     try {
       setLoading(true);
+
+      // Fetch connected Instagram account usernames to exclude from contacts
+      const { data: igAccounts } = await supabase
+        .from('instagram_accounts')
+        .select('username')
+        .eq('user_id', user.id)
+        .eq('status', 'active');
+      const connectedUsernames = (igAccounts || []).map(a => a.username?.toLowerCase().trim()).filter(Boolean);
+      setOwnUsernames(connectedUsernames);
+
       const { data, error } = await supabase
         .from('contacts')
         .select('*')
@@ -141,14 +152,20 @@ export default function Contacts() {
     }
   }
   const processAndSetContacts = (data: any[]) => {
-    const validContacts = (data || []).map(c => {
-      const hasValidUsername = c.username && c.username !== 'Unknown' && c.username !== 'UnknownError' && !c.username.includes('undefined') && !c.username.includes('null');
-      return {
-        ...c,
-        username: hasValidUsername ? c.username : `IG:${c.instagram_user_id?.substring(0, 8)}`,
-        full_name: c.full_name || (hasValidUsername ? c.username : `User ${c.instagram_user_id?.substring(0, 4)}`)
-      };
-    });
+    const validContacts = (data || [])
+      .filter(c => {
+        // Exclude connected Instagram account(s)
+        const normalized = c.username?.toLowerCase().trim();
+        return !ownUsernames.includes(normalized);
+      })
+      .map(c => {
+        const hasValidUsername = c.username && c.username !== 'Unknown' && c.username !== 'UnknownError' && !c.username.includes('undefined') && !c.username.includes('null');
+        return {
+          ...c,
+          username: hasValidUsername ? c.username : `IG:${c.instagram_user_id?.substring(0, 8)}`,
+          full_name: c.full_name || (hasValidUsername ? c.username : `User ${c.instagram_user_id?.substring(0, 4)}`)
+        };
+      });
     setContacts(validContacts);
   };
 
