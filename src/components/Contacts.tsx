@@ -34,8 +34,98 @@ export default function Contacts() {
     }
   }, [user]);
 
+  // New state for automation map
+  const [automationNames, setAutomationNames] = useState<Record<string, string[]>>({});
 
+  async function fetchAutomationNames(contactIds: string[]) {
+    if (contactIds.length === 0) return;
 
+    try {
+      // 1. Get all automations to create ID -> Name map
+      const { data: automations } = await supabase
+        .from('automations')
+        .select('id, name')
+        .eq('user_id', user!.id);
+
+      const autoMap = new Map<string, string>();
+      automations?.forEach(a => autoMap.set(a.id, a.name));
+
+      // 2. Get activities for these contacts
+      const { data: activities } = await supabase
+        .from('automation_activities')
+        .select('target_username, automation_id, metadata')
+        .eq('user_id', user!.id);
+
+      if (!activities) return;
+
+      const contactAutomations: Record<string, string[]> = {};
+
+      activities.forEach(act => {
+        const username = act.target_username;
+        if (!username) return;
+
+        // Normalize
+        const normalizedUser = username.toLowerCase().replace('@', '').trim();
+
+        // Find automation name
+        const autoId = act.automation_id || act.metadata?.automation_id || act.metadata?.automationId || act.metadata?.AutomationId;
+        const name = autoId ? autoMap.get(autoId) : null;
+
+        if (name) {
+          if (!contactAutomations[normalizedUser]) {
+            contactAutomations[normalizedUser] = [];
+          }
+          if (!contactAutomations[normalizedUser].includes(name)) {
+            contactAutomations[normalizedUser].push(name);
+          }
+        }
+      });
+
+      setAutomationNames(contactAutomations);
+
+    } catch (e) {
+      console.error("Error fetching automation details", e);
+    }
+  }
+
+  async function fetchContacts() {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('last_interaction_at', { ascending: false });
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        await syncHistoricalContacts();
+        // Re-fetch...
+        const { data: syncedData } = await supabase
+          .from('contacts')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('last_interaction_at', { ascending: false });
+
+        if (syncedData) {
+          processAndSetContacts(syncedData);
+          fetchAutomationNames(syncedData.map(c => c.id));
+        } else {
+          setContacts([]);
+        }
+      } else {
+        processAndSetContacts(data);
+        fetchAutomationNames(data.map(c => c.id));
+      }
+    } catch (error) {
+      console.error('Error fetching contacts:', error);
+    } finally {
+      setLoading(false);
+    }
+  }
   const processAndSetContacts = (data: any[]) => {
     const validContacts = (data || []).map(c => {
       const hasValidUsername = c.username && c.username !== 'Unknown' && c.username !== 'UnknownError' && !c.username.includes('undefined') && !c.username.includes('null');
