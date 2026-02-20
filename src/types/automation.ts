@@ -28,6 +28,7 @@ export interface ActionButton {
   id: string;
   text: string;
   url?: string;
+  buttonType?: 'web_url' | 'postback';
 }
 
 export interface ReplyToCommentAction {
@@ -54,6 +55,7 @@ export interface SendDmAction {
   askToFollowBtnText?: string;
   teaserMessage?: string;
   teaserBtnText?: string;
+  respondToButtonId?: string; // Links this action to a postback button from a previous action
 }
 
 export type Action = ReplyToCommentAction | AskToFollowAction | SendDmAction;
