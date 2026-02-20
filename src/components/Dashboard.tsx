@@ -251,41 +251,35 @@ export default function Dashboard() {
               {/* Connection Status Banner */}
               <div className="group">
                 {instagramAccount ? (
-                  <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-purple-600 p-4 shadow-lg group hover:shadow-xl transition-all duration-300">
-                    <div className="flex items-center justify-between gap-4 relative z-10">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 backdrop-blur-md flex items-center justify-center transition-transform group-hover:scale-105">
-                          <Instagram className="w-5 h-5 text-white" />
-                        </div>
-                        <div>
-                          <h3 className="text-sm font-black text-white leading-tight">@{instagramAccount.username}</h3>
-                          <p className="text-[10px] font-bold text-blue-100 uppercase tracking-wider">Instagram Connected</p>
-                        </div>
+                  <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 p-6 shadow-lg transition-all duration-300 hover:shadow-xl">
+                    <div className="flex items-center gap-4 relative z-10">
+                      <div className="w-12 h-12 rounded-xl bg-white/10 border border-white/20 backdrop-blur-md flex items-center justify-center shrink-0">
+                        {instagramAccount.profile_picture_url ? (
+                          <img
+                            src={instagramAccount.profile_picture_url}
+                            alt={instagramAccount.username}
+                            className="w-full h-full rounded-xl object-cover"
+                          />
+                        ) : (
+                          <Instagram className="w-6 h-6 text-white" />
+                        )}
                       </div>
-                      <Link
-                        to="/connect-accounts"
-                        className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
-                        title="Manage Accounts"
-                      >
-                        <TrendingUp className="w-4 h-4" />
-                      </Link>
+                      <div>
+                        <h3 className="text-lg font-black text-white leading-tight mb-0.5">@{instagramAccount.username}</h3>
+                        <p className="text-[11px] font-bold text-blue-100 uppercase tracking-wider">Instagram Connected</p>
+                      </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded-[2rem] bg-blue-50/50 backdrop-blur-xl border border-blue-100 p-8 shadow-xl shadow-blue-900/5 group relative overflow-hidden transition-all duration-500 hover:bg-blue-50/80">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-blue-200/20 rounded-full -mr-32 -mt-32 blur-3xl animate-pulse" />
-                    <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10 text-center md:text-left">
-                      <div className="space-y-2">
-                        <h3 className="text-2xl font-black text-gray-900">Connect your account now</h3>
-                        <p className="text-gray-600 font-medium max-w-sm">Instagram Not Connected</p>
-                      </div>
-                      <Link
-                        to="/connect-accounts"
-                        className="px-10 py-4 bg-blue-600 text-white font-black rounded-2xl shadow-lg shadow-blue-200 hover:scale-105 active:scale-95 transition-all whitespace-nowrap"
-                      >
-                        Connect Now
-                      </Link>
+                  <div className="relative overflow-hidden rounded-2xl bg-white border-2 border-dashed border-slate-200 p-6 flex items-center gap-4 group hover:border-blue-300 transition-colors cursor-pointer">
+                    <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 group-hover:bg-blue-50 transition-colors">
+                      <Instagram className="w-6 h-6 text-slate-300 group-hover:text-blue-500 transition-colors" />
                     </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-700 group-hover:text-blue-600 transition-colors">Connect Instagram</h3>
+                      <p className="text-sm text-slate-400 font-medium">Link your account to start</p>
+                    </div>
+                    <Link to="/connect-accounts" className="absolute inset-0" />
                   </div>
                 )}
               </div>
