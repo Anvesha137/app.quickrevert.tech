@@ -95,7 +95,7 @@ const Billing = () => {
     if (!id || id === 'basic') return 'BASIC';
     const lowerId = id.toLowerCase();
     if (lowerId.includes('enterprise')) return 'ENTERPRISE';
-    if (lowerId.includes('premium')) return 'PREMIUM';
+    if (lowerId.includes('premium') || lowerId.includes('quarterly')) return 'PREMIUM';
     return lowerId.toUpperCase(); // Fallback for things like 'QUARTERLY'
   };
 
@@ -128,7 +128,7 @@ const Billing = () => {
       {/* Header Section */}
       <div className="mb-8">
         <h1 className="text-4xl font-black tracking-tight text-white leading-none">
-          Billing & <span className="text-blue-600">Subscription</span>
+          <span className="text-blue-600">Billing & Subscription</span>
         </h1>
       </div>
 
