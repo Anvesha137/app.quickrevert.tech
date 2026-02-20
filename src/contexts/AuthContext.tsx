@@ -38,8 +38,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       try {
         const { user } = session;
-        console.log("Syncing user to Neon:", user.email);
-        await supabase.functions.invoke('sync-user-neon', {
+        console.log("[Neon Sync] Syncing user to Neon:", user.email);
+        const { data, error } = await supabase.functions.invoke('sync-user-neon', {
           body: {
             userId: user.id,
             email: user.email,
@@ -47,8 +47,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             instagramHandle: user.user_metadata?.user_name // If available from OAuth
           }
         });
+        if (error) {
+          console.error("[Neon Sync] Function returned error:", error);
+        } else {
+          console.log("[Neon Sync] Success:", data);
+        }
       } catch (err) {
-        console.error("Failed to sync user to Neon:", err);
+        console.error("[Neon Sync] Failed to sync user to Neon:", err);
       }
     };
 

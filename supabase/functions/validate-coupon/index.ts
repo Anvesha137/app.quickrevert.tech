@@ -12,6 +12,7 @@ serve(async (req) => {
     }
 
     try {
+        // planType is 'annual' or 'quarterly' (from frontend billingCycle)
         const { couponCode, planType } = await req.json();
 
         if (!couponCode || !couponCode.trim()) {
@@ -33,14 +34,13 @@ serve(async (req) => {
         await client.connect();
 
         try {
-            // Query using actual Neon DB column names
             const result = await client.queryObject(`
-        SELECT id, promo_code, discount_percentage, max_usage,
-               total_usage_tilldate, expiry_date, package
-        FROM promo_codes
-        WHERE LOWER(promo_code) = LOWER($1)
-        LIMIT 1
-      `, [couponCode.trim()]);
+                SELECT id, promo_code, discount_percentage, max_usage,
+                       total_usage_tilldate, expiry_date, package
+                FROM promo_codes
+                WHERE LOWER(TRIM(promo_code)) = LOWER(TRIM($1))
+                LIMIT 1
+            `, [couponCode.trim()]);
 
             if (result.rows.length === 0) {
                 return new Response(
@@ -69,10 +69,45 @@ serve(async (req) => {
                 );
             }
 
+            // ── Plan-specific restriction ─────────────────────────────────────
+            // The `package` column stores: 'Premium', 'Premium Quarterly', 'Premium Annual'
+            // - 'Premium'           → valid for ALL plans (no plan restriction)
+            // - 'Premium Quarterly' → ONLY valid for quarterly billing
+            // - 'Premium Annual'    → ONLY valid for annual billing
+            //
+            // Frontend sends planType as 'quarterly' or 'annual'
+            if (coupon.package) {
+                const pkgLower = coupon.package.toLowerCase().trim();
+                const selectedPlan = (planType || '').toLowerCase().trim(); // 'quarterly' or 'annual'
+
+                const isQuarterlyOnly = pkgLower.includes('quarterly');
+                const isAnnualOnly = pkgLower.includes('annual');
+
+                if (isQuarterlyOnly && selectedPlan !== 'quarterly') {
+                    return new Response(
+                        JSON.stringify({
+                            valid: false,
+                            message: 'This coupon is only valid for the Quarterly plan. Please switch to Quarterly to use it.'
+                        }),
+                        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                    );
+                }
+
+                if (isAnnualOnly && selectedPlan !== 'annual') {
+                    return new Response(
+                        JSON.stringify({
+                            valid: false,
+                            message: 'This coupon is only valid for the Annual plan. Please switch to Annual to use it.'
+                        }),
+                        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                    );
+                }
+            }
+            // ─────────────────────────────────────────────────────────────────
+
             // Calculate base amount in rupees
             const baseAmountRs = (planType === 'annual') ? (599 * 12) : (899 * 3);
 
-            // Calculate discount (only percentage-based in Neon schema)
             const discountPct = coupon.discount_percentage || 0;
             const discountRs = Math.floor(baseAmountRs * (discountPct / 100));
             const finalAmountRs = Math.max(0, baseAmountRs - discountRs);
