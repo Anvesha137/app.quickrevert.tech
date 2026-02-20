@@ -4,6 +4,7 @@ import { X, Image as ImageIcon, Video, Filter, CheckCircle2, Search, ArrowRight,
 import { motion, AnimatePresence } from "motion/react";
 import { TriggerType, TriggerConfig, PostCommentTriggerConfig, StoryReplyTriggerConfig, UserDirectMessageTriggerConfig } from '../../types/automation';
 import { supabase } from '../../lib/supabase';
+import { useSubscription } from '../../contexts/SubscriptionContext';
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -43,6 +44,7 @@ const getTriggerName = (type: TriggerType): string => {
 };
 
 export default function TriggerConfigStep({ triggerType, config, onConfigChange, onNext, onBack, isCondensed, readOnly }: TriggerConfigProps) {
+  const { isPremium } = useSubscription();
   const [keyword, setKeyword] = useState('');
   const [posts, setPosts] = useState<InstagramMedia[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(false);
@@ -160,8 +162,8 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
   const addKeyword = () => {
     if (!keyword.trim() || readOnly) return;
 
-    if (getKeywords().length >= 2) {
-      toast.error("You can only add up to 2 keywords.");
+    if (!isPremium && getKeywords().length >= 2) {
+      toast.error("You can only add up to 2 keywords on the basic plan. Upgrade to Premium for unlimited keywords.");
       return;
     }
 
@@ -401,7 +403,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                   >
                     <div className="space-y-4">
                       <label className="block text-sm font-semibold text-indigo-700 uppercase tracking-widest pl-1">
-                        Active Keywords <span className="text-xs text-indigo-400 font-medium">(Max 2)</span>
+                        Active Keywords <span className="text-xs text-indigo-400 font-medium">{isPremium ? '(Unlimited)' : '(Max 2)'}</span>
                       </label>
                       <div className="flex gap-3">
                         <div className="relative flex-1 group">
