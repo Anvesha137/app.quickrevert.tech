@@ -5,12 +5,13 @@ interface BasicInfoProps {
   onNameChange: (name: string) => void;
   onNext: () => void;
   isCondensed?: boolean;
+  readOnly?: boolean;
 }
 
-export default function BasicInfo({ name, onNameChange, onNext, isCondensed }: BasicInfoProps) {
+export default function BasicInfo({ name, onNameChange, onNext, isCondensed, readOnly }: BasicInfoProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (name.trim()) {
+    if (name.trim() && !readOnly) {
       onNext();
     }
   };
@@ -38,14 +39,15 @@ export default function BasicInfo({ name, onNameChange, onNext, isCondensed }: B
               value={name}
               onChange={(e) => onNameChange(e.target.value)}
               placeholder="e.g., Smart Comment Handler"
-              className="w-full px-5 py-3 border-2 border-slate-100 bg-white/50 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 text-base font-semibold text-slate-800 placeholder-slate-300 transition-all shadow-sm hover:bg-white"
+              className="w-full px-5 py-3 border-2 border-slate-100 bg-white/50 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 text-base font-semibold text-slate-800 placeholder-slate-300 transition-all shadow-sm hover:bg-white disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
               required
-              autoFocus={!isCondensed}
+              autoFocus={!isCondensed && !readOnly}
+              disabled={readOnly}
             />
           </div>
         </div>
 
-        {!isCondensed && (
+        {!isCondensed && !readOnly && (
           <div className="flex justify-end">
             <motion.button
               whileHover={{ scale: 1.02 }}

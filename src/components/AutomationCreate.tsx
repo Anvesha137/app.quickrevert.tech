@@ -39,10 +39,16 @@ const GlassCard = ({ children, className, delay = 0, noPadding = false }: any) =
 
 type Step = 'setup' | 'configuration';
 
-export default function AutomationCreate() {
+interface AutomationCreateProps {
+  readOnly?: boolean;
+}
+
+export default function AutomationCreate({ readOnly = false }: AutomationCreateProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  // For view mode, show configuration directly if loaded, or just stick to 'setup' -> 'configuration' flow but pre-filled?
+  // Better to just show steps as usual but disabled.
   const [currentStep, setCurrentStep] = useState<Step>('setup');
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState<AutomationFormData>({
@@ -77,6 +83,8 @@ export default function AutomationCreate() {
           triggerConfig: data.trigger_config,
           actions: data.actions || [],
         });
+        // If viewing, maybe jump to configuration if valid?
+        // But setup step shows name which is important.
       }
     } catch (error) {
       console.error('Error fetching automation:', error);
@@ -116,6 +124,26 @@ export default function AutomationCreate() {
   const currentStepIndex = steps.findIndex(s => s.id === currentStep);
 
   const handleSave = async () => {
+    if (readOnly) return; // Guard clause
+
+    if (!user) {
+      console.error('No user authenticated');
+      toast.error('You must be logged in to create an automation');
+      return;
+    }
+    // ... existing save logic ...
+    // (I'll keep the rest of handleSave but just block it if readOnly)
+    // Actually, I need to preserve the handleSave function body for when it's NOT readOnly.
+    // Since I'm replacing the whole component logic block, I need to copy paste or be smart.
+    // I will just return if readOnly at the top of handleSave.
+
+    // ... (rest of handleSave logic) ...
+    // To minimize replacement size, I will just focus on the return statement and props.
+    // But since I need to pass readOnly to children, I need to update the return JSX.
+  };
+
+  // Re-implementing handleSave just to be safe with the replace block
+  const executeSave = async () => {
     if (!user) {
       console.error('No user authenticated');
       toast.error('You must be logged in to create an automation');
@@ -284,13 +312,13 @@ export default function AutomationCreate() {
               className="group flex items-center gap-2 text-slate-500 hover:text-blue-600 transition-all font-bold text-sm mb-4 bg-white/40 backdrop-blur-sm px-4 py-2 rounded-full border border-white/60 hover:border-blue-200 hover:shadow-md"
             >
               <ArrowLeft size={16} className="transition-transform group-hover:-translate-x-1" />
-              Exit Journey
+              Exit {readOnly ? 'View' : 'Journey'}
             </button>
             <h1 className="text-3xl font-black text-slate-800 tracking-tight">
-              {id ? 'Refine Automation' : 'Design Automation'}
+              {readOnly ? 'View Automation' : (id ? 'Refine Automation' : 'Design Automation')}
             </h1>
             <p className="text-slate-500 font-medium mt-0.5 text-sm">
-              {id ? 'Make your strategy even sharper' : 'Craft a beautiful interaction flow for your audience'}
+              {readOnly ? 'Review your validation strategy' : (id ? 'Make your strategy even sharper' : 'Craft a beautiful interaction flow for your audience')}
             </p>
           </div>
           <div className="flex items-center gap-2 bg-blue-600/5 px-4 py-2 rounded-2xl border border-blue-100 shadow-sm backdrop-blur-sm">
@@ -356,14 +384,16 @@ export default function AutomationCreate() {
                   <div className="space-y-12">
                     <BasicInfo
                       name={formData.name}
-                      onNameChange={(name) => setFormData({ ...formData, name })}
+                      onNameChange={(name) => !readOnly && setFormData({ ...formData, name })}
                       onNext={() => { }} // Internal next not needed if we show both
                       isCondensed={true}
+                      readOnly={readOnly}
                     />
                     <div className="pt-6 border-t border-slate-100">
                       <TriggerSelection
                         selectedTrigger={formData.triggerType}
                         onTriggerSelect={(triggerType: TriggerType) => {
+                          if (readOnly) return;
                           let defaultConfig: TriggerConfig;
                           if (triggerType === 'post_comment') {
                             defaultConfig = { postsType: 'all', commentsType: 'all' };
@@ -388,6 +418,7 @@ export default function AutomationCreate() {
                         }}
                         onBack={() => navigate('/automation')}
                         isCondensed={true}
+                        readOnly={readOnly}
                       />
                     </div>
                   </div>
@@ -398,26 +429,28 @@ export default function AutomationCreate() {
                     <TriggerConfigStep
                       triggerType={formData.triggerType}
                       config={formData.triggerConfig}
-                      onConfigChange={(triggerConfig: TriggerConfig) => setFormData({ ...formData, triggerConfig })}
+                      onConfigChange={(triggerConfig: TriggerConfig) => !readOnly && setFormData({ ...formData, triggerConfig })}
                       onNext={() => { }} // We'll use the ActionConfig's buttons for navigation
                       onBack={() => {
                         setCurrentStep('setup');
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
                       isCondensed={true}
+                      readOnly={readOnly}
                     />
                     <div className="pt-6 border-t border-slate-100">
                       <ActionConfig
                         triggerType={formData.triggerType}
                         actions={formData.actions}
-                        onActionsChange={(actions: Action[]) => setFormData({ ...formData, actions })}
-                        onSave={handleSave}
+                        onActionsChange={(actions: Action[]) => !readOnly && setFormData({ ...formData, actions })}
+                        onSave={executeSave}
                         onBack={() => {
                           setCurrentStep('setup');
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
                         saving={saving}
                         isCondensed={true}
+                        readOnly={readOnly}
                       />
                     </div>
                   </div>

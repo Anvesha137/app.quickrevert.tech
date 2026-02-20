@@ -23,6 +23,7 @@ interface ActionConfigProps {
   onBack: () => void | Promise<void>;
   saving: boolean;
   isCondensed?: boolean;
+  readOnly?: boolean;
 }
 
 const getTriggerName = (type: TriggerType): string => {
@@ -63,7 +64,7 @@ const getAvailableActions = (triggerType: TriggerType): { type: ActionType; name
   return baseActions;
 };
 
-export default function ActionConfig({ triggerType, actions, onActionsChange, onSave, onBack, saving, isCondensed }: ActionConfigProps) {
+export default function ActionConfig({ triggerType, actions, onActionsChange, onSave, onBack, saving, isCondensed, readOnly }: ActionConfigProps) {
   const [showActionSelector, setShowActionSelector] = useState(false);
   const { canUseAskToFollow } = useSubscription();
   const { openModal } = useUpgradeModal();
@@ -95,6 +96,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
   };
 
   const updateAction = (index: number, updatedAction: Action) => {
+    if (readOnly) return;
     const newActions = [...actions];
     if (updatedAction.type === 'send_dm') {
       (updatedAction as SendDmAction).subtitle = 'Powered By Quickrevert.tech';
@@ -104,6 +106,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
   };
 
   const deleteAction = (index: number) => {
+    if (readOnly) return;
     onActionsChange(actions.filter((_, i) => i !== index));
   };
 
@@ -230,8 +233,9 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => setShowActionSelector(true)}
-              className="px-10 py-5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-[2rem] font-semibold text-sm uppercase tracking-widest shadow-xl shadow-blue-500/20 flex items-center gap-3"
+              onClick={() => !readOnly && setShowActionSelector(true)}
+              disabled={readOnly}
+              className={`px-10 py-5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-[2rem] font-semibold text-sm uppercase tracking-widest shadow-xl shadow-blue-500/20 flex items-center gap-3 ${readOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <Plus size={20} /> Add Your First Action
             </motion.button>
@@ -268,12 +272,14 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                       <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Action #{index + 1}</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => deleteAction(index)}
-                    className="p-3 bg-red-50 text-red-500 rounded-2xl hover:bg-red-100 transition-colors"
-                  >
-                    <Trash size={20} />
-                  </button>
+                  {!readOnly && (
+                    <button
+                      onClick={() => deleteAction(index)}
+                      className="p-3 bg-red-50 text-red-500 rounded-2xl hover:bg-red-100 transition-colors"
+                    >
+                      <Trash size={20} />
+                    </button>
+                  )}
                 </div>
 
                 {/* --- Action Specific Content --- */}
@@ -292,9 +298,10 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                               value={template}
                               onChange={(e) => updateReplyTemplate(index, templateIndex, e.target.value)}
                               placeholder="e.g., Check your DMs for the link! 👋"
-                              className="flex-1 px-6 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 font-semibold text-slate-800 transition-all placeholder:text-slate-300"
+                              className={`flex-1 px-6 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 font-semibold text-slate-800 transition-all placeholder:text-slate-300 ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
+                              disabled={readOnly}
                             />
-                            {action.replyTemplates.length > 1 && (
+                            {action.replyTemplates.length > 1 && !readOnly && (
                               <button
                                 onClick={() => removeReplyTemplate(index, templateIndex)}
                                 className="p-4 bg-slate-100 text-slate-400 rounded-2xl hover:bg-red-50 hover:text-red-500 transition-all"
@@ -305,7 +312,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                           </div>
                         ))}
                       </div>
-                      {action.replyTemplates.length < 10 && (
+                      {action.replyTemplates.length < 10 && !readOnly && (
                         <motion.button
                           whileHover={{ x: 5 }}
                           onClick={() => addReplyTemplate(index)}
@@ -328,7 +335,8 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                           value={(action as SendDmAction).title || ''}
                           onChange={(e) => updateAction(index, { ...action, title: e.target.value } as SendDmAction)}
                           placeholder="Hey there! 👋"
-                          className="w-full px-6 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 font-semibold text-slate-800 transition-all placeholder:text-slate-300"
+                          disabled={readOnly}
+                          className={`w-full px-6 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 font-semibold text-slate-800 transition-all placeholder:text-slate-300 ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
                         />
                       </div>
                       <div className="space-y-2">
@@ -338,7 +346,8 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                           value={(action as SendDmAction).imageUrl || ''}
                           onChange={(e) => updateAction(index, { ...action, imageUrl: e.target.value } as SendDmAction)}
                           placeholder="https://example.com/promo.jpg"
-                          className="w-full px-6 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 font-semibold text-slate-800 transition-all placeholder:text-slate-300"
+                          disabled={readOnly}
+                          className={`w-full px-6 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 font-semibold text-slate-800 transition-all placeholder:text-slate-300 ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
                         />
                       </div>
                     </div>
@@ -379,7 +388,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                           <input
                             type="checkbox"
                             className="sr-only peer"
-                            disabled={!canUseAskToFollow}
+                            disabled={!canUseAskToFollow || readOnly}
                             checked={(action as SendDmAction).askToFollow || false}
                             onChange={(e) => {
                               if (!canUseAskToFollow) {
@@ -406,27 +415,31 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                               <div className="bg-indigo-50/50 rounded-3xl border border-indigo-100 p-6 space-y-4">
                                 <div className="flex items-center justify-between">
                                   <h5 className="text-xs font-semibold text-indigo-700 uppercase tracking-widest">1. Initial Teaser</h5>
-                                  <motion.button
-                                    whileTap={{ scale: 0.9 }}
-                                    onClick={() => updateAction(index, { ...action, teaserMessage: DEFAULT_TEASER_MESSAGE } as SendDmAction)}
-                                    className="text-[10px] font-semibold text-indigo-400 hover:text-indigo-600 uppercase tracking-tighter"
-                                  >
-                                    Auto-Fill
-                                  </motion.button>
+                                  {!readOnly && (
+                                    <motion.button
+                                      whileTap={{ scale: 0.9 }}
+                                      onClick={() => updateAction(index, { ...action, teaserMessage: DEFAULT_TEASER_MESSAGE } as SendDmAction)}
+                                      className="text-[10px] font-semibold text-indigo-400 hover:text-indigo-600 uppercase tracking-tighter"
+                                    >
+                                      Auto-Fill
+                                    </motion.button>
+                                  )}
                                 </div>
                                 <textarea
                                   value={(action as SendDmAction).teaserMessage || ''}
                                   onChange={(e) => updateAction(index, { ...action, teaserMessage: e.target.value } as SendDmAction)}
                                   placeholder="Initial message to hook them..."
                                   rows={2}
-                                  className="w-full px-4 py-3 rounded-xl border-2 border-indigo-100 bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 font-semibold text-slate-800 text-sm transition-all shadow-inner"
+                                  disabled={readOnly}
+                                  className={`w-full px-4 py-3 rounded-xl border-2 border-indigo-100 bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 font-semibold text-slate-800 text-sm transition-all shadow-inner ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
                                 />
                                 <input
                                   type="text"
                                   value={(action as SendDmAction).teaserBtnText || ''}
                                   onChange={(e) => updateAction(index, { ...action, teaserBtnText: e.target.value } as SendDmAction)}
                                   placeholder="Teaser Button Text"
-                                  className="w-full px-4 py-3 rounded-xl border-2 border-indigo-100 bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 font-semibold text-slate-800 text-xs text-center transition-all shadow-sm"
+                                  disabled={readOnly}
+                                  className={`w-full px-4 py-3 rounded-xl border-2 border-indigo-100 bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 font-semibold text-slate-800 text-xs text-center transition-all shadow-sm ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
                                 />
                               </div>
 
@@ -434,27 +447,31 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                               <div className="bg-slate-100/50 rounded-3xl border border-slate-200 p-6 space-y-4">
                                 <div className="flex items-center justify-between">
                                   <h5 className="text-xs font-semibold text-slate-500 uppercase tracking-widest">2. Verification Failed</h5>
-                                  <motion.button
-                                    whileTap={{ scale: 0.9 }}
-                                    onClick={() => updateAction(index, { ...action, askToFollowMessage: DEFAULT_NOT_FOLLOWING_MESSAGE } as SendDmAction)}
-                                    className="text-[10px] font-semibold text-slate-400 hover:text-slate-600 uppercase tracking-tighter"
-                                  >
-                                    Auto-Fill
-                                  </motion.button>
+                                  {!readOnly && (
+                                    <motion.button
+                                      whileTap={{ scale: 0.9 }}
+                                      onClick={() => updateAction(index, { ...action, askToFollowMessage: DEFAULT_NOT_FOLLOWING_MESSAGE } as SendDmAction)}
+                                      className="text-[10px] font-semibold text-slate-400 hover:text-slate-600 uppercase tracking-tighter"
+                                    >
+                                      Auto-Fill
+                                    </motion.button>
+                                  )}
                                 </div>
                                 <textarea
                                   value={(action as SendDmAction).askToFollowMessage || ''}
                                   onChange={(e) => updateAction(index, { ...action, askToFollowMessage: e.target.value } as SendDmAction)}
                                   placeholder="Message if not following..."
                                   rows={2}
-                                  className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-white focus:ring-4 focus:ring-slate-500/10 focus:border-slate-400 font-semibold text-slate-800 text-sm transition-all shadow-inner"
+                                  disabled={readOnly}
+                                  className={`w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-white focus:ring-4 focus:ring-slate-500/10 focus:border-slate-400 font-semibold text-slate-800 text-sm transition-all shadow-inner ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
                                 />
                                 <input
                                   type="text"
                                   value={(action as SendDmAction).askToFollowBtnText || ''}
                                   onChange={(e) => updateAction(index, { ...action, askToFollowBtnText: e.target.value } as SendDmAction)}
                                   placeholder="Follow Button Text"
-                                  className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-white focus:ring-4 focus:ring-slate-500/10 focus:border-slate-400 font-semibold text-slate-800 text-xs text-center transition-all shadow-sm"
+                                  disabled={readOnly}
+                                  className={`w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-white focus:ring-4 focus:ring-slate-500/10 focus:border-slate-400 font-semibold text-slate-800 text-xs text-center transition-all shadow-sm ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
                                 />
                               </div>
                             </div>
@@ -482,18 +499,21 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                             animate={{ scale: 1, opacity: 1 }}
                             className="bg-slate-50/50 rounded-3xl border border-slate-100 p-5 space-y-3 shadow-sm relative group/btn"
                           >
-                            <button
-                              onClick={() => removeActionButton(index, buttonIndex)}
-                              className="absolute -top-2 -right-2 w-7 h-7 bg-white text-red-400 rounded-full shadow-lg border border-red-50 flex items-center justify-center hover:bg-red-50 hover:text-red-600 transition-all opacity-0 group-hover/btn:opacity-100 scale-90 group-hover/btn:scale-100"
-                            >
-                              <X size={14} />
-                            </button>
+                            {!readOnly && (
+                              <button
+                                onClick={() => removeActionButton(index, buttonIndex)}
+                                className="absolute -top-2 -right-2 w-7 h-7 bg-white text-red-400 rounded-full shadow-lg border border-red-50 flex items-center justify-center hover:bg-red-50 hover:text-red-600 transition-all opacity-0 group-hover/btn:opacity-100 scale-90 group-hover/btn:scale-100"
+                              >
+                                <X size={14} />
+                              </button>
+                            )}
                             <input
                               type="text"
                               value={button.text}
                               onChange={(e) => updateActionButton(index, buttonIndex, 'text', e.target.value)}
                               placeholder="Button Text"
-                              className="w-full px-4 py-2 rounded-xl border-2 border-slate-100 bg-white focus:border-blue-500 font-semibold text-slate-700 text-xs text-center transition-all"
+                              disabled={readOnly}
+                              className={`w-full px-4 py-2 rounded-xl border-2 border-slate-100 bg-white focus:border-blue-500 font-semibold text-slate-700 text-xs text-center transition-all ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
                             />
                             <div className="relative">
                               <select className="w-full px-4 py-2 rounded-xl border-2 border-slate-100 bg-white focus:border-blue-500 font-semibold text-slate-400 text-[10px] appearance-none disabled:opacity-100" disabled>
@@ -506,12 +526,13 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                               value={button.url || ''}
                               onChange={(e) => updateActionButton(index, buttonIndex, 'url', e.target.value)}
                               placeholder="https://..."
-                              className="w-full px-4 py-2 rounded-xl border-2 border-slate-100 bg-white focus:border-blue-500 font-medium text-slate-500 text-[10px] transition-all"
+                              disabled={readOnly}
+                              className={`w-full px-4 py-2 rounded-xl border-2 border-slate-100 bg-white focus:border-blue-500 font-medium text-slate-500 text-[10px] transition-all ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
                             />
                           </motion.div>
                         ))}
 
-                        {(action as SendDmAction).actionButtons.length < 3 && (
+                        {(action as SendDmAction).actionButtons.length < 3 && !readOnly && (
                           <motion.button
                             whileHover={{ scale: 1.02, backgroundColor: '#f8fafc' }}
                             whileTap={{ scale: 0.98 }}
@@ -531,14 +552,16 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
               </motion.div>
             ))}
 
-            <motion.button
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
-              onClick={() => setShowActionSelector(true)}
-              className="w-full py-6 border-2 border-dashed border-slate-200 rounded-[2.5rem] text-slate-400 font-semibold uppercase tracking-widest text-xs hover:border-blue-200 hover:text-blue-500 hover:bg-blue-50/10 transition-all flex items-center justify-center gap-3 mt-4"
-            >
-              <Plus size={20} /> Add Another Action Step
-            </motion.button>
+            {!readOnly && (
+              <motion.button
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
+                onClick={() => setShowActionSelector(true)}
+                className="w-full py-6 border-2 border-dashed border-slate-200 rounded-[2.5rem] text-slate-400 font-semibold uppercase tracking-widest text-xs hover:border-blue-200 hover:text-blue-500 hover:bg-blue-50/10 transition-all flex items-center justify-center gap-3 mt-4"
+              >
+                <Plus size={20} /> Add Another Action Step
+              </motion.button>
+            )}
           </div>
         )}
       </AnimatePresence>
@@ -621,24 +644,26 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
               <span className="text-[10px] font-semibold uppercase tracking-widest">Complete all required fields</span>
             </div>
           )}
-          <motion.button
-            whileHover={canSave && !saving ? { scale: 1.05 } : {}}
-            whileTap={canSave && !saving ? { scale: 0.95 } : {}}
-            onClick={onSave}
-            disabled={!canSave || saving}
-            className={cn(
-              "px-10 py-4 rounded-2xl font-semibold text-sm uppercase tracking-widest shadow-lg flex items-center gap-3 transition-all",
-              canSave && !saving
-                ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:shadow-emerald-500/20"
-                : "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
-            )}
-          >
-            {saving ? (
-              <>Deploying... <Sparkles className="animate-pulse" size={18} /></>
-            ) : (
-              <>Launch Automation <Save size={18} /></>
-            )}
-          </motion.button>
+          {!readOnly && (
+            <motion.button
+              whileHover={canSave && !saving ? { scale: 1.05 } : {}}
+              whileTap={canSave && !saving ? { scale: 0.95 } : {}}
+              onClick={onSave}
+              disabled={!canSave || saving}
+              className={cn(
+                "px-10 py-4 rounded-2xl font-semibold text-sm uppercase tracking-widest shadow-lg flex items-center gap-3 transition-all",
+                canSave && !saving
+                  ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:shadow-emerald-500/20"
+                  : "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
+              )}
+            >
+              {saving ? (
+                <>Deploying... <Sparkles className="animate-pulse" size={18} /></>
+              ) : (
+                <>Launch Automation <Save size={18} /></>
+              )}
+            </motion.button>
+          )}
         </div>
       </div>
     </div>

@@ -91,10 +91,14 @@ Deno.serve(async (req: Request) => {
       const newRoutes = [];
       for (const account of accountMappings) {
         if (triggerType === 'post_comment') {
-          // Comment automations: ONLY changes/comments routes
+          // Comment automations: changes/comments routes + postback for buttons
           newRoutes.push({
             account_id: account.id, user_id: user.id, n8n_workflow_id: workflowId,
             event_type: 'changes', sub_type: 'comments', is_active: true
+          });
+          newRoutes.push({
+            account_id: account.id, user_id: user.id, n8n_workflow_id: workflowId,
+            event_type: 'messaging', sub_type: 'postback', is_active: true
           });
         } else if (triggerType === 'story_reply') {
           // Story reply: messaging only

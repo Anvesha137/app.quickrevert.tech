@@ -1177,10 +1177,14 @@ return { json: { userId, username, isFollowing } };`
 
       for (const account of userAccounts) {
         if (finalTriggerType === 'post_comment') {
-          // Comment automations: only changes/comments routes
+          // Comment automations: changes/comments routes + postback for buttons
           newRoutes.push({
             account_id: account.id, user_id: user.id, n8n_workflow_id: n8nResult.id,
             event_type: 'changes', sub_type: 'comments', is_active: autoActivate
+          });
+          newRoutes.push({
+            account_id: account.id, user_id: user.id, n8n_workflow_id: n8nResult.id,
+            event_type: 'messaging', sub_type: 'postback', is_active: autoActivate
           });
         } else if (finalTriggerType === 'story_reply') {
           // Story reply: only messaging routes (stories come as messaging events with story_reply sub_type)

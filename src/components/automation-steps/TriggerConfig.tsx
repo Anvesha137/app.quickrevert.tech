@@ -28,6 +28,7 @@ interface TriggerConfigProps {
   onNext: () => void | Promise<void>;
   onBack: () => void | Promise<void>;
   isCondensed?: boolean;
+  readOnly?: boolean;
 }
 
 const getTriggerName = (type: TriggerType): string => {
@@ -41,7 +42,7 @@ const getTriggerName = (type: TriggerType): string => {
   }
 };
 
-export default function TriggerConfigStep({ triggerType, config, onConfigChange, onNext, onBack, isCondensed }: TriggerConfigProps) {
+export default function TriggerConfigStep({ triggerType, config, onConfigChange, onNext, onBack, isCondensed, readOnly }: TriggerConfigProps) {
   const [keyword, setKeyword] = useState('');
   const [posts, setPosts] = useState<InstagramMedia[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(false);
@@ -75,6 +76,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
   };
 
   const togglePostSelection = (postId: string) => {
+    if (readOnly) return;
     const newSelection = selectedPosts.includes(postId)
       ? selectedPosts.filter(id => id !== postId)
       : [...selectedPosts, postId];
@@ -101,6 +103,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
   const currentConfig = getConfig();
 
   const handlePostsTypeChange = (postsType: 'all' | 'specific') => {
+    if (readOnly) return;
     const newConfig = { ...currentConfig, postsType } as PostCommentTriggerConfig;
     if (postsType === 'all') {
       delete newConfig.specificPosts;
@@ -111,6 +114,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
   };
 
   const handleCommentsTypeChange = (commentsType: 'all' | 'keywords') => {
+    if (readOnly) return;
     const newConfig = { ...currentConfig, commentsType } as PostCommentTriggerConfig;
     if (commentsType === 'all') {
       delete newConfig.keywords;
@@ -121,6 +125,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
   };
 
   const handleStoriesTypeChange = (storiesType: 'all' | 'keywords') => {
+    if (readOnly) return;
     const newConfig = { ...currentConfig, storiesType } as StoryReplyTriggerConfig;
     if (storiesType === 'all') {
       delete newConfig.keywords;
@@ -131,6 +136,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
   };
 
   const handleMessageTypeChange = (messageType: 'all' | 'keywords') => {
+    if (readOnly) return;
     const newConfig = { ...currentConfig, messageType } as UserDirectMessageTriggerConfig;
     if (messageType === 'all') {
       delete newConfig.keywords;
@@ -152,7 +158,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
   };
 
   const addKeyword = () => {
-    if (!keyword.trim()) return;
+    if (!keyword.trim() || readOnly) return;
 
     if (getKeywords().length >= 2) {
       toast.error("You can only add up to 2 keywords.");
@@ -182,6 +188,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
   };
 
   const removeKeyword = (index: number) => {
+    if (readOnly) return;
     if (triggerType === 'post_comment') {
       const cfg = currentConfig as PostCommentTriggerConfig;
       onConfigChange({
@@ -619,7 +626,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
             onClick={onNext}
             className="px-10 py-4 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl hover:shadow-xl hover:shadow-blue-500/20 transition-all font-semibold text-sm uppercase tracking-widest shadow-lg flex items-center gap-3"
           >
-            Define Actions <ArrowRight size={18} />
+            {readOnly ? 'View Actions' : 'Define Actions'} <ArrowRight size={18} />
           </motion.button>
         </div>
       )}

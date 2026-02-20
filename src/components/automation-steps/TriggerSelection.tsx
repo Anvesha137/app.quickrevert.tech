@@ -8,6 +8,7 @@ interface TriggerSelectionProps {
   onNext: () => void;
   onBack: () => void | Promise<void>;
   isCondensed?: boolean;
+  readOnly?: boolean;
 }
 
 const triggers = [
@@ -42,7 +43,8 @@ export default function TriggerSelection({
   onTriggerSelect,
   onNext,
   onBack,
-  isCondensed
+  isCondensed,
+  readOnly
 }: TriggerSelectionProps) {
   const handleNext = () => {
     if (selectedTrigger) {
@@ -55,7 +57,7 @@ export default function TriggerSelection({
       <div className="flex justify-between items-start">
         <div>
           <h2 className="text-2xl font-extrabold text-slate-800 mb-1 font-outfit">
-            {isCondensed ? 'Select Trigger Type' : 'Choose Your Event'}
+            {isCondensed ? (readOnly ? 'Trigger Type' : 'Select Trigger Type') : 'Choose Your Event'}
           </h2>
           <p className="text-slate-400 font-normal text-sm">
             Select the spark that ignites this automation.
@@ -74,18 +76,23 @@ export default function TriggerSelection({
           const Icon = trigger.icon;
           const isSelected = selectedTrigger === trigger.type;
 
+          const isInteractable = !readOnly;
+
           return (
             <motion.button
               key={trigger.type}
-              whileHover={{ scale: 1.01, y: -2 }}
-              whileTap={{ scale: 0.99 }}
-              onClick={() => onTriggerSelect(trigger.type)}
+              whileHover={isInteractable ? { scale: 1.01, y: -2 } : {}}
+              whileTap={isInteractable ? { scale: 0.99 } : {}}
+              onClick={() => isInteractable && onTriggerSelect(trigger.type)}
+              disabled={readOnly}
               className={`w-full text-left p-6 rounded-3xl transition-all relative overflow-hidden group ${isSelected
                 ? 'bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 text-white shadow-xl shadow-blue-600/20'
-                : 'bg-white/50 border-2 border-slate-100 hover:border-blue-200 hover:bg-white hover:shadow-lg'
+                : (readOnly
+                  ? 'bg-slate-50 border-2 border-slate-100 opacity-60 cursor-not-allowed'
+                  : 'bg-white/50 border-2 border-slate-100 hover:border-blue-200 hover:bg-white hover:shadow-lg')
                 }`}
             >
-              {isSelected && (
+              {isSelected && !readOnly && (
                 <div className="absolute top-0 right-0 p-8 opacity-20 transition-transform group-hover:scale-110">
                   <Sparkles size={60} />
                 </div>
@@ -123,10 +130,12 @@ export default function TriggerSelection({
                   </div>
                 </div>
 
-                <div className={`self-center p-2 rounded-xl transition-all ${isSelected ? 'bg-white/20' : 'opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0'
-                  }`}>
-                  <ArrowRight size={24} className={isSelected ? 'text-white' : 'text-blue-500'} />
-                </div>
+                {!readOnly && (
+                  <div className={`self-center p-2 rounded-xl transition-all ${isSelected ? 'bg-white/20' : 'opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0'
+                    }`}>
+                    <ArrowRight size={24} className={isSelected ? 'text-white' : 'text-blue-500'} />
+                  </div>
+                )}
               </div>
             </motion.button>
           );
@@ -141,13 +150,16 @@ export default function TriggerSelection({
           {isCondensed ? 'Exit' : 'Back'}
         </button>
         <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+          whileHover={!readOnly && selectedTrigger ? { scale: 1.05 } : {}}
+          whileTap={!readOnly && selectedTrigger ? { scale: 0.95 } : {}}
           onClick={handleNext}
           disabled={!selectedTrigger}
-          className="px-10 py-4 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl hover:shadow-xl hover:shadow-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm uppercase tracking-widest shadow-lg flex items-center gap-3"
+          className={`px-10 py-4 rounded-2xl transition-all font-semibold text-sm uppercase tracking-widest shadow-lg flex items-center gap-3 ${!selectedTrigger
+              ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+              : 'bg-gradient-to-r from-blue-600 to-indigo-700 text-white hover:shadow-xl hover:shadow-blue-500/20'
+            }`}
         >
-          {isCondensed ? 'Set Logic & Actions' : 'Configure logic'} <ArrowRight size={18} />
+          {isCondensed ? (readOnly ? 'View Logic & Actions' : 'Set Logic & Actions') : 'Configure logic'} <ArrowRight size={18} />
         </motion.button>
       </div>
     </div>

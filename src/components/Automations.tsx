@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Search, Plus, ChevronDown, Trash2, Edit, Loader2, Sparkles } from 'lucide-react';
+import { Search, Plus, ChevronDown, Trash2, Eye, Loader2, Sparkles } from 'lucide-react';
 import { motion } from "motion/react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -497,8 +497,8 @@ export default function Automations() {
                     <div className="flex items-center gap-3 self-end md:self-center shrink-0">
                       <GlassButton
                         variant="secondary"
-                        icon={Edit}
-                        onClick={() => navigate(`/automation/edit/${automation.id}`)}
+                        icon={Eye}
+                        onClick={() => navigate(`/automation/view/${automation.id}`)}
                         className="!p-3 rounded-xl"
                       />
 
