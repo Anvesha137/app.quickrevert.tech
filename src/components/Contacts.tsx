@@ -117,7 +117,7 @@ export default function Contacts() {
       // Fetch unique identities from activities
       const { data: activities } = await supabase
         .from('automation_activities')
-        .select('instagram_account_id, target_username, metadata, created_at, automation_id')
+        .select('*')
         .eq('user_id', user!.id);
 
       if (!activities || activities.length === 0) return;
