@@ -35,32 +35,21 @@ export default function Contacts() {
     }
   }, [user]);
 
-  // State for automation map and ask-to-follow tracking
+  // New state for automation map
   const [automationNames, setAutomationNames] = useState<Record<string, string[]>>({});
-  const [askToFollowContacts, setAskToFollowContacts] = useState<Set<string>>(new Set());
 
   async function fetchAutomationNames(contactIds: string[]) {
     if (contactIds.length === 0) return;
 
     try {
-      // 1. Get all automations with their action configs
+      // 1. Get all automations to create ID -> Name map
       const { data: automations } = await supabase
         .from('automations')
-        .select('id, name, action_config')
+        .select('id, name')
         .eq('user_id', user!.id);
 
       const autoMap = new Map<string, string>();
-      const askToFollowAutoIds = new Set<string>();
-      automations?.forEach(a => {
-        autoMap.set(a.id, a.name);
-        // Check if any action in this automation has askToFollow enabled
-        const actions = a.action_config?.actions || a.action_config || [];
-        if (Array.isArray(actions)) {
-          if (actions.some((act: any) => act.askToFollow)) {
-            askToFollowAutoIds.add(a.id);
-          }
-        }
-      });
+      automations?.forEach(a => autoMap.set(a.id, a.name));
 
       // 2. Get activities for these contacts
       const { data: activities } = await supabase
@@ -71,14 +60,15 @@ export default function Contacts() {
       if (!activities) return;
 
       const contactAutomations: Record<string, string[]> = {};
-      const atfContacts = new Set<string>();
 
       activities.forEach(act => {
         const username = act.target_username;
         if (!username) return;
 
+        // Normalize
         const normalizedUser = username.toLowerCase().replace('@', '').trim();
 
+        // Find automation name
         const autoId = act.automation_id || act.metadata?.automation_id || act.metadata?.automationId || act.metadata?.AutomationId;
         const name = autoId ? autoMap.get(autoId) : null;
 
@@ -90,15 +80,9 @@ export default function Contacts() {
             contactAutomations[normalizedUser].push(name);
           }
         }
-
-        // Track if this contact interacted with an ask-to-follow automation
-        if (autoId && askToFollowAutoIds.has(autoId)) {
-          atfContacts.add(normalizedUser);
-        }
       });
 
       setAutomationNames(contactAutomations);
-      setAskToFollowContacts(atfContacts);
 
     } catch (e) {
       console.error("Error fetching automation details", e);
@@ -404,24 +388,17 @@ export default function Contacts() {
                         </div>
                       </td>
                       <td className="px-6 py-5">
-                        {(() => {
-                          const normalized = contact.username?.toLowerCase().replace('@', '').trim();
-                          const isAskToFollow = askToFollowContacts.has(normalized);
-                          if (!isAskToFollow) {
-                            return <span className="text-slate-300 text-xs font-medium">—</span>;
-                          }
-                          return contact.follows_us ? (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-green-500/10 text-green-700 text-[10px] font-bold uppercase tracking-wider border border-green-200">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              Follows you
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-wider border border-slate-200">
-                              <XCircle className="w-3.5 h-3.5" />
-                              Not following
-                            </span>
-                          );
-                        })()}
+                        {contact.follows_us ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-green-500/10 text-green-700 text-[10px] font-bold uppercase tracking-wider border border-green-200">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Follows you
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-wider border border-slate-200">
+                            <XCircle className="w-3.5 h-3.5" />
+                            Not following
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-5">
                         {(function () {
