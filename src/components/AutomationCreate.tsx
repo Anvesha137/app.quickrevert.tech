@@ -9,7 +9,6 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { AutomationFormData, TriggerType, TriggerConfig, Action, ReplyToCommentAction, SendDmAction } from '../types/automation';
 import { N8nWorkflowService } from '../lib/n8nService';
-import BasicInfo from './automation-steps/BasicInfo';
 import TriggerSelection from './automation-steps/TriggerSelection';
 import TriggerConfigStep from './automation-steps/TriggerConfig';
 import ActionConfig from './automation-steps/ActionConfig';
@@ -309,26 +308,21 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
 
         {/* Stepper */}
         <div className="relative">
-          <div className="flex items-center justify-between relative px-2">
-            <div className="absolute top-[1.25rem] left-0 right-0 h-1 bg-slate-100 -z-10 rounded-full overflow-hidden mx-10">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${(currentStepIndex / (steps.length - 1)) * 100}%` }}
-                className="h-full bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 transition-all duration-500"
-              />
-            </div>
+          <div className="flex items-center gap-4 relative px-2">
             {steps.map((step, index) => {
               const isActive = currentStep === step.id;
               const isCompleted = step.completed && currentStepIndex > index;
-              const isPast = currentStepIndex > index;
+              const isFuture = index > currentStepIndex;
+
+              if (isFuture) return null;
 
               return (
-                <div key={step.id} className="flex flex-col items-center relative z-10">
+                <div key={step.id} className="flex items-center gap-3 relative z-10">
                   <motion.div
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.95 }}
                     className={cn(
-                      "w-10 h-10 rounded-2xl flex items-center justify-center font-bold transition-all shadow-lg border-2",
+                      "w-10 h-10 rounded-2xl flex items-center justify-center font-bold transition-all shadow-lg border-2 shrink-0",
                       isCompleted || isActive
                         ? "bg-gradient-to-br from-blue-600 to-indigo-700 text-white border-blue-400 shadow-blue-500/20"
                         : "bg-white text-slate-400 border-slate-100 shadow-slate-200/50"
@@ -338,12 +332,23 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
                   </motion.div>
                   <span
                     className={cn(
-                      "mt-3 text-[10px] font-black uppercase tracking-widest transition-colors",
-                      isActive ? "text-blue-600" : isPast ? "text-slate-800" : "text-slate-400"
+                      "text-[10px] font-black uppercase tracking-widest transition-colors whitespace-nowrap",
+                      isActive ? "text-blue-600" : "text-slate-800"
                     )}
                   >
                     {step.name}
                   </span>
+                  {/* Inline name input on step 1 */}
+                  {step.id === 'setup' && isActive && (
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => !readOnly && setFormData({ ...formData, name: e.target.value })}
+                      placeholder="Name your automation"
+                      disabled={readOnly}
+                      className="ml-2 flex-1 min-w-[250px] px-4 py-2.5 border-2 border-slate-100 bg-white/50 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 text-sm font-semibold text-slate-800 placeholder-slate-300 transition-all shadow-sm hover:bg-white disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                    />
+                  )}
                 </div>
               );
             })}
@@ -362,13 +367,7 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
               <div className="p-6 md:p-10 space-y-12">
                 {currentStep === 'setup' && (
                   <div className="space-y-12">
-                    <BasicInfo
-                      name={formData.name}
-                      onNameChange={(name) => !readOnly && setFormData({ ...formData, name })}
-                      onNext={() => { }} // Internal next not needed if we show both
-                      isCondensed={true}
-                      readOnly={readOnly}
-                    />
+                    {/* Name input is now inline in the stepper above */}
                     <div className="pt-6 border-t border-slate-100">
                       <TriggerSelection
                         selectedTrigger={formData.triggerType}
