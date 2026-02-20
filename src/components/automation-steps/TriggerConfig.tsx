@@ -313,15 +313,28 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                               selectedPosts.includes(post.id) ? "border-blue-500 shadow-lg" : "border-transparent hover:border-blue-200"
                             )}
                           >
-                            <img
-                              src={post.media_type === 'VIDEO' ? (post.thumbnail_url || post.media_url) : post.media_url}
-                              alt={post.caption || 'Instagram Post'}
-                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                            />
-                            {post.media_type === 'VIDEO' && (
-                              <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                                <Video className="w-8 h-8 text-white drop-shadow-lg" />
-                              </div>
+                            {post.media_type === 'VIDEO' ? (
+                              <>
+                                <video
+                                  src={post.media_url}
+                                  poster={post.thumbnail_url || undefined}
+                                  muted
+                                  loop
+                                  playsInline
+                                  onMouseEnter={(e) => (e.target as HTMLVideoElement).play()}
+                                  onMouseLeave={(e) => { const v = e.target as HTMLVideoElement; v.pause(); v.currentTime = 0; }}
+                                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                />
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
+                                  <Video className="w-8 h-8 text-white drop-shadow-lg" />
+                                </div>
+                              </>
+                            ) : (
+                              <img
+                                src={post.media_url}
+                                alt={post.caption || 'Instagram Post'}
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                              />
                             )}
                             <div className={cn(
                               "absolute inset-0 transition-opacity duration-300",
