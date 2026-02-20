@@ -34,61 +34,7 @@ export default function Contacts() {
     }
   }, [user]);
 
-  async function fetchContacts() {
-    if (!user) return;
 
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('last_interaction_at', { ascending: false });
-
-      if (error) throw error;
-
-      if (!data || data.length === 0) {
-        // Try to sync from historical activities if table is empty
-        await syncHistoricalContacts();
-        // Re-fetch after sync
-        const { data: syncedData } = await supabase
-          .from('contacts')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('last_interaction_at', { ascending: false });
-
-        if (syncedData) {
-          processAndSetContacts(syncedData);
-        } else {
-          setContacts([]);
-        }
-      } else {
-        processAndSetContacts(data);
-
-        // Background check: If contacts exist but have no automations, try syncing anyway
-        const hasMissingAutomations = data.some(c => !c.interacted_automations || c.interacted_automations.length === 0);
-        if (hasMissingAutomations) {
-          console.log('Contacts exist but some missing automations, triggering background sync...');
-          syncHistoricalContacts().then(() => {
-            // Optional: refetch silently or just let next load handle it
-            // For better UX, let's refetch
-            supabase
-              .from('contacts')
-              .select('*')
-              .eq('user_id', user.id)
-              .order('last_interaction_at', { ascending: false })
-              .then(({ data: newData }) => {
-                if (newData) processAndSetContacts(newData);
-              });
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching contacts:', error);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   const processAndSetContacts = (data: any[]) => {
     const validContacts = (data || []).map(c => {
@@ -325,13 +271,18 @@ export default function Contacts() {
                         )}
                       </td>
                       <td className="px-6 py-5">
-                        {contact.interacted_automations?.length > 0 ? (
-                          <div className="text-xs font-bold text-blue-600 bg-blue-50/50 px-3 py-1.5 rounded-xl border border-blue-100 inline-block max-w-[200px] truncate" title={contact.interacted_automations.join(', ')}>
-                            {contact.interacted_automations.join(', ')}
-                          </div>
-                        ) : (
-                          <span className="text-gray-400 text-[10px] font-medium italic">No triggers yet</span>
-                        )}
+                        {(function () {
+                          const normalized = contact.username?.toLowerCase().replace('@', '').trim();
+                          const autos = automationNames[normalized] || contact.interacted_automations;
+
+                          return autos?.length > 0 ? (
+                            <div className="text-xs font-bold text-blue-600 bg-blue-50/50 px-3 py-1.5 rounded-xl border border-blue-100 inline-block max-w-[200px] truncate" title={autos.join(', ')}>
+                              {autos.join(', ')}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 text-[10px] font-medium italic">No triggers yet</span>
+                          );
+                        })()}
                       </td>
                       <td className="px-6 py-5 text-center">
                         <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/60 rounded-xl text-gray-800 font-bold text-sm shadow-sm border border-white/50">
