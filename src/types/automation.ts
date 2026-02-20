@@ -56,6 +56,7 @@ export interface SendDmAction {
   teaserMessage?: string;
   teaserBtnText?: string;
   respondToButtonId?: string; // Links this action to a postback button from a previous action
+  respondToButtonLabel?: string; // Display label of the linked postback button
 }
 
 export type Action = ReplyToCommentAction | AskToFollowAction | SendDmAction;

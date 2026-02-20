@@ -280,6 +280,11 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                     <div>
                       <h3 className="text-lg font-extrabold text-slate-800 tracking-tight">
                         {getActionName(action)}
+                        {action.type === 'send_dm' && (action as SendDmAction).respondToButtonId && (
+                          <span className="text-sm font-bold text-indigo-500 ml-1">
+                            - Response to "{(action as SendDmAction).respondToButtonLabel || 'Button'}"
+                          </span>
+                        )}
                       </h3>
                       <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Action #{index + 1}</p>
                     </div>
@@ -648,12 +653,13 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                       onClick={() => {
                         const newAction: SendDmAction = {
                           type: 'send_dm',
-                          title: `Response to "${pb.buttonText}"`,
+                          title: 'Hi\u{1F44B}',
                           imageUrl: '',
                           subtitle: 'Powered By Quickrevert.tech',
                           messageTemplate: '',
                           actionButtons: [],
                           respondToButtonId: pb.buttonId,
+                          respondToButtonLabel: pb.buttonText,
                         };
                         onActionsChange([...actions, newAction]);
                         setShowPostbackPicker(false);
