@@ -127,7 +127,7 @@ export default function Login() {
               <img
                 src={src}
                 alt={`Slide ${index + 1}`}
-                className={`w-full h-full object-cover transition-transform duration-[5000ms] linear ${index === currentImageIndex ? 'scale-110' : 'scale-100'
+                className={`w-full h-full object-contain p-12 transition-transform duration-[5000ms] linear ${index === currentImageIndex ? 'scale-110' : 'scale-100'
                   }`}
               />
             </div>

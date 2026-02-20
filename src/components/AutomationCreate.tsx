@@ -123,24 +123,7 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
 
   const currentStepIndex = steps.findIndex(s => s.id === currentStep);
 
-  const handleSave = async () => {
-    if (readOnly) return; // Guard clause
 
-    if (!user) {
-      console.error('No user authenticated');
-      toast.error('You must be logged in to create an automation');
-      return;
-    }
-    // ... existing save logic ...
-    // (I'll keep the rest of handleSave but just block it if readOnly)
-    // Actually, I need to preserve the handleSave function body for when it's NOT readOnly.
-    // Since I'm replacing the whole component logic block, I need to copy paste or be smart.
-    // I will just return if readOnly at the top of handleSave.
-
-    // ... (rest of handleSave logic) ...
-    // To minimize replacement size, I will just focus on the return statement and props.
-    // But since I need to pass readOnly to children, I need to update the return JSX.
-  };
 
   // Re-implementing handleSave just to be safe with the replace block
   const executeSave = async () => {

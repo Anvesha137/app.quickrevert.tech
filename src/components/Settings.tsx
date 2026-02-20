@@ -9,7 +9,6 @@ import {
   Briefcase,
   Loader2,
   ChevronDown,
-  Type,
   Save,
   Shield,
   Trash2
@@ -138,7 +137,6 @@ export default function Settings() {
     firstName: "",
     lastName: "",
     username: "",
-    bio: "",
     location: "",
     phone: "",
     category: ""
@@ -168,7 +166,6 @@ export default function Settings() {
           firstName: data.first_name || "",
           lastName: data.last_name || "",
           username: data.username || "",
-          bio: data.bio || "",
           location: data.location || "",
           phone: data.phone || "",
           category: data.business_category || ""
@@ -211,7 +208,6 @@ export default function Settings() {
           first_name: formData.firstName,
           last_name: formData.lastName,
           username: formData.username,
-          bio: formData.bio,
           phone: formData.phone,
           location: formData.location,
           business_category: formData.category,
@@ -353,21 +349,7 @@ export default function Settings() {
             />
           </div>
 
-          <div className="col-span-2">
-            <div className="space-y-2 group">
-              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <Type className="h-4 w-4 text-slate-400" /> Bio
-              </label>
-              <textarea
-                className="w-full rounded-xl border border-slate-200/60 bg-white/50 px-4 py-3 text-slate-800 placeholder-slate-400 shadow-sm backdrop-blur-sm transition-all focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10 min-h-[120px] font-medium"
-                placeholder="Tell us a little about yourself or your business..."
-                value={formData.bio}
-                onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                maxLength={500}
-              />
-              <p className="text-xs text-slate-400 text-right font-medium">{formData.bio.length}/500 characters</p>
-            </div>
-          </div>
+
 
           <div className="col-span-2 md:col-span-1">
             <GlassSelect
