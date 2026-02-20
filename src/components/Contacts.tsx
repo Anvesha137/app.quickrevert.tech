@@ -64,6 +64,24 @@ export default function Contacts() {
         }
       } else {
         processAndSetContacts(data);
+
+        // Background check: If contacts exist but have no automations, try syncing anyway
+        const hasMissingAutomations = data.some(c => !c.interacted_automations || c.interacted_automations.length === 0);
+        if (hasMissingAutomations) {
+          console.log('Contacts exist but some missing automations, triggering background sync...');
+          syncHistoricalContacts().then(() => {
+            // Optional: refetch silently or just let next load handle it
+            // For better UX, let's refetch
+            supabase
+              .from('contacts')
+              .select('*')
+              .eq('user_id', user.id)
+              .order('last_interaction_at', { ascending: false })
+              .then(({ data: newData }) => {
+                if (newData) processAndSetContacts(newData);
+              });
+          });
+        }
       }
     } catch (error) {
       console.error('Error fetching contacts:', error);
@@ -109,6 +127,10 @@ export default function Contacts() {
         const psid = act.metadata?.raw_id || act.metadata?.sender_id || act.metadata?.from?.id;
         const username = act.target_username;
 
+        // Normalize username for matching
+        const normalize = (u: string) => u?.toLowerCase().replace('@', '').trim();
+        const normalizedTarget = normalize(username);
+
         if (psid && username && username !== 'system_managed' && username !== 'Unknown') {
           const key = `${act.instagram_account_id}-${psid}`;
           const current = uniqueContactsMap.get(key);
@@ -120,6 +142,11 @@ export default function Contacts() {
           let interacted_automations = [...(current?.interacted_automations || [])];
           if (automationName && !interacted_automations.includes(automationName)) {
             interacted_automations.push(automationName);
+          }
+
+          // Debug log for specific user
+          if (normalizedTarget.includes('admitgenie')) {
+            console.log('Processing activity for admitgenie:', { aId, automationName, interacted_automations });
           }
 
           if (!current || new Date(act.created_at) > new Date(current.last_interaction_at)) {
