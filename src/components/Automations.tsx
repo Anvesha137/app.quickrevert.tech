@@ -87,7 +87,7 @@ export default function Automations() {
   const [filteredAutomations, setFilteredAutomations] = useState<Automation[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'name'>('newest');
+  const [sortBy, setSortBy] = useState<'' | 'newest' | 'oldest' | 'name'>('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [triggerFilter, setTriggerFilter] = useState<'all' | 'post_comment' | 'story_reply' | 'user_directed_messages'>('all');
   const [hasInstagramAccount, setHasInstagramAccount] = useState(false);
@@ -377,7 +377,7 @@ export default function Automations() {
               <div className="relative">
                 <select
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as 'newest' | 'oldest' | 'name')}
+                  onChange={(e) => setSortBy(e.target.value as '' | 'newest' | 'oldest' | 'name')}
                   className="appearance-none w-full pl-4 pr-10 py-3.5 border border-slate-200/60 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 bg-white/50 cursor-pointer font-bold text-slate-700 shadow-sm hover:bg-white/80 transition-all min-w-[160px] text-sm"
                 >
                   <option value="" disabled>Sort by</option>
