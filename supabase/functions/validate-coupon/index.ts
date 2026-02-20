@@ -85,20 +85,14 @@ serve(async (req) => {
 
                 if (isQuarterlyOnly && selectedPlan !== 'quarterly') {
                     return new Response(
-                        JSON.stringify({
-                            valid: false,
-                            message: 'This coupon is only valid for the Quarterly plan. Please switch to Quarterly to use it.'
-                        }),
+                        JSON.stringify({ valid: false, message: 'Invalid or expired coupon code.' }),
                         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
                     );
                 }
 
                 if (isAnnualOnly && selectedPlan !== 'annual') {
                     return new Response(
-                        JSON.stringify({
-                            valid: false,
-                            message: 'This coupon is only valid for the Annual plan. Please switch to Annual to use it.'
-                        }),
+                        JSON.stringify({ valid: false, message: 'Invalid or expired coupon code.' }),
                         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
                     );
                 }
