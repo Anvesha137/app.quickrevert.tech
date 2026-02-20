@@ -242,8 +242,9 @@ export default function Contacts() {
             ...current,
             interaction_count: (current?.interaction_count || 0) + 1
           });
-        });
-    }
+        }
+      }
+      });
 
 
     const contactsToInsert = Array.from(uniqueContactsMap.values());
