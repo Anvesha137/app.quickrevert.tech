@@ -115,7 +115,7 @@ export default function Login() {
 
       {/* Right Side: Carousel */}
       <div className="hidden lg:flex lg:w-1/2 items-center justify-end py-8 pl-8 bg-slate-50 h-full">
-        <div className="relative w-full h-full rounded-l-[2.5rem] overflow-hidden shadow-2xl border-y border-l border-gray-200 group">
+        <div className="relative w-full h-full rounded-l-[2.5rem] overflow-hidden group">
           <div className="absolute inset-0 bg-gradient-to-tr from-blue-600/5 to-purple-600/5 z-10 pointer-events-none" />
 
           {carouselImages.map((src, index) => (
@@ -127,7 +127,7 @@ export default function Login() {
               <img
                 src={src}
                 alt={`Slide ${index + 1}`}
-                className={`w-full h-full object-contain p-12 transition-transform duration-[5000ms] linear ${index === currentImageIndex ? 'scale-110' : 'scale-100'
+                className={`w-full h-full object-contain transition-transform duration-[5000ms] linear ${index === currentImageIndex ? 'scale-110' : 'scale-100'
                   }`}
               />
             </div>
