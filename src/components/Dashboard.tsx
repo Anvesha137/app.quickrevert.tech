@@ -251,7 +251,7 @@ export default function Dashboard() {
               {/* Connection Status Banner */}
               <div className="group">
                 {instagramAccount ? (
-                  <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 p-6 shadow-lg transition-all duration-300 hover:shadow-xl">
+                  <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-r ${isPremium ? 'from-indigo-600 to-violet-700 shadow-indigo-500/30' : 'from-blue-500 to-purple-600 shadow-purple-500/30'} p-6 shadow-lg transition-all duration-300 hover:shadow-xl`}>
                     <div className="flex items-center gap-4 relative z-10">
                       <div className="w-12 h-12 rounded-xl bg-white/10 border border-white/20 backdrop-blur-md flex items-center justify-center shrink-0">
                         {instagramAccount.profile_picture_url ? (
