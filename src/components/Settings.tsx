@@ -200,7 +200,10 @@ export default function Settings() {
         }
       }
 
-      // 2. Perform Upsert
+      // 2. Compute display name
+      const computedDisplayName = `${formData.firstName} ${formData.lastName}`.trim() || formData.username;
+
+      // 3. Perform Upsert
       const { error } = await supabase
         .from('profiles')
         .upsert({
@@ -211,6 +214,7 @@ export default function Settings() {
           phone: formData.phone,
           location: formData.location,
           business_category: formData.category,
+          display_name: computedDisplayName,
           updated_at: new Date().toISOString(),
         }, {
           onConflict: 'id'
@@ -218,7 +222,7 @@ export default function Settings() {
 
       if (error) throw error;
 
-      theme.setDisplayName(`${formData.firstName} ${formData.lastName}`.trim() || formData.username);
+      theme.setDisplayName(computedDisplayName);
 
       setSaveSuccess(true);
       toast.success('Settings saved successfully!');
