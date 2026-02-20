@@ -160,12 +160,15 @@ export default function Contacts() {
 
       const uniqueContactsMap = new Map();
       activities.forEach(act => {
-        const psid = act.metadata?.raw_id || act.metadata?.sender_id || act.metadata?.from?.id;
-        const username = act.target_username;
-
-        // Normalize username for matching
-        const normalize = (u: string) => u?.toLowerCase().replace('@', '').trim();
-        const normalizedTarget = normalize(username);
+        // Debug log for specific user
+        if (normalizedTarget.includes('admitgenie') || normalizedTarget.includes('indiangirl')) {
+          console.log(`Processing act for ${normalizedTarget}:`, {
+            id: act.id,
+            psid,
+            metadata: act.metadata,
+            currentCount: current?.interaction_count
+          });
+        }
 
         if (psid && username && username !== 'system_managed' && username !== 'Unknown') {
           const key = `${act.instagram_account_id}-${psid}`;
