@@ -114,20 +114,19 @@ export default function Login() {
       </div>
 
       {/* Right Side: Carousel */}
-      <div className="hidden lg:flex lg:w-1/2 items-center justify-end py-8 pl-8 bg-slate-50 h-full">
-        <div className="relative w-full h-full rounded-l-[2.5rem] overflow-hidden group">
-          <div className="absolute inset-0 bg-gradient-to-tr from-blue-600/5 to-purple-600/5 z-10 pointer-events-none" />
+      <div className="hidden lg:flex lg:w-1/2 items-center justify-center h-full p-10">
+        <div className="relative w-full h-full max-h-[800px] overflow-hidden group">
 
           {carouselImages.map((src, index) => (
             <div
               key={src}
-              className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentImageIndex ? 'opacity-100 z-0' : 'opacity-0 -z-10'
+              className={`absolute inset-0 flex items-center justify-center transition-opacity duration-1000 ease-in-out ${index === currentImageIndex ? 'opacity-100 z-0' : 'opacity-0 -z-10'
                 }`}
             >
               <img
                 src={src}
                 alt={`Slide ${index + 1}`}
-                className={`w-full h-full object-contain transition-transform duration-[5000ms] linear ${index === currentImageIndex ? 'scale-110' : 'scale-100'
+                className={`max-w-full max-h-full object-contain rounded-[2.5rem] transition-transform duration-[5000ms] linear ${index === currentImageIndex ? 'scale-110' : 'scale-100'
                   }`}
               />
             </div>
@@ -145,7 +144,7 @@ export default function Login() {
             ))}
           </div>
 
-          <div className="absolute inset-0 bg-black/10 z-[5] pointer-events-none" />
+
         </div>
       </div>
 
