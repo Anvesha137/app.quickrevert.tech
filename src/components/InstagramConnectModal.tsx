@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { X, Instagram, CheckCircle } from 'lucide-react';
+import { X, Instagram, CheckCircle, Infinity } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { TermsOfServiceModal, PrivacyPolicyModal } from './LegalModals';
 
 interface InstagramConnectModalProps {
   isOpen: boolean;
@@ -14,6 +15,8 @@ const InstagramConnectModal = ({ isOpen, onClose, onConnect }: InstagramConnectM
   const [oauthUrl, setOauthUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showTerms, setShowTerms] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
@@ -114,25 +117,34 @@ const InstagramConnectModal = ({ isOpen, onClose, onConnect }: InstagramConnectM
             <p className="text-gray-500 font-medium">Only a few steps away to go Viral!</p>
           </div>
 
-          {/* Meta-verified block */}
-          <div className="w-full p-6 rounded-3xl bg-slate-50/50 border border-slate-100 mb-8">
-            <div className="flex items-center justify-center mb-6">
-              <img src="/meta_logo.png" alt="Meta Logo" className="h-8 object-contain" />
-            </div>
+          {/* Meta Logo */}
+          <div className="flex items-center justify-center mb-6">
+            <img src="/meta_logo.png" alt="Meta Logo" className="h-8 object-contain" />
+          </div>
 
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center">
-                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-                </div>
-                <span className="text-sm font-medium text-gray-600">Official Meta OAuth login</span>
+          {/* Info Block */}
+          <div className="w-full p-6 rounded-2xl bg-[#FDF4FF] border border-purple-100 mb-8 text-left">
+            <div className="flex items-center gap-2 mb-2">
+              <Infinity className="w-5 h-5 text-purple-600" />
+              <h3 className="font-bold text-purple-600 text-lg">Official Meta API Integration</h3>
+            </div>
+            <p className="text-gray-600 text-sm leading-relaxed">
+              We only use official Instagram APIs and processes. Your Instagram account is secure, and you stay in full control.
+            </p>
+          </div>
+
+          <div className="w-full space-y-4 mb-8 pl-2">
+            <div className="flex items-center gap-3">
+              <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                <CheckCircle className="w-4 h-4 text-emerald-500" />
               </div>
-              <div className="flex items-center gap-3">
-                <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center">
-                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-                </div>
-                <span className="text-sm font-medium text-gray-600">Safe and Secure</span>
+              <span className="text-base font-medium text-gray-700">Official Meta OAuth login</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                <CheckCircle className="w-4 h-4 text-emerald-500" />
               </div>
+              <span className="text-base font-medium text-gray-700">Safe and Secure</span>
             </div>
           </div>
 
@@ -145,27 +157,27 @@ const InstagramConnectModal = ({ isOpen, onClose, onConnect }: InstagramConnectM
           <button
             onClick={handleConnect}
             disabled={loading || !oauthUrl}
-            className="w-full bg-gradient-to-r from-purple-600 via-rose-500 to-orange-500 text-white font-bold py-4 rounded-2xl shadow-xl shadow-rose-500/20 hover:shadow-rose-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 mb-8"
+            className="w-full bg-gradient-to-r from-orange-500 to-purple-700 text-white font-bold py-4 rounded-2xl shadow-xl shadow-purple-500/20 hover:shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 mb-8"
           >
             {loading ? (
               <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
               <>
-                <Instagram className="w-6 h-6" />
-                <span>Login with Instagram</span>
+                <div className="p-1 border-2 border-white rounded-lg">
+                  <Instagram className="w-5 h-5" />
+                </div>
+                <span className="text-lg">Continue to Instagram Login</span>
               </>
             )}
           </button>
 
           <div className="text-center w-full">
             <p className="text-xs text-gray-400 mb-4">
-              By continuing, you agree to QuickRevert's
+              By continuing, you agree to QuickRevert's{' '}
+              <button onClick={() => setShowTerms(true)} className="font-medium text-blue-500 hover:underline">Terms of Service</button>
+              {' '}and{' '}
+              <button onClick={() => setShowPrivacy(true)} className="font-medium text-blue-500 hover:underline">Privacy Policy</button>
             </p>
-            <div className="flex items-center justify-center gap-2 text-sm mb-6">
-              <a href="#" className="font-medium text-blue-500 hover:underline">Terms of Service</a>
-              <span className="text-gray-300">and</span>
-              <a href="#" className="font-medium text-blue-500 hover:underline">Privacy Policy</a>
-            </div>
 
             <button
               onClick={handleLogout}
@@ -176,6 +188,9 @@ const InstagramConnectModal = ({ isOpen, onClose, onConnect }: InstagramConnectM
           </div>
         </div>
       </div>
+
+      <TermsOfServiceModal isOpen={showTerms} onClose={() => setShowTerms(false)} />
+      <PrivacyPolicyModal isOpen={showPrivacy} onClose={() => setShowPrivacy(false)} />
     </div>
   );
 };
