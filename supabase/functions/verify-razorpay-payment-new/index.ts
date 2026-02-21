@@ -241,11 +241,6 @@ serve(async (req) => {
           }
         }
 
-        // Determine Package Name 
-        let packageName = 'Premium';
-        if (planType === 'quarterly') packageName += ' Quarterly';
-        if (planType === 'annual') packageName += ' Annual';
-
         // Calculate Dates in JS (IST Offset + Plan Duration)
         const istOffsetMs = 5.5 * 60 * 60 * 1000;
         const istDate = new Date(now.getTime() + istOffsetMs);
@@ -277,63 +272,62 @@ serve(async (req) => {
 
         const subscriptionEnd = expiryDate.toISOString();
 
+        // 1. Upsert User Profile
         await neonClient.queryObject`
           INSERT INTO users (
-            id,
-            username, 
-            email, 
-            package,
-            billing_cycle,
-            status,
-            subscription_start,
-            subscription_end,
-            payment_status,
-            last_payment_date,
-            amount_paid,
-            discount_amount,
-            currency,
-            deleted,
-            last_active,
-            instagram_handle,
-            connected_instagram_handle,
-            automations_count
+            id, username, email, status, joining_date, last_active,
+            instagram_handle, connected_instagram_handle, no_of_automations, deleted, promo_code
           ) VALUES (
-            ${userId},
-            ${instagramHandle || email}, 
-            ${email}, 
-            ${packageName},
-            ${planType},
-            'active',
-            NOW() + INTERVAL '5 hours 30 minutes',
-            ${subscriptionEnd},
-            'paid',
-            NOW() + INTERVAL '5 hours 30 minutes',
-            ${amountPaidRs},
-            ${discountRs},
-            'INR',
-            FALSE,
-            NOW() + INTERVAL '5 hours 30 minutes',
-            ${connectedHandle},
-            ${connectedHandle},
-            ${activeAutomationsCount}
+            ${userId}, ${instagramHandle || email}, ${email}, 'active',
+            NOW() + INTERVAL '5 hours 30 minutes', NOW() + INTERVAL '5 hours 30 minutes',
+            ${instagramHandle}, ${connectedHandle}, ${activeAutomationsCount}, FALSE, ${couponCode || null}
           )
           ON CONFLICT (email) DO UPDATE SET
             username = COALESCE(EXCLUDED.username, users.username),
-            package = EXCLUDED.package,
-            billing_cycle = EXCLUDED.billing_cycle,
             status = EXCLUDED.status,
-            subscription_start = EXCLUDED.subscription_start,
-            subscription_end = EXCLUDED.subscription_end,
-            payment_status = EXCLUDED.payment_status,
-            last_payment_date = EXCLUDED.last_payment_date,
-            amount_paid = EXCLUDED.amount_paid,
-            discount_amount = EXCLUDED.discount_amount,
-            currency = EXCLUDED.currency,
-            deleted = FALSE,
-            last_active = NOW() + INTERVAL '5 hours 30 minutes',
+            last_active = EXCLUDED.last_active,
             instagram_handle = EXCLUDED.instagram_handle,
             connected_instagram_handle = EXCLUDED.connected_instagram_handle,
-            automations_count = EXCLUDED.automations_count;
+            no_of_automations = EXCLUDED.no_of_automations,
+            promo_code = EXCLUDED.promo_code,
+            deleted = FALSE;
+        `;
+
+        // 2. Fetch or Create Plan
+        let packageName = 'Premium';
+        if (planType === 'quarterly') packageName = 'Premium Quarterly';
+        if (planType === 'annual') packageName = 'Premium Annual';
+
+        const planResult = await neonClient.queryObject`
+          INSERT INTO plans (name, billing_cycle, price, is_active)
+          VALUES (${packageName}, ${planType}, ${baseAmountRs}, true)
+          ON CONFLICT (name) DO UPDATE SET is_active = true
+          RETURNING id;
+        `;
+        const planId = (planResult.rows[0] as any).id;
+
+        // 3. Update or Insert Subscription
+        const subResult = await neonClient.queryObject`
+          UPDATE subscriptions
+          SET plan_id = ${planId},
+              subscription_end = ${subscriptionEnd},
+              status = 'active'
+          WHERE user_id = ${userId} AND status = 'active'
+          RETURNING id;
+        `;
+
+        if (subResult.rows.length === 0) {
+          await neonClient.queryObject`
+            INSERT INTO subscriptions (user_id, plan_id, subscription_start, subscription_end, status)
+            VALUES (${userId}, ${planId}, NOW() + INTERVAL '5 hours 30 minutes', ${subscriptionEnd}, 'active');
+          `;
+        }
+
+        // 4. Insert Payment Record
+        const paymentStatus = isFree ? 'free' : 'paid';
+        await neonClient.queryObject`
+          INSERT INTO payments (user_id, amount, discount_amount, promo_code, payment_status, paid_at)
+          VALUES (${userId}, ${amountPaidRs}, ${discountRs}, ${couponCode || null}, ${paymentStatus}, NOW() + INTERVAL '5 hours 30 minutes');
         `;
 
 

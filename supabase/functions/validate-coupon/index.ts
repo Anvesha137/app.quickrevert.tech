@@ -80,8 +80,8 @@ serve(async (req) => {
                 const pkgLower = coupon.package.toLowerCase().trim();
                 const selectedPlan = (planType || '').toLowerCase().trim(); // 'quarterly' or 'annual'
 
-                const isQuarterlyOnly = pkgLower.includes('quarterly');
-                const isAnnualOnly = pkgLower.includes('annual');
+                const isQuarterlyOnly = pkgLower.includes('quarterly') || pkgLower.includes('quaterly');
+                const isAnnualOnly = pkgLower.includes('annual') || pkgLower.includes('anually');
 
                 if (isQuarterlyOnly && selectedPlan !== 'quarterly') {
                     return new Response(
