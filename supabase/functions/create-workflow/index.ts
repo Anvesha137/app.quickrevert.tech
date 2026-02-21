@@ -448,13 +448,14 @@ Deno.serve(async (req: Request) => {
         previousNode = "Message Switch";
 
         if (sendDmAction) {
-          const text = sendDmAction.title || "Hello!";
+          const rawTitle = sendDmAction.title || "Hello!";
           const subtitle = sendDmAction.subtitle || sendDmAction.messageTemplate || "";
           const imageUrl = sendDmAction.imageUrl || "";
           const hasButtons = sendDmAction.actionButtons && sendDmAction.actionButtons.length > 0;
-          const isRichMessage = hasButtons || imageUrl;
+          const isRichMessage = hasButtons || !!imageUrl;
 
-          let jsonBody = "";
+          let dmPayloads: any[] = [];
+
           if (isRichMessage) {
             const templateButtons: any[] = [];
             if (hasButtons) {
@@ -468,46 +469,84 @@ Deno.serve(async (req: Request) => {
               });
             }
 
-            const messagePayload: any = {
-              recipient: { id: `{{ $('Worker Webhook').item.json.body.payload.sender.id }}` },
-              message: {
-                attachment: {
-                  type: "template",
-                  payload: {
-                    template_type: "generic",
-                    elements: [
-                      {
-                        title: text.substring(0, 80),
+            if (rawTitle.length > 80 || rawTitle.includes('\\n') || rawTitle.includes('\n')) {
+              // Split into TEXT + TEMPLATE
+              dmPayloads.push({
+                recipient: { id: "{{ $('Worker Webhook').item.json.body.payload.sender.id }}" },
+                message: { text: rawTitle }
+              });
+
+              dmPayloads.push({
+                recipient: { id: "{{ $('Worker Webhook').item.json.body.payload.sender.id }}" },
+                message: {
+                  attachment: {
+                    type: "template", payload: {
+                      template_type: "generic", elements: [{
+                        title: "Click below 👇",
                         subtitle: subtitle ? subtitle.substring(0, 80) : "Powered By Quickrevert.tech",
                         image_url: imageUrl || undefined,
                         buttons: templateButtons.length > 0 ? templateButtons.slice(0, 3) : undefined
-                      }
-                    ]
+                      }]
+                    }
                   }
                 }
-              }
-            };
-
-            jsonBody = `=${JSON.stringify(messagePayload, null, 2)}`;
+              });
+            } else {
+              // Standard Template
+              dmPayloads.push({
+                recipient: { id: "{{ $('Worker Webhook').item.json.body.payload.sender.id }}" },
+                message: {
+                  attachment: {
+                    type: "template", payload: {
+                      template_type: "generic", elements: [{
+                        title: rawTitle.substring(0, 80),
+                        subtitle: subtitle ? subtitle.substring(0, 80) : "Powered By Quickrevert.tech",
+                        image_url: imageUrl || undefined,
+                        buttons: templateButtons.length > 0 ? templateButtons.slice(0, 3) : undefined
+                      }]
+                    }
+                  }
+                }
+              });
+            }
           } else {
-            jsonBody = `={
-              "recipient": { "id": "{{ $('Worker Webhook').item.json.body.payload.sender.id }}" },
-              "message": { "text": "${text.replace(/"/g, '\\"')}" }
-            }`;
+            dmPayloads.push({
+              recipient: { id: "{{ $('Worker Webhook').item.json.body.payload.sender.id }}" },
+              message: { text: rawTitle }
+            });
           }
 
-          nodes.push({
-            id: "act-send-dm", name: "Send DM", type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [nodeX, 200],
-            parameters: {
-              method: "POST",
-              url: `=https://graph.instagram.com/v24.0/me/messages`,
-              authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
-              sendBody: true, specifyBody: "json",
-              jsonBody: jsonBody,
-              options: {}
-            },
-            credentials: { facebookGraphApi: { id: credentialId } }
+          let lastDmNode = "Message Switch";
+          dmPayloads.forEach((payload, pIndex) => {
+            const finalNodeName = dmPayloads.length > 1 ? `Send DM Part ${pIndex + 1}` : "Send DM";
+            nodes.push({
+              id: `act-send-dm-p${pIndex}`, name: finalNodeName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [nodeX, 200],
+              parameters: {
+                method: "POST", url: `=https://graph.instagram.com/v24.0/me/messages`,
+                authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
+                sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify(payload, null, 2)}`,
+                options: {}
+              },
+              credentials: { facebookGraphApi: { id: credentialId } }
+            });
+
+            if (pIndex === 0) {
+              // The first node receives the main connections
+              // For user_directed_messages, `Message Switch` connects to `Send DM` if sending a general DM.
+              // Wait, outputTargets.push("act-send-dm") was used!
+              // In `rules.forEach` (lines 570+), it uses `outputTargets` and replaces them with names.
+              // Let's modify outputTargets.
+              // BUT at line 416, it pushed "act-send-dm" to outputTargets!
+            } else {
+              connections[lastDmNode] = { main: [[{ node: finalNodeName, type: "main", index: 0 }]] };
+            }
+            lastDmNode = finalNodeName;
+            nodeX += 300;
           });
+
+          // Fix outputTargets references since the main node ID might have changed
+          // Wait, we pushed "act-send-dm" into `outputTargets`. So we must preserve the `id` of the FIRST node as `act-send-dm`.
+          nodes[nodes.length - dmPayloads.length].id = "act-send-dm";
         }
 
         postbackButtons.forEach((b: any, index: number) => {
@@ -779,70 +818,95 @@ Deno.serve(async (req: Request) => {
         }
 
         if (action.type === 'send_dm') {
+          // Check askToFollow blocks..
           if (action.askToFollow) {
+            // ... askToFollow teaser logic here
             const teaserNodeName = `Send Teaser DM`;
-            const teaserPayload = {
-              recipient: { id: senderIdPath },
-              message: {
-                attachment: {
-                  type: "template",
-                  payload: {
-                    template_type: "generic",
-                    elements: [
-                      {
-                        title: (action.teaserMessage || "Hey there! I'm so happy you're here... Click below and I'll send you the link in").substring(0, 80),
+            const rawTeaser = action.teaserMessage || "Hey there! I'm so happy you're here... Click below and I'll send you the link in just a sec ✨";
+
+            let teaserPayloads: any[] = [];
+            if (rawTeaser.length > 80 || rawTeaser.includes('\n')) {
+              teaserPayloads.push({
+                recipient: { comment_id: "{{ $('Worker Webhook').item.json.body.entry[0].changes[0].value.id }}" },
+                message: { text: rawTeaser }
+              });
+              teaserPayloads.push({
+                recipient: { comment_id: "{{ $('Worker Webhook').item.json.body.entry[0].changes[0].value.id }}" },
+                message: {
+                  attachment: {
+                    type: "template", payload: {
+                      template_type: "generic", elements: [{
+                        title: "Click below 👇",
                         subtitle: "Powered By Quickrevert.tech",
                         image_url: action.imageUrl || undefined,
-                        buttons: [
-                          {
-                            type: "postback",
-                            title: (action.teaserBtnText || "link please ").substring(0, 20),
-                            payload: "SEND_LINK"
-                          }
-                        ]
-                      }
-                    ]
+                        buttons: [{ type: "postback", title: (action.teaserBtnText || "link please").substring(0, 20), payload: "SEND_LINK" }]
+                      }]
+                    }
                   }
                 }
-              }
-            };
-            nodes.push({
-              id: `teaser-${index}`, name: teaserNodeName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3,
-              position: [1100, -850], // Adjusted position
-              parameters: {
-                method: "POST",
-                url: "https://graph.instagram.com/v24.0/me/messages",
-                authentication: "predefinedCredentialType",
-                nodeCredentialType: "facebookGraphApi",
-                sendBody: true,
-                specifyBody: "json",
-                jsonBody: `={\n  \"recipient\": {\n    \"comment_id\": \"{{ $('Worker Webhook').item.json.body.entry[0].changes[0].value.id }}\"\n  },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"${(action.teaserMessage || "Hey there! I'm so happy you're here...").replace(/"/g, '\\"').substring(0, 80)}\",\n            \"subtitle\": \"Powered By Quickrevert.tech\",\n            \"buttons\": [\n              {\n                \"type\": \"postback\",\n                \"title\": \"${(action.teaserBtnText || "send link please ").replace(/"/g, '\\"').substring(0, 20)}\",\n                \"payload\": \"SEND_LINK\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}`,
-                options: {}
-              },
-              credentials: { facebookGraphApi: { id: credentialId } }
-            });
+              });
+            } else {
+              teaserPayloads.push({
+                recipient: { comment_id: "{{ $('Worker Webhook').item.json.body.entry[0].changes[0].value.id }}" },
+                message: {
+                  attachment: {
+                    type: "template", payload: {
+                      template_type: "generic", elements: [{
+                        title: rawTeaser,
+                        subtitle: "Powered By Quickrevert.tech",
+                        image_url: action.imageUrl || undefined,
+                        buttons: [{ type: "postback", title: (action.teaserBtnText || "link please").substring(0, 20), payload: "SEND_LINK" }]
+                      }]
+                    }
+                  }
+                }
+              });
+            }
 
-            // 1. Connect Loop Protection to Teaser (Sequential start)
-            if (!connections[triggerAnchorNode]) connections[triggerAnchorNode] = { main: [[]] };
-            if (!connections[triggerAnchorNode].main[0]) connections[triggerAnchorNode].main[0] = [];
-            connections[triggerAnchorNode].main[0].push({ node: teaserNodeName, type: "main", index: 0 });
+            let lastTeaserNode = "";
+            teaserPayloads.forEach((payload, pIndex) => {
+              const tName = teaserPayloads.length > 1 ? `${teaserNodeName} Part ${pIndex + 1}` : teaserNodeName;
+              nodes.push({
+                id: `teaser-${index}-p${pIndex}`, name: tName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3,
+                position: [1100 + (pIndex * 250), -850],
+                parameters: {
+                  method: "POST", url: "https://graph.instagram.com/v24.0/me/messages",
+                  authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
+                  sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify(payload, null, 2)}`,
+                  options: {}
+                },
+                credentials: { facebookGraphApi: { id: credentialId } }
+              });
+
+              if (pIndex === 0) {
+                if (!connections[triggerAnchorNode]) connections[triggerAnchorNode] = { main: [[]] };
+                if (!connections[triggerAnchorNode].main[0]) connections[triggerAnchorNode].main[0] = [];
+                connections[triggerAnchorNode].main[0].push({ node: tName, type: "main", index: 0 });
+              } else {
+                connections[lastTeaserNode] = { main: [[{ node: tName, type: "main", index: 0 }]] };
+              }
+              lastTeaserNode = tName;
+            });
 
             // 2. Connect Teaser to Reply (Sequential chain)
             const hasReply = actions.some((a: any) => a.type === 'reply_to_comment');
             if (hasReply) {
-              connections[teaserNodeName] = { main: [[{ node: "Reply to Comment", type: "main", index: 0 }]] };
+              connections[lastTeaserNode] = { main: [[{ node: "Reply to Comment", type: "main", index: 0 }]] };
             }
 
-            nodeX += 300;
+            nodeX += 300 + (teaserPayloads.length * 250);
             postbackActions.push({ ...action, index });
             return;
           }
+
           nodeName = `Send DM ${index + 1}`;
           const recipient = triggerType === 'post_comment' ? { comment_id: "{{ $('Worker Webhook').item.json.body.entry[0].changes[0].value.id }}" } : { id: senderIdPath };
           const hasButtons = action.actionButtons && action.actionButtons.length > 0;
           const hasImage = !!action.imageUrl;
+          const rawTitle = action.title || "Hi 👋";
 
-          let messagePayload: any;
+          let dmPayloads: any[] = [];
+
           if (hasButtons || hasImage) {
             // Build generic template with buttons
             const templateButtons: any[] = [];
@@ -856,45 +920,72 @@ Deno.serve(async (req: Request) => {
                 }
               });
             }
-            const element: any = {
-              title: (action.title || "Hi 👋").substring(0, 80),
-              subtitle: (action.subtitle || "Powered by Quickrevert.tech").substring(0, 80),
-            };
-            if (action.imageUrl) element.image_url = action.imageUrl;
-            if (templateButtons.length > 0) element.buttons = templateButtons;
 
-            messagePayload = {
-              recipient,
-              message: {
-                attachment: {
-                  type: "template",
-                  payload: {
-                    template_type: "generic",
-                    elements: [element]
-                  }
-                }
+            if (rawTitle.length > 80 || rawTitle.includes('\\n') || rawTitle.includes('\n')) {
+              // Split into TEXT + TEMPLATE
+              dmPayloads.push({
+                recipient,
+                message: { text: rawTitle }
+              });
+
+              const element: any = {
+                title: "Click below �",
+                subtitle: (action.subtitle || "Powered by Quickrevert.tech").substring(0, 80),
+              };
+              if (action.imageUrl) element.image_url = action.imageUrl;
+              if (templateButtons.length > 0) element.buttons = templateButtons;
+
+              dmPayloads.push({
+                recipient,
+                message: { attachment: { type: "template", payload: { template_type: "generic", elements: [element] } } }
+              });
+            } else {
+              // Standard Template
+              const element: any = {
+                title: rawTitle.substring(0, 80),
+                subtitle: (action.subtitle || "Powered by Quickrevert.tech").substring(0, 80),
+              };
+              if (action.imageUrl) element.image_url = action.imageUrl;
+              if (templateButtons.length > 0) element.buttons = templateButtons;
+
+              dmPayloads.push({
+                recipient,
+                message: { attachment: { type: "template", payload: { template_type: "generic", elements: [element] } } }
+              });
+            }
+          } else {
+            dmPayloads.push({ recipient, message: { text: rawTitle } });
+          }
+
+          let lastDmNode = "";
+          dmPayloads.forEach((payload, pIndex) => {
+            const finalNodeName = dmPayloads.length > 1 ? `${nodeName} Part ${pIndex + 1}` : nodeName;
+
+            nodes.push({
+              id: `act-${index}-p${pIndex}`, name: finalNodeName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [nodeX, 300],
+              parameters: { method: "POST", url: "https://graph.instagram.com/v24.0/me/messages", authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi", sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify(payload, null, 2)}`, options: {} },
+              credentials: { facebookGraphApi: { id: credentialId } }
+            });
+
+            if (triggerType === 'post_comment') {
+              if (pIndex === 0) {
+                if (!connections[previousNode]) connections[previousNode] = { main: [[], []] };
+                connections[previousNode].main[0].push({ node: finalNodeName, type: "main", index: 0 });
+              } else {
+                connections[lastDmNode] = { main: [[{ node: finalNodeName, type: "main", index: 0 }]] };
               }
-            };
-          } else {
-            messagePayload = { recipient, message: { text: action.title || "Hello!" } };
-          }
-          nodeParams = { method: "POST", url: "https://graph.instagram.com/v24.0/me/messages", authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi", sendBody: true, specifyBody: "json", jsonBody: `=${JSON.stringify(messagePayload, null, 2)}`, options: {} };
-        }
-
-        if (Object.keys(nodeParams).length > 0) {
-          nodes.push({
-            id: `act-${index}`, name: nodeName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [nodeX, 300],
-            parameters: nodeParams, credentials: { facebookGraphApi: { id: credentialId } }
+              nodeX += 300;
+            } else {
+              if (pIndex === 0) {
+                if (previousNode) connections[previousNode] = { main: [[{ node: finalNodeName, type: "main", index: 0 }]] };
+              } else {
+                connections[lastDmNode] = { main: [[{ node: finalNodeName, type: "main", index: 0 }]] };
+              }
+              previousNode = finalNodeName;
+              nodeX += 300;
+            }
+            lastDmNode = finalNodeName;
           });
-          if (triggerType === 'post_comment') {
-            if (!connections[previousNode]) connections[previousNode] = { main: [[], []] };
-            connections[previousNode].main[0].push({ node: nodeName, type: "main", index: 0 });
-            nodeX += 300;
-          } else {
-            if (previousNode) connections[previousNode] = { main: [[{ node: nodeName, type: "main", index: 0 }]] };
-            previousNode = nodeName;
-            nodeX += 300;
-          }
         }
       });
 
