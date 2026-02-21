@@ -193,19 +193,26 @@ export default function UpgradeModal() {
             if (data?.error) throw new Error(data.error);
 
             if (data?.free) {
-                const { error: verifyError } = await supabase.functions.invoke('verify-razorpay-payment-new', {
-                    body: {
+                const verifyResponse = await fetch(`${supabaseUrl}/functions/v1/verify-razorpay-payment-new`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${supabaseAnonKey}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
                         isFree: true,
                         userId: user?.id,
                         planTier: planTier,
                         planType: billingCycle,
                         instagramHandle: instagramHandle,
                         couponCode: couponCode
-                    }
+                    })
                 });
 
-                if (verifyError) {
-                    toast.error(`Upgrade failed: ${verifyError.message || JSON.stringify(verifyError)}`);
+                if (!verifyResponse.ok) {
+                    const errorText = await verifyResponse.text();
+                    toast.error(`Upgrade failed: ${errorText}`);
+                    setLoading(false);
                     return;
                 }
 
@@ -228,8 +235,13 @@ export default function UpgradeModal() {
                     coupon_code: couponCode
                 },
                 handler: async function (response: any) {
-                    const { error: verifyError } = await supabase.functions.invoke('verify-razorpay-payment-new', {
-                        body: {
+                    const verifyResponse = await fetch(`${supabaseUrl}/functions/v1/verify-razorpay-payment-new`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${supabaseAnonKey}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
                             razorpay_order_id: response.razorpay_order_id,
                             razorpay_payment_id: response.razorpay_payment_id,
                             razorpay_signature: response.razorpay_signature,
@@ -238,11 +250,13 @@ export default function UpgradeModal() {
                             planType: billingCycle,
                             instagramHandle: instagramHandle,
                             couponCode: couponCode
-                        }
+                        })
                     });
 
-                    if (verifyError) {
-                        toast.error(`Payment verification failed: ${verifyError.message || JSON.stringify(verifyError)}`);
+                    if (!verifyResponse.ok) {
+                        const errorText = await verifyResponse.text();
+                        toast.error(`Payment verification failed: ${errorText}`);
+                        setLoading(false);
                         return;
                     }
 
