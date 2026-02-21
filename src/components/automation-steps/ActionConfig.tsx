@@ -478,7 +478,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                     <div className="space-y-4">
                       <div className="flex items-center justify-between pl-1">
                         <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest">Action Buttons (Max 3)</label>
-                        <span className="text-[10px] font-semibold text-blue-400 uppercase tracking-tighter">Clickable <span className="text-yellow-400">Rewards</span></span>
+                        <span className="text-[10px] font-semibold text-black-400 uppercase tracking-tighter">Clickable <span className="text-yellow-400">Rewards</span></span>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
