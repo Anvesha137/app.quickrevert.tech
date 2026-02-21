@@ -193,7 +193,7 @@ export default function UpgradeModal() {
             if (data?.error) throw new Error(data.error);
 
             if (data?.free) {
-                const { error: verifyError } = await supabase.functions.invoke('verify-razorpay-payment', {
+                const { error: verifyError } = await supabase.functions.invoke('verify-razorpay-payment-new', {
                     body: {
                         isFree: true,
                         userId: user?.id,
@@ -228,7 +228,7 @@ export default function UpgradeModal() {
                     coupon_code: couponCode
                 },
                 handler: async function (response: any) {
-                    const { error: verifyError } = await supabase.functions.invoke('verify-razorpay-payment', {
+                    const { error: verifyError } = await supabase.functions.invoke('verify-razorpay-payment-new', {
                         body: {
                             razorpay_order_id: response.razorpay_order_id,
                             razorpay_payment_id: response.razorpay_payment_id,
