@@ -3,7 +3,8 @@ import { useSubscription } from './SubscriptionContext';
 
 interface UpgradeModalContextType {
     isOpen: boolean;
-    openModal: () => void;
+    defaultBillingCycle: 'annual' | 'quarterly' | null;
+    openModal: (cycle?: 'annual' | 'quarterly') => void;
     closeModal: () => void;
     showCelebration: boolean;
     openCelebration: () => void;
@@ -14,12 +15,15 @@ const UpgradeModalContext = createContext<UpgradeModalContextType | undefined>(u
 
 export function UpgradeModalProvider({ children }: { children: ReactNode }) {
     const [isOpen, setIsOpen] = useState(false);
+    const [defaultBillingCycle, setDefaultBillingCycle] = useState<'annual' | 'quarterly' | null>(null);
     const [showCelebration, setShowCelebration] = useState(false);
     const { isPremium } = useSubscription();
 
     // Never open the upgrade modal for premium users
-    const openModal = () => {
+    const openModal = (cycle?: 'annual' | 'quarterly') => {
         if (isPremium) return;
+        if (cycle) setDefaultBillingCycle(cycle);
+        else setDefaultBillingCycle(null);
         setIsOpen(true);
     };
     const closeModal = () => setIsOpen(false);
@@ -30,6 +34,7 @@ export function UpgradeModalProvider({ children }: { children: ReactNode }) {
     return (
         <UpgradeModalContext.Provider value={{
             isOpen,
+            defaultBillingCycle,
             openModal,
             closeModal,
             showCelebration,

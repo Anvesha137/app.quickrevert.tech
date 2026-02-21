@@ -121,7 +121,7 @@ export default function Pricing() {
 
                                     <div className="p-6 md:p-8 pt-0">
                                         <button
-                                            onClick={openModal}
+                                            onClick={() => openModal(billingCycle)}
                                             className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all duration-300 transform group-hover:scale-[1.02] active:scale-[0.98] uppercase tracking-wider ${plan.buttonStyle}`}
                                         >
                                             {plan.cta}

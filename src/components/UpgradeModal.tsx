@@ -3,7 +3,6 @@ import { toast } from 'sonner';
 import { useUpgradeModal } from '../contexts/UpgradeModalContext';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
 import { useSubscription } from '../contexts/SubscriptionContext';
 
 declare global {
@@ -23,11 +22,11 @@ interface CouponState {
 }
 
 export default function UpgradeModal() {
-    const { isOpen, closeModal, openCelebration } = useUpgradeModal();
+    const { isOpen, closeModal, openCelebration, defaultBillingCycle } = useUpgradeModal();
     const { user } = useAuth();
     const { isPremium } = useSubscription();
     const [planTier] = useState<PlanTier>('premium');
-    const [billingCycle, setBillingCycle] = useState<'annual' | 'quarterly'>('annual');
+    const [billingCycle, setBillingCycle] = useState<'annual' | 'quarterly'>(defaultBillingCycle || 'annual');
     const [loading, setLoading] = useState(false);
     const [step, setStep] = useState<1 | 2>(1);
     const [instagramHandle, setInstagramHandle] = useState('');
@@ -44,10 +43,11 @@ export default function UpgradeModal() {
     useEffect(() => {
         if (isOpen) {
             setStep(1);
+            setBillingCycle(defaultBillingCycle || 'annual');
             setCouponCode('');
             setCoupon({ status: 'idle', message: '', discountAmount: 0, finalAmount: 0, isFree: false });
         }
-    }, [isOpen]);
+    }, [isOpen, defaultBillingCycle]);
 
     // Reset coupon validation when billing cycle changes
     useEffect(() => {
