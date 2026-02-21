@@ -320,12 +320,12 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
                         <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest pl-1">Card Title</label>
-                        <textarea
+                        <input
+                          type="text"
                           value={(action as SendDmAction).title || ''}
                           onChange={(e) => updateAction(index, { ...action, title: e.target.value } as SendDmAction)}
                           placeholder="Hey there! 👋"
                           disabled={readOnly}
-                          rows={3}
                           className={`w-full px-6 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 font-semibold text-slate-800 transition-all placeholder:text-slate-300 ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
                         />
                       </div>
