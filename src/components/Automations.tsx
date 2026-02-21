@@ -273,7 +273,11 @@ export default function Automations() {
     }
   };
 
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = (id: string, name: string, status: string) => {
+    if (status === 'active') {
+      toast.error('Please deactivate the workflow first before deleting it.');
+      return;
+    }
     setAutomationToDelete({ id, name });
     setIsDeleteModalOpen(true);
   };
@@ -530,7 +534,7 @@ export default function Automations() {
                       <GlassButton
                         variant="danger"
                         icon={Trash2}
-                        onClick={() => handleDelete(automation.id, automation.name)}
+                        onClick={() => handleDelete(automation.id, automation.name, automation.status)}
                         className="!p-3 rounded-xl"
                       />
                     </div>
