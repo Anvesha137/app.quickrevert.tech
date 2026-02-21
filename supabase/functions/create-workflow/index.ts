@@ -583,6 +583,78 @@ Deno.serve(async (req: Request) => {
         return { name: finalWorkflowName, nodes, connections, settings: { saveExecutionProgress: true, timezone: "Asia/Kolkata" } };
       }
 
+      // 1.52 Fetch Usernames + Switch (All DMs - user_dm / user_directed_messages with messageType !== 'keywords')
+      const isAllDmsTrigger =
+        (triggerType === 'user_dm' || triggerType === 'user_directed_messages' || triggerType === 'story_reply') &&
+        automationData?.trigger_config?.messageType !== 'keywords' &&
+        automationData?.trigger_config?.storiesType !== 'keywords' &&
+        !hasAskToFollow;
+
+      if (isAllDmsTrigger) {
+        // Fetch Usernames node
+        nodes.push({
+          id: "fetch-usernames",
+          name: "Fetch Usernames",
+          type: "n8n-nodes-base.httpRequest",
+          typeVersion: 4.3,
+          position: [nodeX, 300],
+          parameters: {
+            url: "https://graph.instagram.com/v24.0/me?fields=id,username",
+            authentication: "predefinedCredentialType",
+            nodeCredentialType: "facebookGraphApi",
+            options: {}
+          },
+          credentials: { facebookGraphApi: { id: credentialId } }
+        });
+
+        connections[previousNode] = {
+          main: [[{ node: "Fetch Usernames", type: "main", index: 0 }]]
+        };
+        previousNode = "Fetch Usernames";
+        nodeX += 250;
+
+        // Switch node: filter out bot messages and message edits
+        nodes.push({
+          id: "dm-filter-switch",
+          name: "Switch",
+          type: "n8n-nodes-base.switch",
+          typeVersion: 3.4,
+          position: [nodeX, 300],
+          parameters: {
+            rules: {
+              values: [
+                {
+                  conditions: {
+                    options: { caseSensitive: true, leftValue: "", typeValidation: "strict", version: 3 },
+                    conditions: [
+                      {
+                        id: "sender-not-bot",
+                        leftValue: "={{ $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id }}",
+                        rightValue: "={{ $('Fetch Usernames').item.json.id }}",
+                        operator: { type: "string", operation: "notEquals" }
+                      },
+                      {
+                        id: "not-a-message-edit",
+                        leftValue: "={{ $('Worker Webhook').item.json.body.entry[0].messaging[0].message_edit }}",
+                        operator: { type: "object", operation: "notExists" }
+                      }
+                    ],
+                    combinator: "and"
+                  }
+                }
+              ]
+            },
+            options: {}
+          }
+        });
+
+        connections["Fetch Usernames"] = {
+          main: [[{ node: "Switch", type: "main", index: 0 }]]
+        };
+        previousNode = "Switch";
+        nodeX += 250;
+      }
+
       // 1.55 Post Filter Switch
       const isSpecificPostTrigger = triggerType === 'post_comment' && automationData?.trigger_config?.postsType === 'specific';
       if (!hasAskToFollow && isSpecificPostTrigger) {
