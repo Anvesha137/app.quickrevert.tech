@@ -332,7 +332,7 @@ serve(async (req) => {
 
 
         // Increment Coupon Usage in Neon DB (for paid transactions)
-        if (couponCode) {
+        if (couponCode && !isFree) {
           try {
             await neonClient.queryObject(
               `UPDATE promo_codes SET total_usage_tilldate = total_usage_tilldate + 1 WHERE LOWER(promo_code) = LOWER($1)`,
