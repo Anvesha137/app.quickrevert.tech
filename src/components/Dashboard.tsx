@@ -151,7 +151,7 @@ export default function Dashboard() {
       await N8nWorkflowService.createAnalyticsWorkflow(user!.id, instagramAccount.id);
       toast.success('Advanced Analytics enabled successfully!');
 
-      toast.success('Hey 👋 its gonna be update in an hour, please come and check');
+      toast.success('Analytics getting their glow-up ✨ check in an hour!');
 
       // Fetch the updated stats to reflect across KPIs
       await fetchDashboardStats();
@@ -164,7 +164,7 @@ export default function Dashboard() {
   };
 
   const handleRefreshAnalytics = async () => {
-    toast.success('Hey 👋 its gonna be update in an hour, please come and check');
+    toast.success('Analytics getting their glow-up ✨ check in an hour!');
   };
 
   const getStepProgress = (id: number) => {
