@@ -411,7 +411,7 @@ export default function Contacts() {
                           </div>
                           <div>
                             {(() => {
-                              const isGeneratedId = contact.username?.startsWith('IG:');
+                              const isGeneratedId = !contact.username || contact.username === 'Instagram User' || contact.username === 'Unknown' || contact.username?.startsWith('IG:');
                               const hasRealName = contact.full_name && contact.full_name !== 'Instagram User' && !contact.full_name.startsWith('User ');
 
                               if (isGeneratedId) {
