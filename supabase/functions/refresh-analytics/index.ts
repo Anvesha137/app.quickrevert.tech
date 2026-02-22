@@ -18,7 +18,11 @@ Deno.serve(async (req: Request) => {
     try {
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
         const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const n8nBaseUrl = Deno.env.get("N8N_BASE_URL");
+        const n8nApiKey = Deno.env.get("X-N8N-API-KEY");
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+        if (!n8nBaseUrl || !n8nApiKey) throw new Error("Missing n8n config");
 
         const authHeader = req.headers.get("Authorization");
         if (!authHeader) {
@@ -32,60 +36,40 @@ Deno.serve(async (req: Request) => {
             throw new Error("Invalid user token");
         }
 
-        const { data: instagramAccount, error: accountError } = await supabase
-            .from("instagram_accounts")
-            .select("*")
+        const { data: analyticsWorkflow, error: wfError } = await supabase
+            .from("n8n_workflows")
+            .select("n8n_workflow_id")
             .eq("user_id", user.id)
-            .eq("status", "active")
+            .like("n8n_workflow_name", "[Analytics]%")
+            .limit(1)
             .maybeSingle();
 
-        if (accountError || !instagramAccount) {
-            return new Response(
-                JSON.stringify({ error: "No active Instagram account found" }),
-                {
-                    status: 404,
-                    headers: { ...corsHeaders, "Content-Type": "application/json" },
-                }
-            );
+        if (wfError || !analyticsWorkflow) {
+            throw new Error("Analytics workflow not found. Please enable it first.");
         }
 
-        // Use instagram Graph API for Business/Creator accounts to get followers/following
-        const profileResponse = await fetch(
-            `https://graph.facebook.com/v21.0/${instagramAccount.instagram_user_id}?fields=id,username,name,profile_picture_url,followers_count,follows_count,media_count,biography&access_token=${instagramAccount.access_token}`
-        );
+        // Trigger the manual execution endpoint for this specific workflow in n8n
+        const workflowId = analyticsWorkflow.n8n_workflow_id;
 
-        if (!profileResponse.ok) {
-            const errorData = await profileResponse.json();
-            throw new Error(errorData.error?.message || "Failed to fetch Instagram profile");
-        }
+        const triggerResponse = await fetch(`${n8nBaseUrl}/api/v1/workflows/${workflowId}/run?trigger=manual`, {
+            method: 'POST',
+            headers: {
+                'X-N8N-API-KEY': n8nApiKey,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({}) // Empty body since it just triggers the flow
+        });
 
-        const profileData = await profileResponse.json();
-
-        // Update the database
-        const { error: updateError } = await supabase
-            .from("instagram_accounts")
-            .update({
-                followers_count: profileData.followers_count,
-                follows_count: profileData.follows_count,
-                media_count: profileData.media_count,
-                followers_last_updated: new Date().toISOString()
-            })
-            .eq("id", instagramAccount.id);
-
-        if (updateError) {
-            throw new Error(`Failed to update analytics in database: ${updateError.message}`);
+        if (!triggerResponse.ok) {
+            const errBody = await triggerResponse.text();
+            console.error("Failed to trigger n8n manual workflow:", errBody);
+            throw new Error(`Failed to trigger analytics refresh in n8n: ${triggerResponse.statusText}`);
         }
 
         return new Response(
             JSON.stringify({
                 success: true,
-                message: "Analytics refreshed successfully",
-                data: {
-                    followers_count: profileData.followers_count,
-                    follows_count: profileData.follows_count,
-                    media_count: profileData.media_count,
-                    followers_last_updated: new Date().toISOString()
-                }
+                message: "Analytics refresh triggered successfully via n8n"
             }),
             {
                 status: 200,
@@ -93,7 +77,7 @@ Deno.serve(async (req: Request) => {
             }
         );
     } catch (error: any) {
-        console.error("Error refreshing Instagram analytics:", error);
+        console.error("Error triggering manual refresh:", error);
         return new Response(
             JSON.stringify({ error: error.message || "Internal server error" }),
             {

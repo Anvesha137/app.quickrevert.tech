@@ -125,14 +125,19 @@ export class N8nWorkflowService {
 
       const authToken = session.access_token;
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-analytics-workflow`, {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-workflow`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${authToken}`,
           'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
         },
-        body: JSON.stringify({ userId, instagramAccountId })
+        body: JSON.stringify({
+          userId,
+          instagramAccountId,
+          triggerType: 'enable_analytics',
+          autoActivate: true
+        })
       });
 
       const result = await response.json();

@@ -35,6 +35,7 @@ interface DashboardStats {
   followersCount?: number | null;
   initialFollowersCount?: number | null;
   followersLastUpdated?: string | null;
+  hasAnalyticsWorkflow: boolean;
 }
 
 export default function Dashboard() {
@@ -47,7 +48,8 @@ export default function Dashboard() {
     uniqueUsers: 0,
     followersCount: null,
     initialFollowersCount: null,
-    followersLastUpdated: null
+    followersLastUpdated: null,
+    hasAnalyticsWorkflow: false
   });
   const [loading, setLoading] = useState(true);
   const [enablingAnalytics, setEnablingAnalytics] = useState(false);
@@ -112,6 +114,15 @@ export default function Dashboard() {
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user!.id);
 
+      // Fetch whether analytics workflow exists
+      const { data: analyticsWorkflow } = await supabase
+        .from('n8n_workflows')
+        .select('n8n_workflow_id')
+        .eq('user_id', user!.id)
+        .like('n8n_workflow_name', '[Analytics]%')
+        .limit(1)
+        .maybeSingle();
+
       setStats({
         dmsTriggered: dmsCount,
         activeAutomations: activeAutomationsCount,
@@ -119,7 +130,8 @@ export default function Dashboard() {
         uniqueUsers: uniqueUsersCount || 0,
         followersCount: instaAccount?.followers_count ?? null,
         initialFollowersCount: instaAccount?.initial_followers_count ?? null,
-        followersLastUpdated: instaAccount?.followers_last_updated ?? null
+        followersLastUpdated: instaAccount?.followers_last_updated ?? null,
+        hasAnalyticsWorkflow: !!analyticsWorkflow
       });
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
@@ -172,7 +184,7 @@ export default function Dashboard() {
       case 1: return instagramAccount ? true : false;
       case 2: return stats.activeAutomations > 0;
       case 3: return (stats.dmsTriggered > 0 || stats.commentReplies > 0);
-      case 4: return !!stats.followersLastUpdated;
+      case 4: return stats.hasAnalyticsWorkflow;
       default: return false;
     }
   };

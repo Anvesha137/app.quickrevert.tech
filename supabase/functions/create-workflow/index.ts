@@ -106,25 +106,33 @@ Deno.serve(async (req: Request) => {
 
       // 0. Analytics Workflow (Special Case)
       if (bodyTriggerType === 'enable_analytics') {
-        // ... (keep existing analytics logic manually or just returning it if I can't see it all, but I have it in context)
-        // Since I need to preserve it, I will copy the analytics block from previous context.
         const nodes = [
           {
             "parameters": {
-              "rule": {
-                "interval": [
+              "url": "https://graph.instagram.com/me",
+              "authentication": "predefinedCredentialType",
+              "nodeCredentialType": "facebookGraphApi",
+              "sendQuery": true,
+              "queryParameters": {
+                "parameters": [
                   {
-                    "field": "hours",
-                    "hoursInterval": 12
+                    "name": "fields",
+                    "value": "followers_count,media_count,username,follows_count"
                   }
                 ]
-              }
+              },
+              "options": {}
             },
-            "id": "schedule-trigger",
-            "name": "Every 12 Hours",
-            "type": "n8n-nodes-base.scheduleTrigger",
-            "typeVersion": 1.2,
-            "position": [-160, -32]
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [-144, 464],
+            "id": "get-initial-stats",
+            "name": "Get Instagram Stats1",
+            "credentials": {
+              "facebookGraphApi": {
+                "id": credentialId
+              }
+            }
           },
           {
             "parameters": {
@@ -144,9 +152,9 @@ Deno.serve(async (req: Request) => {
             },
             "type": "n8n-nodes-base.httpRequest",
             "typeVersion": 4.3,
-            "position": [64, -32],
-            "id": "get-insta-stats",
-            "name": "Get Instagram Stats",
+            "position": [80, 464],
+            "id": "get-updated-stats",
+            "name": "updated followers",
             "credentials": {
               "facebookGraphApi": {
                 "id": credentialId
@@ -155,58 +163,100 @@ Deno.serve(async (req: Request) => {
           },
           {
             "parameters": {
-              "method": "PATCH",
-              "url": `${supabaseUrl}/rest/v1/instagram_accounts?id=eq.${instagramAccount.id}`,
-              "headers": {
+              "rule": {
+                "interval": [
+                  {
+                    "field": "hours",
+                    "hoursInterval": 12
+                  }
+                ]
+              }
+            },
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1.3,
+            "position": [-368, 464],
+            "id": "schedule-trigger-node",
+            "name": "Schedule Trigger"
+          },
+          {
+            "parameters": {
+              "method": "POST",
+              "url": `${supabaseUrl}/functions/v1/update-followers`,
+              "authentication": "genericCredentialType",
+              "genericAuthType": "httpHeaderAuth",
+              "sendHeaders": true,
+              "headerParameters": {
                 "parameters": [
                   {
-                    "name": "apikey",
-                    "value": supabaseServiceKey
-                  },
-                  {
-                    "name": "Authorization",
-                    "value": `Bearer ${supabaseServiceKey}`
-                  },
-                  {
-                    "name": "Content-Type",
+                    "name": "content-type",
                     "value": "application/json"
                   },
                   {
-                    "name": "Prefer",
-                    "value": "return=minimal"
+                    "name": "Authorization",
+                    "value": `Bearer ${supabaseAnonKey}`
                   }
                 ]
               },
               "sendBody": true,
               "specifyBody": "json",
-              "jsonBody": "={\n  \"followers_count\": {{ $json.followers_count }}\n}",
+              "jsonBody": "={\n  \"id\": \"{{ $json.id }}\",\n  \"followers_count\": {{ $json.followers_count }}\n}\n",
               "options": {}
             },
             "type": "n8n-nodes-base.httpRequest",
             "typeVersion": 4.3,
-            "position": [288, -32],
-            "id": "update-supabase",
-            "name": "Update Supabase"
+            "position": [288, 464],
+            "id": "update-followers-webhook",
+            "name": "HTTP Request"
+          },
+          {
+            "parameters": {},
+            "type": "n8n-nodes-base.manualTrigger",
+            "typeVersion": 1,
+            "position": [-368, 720],
+            "id": "manual-trigger-node",
+            "name": "When clicking ‘Execute workflow’"
           }
         ];
 
         const connections = {
-          "Every 12 Hours": {
+          "Get Instagram Stats1": {
             "main": [
               [
                 {
-                  "node": "Get Instagram Stats",
+                  "node": "updated followers",
                   "type": "main",
                   "index": 0
                 }
               ]
             ]
           },
-          "Get Instagram Stats": {
+          "updated followers": {
             "main": [
               [
                 {
-                  "node": "Update Supabase",
+                  "node": "HTTP Request",
+                  "type": "main",
+                  "index": 0
+                }
+              ]
+            ]
+          },
+          "Schedule Trigger": {
+            "main": [
+              [
+                {
+                  "node": "Get Instagram Stats1",
+                  "type": "main",
+                  "index": 0
+                }
+              ]
+            ]
+          },
+          "When clicking ‘Execute workflow’": {
+            "main": [
+              [
+                {
+                  "node": "Get Instagram Stats1",
                   "type": "main",
                   "index": 0
                 }
@@ -215,7 +265,7 @@ Deno.serve(async (req: Request) => {
           }
         };
 
-        return { name: `[Analytics] ${instagramAccount.username}`, nodes, connections, settings: { saveExecutionProgress: true, timezone: "Asia/Kolkata" } };
+        return { name: `[Analytics] ${instagramAccount.username}`, nodes, connections, settings: { saveExecutionProgress: false, timezone: "Asia/Kolkata" } };
       }
 
       const nodes: any[] = [];
