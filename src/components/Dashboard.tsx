@@ -141,11 +141,6 @@ export default function Dashboard() {
   };
 
   const handleEnableAnalytics = async () => {
-    if (!isPremium) {
-      openModal();
-      return;
-    }
-
     if (!instagramAccount) {
       toast.error('Please connect your Instagram account first');
       return;
@@ -155,7 +150,11 @@ export default function Dashboard() {
     try {
       await N8nWorkflowService.createAnalyticsWorkflow(user!.id, instagramAccount.id);
       toast.success('Advanced Analytics enabled successfully!');
-      // Refresh stats to show the new data/progress
+
+      // Immediately trigger the newly created workflow
+      await N8nWorkflowService.refreshAnalytics();
+
+      // Fetch the updated stats to reflect across KPIs
       await fetchDashboardStats();
     } catch (error: any) {
       console.error('Error enabling analytics:', error);
