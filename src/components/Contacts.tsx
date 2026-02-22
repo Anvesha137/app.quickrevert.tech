@@ -12,6 +12,7 @@ function cn(...inputs: ClassValue[]) {
 
 interface Contact {
   id: string;
+  instagram_user_id?: string;
   username: string;
   full_name: string | null;
   follows_us: boolean;
@@ -63,21 +64,24 @@ export default function Contacts() {
 
       activities.forEach(act => {
         const username = act.target_username;
-        if (!username) return;
+        const psid = (act.metadata as any)?.raw_id || (act.metadata as any)?.sender_id || (act.metadata as any)?.from?.id;
 
         // Normalize
-        const normalizedUser = username.toLowerCase().replace('@', '').trim();
+        const normalizedUser = username?.toLowerCase().replace('@', '').trim();
+        const contactKey = psid ? String(psid) : normalizedUser;
+
+        if (!contactKey) return;
 
         // Find automation name
-        const autoId = act.automation_id || act.metadata?.automation_id || act.metadata?.automationId || act.metadata?.AutomationId;
+        const autoId = act.automation_id || (act.metadata as any)?.automation_id || (act.metadata as any)?.automationId || (act.metadata as any)?.AutomationId;
         const name = autoId ? autoMap.get(autoId) : null;
 
         if (name) {
-          if (!contactAutomations[normalizedUser]) {
-            contactAutomations[normalizedUser] = [];
+          if (!contactAutomations[contactKey]) {
+            contactAutomations[contactKey] = [];
           }
-          if (!contactAutomations[normalizedUser].includes(name)) {
-            contactAutomations[normalizedUser].push(name);
+          if (!contactAutomations[contactKey].includes(name)) {
+            contactAutomations[contactKey].push(name);
           }
         }
       });
@@ -232,15 +236,6 @@ export default function Contacts() {
         const current = uniqueContactsMap.get(key);
         const existingDbContact = dbContactsMap.get(key);
 
-        const automationIdFromMetadata = act.metadata?.automation_id || act.metadata?.automationId;
-        const aId = act.automation_id || automationIdFromMetadata;
-        const automationName = aId ? automationMap.get(aId) : null;
-
-        let interacted_automations = [...(current?.interacted_automations || existingDbContact?.interacted_automations || [])];
-        if (automationName && !interacted_automations.includes(automationName)) {
-          interacted_automations.push(automationName);
-        }
-
         // Preserve valid usernames fetched by N8n or existing in DB
         const isDbValidUser = existingDbContact?.username && existingDbContact.username !== 'Instagram User' && existingDbContact.username !== 'Unknown' && !existingDbContact.username.includes('IG:');
         const isCurrentValidUser = current?.username && current.username !== 'Instagram User' && current.username !== 'Unknown' && !current.username.includes('IG:');
@@ -274,8 +269,7 @@ export default function Contacts() {
             avatar_url: act.metadata?.profilePic || current?.avatar_url || existingDbContact?.avatar_url || null,
             interaction_count: (current?.interaction_count || 0) + 1,
             last_interaction_at: act.created_at,
-            platform: 'instagram',
-            interacted_automations
+            platform: 'instagram'
           });
         } else {
           uniqueContactsMap.set(key, {
@@ -284,8 +278,7 @@ export default function Contacts() {
             username: finalUsername,
             full_name: finalFullName,
             avatar_url: current?.avatar_url || existingDbContact?.avatar_url || act.metadata?.profilePic || null,
-            interaction_count: (current?.interaction_count || 0) + 1,
-            interacted_automations
+            interaction_count: (current?.interaction_count || 0) + 1
           });
         }
       });
@@ -467,7 +460,8 @@ export default function Contacts() {
                       <td className="px-6 py-5">
                         {(function () {
                           const normalized = contact.username?.toLowerCase().replace('@', '').trim();
-                          const autos = automationNames[normalized] || contact.interacted_automations;
+                          const psid = contact.instagram_user_id ? String(contact.instagram_user_id) : null;
+                          const autos = (psid && automationNames[psid]) || automationNames[normalized] || contact.interacted_automations;
 
                           return autos?.length > 0 ? (
                             <div className="text-xs font-bold text-blue-600 bg-blue-50/50 px-3 py-1.5 rounded-xl border border-blue-100 inline-block max-w-[200px] truncate" title={autos.join(', ')}>

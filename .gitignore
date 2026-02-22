@@ -28,6 +28,7 @@ output
 
 # Local configuration files
 *.local
+*.txt
 
 # IDE
 .vscode/*
