@@ -200,7 +200,20 @@ export default function Contacts() {
         }
       });
 
+      // Fetch existing contacts to preserve N8n database updates
+      const { data: existingContacts } = await supabase
+        .from('contacts')
+        .select('*')
+        .eq('user_id', user!.id);
+
+      const dbContactsMap = new Map();
+      existingContacts?.forEach(c => {
+        const key = `${c.instagram_account_id}-${c.instagram_user_id}`;
+        dbContactsMap.set(key, c);
+      });
+
       const uniqueContactsMap = new Map();
+
       activities.forEach(act => {
         let psid = act.metadata?.raw_id || act.metadata?.sender_id || act.metadata?.from?.id;
         const username = act.target_username;
@@ -217,32 +230,62 @@ export default function Contacts() {
         // Build a unique key per contact per instagram account
         const key = `${act.instagram_account_id}-${psid || normalizedTarget}`;
         const current = uniqueContactsMap.get(key);
+        const existingDbContact = dbContactsMap.get(key);
 
         const automationIdFromMetadata = act.metadata?.automation_id || act.metadata?.automationId;
         const aId = act.automation_id || automationIdFromMetadata;
         const automationName = aId ? automationMap.get(aId) : null;
 
-        let interacted_automations = [...(current?.interacted_automations || [])];
+        let interacted_automations = [...(current?.interacted_automations || existingDbContact?.interacted_automations || [])];
         if (automationName && !interacted_automations.includes(automationName)) {
           interacted_automations.push(automationName);
         }
 
+        // Preserve valid usernames fetched by N8n or existing in DB
+        const isDbValidUser = existingDbContact?.username && existingDbContact.username !== 'Instagram User' && existingDbContact.username !== 'Unknown' && !existingDbContact.username.includes('IG:');
+        const isCurrentValidUser = current?.username && current.username !== 'Instagram User' && current.username !== 'Unknown' && !current.username.includes('IG:');
+        const isActValidUser = username && username !== 'Instagram User' && username !== 'Unknown' && !username.includes('IG:');
+
+        let finalUsername = 'Instagram User';
+        if (isCurrentValidUser) finalUsername = current.username;
+        else if (isDbValidUser) finalUsername = existingDbContact.username;
+        else if (isActValidUser) finalUsername = username;
+        else finalUsername = existingDbContact?.username || username || 'Instagram User';
+
+        const isDbValidFull = existingDbContact?.full_name && existingDbContact.full_name !== 'Instagram User' && existingDbContact.full_name !== 'Unknown';
+        const isCurrentValidFull = current?.full_name && current.full_name !== 'Instagram User' && current.full_name !== 'Unknown';
+        const isActValidFull = act.metadata?.name && act.metadata.name !== 'Instagram User' && act.metadata.name !== 'Unknown';
+
+        let finalFullName = finalUsername;
+        if (isCurrentValidFull) finalFullName = current.full_name;
+        else if (isDbValidFull) finalFullName = existingDbContact.full_name;
+        else if (isActValidFull) finalFullName = act.metadata.name;
+        else finalFullName = existingDbContact?.full_name || act.metadata?.name || finalUsername;
+
         if (!current || new Date(act.created_at) > new Date(current.last_interaction_at)) {
           uniqueContactsMap.set(key, {
+            ...existingDbContact, // Preserve DB internal fields like id, created_at if it exists
+            ...current,
             user_id: user!.id,
             instagram_account_id: act.instagram_account_id,
             instagram_user_id: String(psid || normalizedTarget),
-            username: username,
-            full_name: act.metadata?.name || username,
-            avatar_url: act.metadata?.profilePic || null,
+            username: finalUsername,
+            full_name: finalFullName,
+            avatar_url: act.metadata?.profilePic || current?.avatar_url || existingDbContact?.avatar_url || null,
             interaction_count: (current?.interaction_count || 0) + 1,
             last_interaction_at: act.created_at,
-            platform: 'instagram'
+            platform: 'instagram',
+            interacted_automations
           });
         } else {
           uniqueContactsMap.set(key, {
+            ...existingDbContact,
             ...current,
-            interaction_count: (current?.interaction_count || 0) + 1
+            username: finalUsername,
+            full_name: finalFullName,
+            avatar_url: current?.avatar_url || existingDbContact?.avatar_url || act.metadata?.profilePic || null,
+            interaction_count: (current?.interaction_count || 0) + 1,
+            interacted_automations
           });
         }
       });
