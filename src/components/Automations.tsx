@@ -7,6 +7,8 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useSubscription } from '../contexts/SubscriptionContext';
+import { useUpgradeModal } from '../contexts/UpgradeModalContext';
 import { N8nWorkflowService } from '../lib/n8nService';
 import ConfirmationModal from './ui/ConfirmationModal';
 
@@ -80,9 +82,13 @@ const triggerLabels = {
   user_directed_messages: 'User Directed Messages'
 };
 
+const BASIC_ACTIVE_WORKFLOW_LIMIT = 3;
+
 export default function Automations() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { isPremium } = useSubscription();
+  const { openModal } = useUpgradeModal();
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [filteredAutomations, setFilteredAutomations] = useState<Automation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -223,17 +229,24 @@ export default function Automations() {
   const toggleStatus = async (id: string, currentStatus: string, n8nWorkflowId?: string) => {
     if (togglingId === id) return;
 
-    // Optimistic update
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+
+    // --- PLAN LIMIT ENFORCEMENT ---
+    // Block activation if user is on Basic plan and already has 3 active workflows
+    if (newStatus === 'active' && !isPremium) {
+      const activeCount = automations.filter(a => a.status === 'active').length;
+      if (activeCount >= BASIC_ACTIVE_WORKFLOW_LIMIT) {
+        toast.error(`You already have ${activeCount} active workflows. Basic plan allows only ${BASIC_ACTIVE_WORKFLOW_LIMIT}. Please upgrade your plan.`);
+        openModal();
+        return;
+      }
+    }
+
+    // Optimistic update
     setAutomations(automations.map(auto =>
       auto.id === id ? { ...auto, status: newStatus as 'active' | 'inactive' } : auto
     ));
 
-    // We don't set togglingId here because we want the UI to be responsive immediately
-    // and not show a loading spinner that blocks interaction, unless we want to debounce.
-    // However, to prevent spamming, we can still track it but not disable the UI visually in a blocking way, 
-    // or just rely on the fast UI response. 
-    // Let's keep togglingId to prevent double-clicks on the same item while a request is in flight.
     setTogglingId(id);
 
     try {
