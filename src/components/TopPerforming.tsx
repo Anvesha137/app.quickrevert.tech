@@ -34,9 +34,8 @@ export default function TopPerforming() {
             // 2. Fetch activity counts for these automations
             const { data: activities, error: activitiesError } = await supabase
                 .from('automation_activities')
-                .select('automation_id')
-                .eq('user_id', user!.id)
-                .not('automation_id', 'is', null);
+                .select('automation_id, metadata')
+                .eq('user_id', user!.id);
 
             if (activitiesError) throw activitiesError;
 
@@ -50,7 +49,10 @@ export default function TopPerforming() {
             ];
 
             const processedAutos = autos.map((auto, index) => {
-                const count = activities?.filter(a => a.automation_id === auto.id).length || 0;
+                const count = activities?.filter(a => {
+                    const aId = a.automation_id || (a.metadata as any)?.automation_id || (a.metadata as any)?.automationId || (a.metadata as any)?.AutomationId;
+                    return aId === auto.id;
+                }).length || 0;
                 return {
                     name: auto.name,
                     count: count,
