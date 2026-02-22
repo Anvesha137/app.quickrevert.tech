@@ -5,10 +5,13 @@ import {
   Zap,
   MessageCircle,
   Users,
+  TrendingUp,
   Hand,
   User,
   Headset,
-  Instagram
+  Instagram,
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -47,6 +50,7 @@ export default function Dashboard() {
     followersLastUpdated: null
   });
   const [loading, setLoading] = useState(true);
+  const [enablingAnalytics, setEnablingAnalytics] = useState(false);
   const [refreshingAnalytics, setRefreshingAnalytics] = useState(false);
   const [instagramAccount, setInstagramAccount] = useState<any>(null);
   const { isPremium } = useSubscription();
@@ -124,6 +128,31 @@ export default function Dashboard() {
     }
   };
 
+  const handleEnableAnalytics = async () => {
+    if (!isPremium) {
+      openModal();
+      return;
+    }
+
+    if (!instagramAccount) {
+      toast.error('Please connect your Instagram account first');
+      return;
+    }
+
+    setEnablingAnalytics(true);
+    try {
+      await N8nWorkflowService.createAnalyticsWorkflow(user!.id, instagramAccount.id);
+      toast.success('Advanced Analytics enabled successfully!');
+      // Refresh stats to show the new data/progress
+      await fetchDashboardStats();
+    } catch (error: any) {
+      console.error('Error enabling analytics:', error);
+      toast.error(error.message || 'Failed to enable Advanced Analytics');
+    } finally {
+      setEnablingAnalytics(false);
+    }
+  };
+
   const handleRefreshAnalytics = async () => {
     setRefreshingAnalytics(true);
     try {
@@ -143,7 +172,7 @@ export default function Dashboard() {
       case 1: return instagramAccount ? true : false;
       case 2: return stats.activeAutomations > 0;
       case 3: return (stats.dmsTriggered > 0 || stats.commentReplies > 0);
-      case 4: return isPremium;
+      case 4: return !!stats.followersLastUpdated;
       default: return false;
     }
   };
@@ -153,13 +182,16 @@ export default function Dashboard() {
     { label: 'Create Automation', completed: getStepProgress(2) },
     { label: 'Test Automation', completed: getStepProgress(3) },
     {
-      label: 'Unlock Unlimited Features',
+      label: 'Unlock Advance Analytics',
       completed: getStepProgress(4),
-      action: openModal,
-      actionLabel: 'Upgrade',
-      disabled: false
+      action: handleEnableAnalytics,
+      actionLabel: 'Enable',
+      loading: enablingAnalytics,
+      disabled: !getStepProgress(1) || !getStepProgress(2) || !getStepProgress(3)
     },
   ];
+
+  const overallProgress = Math.round((setupTasks.filter(t => t.completed).length / setupTasks.length) * 100);
 
   return (
     <div className="flex-1 relative min-h-screen overflow-x-hidden bg-[#fafbff] font-outfit">
@@ -249,7 +281,7 @@ export default function Dashboard() {
               </div>
 
               {/* KPI Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-5">
                 <KPICard
                   title="Total DMs"
                   value={loading ? '-' : stats.dmsTriggered.toLocaleString()}
@@ -271,13 +303,41 @@ export default function Dashboard() {
                   iconColor="text-pink-600"
                   iconBgColor="bg-pink-50"
                 />
-                <KPICard
-                  title="Total Reach"
-                  value={loading ? '-' : stats.uniqueUsers.toLocaleString()}
-                  icon={Users}
-                  iconColor="text-indigo-600"
-                  iconBgColor="bg-indigo-50"
-                />
+                {getStepProgress(4) && (
+                  <>
+                    <KPICard
+                      title="Total Reach"
+                      value={loading ? '-' : stats.uniqueUsers.toLocaleString()}
+                      icon={Users}
+                      iconColor="text-indigo-600"
+                      iconBgColor="bg-indigo-50"
+                    />
+                    <KPICard
+                      title="Followers"
+                      value={loading ? '-' : (stats.followersCount || 0).toLocaleString()}
+                      icon={Instagram}
+                      iconColor="text-rose-600"
+                      iconBgColor="bg-rose-50"
+                    />
+                    <div className="relative group/refresh">
+                      <KPICard
+                        title="Growth"
+                        value={loading ? '-' : ((stats.followersCount || 0) - (stats.initialFollowersCount || 0)).toLocaleString()}
+                        icon={TrendingUp}
+                        iconColor="text-emerald-600"
+                        iconBgColor="bg-emerald-50"
+                      />
+                      <button
+                        onClick={handleRefreshAnalytics}
+                        disabled={refreshingAnalytics || loading}
+                        className="absolute top-3 right-3 p-1.5 rounded-lg bg-white/50 backdrop-blur-sm border border-white/40 shadow-sm opacity-0 group-hover/refresh:opacity-100 transition-opacity hover:bg-white hover:scale-110 disabled:opacity-50"
+                        title="Refresh Analytics"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${refreshingAnalytics ? 'animate-spin' : ''}`} />
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Chart Section */}
@@ -292,7 +352,7 @@ export default function Dashboard() {
             {/* Right Column: Insights & Progress */}
             <div className="space-y-8">
               <div className="sticky top-10 space-y-8">
-                <SetupProgress progress={Math.round((setupTasks.filter(t => t.completed).length / setupTasks.length) * 100)} tasks={setupTasks} />
+                <SetupProgress progress={overallProgress} tasks={setupTasks} />
                 <TopPerforming />
               </div>
             </div>
