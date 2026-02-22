@@ -151,8 +151,7 @@ export default function Dashboard() {
       await N8nWorkflowService.createAnalyticsWorkflow(user!.id, instagramAccount.id);
       toast.success('Advanced Analytics enabled successfully!');
 
-      // Immediately trigger the newly created workflow
-      await N8nWorkflowService.refreshAnalytics();
+      toast.success('Hey 👋 its gonna be update in an hour, please come and check');
 
       // Fetch the updated stats to reflect across KPIs
       await fetchDashboardStats();
@@ -165,17 +164,7 @@ export default function Dashboard() {
   };
 
   const handleRefreshAnalytics = async () => {
-    setRefreshingAnalytics(true);
-    try {
-      await N8nWorkflowService.refreshAnalytics();
-      toast.success('Analytics refreshed successfully!');
-      await fetchDashboardStats();
-    } catch (error: any) {
-      console.error('Error refreshing analytics:', error);
-      toast.error(error.message || 'Failed to refresh analytics');
-    } finally {
-      setRefreshingAnalytics(false);
-    }
+    toast.success('Hey 👋 its gonna be update in an hour, please come and check');
   };
 
   const getStepProgress = (id: number) => {

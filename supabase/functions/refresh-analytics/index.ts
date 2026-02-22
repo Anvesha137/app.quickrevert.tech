@@ -51,10 +51,9 @@ Deno.serve(async (req: Request) => {
         // Trigger the manual execution endpoint for this specific workflow in n8n
         const workflowId = analyticsWorkflow.n8n_workflow_id;
 
-        const triggerResponse = await fetch(`${n8nBaseUrl}/api/v1/workflows/${workflowId}/run?trigger=manual`, {
+        const triggerResponse = await fetch(`${n8nBaseUrl}/webhook/analytics-refresh-${user.id}`, {
             method: 'POST',
             headers: {
-                'X-N8N-API-KEY': n8nApiKey,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({}) // Empty body since it just triggers the flow

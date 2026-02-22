@@ -209,12 +209,18 @@ Deno.serve(async (req: Request) => {
             "name": "HTTP Request"
           },
           {
-            "parameters": {},
-            "type": "n8n-nodes-base.manualTrigger",
-            "typeVersion": 1,
+            "parameters": {
+              "httpMethod": "POST",
+              "path": `analytics-refresh-${userId}`,
+              "responseMode": "lastNode",
+              "options": {}
+            },
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
             "position": [-368, 720],
-            "id": "manual-trigger-node",
-            "name": "When clicking ‘Execute workflow’"
+            "id": "refresh-webhook-node",
+            "name": "Webhook",
+            "webhookId": `webhook-analytics-${userId}`
           }
         ];
 
@@ -252,7 +258,7 @@ Deno.serve(async (req: Request) => {
               ]
             ]
           },
-          "When clicking ‘Execute workflow’": {
+          "Webhook": {
             "main": [
               [
                 {
