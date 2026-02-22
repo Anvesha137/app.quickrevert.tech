@@ -411,22 +411,43 @@ export default function Contacts() {
                             {contact.avatar_url ? (
                               <img src={contact.avatar_url} alt={contact.username} className="w-full h-full object-cover" />
                             ) : (
-                              contact.username?.startsWith('IG:') ? '?' : contact.username?.[0]?.toUpperCase() || '?'
+                              (contact.full_name && contact.full_name !== 'Instagram User' && !contact.full_name.startsWith('User '))
+                                ? contact.full_name[0].toUpperCase()
+                                : (contact.username?.startsWith('IG:') ? '?' : contact.username?.[0]?.toUpperCase() || '?')
                             )}
                           </div>
                           <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-bold text-gray-900">@{contact.username}</span>
-                              <a
-                                href={`https://instagram.com/${contact.username}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-gray-400 hover:text-blue-500 transition-colors"
-                              >
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
-                            </div>
-                            <div className="text-xs text-gray-500 font-medium">{contact.full_name || 'Instagram User'}</div>
+                            {(() => {
+                              const isGeneratedId = contact.username?.startsWith('IG:');
+                              const hasRealName = contact.full_name && contact.full_name !== 'Instagram User' && !contact.full_name.startsWith('User ');
+
+                              if (isGeneratedId) {
+                                return (
+                                  <div className="flex flex-col">
+                                    <span className="text-sm font-bold text-gray-900">
+                                      {hasRealName ? contact.full_name : 'Instagram User'}
+                                    </span>
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-bold text-gray-900">@{contact.username}</span>
+                                    <a
+                                      href={`https://instagram.com/${contact.username}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-gray-400 hover:text-blue-500 transition-colors"
+                                    >
+                                      <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                  </div>
+                                  <div className="text-xs text-gray-500 font-medium">{contact.full_name || 'Instagram User'}</div>
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
                       </td>
