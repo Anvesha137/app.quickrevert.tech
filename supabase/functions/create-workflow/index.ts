@@ -167,7 +167,7 @@ Deno.serve(async (req: Request) => {
                 "interval": [
                   {
                     "field": "hours",
-                    "hoursInterval": 12
+                    "hoursInterval": 1
                   }
                 ]
               }
@@ -199,7 +199,7 @@ Deno.serve(async (req: Request) => {
               },
               "sendBody": true,
               "specifyBody": "json",
-              "jsonBody": "={\n  \"id\": \"{{ $json.id }}\",\n  \"followers_count\": {{ $json.followers_count }}\n}\n",
+              "jsonBody": "={\n  \"id\": \"{{ $json.id }}\",\n  \"username\": \"{{ $json.username }}\",\n  \"followers_count\": {{ $json.followers_count }}\n}\n",
               "options": {}
             },
             "type": "n8n-nodes-base.httpRequest",

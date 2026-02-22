@@ -18,6 +18,7 @@ Deno.serve(async (req) => {
     );
 
     let id: string | null = null;
+    let username: string | null = null;
     let followers_count: number = NaN;
 
     try {
@@ -27,33 +28,39 @@ Deno.serve(async (req) => {
       if (contentType.includes('application/json')) {
         const body = await req.json();
         id = body.id ? String(body.id) : null;
+        username = body.username ? String(body.username) : null;
         followers_count = Number(body.followers_count);
       } else {
         // Fallback to URL search params / form data if n8n didn't send JSON header
         const form = await req.formData();
         id = form.get('id')?.toString() || null;
+        username = form.get('username')?.toString() || null;
         followers_count = Number(form.get('followers_count'));
       }
     } catch (parseError) {
       // Ultimate fallback to request URL params
       const url = new URL(req.url);
       id = url.searchParams.get('id');
+      username = url.searchParams.get('username');
       followers_count = Number(url.searchParams.get('followers_count'));
     }
 
-    if (!id || isNaN(followers_count)) {
+    if ((!id && !username) || isNaN(followers_count)) {
       return new Response(
-        JSON.stringify({ error: `Missing or invalid parameters. Received id: ${id}, followers_count: ${followers_count}` }),
+        JSON.stringify({ error: `Missing or invalid parameters. Received id: ${id}, username: ${username}, followers_count: ${followers_count}` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // 1. Fetch current account to check initial_followers_count
-    const { data: account, error: fetchError } = await supabaseClient
-      .from('instagram_accounts')
-      .select('initial_followers_count')
-      .eq('instagram_user_id', String(id))
-      .maybeSingle();
+    let query = supabaseClient.from('instagram_accounts').select('initial_followers_count, id');
+    if (username) {
+      query = query.eq('username', username);
+    } else {
+      query = query.eq('instagram_user_id', String(id));
+    }
+
+    const { data: account, error: fetchError } = await query.maybeSingle();
 
     if (fetchError) throw fetchError;
     if (!account) {
@@ -78,7 +85,7 @@ Deno.serve(async (req) => {
     const { error: updateError } = await supabaseClient
       .from('instagram_accounts')
       .update(updatePayload)
-      .eq('instagram_user_id', String(id));
+      .eq('id', account.id);
 
     if (updateError) throw updateError;
 

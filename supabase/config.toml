@@ -64,6 +64,9 @@ verify_jwt = false
 [functions."get-executions"]
 verify_jwt = false
 
+[functions."refresh-analytics"]
+verify_jwt = false
+
 [functions."webhook-meta"]
 verify_jwt = false
 
@@ -123,7 +126,7 @@ entrypoint = "./functions/delete-account/index.ts"
 
 [functions.update-followers]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/update-followers/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
@@ -134,7 +137,7 @@ entrypoint = "./functions/update-followers/index.ts"
 
 [functions.sync-all-followers]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/sync-all-followers/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
