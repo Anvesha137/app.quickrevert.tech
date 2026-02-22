@@ -92,17 +92,13 @@ export default function Dashboard() {
 
       if (activitiesError) throw activitiesError;
 
-      // 3. Robust Categorization
+      // 3. Categorization — count all DM activity types (sent + received)
+      // Activity types: 'dm' (inbound via webhook-meta), 'send_dm' (outbound reply),
+      //                 'incoming_message' (inbound via execute-automation), 'interaction' (postback)
+      const DM_TYPES = new Set(['dm', 'send_dm', 'incoming_message', 'incoming_event', 'interaction']);
       const dmsCount = allActivities?.filter(a => {
         const type = (a.activity_type || '').toLowerCase();
-        return (
-          type.includes('dm') ||
-          type.includes('message') ||
-          type.includes('event') ||
-          type.includes('interaction') ||
-          (a.metadata as any)?.direction === 'inbound' ||
-          (a.metadata as any)?.direction === 'outbound'
-        );
+        return DM_TYPES.has(type) || type.includes('dm') || type.includes('message');
       }).length || 0;
 
       const commentsCount = allActivities?.filter(a => {

@@ -29,16 +29,11 @@ export default function DMsChart() {
 
             if (error) throw error;
 
-            // Filter for DM-like activities
+            // Filter for DM-like activities (sent + received)
+            const DM_TYPES = new Set(['dm', 'send_dm', 'incoming_message', 'incoming_event', 'interaction']);
             const dmActivities = (allActivities || []).filter(a => {
                 const type = (a.activity_type || '').toLowerCase();
-                return (
-                    type.includes('dm') ||
-                    type.includes('message') ||
-                    type.includes('interaction') ||
-                    (a.metadata as any)?.direction === 'inbound' ||
-                    (a.metadata as any)?.direction === 'outbound'
-                );
+                return DM_TYPES.has(type) || type.includes('dm') || type.includes('message');
             });
 
             // Process data for the chart using the filtered set

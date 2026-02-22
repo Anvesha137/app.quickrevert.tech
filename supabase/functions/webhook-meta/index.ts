@@ -231,15 +231,13 @@ async function processEvent(body: any) {
 
         if (entry.messaging) {
             for (const msg of entry.messaging) {
-                // STOP INFINITE LOOPS: Ignore Echoes and Self-Sent messages
-                if (msg.message?.is_echo) {
-                    console.log("Ignored Bot Echo");
-                    continue;
-                }
                 // Ignore Delivery/Read receipts
                 if (msg.delivery || msg.read) {
                     continue;
                 }
+
+                const isEcho = msg.message?.is_echo || false;
+                const targetUserId = isEcho ? msg.recipient?.id : msg.sender?.id;
 
                 const eventId = msg.message?.mid || msg.postback?.mid || await hashPayload(msg);
 
@@ -258,16 +256,16 @@ async function processEvent(body: any) {
 
                 // Try to fetch profile using the FIRST available token
                 const primaryAccount = accountsData?.[0];
-                if (primaryAccount && msg.sender?.id) {
-                    console.log(`Fetching profile for ${msg.sender.id}`);
-                    const profile = await fetchInstagramProfile(msg.sender.id, primaryAccount.access_token);
+                if (primaryAccount && targetUserId) {
+                    console.log(`Fetching profile for ${targetUserId} (isEcho: ${isEcho})`);
+                    const profile = await fetchInstagramProfile(targetUserId, primaryAccount.access_token);
 
                     if (profile) {
                         resolvedUsername = profile.username;
                         profileName = profile.name || profile.username;
                         profilePic = profile.profile_picture_url;
                     } else {
-                        console.warn(`Profile Fetch Failed for ${msg.sender.id}, continuing with null username.`);
+                        console.warn(`Profile Fetch Failed for ${targetUserId}, continuing with null username.`);
                     }
                 }
 
@@ -278,7 +276,7 @@ async function processEvent(body: any) {
                         const contact = await upsertContact(supabase, {
                             user_id: account.user_id,
                             instagram_account_id: account.id,
-                            instagram_user_id: msg.sender.id,
+                            instagram_user_id: targetUserId,
                             username: resolvedUsername, // Can be null
                             full_name: profileName,
                             avatar_url: profilePic,
@@ -313,13 +311,13 @@ async function processEvent(body: any) {
                         user_id: account.user_id,
                         instagram_account_id: account.id,
                         contact_id: contactId,
-                        activity_type: sub_type === 'postback' ? 'interaction' : 'dm',
+                        activity_type: sub_type === 'postback' ? 'interaction' : (isEcho ? 'send_dm' : 'dm'),
                         target_username: resolvedUsername || 'Instagram User',
                         message: activityMsg,
                         status: 'success',
                         metadata: {
-                            direction: 'inbound',
-                            raw_id: msg.sender.id,
+                            direction: isEcho ? 'outbound' : 'inbound',
+                            raw_id: targetUserId,
                             resolved: !!resolvedUsername,
                             sub_type: sub_type,
                             mid: msg.message?.mid || msg.postback?.mid
@@ -327,6 +325,12 @@ async function processEvent(body: any) {
                     }).select('id').single();
 
                     if (i === 0 && loggedActivity) primaryActivityId = loggedActivity.id;
+                }
+
+                // STOP INFINITE LOOPS: Do NOT route bot echoes to n8n
+                if (isEcho) {
+                    console.log("Activity logged, but ignoring bot echo for routing");
+                    continue;
                 }
 
                 // 3. TRIGGER AUTOMATION
