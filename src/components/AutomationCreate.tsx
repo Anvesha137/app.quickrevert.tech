@@ -346,7 +346,7 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
                       onChange={(e) => !readOnly && setFormData({ ...formData, name: e.target.value })}
                       placeholder="Name your automation"
                       disabled={readOnly}
-                      className="ml-2 flex-1 min-w-[500px] px-6 py-2.5 border border-rose-300/40 bg-gradient-to-r from-rose-400/15 via-pink-400/15 to-fuchsia-500/15 rounded-2xl focus:ring-4 focus:ring-rose-400/20 focus:border-rose-400 text-sm font-semibold text-rose-900 placeholder-rose-400/70 transition-all shadow-sm hover:from-rose-400/20 hover:to-fuchsia-500/20 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed backdrop-blur-md"
+                      className="ml-2 flex-1 min-w-[500px] px-6 py-2.5 border border-rose-300/40 bg-gradient-to-r from-rose-400/15 via-pink-400/15 to-fuchsia-500/15 rounded-2xl focus:ring-4 focus:ring-rose-400/20 focus:border-rose-400 text-rose-900 placeholder-black transition-all shadow-sm hover:from-rose-400/20 hover:to-fuchsia-500/20 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed backdrop-blur-md"
                     />
                   )}
                 </div>
