@@ -249,25 +249,25 @@ export default function ConnectedAccounts() {
               {accounts.map((account) => (
                 <div
                   key={account.id}
-                  className="group flex items-center justify-between p-6 border-2 border-gray-200 rounded-2xl hover:border-pink-300 hover:shadow-lg transition-all bg-gradient-to-br from-white to-pink-50/30"
+                  className="group flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 sm:p-6 border-2 border-gray-200 rounded-2xl hover:border-pink-300 hover:shadow-lg transition-all bg-gradient-to-br from-white to-pink-50/30 gap-4 sm:gap-0"
                 >
-                  <div className="flex items-center gap-5">
+                  <div className="flex items-start sm:items-center gap-3 sm:gap-5 w-full sm:w-auto">
                     {account.profile_picture_url ? (
                       <img
                         src={account.profile_picture_url}
                         alt={account.username}
-                        className="w-16 h-16 rounded-full ring-4 ring-pink-200 group-hover:ring-pink-300 transition-all"
+                        className="w-12 h-12 sm:w-16 sm:h-16 flex-shrink-0 rounded-full ring-4 ring-pink-200 group-hover:ring-pink-300 transition-all"
                       />
                     ) : (
-                      <div className="w-16 h-16 bg-gradient-to-br from-pink-500 via-rose-500 to-orange-500 rounded-full flex items-center justify-center shadow-lg">
-                        <Instagram size={32} className="text-white" />
+                      <div className="w-12 h-12 sm:w-16 sm:h-16 flex-shrink-0 bg-gradient-to-br from-pink-500 via-rose-500 to-orange-500 rounded-full flex items-center justify-center shadow-lg">
+                        <Instagram className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
                       </div>
                     )}
-                    <div>
-                      <h3 className="font-bold text-gray-900 text-lg mb-1">@{account.username}</h3>
-                      <div className="flex items-center gap-3 mt-2">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-bold text-gray-900 text-base sm:text-lg mb-1 truncate">@{account.username}</h3>
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1 sm:mt-2">
                         <span
-                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${account.status === 'active'
+                          className={`inline-flex items-center px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wide ${account.status === 'active'
                             ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white shadow-md'
                             : account.status === 'expired'
                               ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-white shadow-md'
@@ -276,16 +276,16 @@ export default function ConnectedAccounts() {
                         >
                           {account.status}
                         </span>
-                        <span className="text-sm text-gray-600 font-medium px-2 py-1 bg-gray-100 rounded-md">
+                        <span className="text-xs sm:text-sm text-gray-600 font-medium px-2 py-1 bg-gray-100 rounded-md whitespace-nowrap">
                           Connected {formatDate(account.connected_at)}
                         </span>
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto mt-2 sm:mt-0 pt-3 sm:pt-0 border-t border-pink-100 sm:border-0 justify-end sm:justify-start">
                     <button
                       onClick={handleRefreshToken}
-                      className="px-4 py-2 flex items-center gap-2 text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                      className="flex-1 sm:flex-none justify-center px-3 sm:px-4 py-2 flex items-center gap-2 text-xs sm:text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors whitespace-nowrap"
                       title="Refresh access token"
                     >
                       <RefreshCw size={16} />
@@ -293,11 +293,11 @@ export default function ConnectedAccounts() {
                     </button>
                     <button
                       onClick={() => handleDisconnect(account.id)}
-                      className="px-4 py-2 flex items-center gap-2 text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                      className="px-3 sm:px-4 py-2 flex items-center justify-center gap-0 sm:gap-2 text-xs sm:text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
                       title="Disconnect account"
                     >
                       <Trash2 size={16} />
-                      Disconnect
+                      <span className="hidden sm:inline">Disconnect</span>
                     </button>
                   </div>
                 </div>
