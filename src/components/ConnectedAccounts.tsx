@@ -80,6 +80,40 @@ export default function ConnectedAccounts() {
     setShowConnectModal(true);
   };
 
+  const handleRefreshToken = async () => {
+    if (!user) return;
+
+    try {
+      const { data: activeAutomations, error } = await supabase
+        .from('automations')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('status', 'active');
+
+      if (error) {
+        console.error('Error checking active automations:', error);
+        toast.error('Failed to check automation status');
+        return;
+      }
+
+      if (activeAutomations && activeAutomations.length > 0) {
+        toast.error(
+          <div className="flex flex-col gap-1">
+            <span>Deactivate automation ⏸️, refresh your token 🔄, then activate it again ✅</span>
+            <span>Quick reset and you’re good to go ✨</span>
+          </div>,
+          { duration: 5000 }
+        );
+        return;
+      }
+
+      setShowConnectModal(true);
+    } catch (err) {
+      console.error('Unexpected error checking automations:', err);
+      toast.error('Failed to process token refresh');
+    }
+  };
+
   const handleModalConnect = () => {
     setShowConnectModal(false);
   };
@@ -250,7 +284,7 @@ export default function ConnectedAccounts() {
                   </div>
                   <div className="flex items-center gap-3">
                     <button
-                      onClick={handleConnectInstagram}
+                      onClick={handleRefreshToken}
                       className="px-4 py-2 flex items-center gap-2 text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
                       title="Refresh access token"
                     >
