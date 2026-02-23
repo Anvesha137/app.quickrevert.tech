@@ -338,7 +338,6 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
                   >
                     {step.name}
                   </span>
-                  {/* Inline name input on step 1 */}
                   {step.id === 'setup' && isActive && (
                     <input
                       type="text"
@@ -346,7 +345,7 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
                       onChange={(e) => !readOnly && setFormData({ ...formData, name: e.target.value })}
                       placeholder="Name your automation"
                       disabled={readOnly}
-                      className="ml-2 flex-1 min-w-[500px] px-6 py-2.5 border border-sky-200/50 bg-gradient-to-r from-sky-300/10 via-blue-300/10 to-indigo-300/10 rounded-2xl focus:ring-4 focus:ring-sky-300/20 focus:border-sky-300 text-black/70 placeholder-black/60 transition-all shadow-sm hover:from-sky-300/15 hover:to-indigo-300/15 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed backdrop-blur-md"
+                      className="ml-1 sm:ml-2 flex-1 w-full min-w-[140px] sm:min-w-[500px] px-3 sm:px-6 py-2 sm:py-2.5 border border-sky-200/50 bg-gradient-to-r from-sky-300/10 via-blue-300/10 to-indigo-300/10 rounded-2xl focus:ring-4 focus:ring-sky-300/20 focus:border-sky-300 text-black/70 placeholder-black/60 transition-all shadow-sm hover:from-sky-300/15 hover:to-indigo-300/15 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed backdrop-blur-md text-sm sm:text-base"
                     />
                   )}
                 </div>
