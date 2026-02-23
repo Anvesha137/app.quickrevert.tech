@@ -533,8 +533,8 @@ Deno.serve(async (req: Request) => {
                     template_type: "generic",
                     elements: [
                       {
-                        title: text.substring(0, 80),
-                        subtitle: subtitle ? subtitle.substring(0, 80) : "Powered By Quickrevert.tech",
+                        title: text,
+                        subtitle: subtitle ? subtitle : "Powered By Quickrevert.tech",
                         image_url: imageUrl || undefined,
                         buttons: templateButtons.length > 0 ? templateButtons.slice(0, 3) : undefined
                       }
@@ -548,7 +548,7 @@ Deno.serve(async (req: Request) => {
           } else {
             jsonBody = `={
               "recipient": { "id": "{{ $('Worker Webhook').item.json.body.payload.sender.id }}" },
-              "message": { "text": "${text.replace(/"/g, '\\"')}" }
+              "message": { "text": "${text.replace(/"/g, '\\"').replace(/\n/g, '\\n')}" }
             }`;
           }
 
@@ -597,7 +597,7 @@ Deno.serve(async (req: Request) => {
                   template_type: "generic",
                   elements: [
                     {
-                      title: btnText.substring(0, 80),
+                      title: btnText,
                       subtitle: "Powered By Quickrevert.tech",
                       image_url: btnImage || undefined,
                       buttons: templateButtons.length > 0 ? templateButtons.slice(0, 3) : undefined
@@ -918,7 +918,7 @@ Deno.serve(async (req: Request) => {
                     template_type: "generic",
                     elements: [
                       {
-                        title: (action.teaserMessage || "Hey there! I'm so happy you're here... Click below and I'll send you the link in").substring(0, 80),
+                        title: (action.teaserMessage || "Hey there! I'm so happy you're here... Click below and I'll send you the link in"),
                         subtitle: "Powered By Quickrevert.tech",
                         image_url: action.imageUrl || undefined,
                         buttons: [
@@ -944,7 +944,7 @@ Deno.serve(async (req: Request) => {
                 nodeCredentialType: "facebookGraphApi",
                 sendBody: true,
                 specifyBody: "json",
-                jsonBody: `={\n  \"recipient\": {\n    \"comment_id\": \"{{ $('Worker Webhook').item.json.body.entry[0].changes[0].value.id }}\"\n  },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"${(action.teaserMessage || "Hey there! I'm so happy you're here...").replace(/"/g, '\\"').substring(0, 80)}\",\n            \"subtitle\": \"Powered By Quickrevert.tech\",\n            \"buttons\": [\n              {\n                \"type\": \"postback\",\n                \"title\": \"${(action.teaserBtnText || "send link please ").replace(/"/g, '\\"').substring(0, 20)}\",\n                \"payload\": \"SEND_LINK\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}`,
+                jsonBody: `={\n  \"recipient\": {\n    \"comment_id\": \"{{ $('Worker Webhook').item.json.body.entry[0].changes[0].value.id }}\"\n  },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"${(action.teaserMessage || "Hey there! I'm so happy you're here...").replace(/"/g, '\\"').replace(/\n/g, '\\n')}\",\n            \"subtitle\": \"Powered By Quickrevert.tech\",\n            \"buttons\": [\n              {\n                \"type\": \"postback\",\n                \"title\": \"${(action.teaserBtnText || "send link please ").replace(/"/g, '\\"').substring(0, 20)}\",\n                \"payload\": \"SEND_LINK\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}`,
                 options: {}
               },
               credentials: { facebookGraphApi: { id: credentialId } }
@@ -985,8 +985,8 @@ Deno.serve(async (req: Request) => {
               });
             }
             const element: any = {
-              title: (action.title || "Hi 👋").substring(0, 80),
-              subtitle: (action.subtitle || "Powered by Quickrevert.tech").substring(0, 80),
+              title: (action.title || "Hi 👋"),
+              subtitle: (action.subtitle || "Powered by Quickrevert.tech"),
             };
             if (action.imageUrl) element.image_url = action.imageUrl;
             if (templateButtons.length > 0) element.buttons = templateButtons;
@@ -1186,7 +1186,7 @@ return { json: { userId, username, isFollowing } };`
               nodeCredentialType: "facebookGraphApi",
               sendBody: true,
               specifyBody: "json",
-              jsonBody: `={\n  \"recipient\": {\n    \"id\": \"{{ $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id }}\"\n  },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"${(action.title || "hey, heres your link").replace(/"/g, '\\"').substring(0, 80)}\",\n            \"image_url\": \"${(action.imageUrl || "").replace(/"/g, '\\"')}\",\n            \"subtitle\": \"${(action.subtitle || "Powered By Quickrevert.tech").replace(/"/g, '\\"').substring(0, 80)}\",\n            \"default_action\": {\n              \"type\": \"web_url\",\n              \"url\": \"${(action.actionButtons?.[0]?.url || "quickrevert.tech").replace(/"/g, '\\"')}\"\n            },\n            \"buttons\": [\n              {\n                \"type\": \"web_url\",\n                \"url\": \"${(action.actionButtons?.[0]?.url || "quickrevert.tech").replace(/"/g, '\\"')}\",\n                \"title\": \"${(action.actionButtons?.[0]?.text || "link").replace(/"/g, '\\"').substring(0, 20)}\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}`,
+              jsonBody: `={\n  \"recipient\": {\n    \"id\": \"{{ $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id }}\"\n  },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"${(action.title || "hey, heres your link").replace(/"/g, '\\"').replace(/\n/g, '\\n')}\",\n            \"image_url\": \"${(action.imageUrl || "").replace(/"/g, '\\"')}\",\n            \"subtitle\": \"${(action.subtitle || "Powered By Quickrevert.tech").replace(/"/g, '\\"').replace(/\n/g, '\\n')}\",\n            \"default_action\": {\n              \"type\": \"web_url\",\n              \"url\": \"${(action.actionButtons?.[0]?.url || "quickrevert.tech").replace(/"/g, '\\"')}\"\n            },\n            \"buttons\": [\n              {\n                \"type\": \"web_url\",\n                \"url\": \"${(action.actionButtons?.[0]?.url || "quickrevert.tech").replace(/"/g, '\\"')}\",\n                \"title\": \"${(action.actionButtons?.[0]?.text || "link").replace(/"/g, '\\"').substring(0, 20)}\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}`,
               options: {}
             },
             credentials: { facebookGraphApi: { id: credentialId } }
@@ -1205,7 +1205,7 @@ return { json: { userId, username, isFollowing } };`
                   template_type: "generic",
                   elements: [
                     {
-                      title: (action.askToFollowMessage || "Follow to unlock!").substring(0, 80),
+                      title: (action.askToFollowMessage || "Follow to unlock!"),
                       subtitle: "Please follow us first!",
                       buttons: [
                         {
@@ -1237,7 +1237,7 @@ return { json: { userId, username, isFollowing } };`
               nodeCredentialType: "facebookGraphApi",
               sendBody: true,
               specifyBody: "json",
-              jsonBody: `={\n  \"recipient\": {\n    \"id\": \"{{ $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id }}\"\n  },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"${(action.askToFollowMessage || "Oops! Looks like you haven't followed me yet 👀...").replace(/"/g, '\\"').substring(0, 80)}\",\n            \"subtitle\": \"Please follow us first!\",\n            \"buttons\": [\n              {\n                \"type\": \"web_url\",\n                \"url\": \"https://www.instagram.com/${instagramAccount.username}/\",\n                \"title\": \"Follow Now\"\n              },\n              {\n                \"type\": \"postback\",\n                \"title\": \"${(action.askToFollowBtnText || "followed").replace(/"/g, '\\"').substring(0, 20)}\",\n                \"payload\": \"CHECK_FOLLOW\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}`,
+              jsonBody: `={\n  \"recipient\": {\n    \"id\": \"{{ $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id }}\"\n  },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"${(action.askToFollowMessage || "Oops! Looks like you haven't followed me yet 👀...").replace(/"/g, '\\"').replace(/\n/g, '\\n')}\",\n            \"subtitle\": \"Please follow us first!\",\n            \"buttons\": [\n              {\n                \"type\": \"web_url\",\n                \"url\": \"https://www.instagram.com/${instagramAccount.username}/\",\n                \"title\": \"Follow Now\"\n              },\n              {\n                \"type\": \"postback\",\n                \"title\": \"${(action.askToFollowBtnText || "followed").replace(/"/g, '\\"').substring(0, 20)}\",\n                \"payload\": \"CHECK_FOLLOW\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}`,
               options: {}
             },
             credentials: { facebookGraphApi: { id: credentialId } }
