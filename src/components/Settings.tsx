@@ -414,57 +414,59 @@ export default function Settings() {
         </motion.div>
 
         {/* Danger Zone */}
-        <GlassCard className="border-rose-200/50 bg-rose-50/20" delay={0.5}>
-          <div className="flex items-start gap-4 mb-8">
-            <div className="w-12 h-12 bg-rose-500 rounded-2xl flex items-center justify-center shadow-lg shadow-rose-500/30 flex-shrink-0">
-              <Shield className="w-6 h-6 text-white" />
+        {false && (
+          <GlassCard className="border-rose-200/50 bg-rose-50/20" delay={0.5}>
+            <div className="flex items-start gap-4 mb-8">
+              <div className="w-12 h-12 bg-rose-500 rounded-2xl flex items-center justify-center shadow-lg shadow-rose-500/30 flex-shrink-0">
+                <Shield className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-rose-900 tracking-tight">Danger Zone</h2>
+                <p className="text-sm text-rose-700/70 font-medium">
+                  Irreversible actions for your account
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-2xl font-bold text-rose-900 tracking-tight">Danger Zone</h2>
-              <p className="text-sm text-rose-700/70 font-medium">
-                Irreversible actions for your account
-              </p>
-            </div>
-          </div>
 
-          {!showDeleteConfirm ? (
-            <GlassButton
-              variant="danger"
-              onClick={() => setShowDeleteConfirm(true)}
-              className="bg-white hover:bg-rose-600 hover:text-white transition-colors"
-              icon={Trash2}
-            >
-              Delete Account
-            </GlassButton>
-          ) : (
-            <div className="space-y-6 animate-in zoom-in-95 duration-300">
-              <div className="bg-white/80 border border-rose-200 rounded-2xl p-6">
-                <p className="text-sm font-bold text-rose-900 mb-2">
-                  Are you absolutely sure?
-                </p>
-                <p className="text-xs text-rose-700/80 leading-relaxed font-medium">
-                  This action **cannot be undone**. All your automations, triggers, contacts, and historical analytics will be permanently wiped.
-                </p>
+            {!showDeleteConfirm ? (
+              <GlassButton
+                variant="danger"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="bg-white hover:bg-rose-600 hover:text-white transition-colors"
+                icon={Trash2}
+              >
+                Delete Account
+              </GlassButton>
+            ) : (
+              <div className="space-y-6 animate-in zoom-in-95 duration-300">
+                <div className="bg-white/80 border border-rose-200 rounded-2xl p-6">
+                  <p className="text-sm font-bold text-rose-900 mb-2">
+                    Are you absolutely sure?
+                  </p>
+                  <p className="text-xs text-rose-700/80 leading-relaxed font-medium">
+                    This action **cannot be undone**. All your automations, triggers, contacts, and historical analytics will be permanently wiped.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-4">
+                  <GlassButton
+                    variant="danger"
+                    className="bg-rose-600 text-white hover:bg-rose-700"
+                    onClick={handleDeleteAccount}
+                    loading={deleteLoading}
+                  >
+                    Yes, Delete Everything
+                  </GlassButton>
+                  <GlassButton
+                    variant="secondary"
+                    onClick={() => setShowDeleteConfirm(false)}
+                  >
+                    Cancel
+                  </GlassButton>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-4">
-                <GlassButton
-                  variant="danger"
-                  className="bg-rose-600 text-white hover:bg-rose-700"
-                  onClick={handleDeleteAccount}
-                  loading={deleteLoading}
-                >
-                  Yes, Delete Everything
-                </GlassButton>
-                <GlassButton
-                  variant="secondary"
-                  onClick={() => setShowDeleteConfirm(false)}
-                >
-                  Cancel
-                </GlassButton>
-              </div>
-            </div>
-          )}
-        </GlassCard>
+            )}
+          </GlassCard>
+        )}
       </div>
     </div>
   );
