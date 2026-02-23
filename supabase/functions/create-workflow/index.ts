@@ -517,9 +517,9 @@ Deno.serve(async (req: Request) => {
               sendDmAction.actionButtons.forEach((b: any) => {
                 const btnType = b.action || (b.url ? 'web_url' : 'postback');
                 if (btnType === 'web_url') {
-                  templateButtons.push({ type: "web_url", url: b.url, title: b.text.substring(0, 20) });
+                  templateButtons.push({ type: "web_url", url: b.url, title: b.text });
                 } else {
-                  templateButtons.push({ type: "postback", title: b.text.substring(0, 20), payload: b.text });
+                  templateButtons.push({ type: "postback", title: b.text, payload: b.text });
                 }
               });
             }
@@ -581,9 +581,9 @@ Deno.serve(async (req: Request) => {
             linkedAction.actionButtons.forEach((b: any) => {
               const btnType = b.action || (b.url ? 'web_url' : 'postback');
               if (btnType === 'web_url') {
-                templateButtons.push({ type: "web_url", url: b.url, title: b.text.substring(0, 20) });
+                templateButtons.push({ type: "web_url", url: b.url, title: b.text });
               } else {
-                templateButtons.push({ type: "postback", title: b.text.substring(0, 20), payload: b.text });
+                templateButtons.push({ type: "postback", title: b.text, payload: b.text });
               }
             });
           }
@@ -924,7 +924,7 @@ Deno.serve(async (req: Request) => {
                         buttons: [
                           {
                             type: "postback",
-                            title: (action.teaserBtnText || "link please ").substring(0, 20),
+                            title: (action.teaserBtnText || "link please "),
                             payload: "SEND_LINK"
                           }
                         ]
@@ -978,9 +978,9 @@ Deno.serve(async (req: Request) => {
               action.actionButtons.slice(0, 3).forEach((b: any) => {
                 const btnType = b.buttonType || (b.url ? 'web_url' : 'postback');
                 if (btnType === 'web_url') {
-                  templateButtons.push({ type: "web_url", url: b.url, title: (b.text || "Open").substring(0, 20) });
+                  templateButtons.push({ type: "web_url", url: b.url, title: (b.text || "Open") });
                 } else {
-                  templateButtons.push({ type: "postback", title: (b.text || "Click").substring(0, 20), payload: b.text });
+                  templateButtons.push({ type: "postback", title: (b.text || "Click"), payload: b.text });
                 }
               });
             }
@@ -1215,7 +1215,7 @@ return { json: { userId, username, isFollowing } };`
                         },
                         {
                           type: "postback",
-                          title: askBtn.substring(0, 20),
+                          title: askBtn,
                           payload: "CHECK_FOLLOW"
                         }
                       ]
@@ -1237,7 +1237,7 @@ return { json: { userId, username, isFollowing } };`
               nodeCredentialType: "facebookGraphApi",
               sendBody: true,
               specifyBody: "json",
-              jsonBody: `={\n  \"recipient\": {\n    \"id\": \"{{ $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id }}\"\n  },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"${(action.askToFollowMessage || "Oops! Looks like you haven't followed me yet 👀...").replace(/"/g, '\\"').replace(/\n/g, '\\n')}\",\n            \"subtitle\": \"Please follow us first!\",\n            \"buttons\": [\n              {\n                \"type\": \"web_url\",\n                \"url\": \"https://www.instagram.com/${instagramAccount.username}/\",\n                \"title\": \"Follow Now\"\n              },\n              {\n                \"type\": \"postback\",\n                \"title\": \"${(action.askToFollowBtnText || "followed").replace(/"/g, '\\"').substring(0, 20)}\",\n                \"payload\": \"CHECK_FOLLOW\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}`,
+              jsonBody: `={\n  \"recipient\": {\n    \"id\": \"{{ $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id }}\"\n  },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"${(action.askToFollowMessage || "Oops! Looks like you haven't followed me yet 👀...").replace(/"/g, '\\"').replace(/\n/g, '\\n')}\",\n            \"subtitle\": \"Please follow us first!\",\n            \"buttons\": [\n              {\n                \"type\": \"web_url\",\n                \"url\": \"https://www.instagram.com/${instagramAccount.username}/\",\n                \"title\": \"Follow Now\"\n              },\n              {\n                \"type\": \"postback\",\n                \"title\": \"${(action.askToFollowBtnText || "followed").replace(/"/g, '\\"')}\",\n                \"payload\": \"CHECK_FOLLOW\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}`,
               options: {}
             },
             credentials: { facebookGraphApi: { id: credentialId } }
