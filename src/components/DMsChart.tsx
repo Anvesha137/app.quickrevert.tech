@@ -7,26 +7,25 @@ export default function DMsChart() {
     const { user } = useAuth();
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [timeframe, setTimeframe] = useState<7 | 15 | 30>(7);
 
     useEffect(() => {
         if (user) {
             fetchChartData();
         }
-    }, [user, timeframe]);
+    }, [user]);
 
     const fetchChartData = async () => {
         try {
             setLoading(true);
-            const startDate = new Date();
-            startDate.setDate(startDate.getDate() - (timeframe - 1));
-            startDate.setHours(0, 0, 0, 0);
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+            sevenDaysAgo.setHours(0, 0, 0, 0);
 
             const { data: allActivities, error } = await supabase
                 .from('automation_activities')
                 .select('created_at, activity_type, metadata')
                 .eq('user_id', user!.id)
-                .gte('created_at', startDate.toISOString());
+                .gte('created_at', sevenDaysAgo.toISOString());
 
             if (error) throw error;
 
@@ -41,24 +40,17 @@ export default function DMsChart() {
             const activities = dmActivities;
 
             // Process data for the chart
+            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
             const chartData = [];
 
-            for (let i = 0; i < timeframe; i++) {
-                const date = new Date(startDate);
-                date.setDate(startDate.getDate() + i);
-
-                let labelName = '';
-                if (timeframe === 7) {
-                    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-                    labelName = days[date.getDay()];
-                } else {
-                    labelName = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                }
-
+            for (let i = 0; i < 7; i++) {
+                const date = new Date();
+                date.setDate(date.getDate() - (6 - i));
+                const dayName = days[date.getDay()];
                 const dateStr = date.toISOString().split('T')[0];
 
                 const count = activities?.filter(a => a.created_at.startsWith(dateStr)).length || 0;
-                chartData.push({ name: labelName, value: count });
+                chartData.push({ name: dayName, value: count });
             }
 
             setData(chartData);
@@ -71,26 +63,13 @@ export default function DMsChart() {
 
     return (
         <div className="rounded-2xl backdrop-blur-xl bg-white/60 border border-white/40 p-6 shadow-xl">
-            <div className="flex items-center justify-between gap-3 mb-6">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
-                        <span className="text-white text-lg font-bold">📈</span>
-                    </div>
-                    <div>
-                        <h3 className="font-bold text-lg text-gray-800">DMs Sent per Day</h3>
-                        <p className="text-sm text-gray-600">Last {timeframe} days activity</p>
-                    </div>
+            <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
+                    <span className="text-white text-lg font-bold">📈</span>
                 </div>
                 <div>
-                    <select
-                        value={timeframe}
-                        onChange={(e) => setTimeframe(Number(e.target.value) as 7 | 15 | 30)}
-                        className="bg-white/50 border border-gray-200 text-gray-700 sm:text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5 font-medium cursor-pointer"
-                    >
-                        <option value={7}>Last 7 Days</option>
-                        <option value={15}>Last 15 Days</option>
-                        <option value={30}>Last 30 Days</option>
-                    </select>
+                    <h3 className="font-bold text-lg text-gray-800">DMs Sent per Day</h3>
+                    <p className="text-sm text-gray-600">Last 7 days activity</p>
                 </div>
             </div>
 
