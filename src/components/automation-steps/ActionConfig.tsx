@@ -321,9 +321,27 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                       <div className="space-y-2">
                         <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest pl-1">Card Title</label>
                         <textarea
-                          rows={3}
                           value={(action as SendDmAction).title || ''}
+                          onInput={(e) => {
+                            const target = e.target as HTMLTextAreaElement;
+                            target.style.height = 'auto';
+                            target.style.height = `${target.scrollHeight}px`;
+                          }}
                           onChange={(e) => updateAction(index, { ...action, title: e.target.value } as SendDmAction)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && e.shiftKey) {
+                              e.preventDefault();
+                              const target = e.target as HTMLTextAreaElement;
+                              const start = target.selectionStart;
+                              const end = target.selectionEnd;
+                              const newValue = target.value.substring(0, start) + "\n" + target.value.substring(end);
+                              updateAction(index, { ...action, title: newValue } as SendDmAction);
+
+                              setTimeout(() => {
+                                target.selectionStart = target.selectionEnd = start + 1;
+                              }, 0);
+                            }
+                          }}
                           placeholder="Hey there! 👋"
                           disabled={readOnly}
                           className={`w-full px-6 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 font-semibold text-slate-800 transition-all placeholder:text-slate-300 resize-y min-h-[100px] ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
