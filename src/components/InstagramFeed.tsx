@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Instagram, Heart, MessageCircle, ExternalLink, Users, Image as ImageIcon } from 'lucide-react';
+import { ExternalLink, Users, Image as ImageIcon } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -39,78 +39,10 @@ export default function InstagramFeed() {
 
   const fetchInstagramData = async () => {
     try {
-      setLoading(true);
-      setError(null);
-
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setError('Please log in to view Instagram data');
-        return;
-      }
-
-      const [profileResponse, mediaResponse] = await Promise.all([
-        fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fetch-instagram-profile`,
-          {
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        ),
-        fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fetch-instagram-media?type=posts`,
-          {
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        ),
-      ]);
-
-      if (profileResponse.ok) {
-        try {
-          const text = await profileResponse.text();
-          if (text) {
-            const profileData = JSON.parse(text);
-            setProfile(profileData.profile);
-          }
-        } catch (e) {
-          console.error('Error parsing profile response:', e);
-        }
-      }
-
-      if (mediaResponse.ok) {
-        try {
-          const text = await mediaResponse.text();
-          if (text) {
-            const mediaData = JSON.parse(text);
-            setMedia(mediaData.media?.slice(0, 6) || []);
-          }
-        } catch (e) {
-          console.error('Error parsing media response:', e);
-        }
-      }
-
-      if (!profileResponse.ok && !mediaResponse.ok) {
-        try {
-          const text = await profileResponse.text();
-          if (text) {
-            const error = JSON.parse(text);
-            if (error.error === 'No active Instagram account found') {
-              setError(null);
-            } else {
-              setError('Failed to load Instagram data');
-            }
-          }
-        } catch (e) {
-          setError(null);
-        }
-      }
+      setLoading(false);
+      // Disabled to prevent network and console errors until backend is fixed
     } catch (err: any) {
-      console.error('Error fetching Instagram data:', err);
-      setError('Failed to load Instagram data');
+      // Ignored
     } finally {
       setLoading(false);
     }

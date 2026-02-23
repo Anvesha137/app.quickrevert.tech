@@ -54,7 +54,7 @@ export default function UsageGraph() {
 
                 setData(Array.from(dataMap.values()));
             } catch (error) {
-                console.error('Error fetching graph data:', error);
+                // Error ignored as requested
             } finally {
                 setLoading(false);
             }
@@ -69,7 +69,7 @@ export default function UsageGraph() {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
             <h3 className="text-lg font-bold text-gray-900 mb-6">Monthly Activity</h3>
             <div className="h-80 w-full">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                     <BarChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                         <XAxis
