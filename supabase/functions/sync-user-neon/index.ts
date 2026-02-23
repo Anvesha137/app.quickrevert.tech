@@ -41,13 +41,15 @@ serve(async (req) => {
     // Fetch Connected Instagram Account (Active)
     const { data: instagramData, error: igError } = await supabaseClient
       .from('instagram_accounts')
-      .select('username')
+      .select('username, initial_followers_count, followers_count')
       .eq('user_id', userId)
       .eq('status', 'active')
       .maybeSingle();
 
     if (igError) console.warn("[sync-user-neon] Instagram fetch error:", igError.message);
     const connectedHandle = instagramData?.username || null;
+    const initialFollowers = instagramData?.initial_followers_count || 0;
+    const currentFollowers = instagramData?.followers_count || 0;
 
     // Count Active Automations
     const { count: automationsCount, error: countError } = await supabaseClient
@@ -127,69 +129,44 @@ serve(async (req) => {
         id,
         username,
         email,
-        package,
-        billing_cycle,
         status,
-        payment_status,
-        subscription_end,
-        subscription_start,
-        subscription_start_date,
-        expiry_date,
-        amount_paid,
-        discount_amount,
         promo_code,
         deleted,
         joining_date,
         last_active,
         instagram_handle,
         connected_instagram_handle,
-        automations_count,
         no_of_automations,
         insta_followers_at_joining,
         insta_followers_now
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7,
-        $8, $9, $9, $8,
-        $10, $11, $12, FALSE,
+        $1, $2, $3, $4, $5, FALSE,
         NOW() AT TIME ZONE 'Asia/Kolkata',
         NOW() AT TIME ZONE 'Asia/Kolkata',
-        $13, $14, $15, $15, 0, 0
+        $6, $7, $8, $9, $10
       )
       ON CONFLICT (email) DO UPDATE SET
         username = COALESCE(EXCLUDED.username, users.username),
-        package = COALESCE(EXCLUDED.package, users.package),
-        billing_cycle = COALESCE(EXCLUDED.billing_cycle, users.billing_cycle),
         status = EXCLUDED.status,
-        payment_status = EXCLUDED.payment_status,
-        subscription_end = COALESCE(EXCLUDED.subscription_end, users.subscription_end),
-        subscription_start = COALESCE(EXCLUDED.subscription_start, users.subscription_start),
-        subscription_start_date = COALESCE(EXCLUDED.subscription_start_date, users.subscription_start_date),
-        expiry_date = COALESCE(EXCLUDED.expiry_date, users.expiry_date),
-        amount_paid = GREATEST(EXCLUDED.amount_paid, users.amount_paid),
-        discount_amount = GREATEST(EXCLUDED.discount_amount, users.discount_amount),
         promo_code = COALESCE(EXCLUDED.promo_code, users.promo_code),
         deleted = FALSE,
         last_active = NOW() AT TIME ZONE 'Asia/Kolkata',
         instagram_handle = COALESCE(EXCLUDED.instagram_handle, users.instagram_handle),
         connected_instagram_handle = COALESCE(EXCLUDED.connected_instagram_handle, users.connected_instagram_handle),
-        automations_count = EXCLUDED.automations_count,
-        no_of_automations = EXCLUDED.no_of_automations`,
+        no_of_automations = EXCLUDED.no_of_automations,
+        insta_followers_at_joining = COALESCE(EXCLUDED.insta_followers_at_joining, users.insta_followers_at_joining),
+        insta_followers_now = EXCLUDED.insta_followers_now`,
       [
-        userId,            // $1  - id
-        usernameValue,     // $2  - username
-        email,             // $3  - email
-        packageName,       // $4  - package
-        billingCycle,      // $5  - billing_cycle
-        status,            // $6  - status
-        paymentStatus,     // $7  - payment_status
-        subscriptionEnd,   // $8  - subscription_end + expiry_date ($8 reused for $8 position = subscription_end; $8 at position 11 = expiry_date)
-        subscriptionStart, // $9  - subscription_start + subscription_start_date
-        amountPaid,        // $10 - amount_paid
-        discountAmount,    // $11 - discount_amount
-        promoCode,         // $12 - promo_code
-        connectedHandle,   // $13 - instagram_handle
-        connectedHandle,   // $14 - connected_instagram_handle
-        activeAutomationsCount, // $15 - automations_count / no_of_automations
+        userId,            // $1 - id
+        usernameValue,     // $2 - username
+        email,             // $3 - email
+        status,            // $4 - status
+        promoCode,         // $5 - promo_code
+        connectedHandle,   // $6 - instagram_handle
+        connectedHandle,   // $7 - connected_instagram_handle
+        activeAutomationsCount, // $8 - no_of_automations
+        initialFollowers,  // $9 - insta_followers_at_joining
+        currentFollowers,  // $10 - insta_followers_now
       ]
     );
 
