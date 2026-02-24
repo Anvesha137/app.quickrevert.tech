@@ -413,191 +413,34 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
                 )}
 
                 {currentStep === 'configuration' && formData.triggerType && (
-                  <div className="flex flex-col lg:flex-row gap-8 items-start">
-                    {/* Phone Mockup Preview — Live */}
-                    {(() => {
-                      const pc = formData.triggerConfig as any;
-                      const keywords: string[] = pc?.keywords && pc.keywords.length > 0 ? pc.keywords : ['hey 🔥'];
-                      const dmAction = formData.actions.find(a => a.type === 'send_dm') as SendDmAction | undefined;
-                      const replyAction = formData.actions.find(a => a.type === 'reply_to_comment') as ReplyToCommentAction | undefined;
-                      const dmTitle = dmAction?.title || 'Check your DMs! 📩';
-                      const replyText = replyAction?.replyTemplates?.find(t => t.trim()) || 'Got it, check your inbox! 📩';
-                      const isDM = formData.triggerType === 'user_directed_messages';
-                      const isStory = formData.triggerType === 'story_reply';
-
-                      return (
-                        <div className="hidden lg:flex flex-col items-center flex-shrink-0">
-                          <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest mb-3">Preview</p>
-                          {/* Phone shell */}
-                          <div className="w-[230px] bg-black rounded-[2.8rem] overflow-hidden border-[5px] border-neutral-700 shadow-2xl shadow-black/50 relative">
-                            {/* Notch / status bar */}
-                            <div className="bg-black flex items-center justify-between px-5 pt-3 pb-1">
-                              <span className="text-white text-[10px] font-bold">9:41</span>
-                              <div className="flex items-center gap-1">
-                                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M1 6.5C6.5 1 17.5 1 23 6.5" /><path d="M5 10.5C8.5 7 15.5 7 19 10.5" /><path d="M9 14.5C10.5 13 13.5 13 15 14.5" /><circle cx="12" cy="18" r="1" fill="white" /></svg>
-                                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="white"><rect x="2" y="7" width="4" height="10" rx="1" /><rect x="8" y="4" width="4" height="13" rx="1" /><rect x="14" y="2" width="4" height="15" rx="1" /><rect x="20" y="0" width="4" height="17" rx="1" /></svg>
-                                <svg className="w-5 h-3" viewBox="0 0 24 12" fill="none"><rect x="1" y="1" width="18" height="10" rx="2" stroke="white" strokeWidth="1.5" fill="none" /><rect x="2" y="2" width="13" height="8" rx="1" fill="white" /><rect x="20" y="3.5" width="2.5" height="5" rx="1" fill="white" opacity="0.5" /></svg>
-                              </div>
-                            </div>
-
-                            {isDM ? (
-                              /* ─── DM Preview ─── */
-                              <div className="bg-black" style={{ minHeight: '500px' }}>
-                                <div className="flex items-center gap-2 px-3 pb-3 border-b border-neutral-800">
-                                  <span className="text-white text-lg mr-1">←</span>
-                                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold">r</div>
-                                  <div>
-                                    <p className="text-white text-xs font-semibold leading-none">ruchita_1930</p>
-                                    <p className="text-neutral-400 text-[9px]">Active now</p>
-                                  </div>
-                                </div>
-                                <div className="px-3 pt-4 space-y-3">
-                                  {/* Incoming: keyword as the trigger message */}
-                                  <div className="flex items-end gap-2">
-                                    <div className="w-6 h-6 rounded-full bg-neutral-600 flex-shrink-0"></div>
-                                    <div className="bg-neutral-800 rounded-2xl rounded-bl-sm px-3 py-2 max-w-[75%]">
-                                      <p className="text-white text-[11px]">{keywords[0]}</p>
-                                    </div>
-                                  </div>
-                                  {/* Outgoing: DM reply */}
-                                  <div className="flex flex-col items-end gap-1">
-                                    <div className="bg-blue-600 rounded-2xl rounded-br-sm px-3 py-2 max-w-[85%]">
-                                      <p className="text-white text-[11px]">{dmTitle}</p>
-                                    </div>
-                                    {dmAction?.actionButtons && dmAction.actionButtons.filter(b => b.text).map((btn, i) => (
-                                      <div key={i} className="bg-blue-600/20 border border-blue-500/40 rounded-xl px-3 py-1.5 max-w-[85%] text-center">
-                                        <p className="text-blue-400 text-[10px] font-semibold">{btn.text}</p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                                {/* Input bar */}
-                                <div className="absolute bottom-0 left-0 right-0 bg-black px-3 py-3 flex items-center gap-2 border-t border-neutral-800">
-                                  <div className="w-7 h-7 rounded-full bg-neutral-700 flex items-center justify-center text-sm">📷</div>
-                                  <div className="flex-1 bg-neutral-800 rounded-full py-1.5 px-3">
-                                    <span className="text-neutral-500 text-[10px]">Message...</span>
-                                  </div>
-                                </div>
-                              </div>
-                            ) : (
-                              /* ─── Post / Story Comments Preview ─── */
-                              <div className="bg-black" style={{ minHeight: '500px' }}>
-                                {/* Header */}
-                                <div className="flex items-center justify-between px-3 py-2">
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-7 h-7 rounded-full p-[2px] bg-gradient-to-br from-yellow-400 via-pink-500 to-purple-600">
-                                      <div className="w-full h-full rounded-full bg-black flex items-center justify-center overflow-hidden">
-                                        <div className="w-full h-full rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-[10px] font-bold">r</div>
-                                      </div>
-                                    </div>
-                                    <span className="text-white text-[11px] font-semibold">ruchita_1930</span>
-                                  </div>
-                                  <span className="text-white text-base font-bold tracking-widest">···</span>
-                                </div>
-
-                                {/* Post image */}
-                                <div className="relative bg-neutral-900 flex items-center justify-center overflow-hidden" style={{ height: '180px' }}>
-                                  <div className="absolute inset-0 bg-gradient-to-br from-neutral-800 via-neutral-900 to-black"></div>
-                                  <div className="relative z-10 flex flex-col items-center gap-1 text-neutral-600">
-                                    <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                    <span className="text-[10px] text-neutral-500">{isStory ? 'Your Story' : 'Your Post'}</span>
-                                  </div>
-                                </div>
-
-                                {/* Reactions row */}
-                                <div className="flex items-center justify-between px-3 pt-2 pb-1">
-                                  <div className="flex items-center gap-3 text-white text-sm">♡ 💬 ⬆</div>
-                                  <span className="text-white text-sm">🔖</span>
-                                </div>
-                                <p className="text-white text-[10px] font-semibold px-3">1,243 likes</p>
-
-                                {/* Comments section */}
-                                <div className="px-3 pt-2 space-y-2 border-t border-neutral-800 mt-2">
-                                  <p className="text-neutral-500 text-[9px] uppercase tracking-widest font-semibold">Comments</p>
-
-                                  {/* Trigger keyword comment from a user */}
-                                  <div className="flex items-start gap-2">
-                                    <div className="w-6 h-6 rounded-full bg-neutral-600 flex-shrink-0 mt-0.5 flex items-center justify-center text-[9px] text-white">a</div>
-                                    <div className="flex-1">
-                                      <div className="flex items-baseline gap-1.5">
-                                        <span className="text-white text-[10px] font-semibold">alex_doe</span>
-                                        <span className="text-neutral-500 text-[9px]">2h</span>
-                                      </div>
-                                      <p className="text-white text-[10px]">{keywords[0]}</p>
-                                      <div className="flex items-center gap-2 mt-0.5">
-                                        <span className="text-neutral-500 text-[8px]">Reply</span>
-                                        <span className="text-neutral-500 text-[8px]">Send</span>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* Bot reply */}
-                                  <div className="flex items-start gap-2 pl-4">
-                                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex-shrink-0 mt-0.5 flex items-center justify-center text-[9px] text-white font-bold">r</div>
-                                    <div className="flex-1">
-                                      <div className="flex items-baseline gap-1.5">
-                                        <span className="text-white text-[10px] font-semibold">ruchita_1930</span>
-                                        <span className="text-neutral-500 text-[9px]">Just now</span>
-                                      </div>
-                                      <p className="text-white text-[10px]">{replyText}</p>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Add comment bar */}
-                                <div className="flex items-center gap-2 px-3 py-2 mt-2">
-                                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex-shrink-0"></div>
-                                  <div className="flex-1 bg-neutral-800 rounded-full py-1.5 px-3">
-                                    <span className="text-neutral-500 text-[9px]">Add a comment...</span>
-                                  </div>
-                                </div>
-
-                                {/* Bottom nav */}
-                                <div className="flex items-center justify-around px-2 py-2 border-t border-neutral-800">
-                                  <span className="text-white text-base">🏠</span>
-                                  <span className="text-neutral-500 text-base">🔍</span>
-                                  <span className="text-neutral-500 text-base">⊕</span>
-                                  <span className="text-neutral-500 text-base">▷</span>
-                                  <div className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-500 to-pink-500"></div>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Config Panels */}
-                    <div className="flex-1 space-y-0 min-w-0">
-                      <TriggerConfigStep
-                        triggerType={formData.triggerType}
-                        config={formData.triggerConfig}
-                        onConfigChange={(triggerConfig: TriggerConfig) => !readOnly && setFormData({ ...formData, triggerConfig })}
-                        onBack={() => {
-                          setCurrentStep('setup');
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }}
-                        isCondensed={true}
-                        readOnly={readOnly}
-                      />
-                      <div className="">
-                        <ActionConfig
-                          triggerType={formData.triggerType}
-                          actions={formData.actions}
-                          onActionsChange={(actions: Action[]) => !readOnly && setFormData({ ...formData, actions })}
-                          onSave={executeSave}
-                          onBack={() => {
-                            setCurrentStep('setup');
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                          }}
-                          saving={saving}
-                          isCondensed={true}
-                          readOnly={readOnly}
-                        />
-                      </div>
-                    </div>
+                  <div className="space-y-0">
+                    <TriggerConfigStep
+                      triggerType={formData.triggerType}
+                      config={formData.triggerConfig}
+                      onConfigChange={(triggerConfig: TriggerConfig) => !readOnly && setFormData({ ...formData, triggerConfig })}
+                      onBack={() => {
+                        setCurrentStep('setup');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      isCondensed={true}
+                      readOnly={readOnly}
+                    />
+                    <ActionConfig
+                      triggerType={formData.triggerType}
+                      actions={formData.actions}
+                      onActionsChange={(actions: Action[]) => !readOnly && setFormData({ ...formData, actions })}
+                      onSave={executeSave}
+                      onBack={() => {
+                        setCurrentStep('setup');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      saving={saving}
+                      isCondensed={true}
+                      readOnly={readOnly}
+                    />
                   </div>
                 )}
+
               </div>
             </GlassCard>
           </motion.div>
