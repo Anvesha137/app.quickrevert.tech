@@ -15,22 +15,22 @@ const triggers = [
     type: 'post_comment' as TriggerType,
     icon: MessageSquare,
     title: 'User comments on your post or reel',
-    colorFrom: 'from-pink-500',
-    colorTo: 'to-purple-500',
+    colorFrom: 'from-blue-500',
+    colorTo: 'to-purple-600',
   },
   {
     type: 'story_reply' as TriggerType,
     icon: Image,
     title: 'User replies to your story',
     colorFrom: 'from-blue-500',
-    colorTo: 'to-indigo-500',
+    colorTo: 'to-purple-600',
   },
   {
     type: 'user_directed_messages' as TriggerType,
     icon: Mail,
     title: 'User sends you a DM',
-    colorFrom: 'from-orange-400',
-    colorTo: 'to-pink-500',
+    colorFrom: 'from-blue-500',
+    colorTo: 'to-purple-600',
   },
 ];
 
@@ -50,7 +50,7 @@ export default function TriggerSelection({
   return (
     <div className="w-full">
       <div className="flex items-center gap-4 mb-8">
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-pink-500 to-purple-600 flex flex-shrink-0 items-center justify-center text-white shadow-lg shadow-purple-500/30">
+        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex flex-shrink-0 items-center justify-center text-white shadow-lg shadow-purple-500/30">
           <Zap size={28} className="fill-white" />
         </div>
         <div>
@@ -78,8 +78,8 @@ export default function TriggerSelection({
               onClick={() => handleSelect(trigger.type)}
               disabled={readOnly}
               className={`flex items-center p-4 border rounded-2xl transition-all group ${isSelected
-                  ? 'border-purple-400 bg-purple-50'
-                  : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
+                ? 'border-purple-400 bg-purple-50'
+                : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
                 } ${readOnly ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
             >
               <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${trigger.colorFrom} ${trigger.colorTo} flex items-center justify-center text-white mr-4 shadow-md`}>

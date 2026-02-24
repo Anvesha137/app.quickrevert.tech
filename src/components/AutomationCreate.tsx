@@ -314,7 +314,7 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
             <button
               onClick={executeSave}
               disabled={saving || readOnly}
-              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-xl font-semibold text-sm transition-all shadow-md shadow-purple-500/20 flex items-center gap-2"
+              className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-semibold text-sm transition-all shadow-md shadow-purple-500/20 flex items-center gap-2"
             >
               {saving ? 'Saving...' : 'Save Automation'}
             </button>
@@ -341,7 +341,7 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
                         className={cn(
                           "w-10 h-10 rounded-2xl flex items-center justify-center font-bold transition-all shadow-lg border-2 shrink-0",
                           isCompleted || isActive
-                            ? "bg-gradient-to-br from-pink-500 to-purple-600 text-white border-pink-400 shadow-purple-500/20"
+                            ? "bg-gradient-to-br from-blue-500 to-purple-600 text-white border-blue-400 shadow-purple-500/20"
                             : "bg-white text-slate-400 border-slate-100 shadow-slate-200/50"
                         )}
                       >
