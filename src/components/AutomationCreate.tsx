@@ -413,33 +413,125 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
                 )}
 
                 {currentStep === 'configuration' && formData.triggerType && (
-                  <div className="space-y-12">
-                    <TriggerConfigStep
-                      triggerType={formData.triggerType}
-                      config={formData.triggerConfig}
-                      onConfigChange={(triggerConfig: TriggerConfig) => !readOnly && setFormData({ ...formData, triggerConfig })}
-                      onNext={() => { }} // We'll use the ActionConfig's buttons for navigation
-                      onBack={() => {
-                        setCurrentStep('setup');
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
-                      isCondensed={true}
-                      readOnly={readOnly}
-                    />
-                    <div className="pt-6 border-t border-slate-100">
-                      <ActionConfig
+                  <div className="flex flex-col lg:flex-row gap-8 items-start">
+                    {/* Phone Mockup Preview */}
+                    <div className="hidden lg:flex flex-col items-center flex-shrink-0">
+                      <div className="w-[220px] bg-black rounded-[2.5rem] overflow-hidden border-4 border-neutral-800 shadow-2xl shadow-black/40">
+                        {/* Phone top bar */}
+                        <div className="bg-black flex items-center justify-between px-4 pt-2 pb-1">
+                          <span className="text-white text-[10px] font-semibold">9:41</span>
+                          <div className="flex items-center gap-1">
+                            <svg className="w-3 h-3 text-white fill-white" viewBox="0 0 24 24"><path d="M1 1l22 22M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.56 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>
+                            <span className="text-white text-[10px]">▲▲▲</span>
+                            <span className="text-white text-[10px]">🔋</span>
+                          </div>
+                        </div>
+                        {/* Instagram Post Preview */}
+                        {formData.triggerType === 'user_directed_messages' ? (
+                          // DM Preview
+                          <div className="bg-black min-h-[450px]">
+                            <div className="flex items-center p-3 border-b border-neutral-800">
+                              <button className="text-white mr-3">←</button>
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 mr-2 flex items-center justify-center overflow-hidden">
+                                <span className="text-white text-xs font-bold">r</span>
+                              </div>
+                              <div>
+                                <p className="text-white text-xs font-semibold">ruchita_1930 •</p>
+                                <p className="text-neutral-400 text-[10px]">Active now</p>
+                              </div>
+                            </div>
+                            <div className="flex flex-col items-center pt-8 px-4">
+                              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 mb-2 flex items-center justify-center">
+                                <span className="text-white text-2xl">👩</span>
+                              </div>
+                              <p className="text-white text-xs font-semibold">ruchita_1930</p>
+                              <p className="text-neutral-400 text-[10px]">Instagram</p>
+                            </div>
+                            <div className="p-4 flex flex-col gap-2 mt-4">
+                              <p className="text-neutral-400 text-[10px] text-center">Today 2:32 PM</p>
+                              <div className="self-start w-8 h-6 bg-neutral-700 rounded-full"></div>
+                            </div>
+                            <div className="absolute bottom-0 left-0 right-0 p-3 flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-full bg-neutral-700 flex items-center justify-center">📷</div>
+                              <div className="flex-1 bg-neutral-800 rounded-full py-2 px-3">
+                                <span className="text-neutral-500 text-[10px]">Message...</span>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          // Post/Story Preview
+                          <div className="bg-black min-h-[450px]">
+                            <div className="flex items-center justify-between p-3">
+                              <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center overflow-hidden">
+                                  <span className="text-white text-xs">r</span>
+                                </div>
+                                <span className="text-white text-xs font-semibold">ruchita_1930</span>
+                              </div>
+                              <span className="text-white text-lg">···</span>
+                            </div>
+                            {/* Post image area */}
+                            <div className="bg-neutral-900 flex items-center justify-center" style={{ height: '220px' }}>
+                              <div className="flex flex-col items-center gap-2 text-neutral-600">
+                                <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                <span className="text-[10px] text-neutral-500">Any Post</span>
+                              </div>
+                            </div>
+                            {/* Post actions */}
+                            <div className="flex items-center justify-between px-3 py-2">
+                              <div className="flex items-center gap-3">
+                                <span className="text-white text-base">♡</span>
+                                <span className="text-white text-base">💬</span>
+                                <span className="text-white text-base">⬆</span>
+                              </div>
+                              <span className="text-white text-base">🔖</span>
+                            </div>
+                            <div className="px-3 space-y-1">
+                              <p className="text-white text-[10px] font-semibold">1,243 likes</p>
+                              <p className="text-white text-[10px]"><span className="font-semibold">ruchita_1930</span> Caption goes here...</p>
+                            </div>
+                            {/* Bottom nav */}
+                            <div className="flex items-center justify-around px-3 py-3 mt-2 border-t border-neutral-800">
+                              <span className="text-white text-base">🏠</span>
+                              <span className="text-neutral-500 text-base">🔍</span>
+                              <span className="text-neutral-500 text-base">⊕</span>
+                              <span className="text-neutral-500 text-base">▷</span>
+                              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-500 to-pink-500"></div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest mt-3">Preview</p>
+                    </div>
+
+                    {/* Config Panels */}
+                    <div className="flex-1 space-y-0 min-w-0">
+                      <TriggerConfigStep
                         triggerType={formData.triggerType}
-                        actions={formData.actions}
-                        onActionsChange={(actions: Action[]) => !readOnly && setFormData({ ...formData, actions })}
-                        onSave={executeSave}
+                        config={formData.triggerConfig}
+                        onConfigChange={(triggerConfig: TriggerConfig) => !readOnly && setFormData({ ...formData, triggerConfig })}
                         onBack={() => {
                           setCurrentStep('setup');
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
-                        saving={saving}
                         isCondensed={true}
                         readOnly={readOnly}
                       />
+                      <div className="">
+                        <ActionConfig
+                          triggerType={formData.triggerType}
+                          actions={formData.actions}
+                          onActionsChange={(actions: Action[]) => !readOnly && setFormData({ ...formData, actions })}
+                          onSave={executeSave}
+                          onBack={() => {
+                            setCurrentStep('setup');
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                          saving={saving}
+                          isCondensed={true}
+                          readOnly={readOnly}
+                        />
+                      </div>
                     </div>
                   </div>
                 )}

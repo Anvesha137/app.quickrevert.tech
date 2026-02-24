@@ -49,20 +49,6 @@ serve(async (req) => {
 
             const json = JSON.parse(body);
 
-            // DEBUG: Log raw payload to failed_events
-            try {
-                const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-                const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-                const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-                await supabase.from('failed_events').insert({
-                    event_id: 'debug-meta-' + Date.now(),
-                    payload: json,
-                    error_message: 'DEBUG: Meta Webhook Received'
-                });
-            } catch (e) {
-                console.error('Debug log failed', e);
-            }
-
             // Async processing to allow immediate 200 OK
             // @ts-ignore
             if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
@@ -97,6 +83,17 @@ function hexToBytes(hex: string) {
 }
 
 async function processEvent(body: any) {
+    // Early-exit: skip delivery receipts, read receipts, and pure echo events
+    // before touching Supabase or doing any heavy work.
+    const firstEntry = body?.entry?.[0];
+    if (firstEntry?.messaging) {
+        const firstMsg = firstEntry.messaging[0];
+        if (firstMsg?.delivery || firstMsg?.read) {
+            console.log("[SKIP] Delivery/read receipt — no processing needed.");
+            return;
+        }
+    }
+
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -700,8 +697,6 @@ async function routeAndTrigger(normalized: any) {
                 // console.log(`Triggering Workflow via Execute (No Path): ${route.n8n_workflow_id}`);
             }
 
-            await logFailedEvent({ ...normalized, event_id: `debug-n8n-attempt-${Date.now()}` }, `DEBUG: Attempting ${targetUrl}`);
-
             // Headers: Execute needs API Key, Webhook might not (but good to verify)
             const headers: any = { "Content-Type": "application/json" };
             if (!webhookPath) headers["X-N8N-API-KEY"] = N8N_API_KEY;
@@ -711,8 +706,6 @@ async function routeAndTrigger(normalized: any) {
                 headers: headers,
                 body: JSON.stringify(normalized)
             });
-
-            await logFailedEvent({ ...normalized, event_id: `debug-n8n-response-${Date.now()}` }, `DEBUG: N8n Responded ${res.status} ${res.statusText}`);
 
             if (!res.ok) throw new Error(`n8n responded with ${res.status}: ${await res.text()}`);
         } catch (err) {

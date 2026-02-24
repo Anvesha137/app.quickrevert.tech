@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, X, Sparkles, Send, MessageSquare, ChevronDown, Crown, ArrowRight, Save, Trash, AlertCircle, UserPlus } from 'lucide-react';
+import { Plus, X, Sparkles, Send, MessageSquare, ArrowRight, Save, Trash, AlertCircle, UserPlus, Crown, GitBranch } from 'lucide-react';
 import { motion, AnimatePresence } from "motion/react";
 import { TriggerType, Action, ActionType, ReplyToCommentAction, SendDmAction } from '../../types/automation';
 import { useSubscription } from '../../contexts/SubscriptionContext';
@@ -26,45 +26,20 @@ interface ActionConfigProps {
   readOnly?: boolean;
 }
 
-const getTriggerName = (type: TriggerType): string => {
-  switch (type) {
-    case 'post_comment':
-      return 'Post Comment';
-    case 'story_reply':
-      return 'Story Reply';
-    case 'user_directed_messages':
-      return 'User Direct Message';
-  }
-};
-
-const getAvailableActions = (triggerType: TriggerType): { type: ActionType; name: string; icon: any; description: string; color: string }[] => {
+const getAvailableActions = (triggerType: TriggerType): { type: ActionType; name: string; icon: any; description: string }[] => {
   const baseActions = [
-    {
-      type: 'send_dm' as ActionType,
-      name: 'Send DM',
-      icon: Send,
-      description: 'Send a high-fidelity direct message card',
-      color: 'bg-blue-500'
-    },
+    { type: 'send_dm' as ActionType, name: 'Send DM', icon: Send, description: 'Send a direct message card' },
   ];
-
   if (triggerType === 'post_comment') {
     return [
-      {
-        type: 'reply_to_comment' as ActionType,
-        name: 'Reply To Comment',
-        icon: MessageSquare,
-        description: 'Auto-reply to comments with random templates',
-        color: 'bg-indigo-500'
-      },
+      { type: 'reply_to_comment' as ActionType, name: 'Reply To Comment', icon: MessageSquare, description: 'Auto-reply to comments with random templates' },
       ...baseActions,
     ];
   }
-
   return baseActions;
 };
 
-export default function ActionConfig({ triggerType, actions, onActionsChange, onSave, onBack, saving, isCondensed, readOnly }: ActionConfigProps) {
+export default function ActionConfig({ triggerType, actions, onActionsChange, onSave, onBack, saving, readOnly }: ActionConfigProps) {
   const [showActionSelector, setShowActionSelector] = useState(false);
   const { canUseAskToFollow } = useSubscription();
   const { openModal } = useUpgradeModal();
@@ -73,24 +48,14 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
 
   const addAction = (actionType: ActionType) => {
     let newAction: Action;
-
     if (actionType === 'reply_to_comment') {
-      newAction = {
-        type: 'reply_to_comment',
-        replyTemplates: [''],
-        actionButtons: [],
-      } as ReplyToCommentAction;
+      newAction = { type: 'reply_to_comment', replyTemplates: [''], actionButtons: [] } as ReplyToCommentAction;
     } else {
       newAction = {
-        type: 'send_dm',
-        title: 'Hi👋',
-        imageUrl: '',
-        subtitle: 'Powered By Quickrevert.tech',
-        messageTemplate: '',
-        actionButtons: [],
+        type: 'send_dm', title: 'Hi👋', imageUrl: '',
+        subtitle: 'Powered By Quickrevert.tech', messageTemplate: '', actionButtons: [],
       } as SendDmAction;
     }
-
     onActionsChange([...actions, newAction]);
     setShowActionSelector(false);
   };
@@ -98,9 +63,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
   const updateAction = (index: number, updatedAction: Action) => {
     if (readOnly) return;
     const newActions = [...actions];
-    if (updatedAction.type === 'send_dm') {
-      (updatedAction as SendDmAction).subtitle = 'Powered By Quickrevert.tech';
-    }
+    if (updatedAction.type === 'send_dm') (updatedAction as SendDmAction).subtitle = 'Powered By Quickrevert.tech';
     newActions[index] = updatedAction;
     onActionsChange(newActions);
   };
@@ -113,552 +76,362 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
   const addReplyTemplate = (actionIndex: number) => {
     const action = actions[actionIndex] as ReplyToCommentAction;
     if (action.replyTemplates.length >= 10) return;
-    updateAction(actionIndex, {
-      ...action,
-      replyTemplates: [...action.replyTemplates, ''],
-    });
+    updateAction(actionIndex, { ...action, replyTemplates: [...action.replyTemplates, ''] });
   };
 
   const removeReplyTemplate = (actionIndex: number, templateIndex: number) => {
     const action = actions[actionIndex] as ReplyToCommentAction;
     if (action.replyTemplates.length <= 1) return;
-    const newTemplates = action.replyTemplates.filter((_, i) => i !== templateIndex);
-    updateAction(actionIndex, {
-      ...action,
-      replyTemplates: newTemplates,
-    });
+    updateAction(actionIndex, { ...action, replyTemplates: action.replyTemplates.filter((_, i) => i !== templateIndex) });
   };
 
   const updateReplyTemplate = (actionIndex: number, templateIndex: number, value: string) => {
     const action = actions[actionIndex] as ReplyToCommentAction;
     const newTemplates = [...action.replyTemplates];
     newTemplates[templateIndex] = value;
-    updateAction(actionIndex, {
-      ...action,
-      replyTemplates: newTemplates,
-    });
+    updateAction(actionIndex, { ...action, replyTemplates: newTemplates });
   };
 
   const addActionButton = (actionIndex: number) => {
     const action = actions[actionIndex] as SendDmAction;
-    updateAction(actionIndex, {
-      ...action,
-      actionButtons: [...action.actionButtons, { id: Date.now().toString(), text: '', url: '' }],
-    });
+    updateAction(actionIndex, { ...action, actionButtons: [...action.actionButtons, { id: Date.now().toString(), text: '', url: '' }] });
   };
-
 
   const removeActionButton = (actionIndex: number, buttonIndex: number) => {
     const action = actions[actionIndex] as SendDmAction;
-    updateAction(actionIndex, {
-      ...action,
-      actionButtons: action.actionButtons.filter((_, i) => i !== buttonIndex),
-    });
-  };
-
-  const getActionName = (action: Action): string => {
-    switch (action.type) {
-      case 'reply_to_comment': return 'Reply To Comment';
-      case 'ask_to_follow': return 'Ask To Follow';
-      case 'send_dm': return 'Send DM';
-      default: return 'Action';
-    }
+    updateAction(actionIndex, { ...action, actionButtons: action.actionButtons.filter((_, i) => i !== buttonIndex) });
   };
 
   const isActionValid = (action: Action): boolean => {
-    if (action.type === 'reply_to_comment') {
-      return (action as ReplyToCommentAction).replyTemplates.some(t => t.trim().length > 0);
-    }
+    if (action.type === 'reply_to_comment') return (action as ReplyToCommentAction).replyTemplates.some(t => t.trim().length > 0);
     const sendDmAction = action as SendDmAction;
     return (sendDmAction.title || '').trim().length > 0;
   };
 
   const canSave = actions.length > 0 && actions.every(isActionValid);
 
+
   return (
-    <div className="space-y-8">
-      {/* Step Header */}
-      {!isCondensed && (
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-          <div>
-            <h2 className="text-2xl font-extrabold text-slate-800 mb-1 font-outfit">Design Actions</h2>
-            <p className="text-slate-400 font-normal font-outfit text-sm">Define what happens when the trigger fires.</p>
-          </div>
-          <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-2xl border border-blue-100 shrink-0 self-start">
-            <Sparkles className="h-4 w-4 text-blue-600" />
-            <span className="text-xs font-semibold text-blue-700 uppercase tracking-widest leading-none">
-              {getTriggerName(triggerType)} Active
-            </span>
-          </div>
-        </div>
-      )}
+    <div className="space-y-4">
+      {/* Gradient bar (same as trigger section) */}
+      <div className="h-[3px] w-full bg-gradient-to-r from-purple-500 via-blue-500 to-orange-400 rounded-full mb-2"></div>
 
-      {isCondensed && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-500 flex items-center justify-center text-white shadow-lg">
-              <Sparkles size={20} />
-            </div>
-            <div>
-              <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">Step 2: Design Actions</h2>
-              <p className="text-sm font-semibold text-slate-400 uppercase tracking-widest">Create your automated responses</p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* What do you want to reply - section header */}
+      {triggerType === 'post_comment' && (
+        <div className="space-y-2">
+          <p className="text-slate-700 font-medium text-sm">What do you want to reply to those comments?</p>
 
-      <AnimatePresence mode="popLayout">
-        {actions.length === 0 ? (
-          <motion.div
-            key="empty-actions"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="flex flex-col items-center justify-center py-20 bg-slate-50/50 rounded-[2.5rem] border-2 border-dashed border-slate-200"
-          >
-            <div className="w-20 h-20 bg-white rounded-3xl shadow-xl shadow-slate-200/50 flex items-center justify-center mb-6">
-              <Sparkles className="w-10 h-10 text-slate-300" />
-            </div>
-            <p className="text-slate-400 font-semibold text-lg mb-8">No actions added yet</p>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => !readOnly && setShowActionSelector(true)}
-              disabled={readOnly}
-              className={`px-10 py-5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-[2rem] font-semibold text-sm uppercase tracking-widest shadow-xl shadow-blue-500/20 flex items-center gap-3 ${readOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              <Plus size={20} /> Add Your First Action
-            </motion.button>
-          </motion.div>
-        ) : (
-          <div className="space-y-8">
-            {actions.map((action, index) => (
-              <motion.div
-                key={index}
-                layout
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="relative bg-white rounded-[2.5rem] border border-slate-100 p-6 shadow-xl shadow-slate-200/40 group overflow-hidden"
+          <AnimatePresence mode="popLayout">
+            {actions.filter(a => a.type === 'reply_to_comment').length === 0 ? (
+              <motion.button
+                key="add-reply-placeholder"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => !readOnly && addAction('reply_to_comment')}
+                disabled={readOnly}
+                className="w-full border-2 border-dashed border-slate-200 rounded-xl py-8 flex flex-col items-center gap-2 text-slate-400 hover:border-purple-300 hover:text-purple-500 transition-all group"
               >
-                {/* Visual Accent */}
-                <div className={cn(
-                  "absolute top-0 left-0 w-2 h-full",
-                  action.type === 'reply_to_comment' ? "bg-indigo-500" : "bg-blue-500"
-                )} />
-
-                <div className="flex items-center justify-between mb-8">
-                  <div className="flex items-center gap-4">
-                    <div className={cn(
-                      "w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg",
-                      action.type === 'reply_to_comment' ? "bg-indigo-500" : "bg-blue-500"
-                    )}>
-                      {action.type === 'reply_to_comment' ? <MessageSquare size={22} /> : <Send size={22} />}
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-extrabold text-slate-800 tracking-tight">
-                        {getActionName(action)}
-                      </h3>
-                      <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Action #{index + 1}</p>
-                    </div>
-                  </div>
-                  {!readOnly && (
-                    <button
-                      onClick={() => deleteAction(index)}
-                      className="p-3 bg-red-50 text-red-500 rounded-2xl hover:bg-red-100 transition-colors"
-                    >
-                      <Trash size={20} />
-                    </button>
-                  )}
+                <div className="w-10 h-10 rounded-xl bg-slate-100 group-hover:bg-purple-50 flex items-center justify-center transition-colors">
+                  <MessageSquare size={20} />
                 </div>
-
-                {/* --- Action Specific Content --- */}
-
-                {action.type === 'reply_to_comment' && (
-                  <div className="space-y-6">
-                    <div className="space-y-4">
-                      <label className="block text-sm font-semibold text-indigo-700 uppercase tracking-widest pl-1">
-                        Reply Templates <span className="text-xs text-indigo-400 font-medium">(Up to 10)</span>
-                      </label>
-                      <div className="grid gap-3">
-                        {action.replyTemplates.map((template, templateIndex) => (
-                          <div key={templateIndex} className="flex gap-2">
-                            <input
-                              type="text"
-                              value={template}
-                              onChange={(e) => updateReplyTemplate(index, templateIndex, e.target.value)}
-                              placeholder="e.g., Check your DMs for the link! 👋"
-                              className={`flex-1 px-6 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 font-semibold text-slate-800 transition-all placeholder:text-slate-300 ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
-                              disabled={readOnly}
-                            />
-                            {action.replyTemplates.length > 1 && !readOnly && (
-                              <button
-                                onClick={() => removeReplyTemplate(index, templateIndex)}
-                                className="p-4 bg-slate-100 text-slate-400 rounded-2xl hover:bg-red-50 hover:text-red-500 transition-all"
-                              >
-                                <X size={20} />
-                              </button>
-                            )}
-                          </div>
-                        ))}
+                <span className="text-sm font-semibold">Setup Comment Replies</span>
+              </motion.button>
+            ) : (
+              actions.map((action, index) => {
+                if (action.type !== 'reply_to_comment') return null;
+                return (
+                  <motion.div
+                    key={index}
+                    layout
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="border border-slate-200 bg-white rounded-xl p-4 space-y-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white shadow-sm">
+                          <MessageSquare size={16} />
+                        </div>
+                        <span className="font-semibold text-slate-700 text-sm">Comment Reply Templates</span>
                       </div>
-                      {action.replyTemplates.length < 10 && !readOnly && (
-                        <motion.button
-                          whileHover={{ x: 5 }}
-                          onClick={() => addReplyTemplate(index)}
-                          className="flex items-center gap-2 text-indigo-600 font-semibold text-xs uppercase tracking-widest pl-1 pt-2"
-                        >
-                          <Plus size={16} /> Add random variation
-                        </motion.button>
+                      {!readOnly && (
+                        <button onClick={() => deleteAction(index)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
+                          <Trash size={16} />
+                        </button>
                       )}
                     </div>
-                  </div>
-                )}
-
-                {action.type === 'send_dm' && (
-                  <div className="space-y-8">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest pl-1">Card Title</label>
-                        <textarea
-                          value={(action as SendDmAction).title || ''}
-                          onInput={(e) => {
-                            const target = e.target as HTMLTextAreaElement;
-                            target.style.height = 'auto';
-                            target.style.height = `${target.scrollHeight}px`;
-                          }}
-                          onChange={(e) => updateAction(index, { ...action, title: e.target.value } as SendDmAction)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && e.shiftKey) {
-                              e.preventDefault();
-                              const target = e.target as HTMLTextAreaElement;
-                              const start = target.selectionStart;
-                              const end = target.selectionEnd;
-                              const newValue = target.value.substring(0, start) + "\n" + target.value.substring(end);
-                              updateAction(index, { ...action, title: newValue } as SendDmAction);
-
-                              setTimeout(() => {
-                                target.selectionStart = target.selectionEnd = start + 1;
-                              }, 0);
-                            }
-                          }}
-                          placeholder="Hey there! 👋"
-                          disabled={readOnly}
-                          className={`w-full px-6 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 font-semibold text-slate-800 transition-all placeholder:text-slate-300 resize-y min-h-[100px] ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest pl-1">Image URL</label>
-                        <input
-                          type="url"
-                          value={(action as SendDmAction).imageUrl || ''}
-                          onChange={(e) => updateAction(index, { ...action, imageUrl: e.target.value } as SendDmAction)}
-                          placeholder="https://example.com/promo.jpg"
-                          disabled={readOnly}
-                          className={`w-full px-6 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 font-semibold text-slate-800 transition-all placeholder:text-slate-300 ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
-                        />
-                      </div>
-                    </div>
-
                     <div className="space-y-2">
-                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest pl-1">Branding Subtitle</label>
-                      <input
-                        type="text"
-                        value="Powered By Quickrevert.tech"
-                        readOnly
-                        className="w-full px-6 py-4 rounded-2xl border-2 border-slate-100 bg-slate-100 text-slate-400 font-semibold text-xs uppercase tracking-widest cursor-not-allowed"
-                      />
-                    </div>
-
-                    {/* Ask to Follow Toggle */}
-                    <div className="relative overflow-hidden rounded-[2rem] border-2 border-slate-100 bg-slate-50/30 p-1">
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 bg-white rounded-[1.8rem] shadow-sm">
-                        <div className="flex items-center gap-4">
-                          <div className={cn(
-                            "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
-                            (action as SendDmAction).askToFollow ? "bg-amber-100 text-amber-600" : "bg-slate-100 text-slate-400"
-                          )}>
-                            <UserPlus size={20} />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h4 className="font-extrabold text-slate-800">Growth Engine: Ask to Follow</h4>
-                              {!canUseAskToFollow && (
-                                <span className="bg-blue-600 text-white text-[8px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
-                                  <Crown size={8} /> PREMIUM
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs font-normal text-slate-400">Force follow verification before reward.</p>
-                          </div>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
+                      {(action as ReplyToCommentAction).replyTemplates.map((template, templateIndex) => (
+                        <div key={templateIndex} className="flex gap-2">
                           <input
-                            type="checkbox"
-                            className="sr-only peer"
-                            disabled={!canUseAskToFollow || readOnly}
-                            checked={(action as SendDmAction).askToFollow || false}
-                            onChange={(e) => {
-                              if (!canUseAskToFollow) {
-                                openModal();
-                                return;
-                              }
-                              updateAction(index, { ...action, askToFollow: e.target.checked } as SendDmAction);
-                            }}
+                            type="text"
+                            value={template}
+                            onChange={(e) => updateReplyTemplate(index, templateIndex, e.target.value)}
+                            placeholder="e.g., Check your DMs for the link! 👋"
+                            disabled={readOnly}
+                            className={`flex-1 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-slate-800 text-sm transition-all placeholder:text-slate-400 ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
                           />
-                          <div className="w-14 h-8 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-1 after:left-1 after:bg-white after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-600"></div>
-                        </label>
-                      </div>
-
-                      <AnimatePresence>
-                        {(action as SendDmAction).askToFollow && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="p-6 pt-2 space-y-6"
-                          >
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                              {/* Teaser Section */}
-                              <div className="bg-indigo-50/50 rounded-3xl border border-indigo-100 p-6 space-y-4">
-                                <div className="flex items-center justify-between">
-                                  <h5 className="text-xs font-semibold text-indigo-700 uppercase tracking-widest">1. Initial Teaser</h5>
-                                  {!readOnly && (
-                                    <motion.button
-                                      whileTap={{ scale: 0.9 }}
-                                      onClick={() => updateAction(index, { ...action, teaserMessage: DEFAULT_TEASER_MESSAGE } as SendDmAction)}
-                                      className="text-[10px] font-semibold text-indigo-400 hover:text-indigo-600 uppercase tracking-tighter"
-                                    >
-                                      Auto-Fill
-                                    </motion.button>
-                                  )}
-                                </div>
-                                <textarea
-                                  value={(action as SendDmAction).teaserMessage || ''}
-                                  onChange={(e) => updateAction(index, { ...action, teaserMessage: e.target.value } as SendDmAction)}
-                                  placeholder="Initial message to hook them..."
-                                  rows={2}
-                                  disabled={readOnly}
-                                  className={`w-full px-4 py-3 rounded-xl border-2 border-indigo-100 bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 font-semibold text-slate-800 text-sm transition-all shadow-inner ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
-                                />
-                                <input
-                                  type="text"
-                                  value={(action as SendDmAction).teaserBtnText || ''}
-                                  onChange={(e) => updateAction(index, { ...action, teaserBtnText: e.target.value } as SendDmAction)}
-                                  placeholder="Teaser Button Text"
-                                  disabled={readOnly}
-                                  className={`w-full px-4 py-3 rounded-xl border-2 border-indigo-100 bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 font-semibold text-slate-800 text-xs text-center transition-all shadow-sm ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
-                                />
-                              </div>
-
-                              {/* Fail Message Section */}
-                              <div className="bg-slate-100/50 rounded-3xl border border-slate-200 p-6 space-y-4">
-                                <div className="flex items-center justify-between">
-                                  <h5 className="text-xs font-semibold text-slate-500 uppercase tracking-widest">2. Verification Failed</h5>
-                                  {!readOnly && (
-                                    <motion.button
-                                      whileTap={{ scale: 0.9 }}
-                                      onClick={() => updateAction(index, { ...action, askToFollowMessage: DEFAULT_NOT_FOLLOWING_MESSAGE } as SendDmAction)}
-                                      className="text-[10px] font-semibold text-slate-400 hover:text-slate-600 uppercase tracking-tighter"
-                                    >
-                                      Auto-Fill
-                                    </motion.button>
-                                  )}
-                                </div>
-                                <textarea
-                                  value={(action as SendDmAction).askToFollowMessage || ''}
-                                  onChange={(e) => updateAction(index, { ...action, askToFollowMessage: e.target.value } as SendDmAction)}
-                                  placeholder="Message if not following..."
-                                  rows={2}
-                                  disabled={readOnly}
-                                  className={`w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-white focus:ring-4 focus:ring-slate-500/10 focus:border-slate-400 font-semibold text-slate-800 text-sm transition-all shadow-inner ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
-                                />
-                                <input
-                                  type="text"
-                                  value={(action as SendDmAction).askToFollowBtnText || ''}
-                                  onChange={(e) => updateAction(index, { ...action, askToFollowBtnText: e.target.value } as SendDmAction)}
-                                  placeholder="Follow Button Text"
-                                  disabled={readOnly}
-                                  className={`w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-white focus:ring-4 focus:ring-slate-500/10 focus:border-slate-400 font-semibold text-slate-800 text-xs text-center transition-all shadow-sm ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
-                                />
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100">
-                              <Crown size={12} className="text-emerald-600" />
-                              <p className="text-[10px] font-semibold text-emerald-700">The "Final Reward" buttons below will show ONLY after follow verification succeeds.</p>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                          {(action as ReplyToCommentAction).replyTemplates.length > 1 && !readOnly && (
+                            <button onClick={() => removeReplyTemplate(index, templateIndex)} className="p-2 bg-slate-100 text-slate-400 rounded-xl hover:bg-red-50 hover:text-red-500 transition-all">
+                              <X size={16} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      {(action as ReplyToCommentAction).replyTemplates.length < 10 && !readOnly && (
+                        <button onClick={() => addReplyTemplate(index)} className="flex items-center gap-1.5 text-purple-600 font-semibold text-xs pt-1">
+                          <Plus size={14} /> Add variation
+                        </button>
+                      )}
                     </div>
+                  </motion.div>
+                );
+              })
+            )}
+          </AnimatePresence>
+        </div>
+      )}
 
-                    {/* Action Buttons Section */}
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between pl-1">
-                        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest">Action Buttons (Max 3)</label>
-                        <span className="text-[10px] font-semibold text-black-400 uppercase tracking-tighter">Clickable <span className="text-yellow-400">Rewards</span></span>
-                      </div>
+      {/* ──────────── Follow Gate ──────────── */}
+      {actions.filter(a => a.type === 'send_dm').map((action, _rawIndex) => {
+        const index = actions.indexOf(action);
+        return (
+          <div key={index} className="space-y-4">
+            {/* Follow Gate */}
+            <div className="flex items-center justify-between py-3 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "w-9 h-9 rounded-xl flex items-center justify-center transition-colors",
+                  (action as SendDmAction).askToFollow ? "bg-gradient-to-br from-blue-500 to-purple-600 text-white" : "bg-slate-100 text-slate-400"
+                )}>
+                  <UserPlus size={18} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-slate-700 text-sm">Follow Gate</p>
+                    {!canUseAskToFollow && (
+                      <span className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <Crown size={8} /> PREMIUM
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-slate-400 text-xs">Require users to follow you before they can access your automation</p>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  disabled={!canUseAskToFollow || readOnly}
+                  checked={(action as SendDmAction).askToFollow || false}
+                  onChange={(e) => {
+                    if (!canUseAskToFollow) { openModal(); return; }
+                    updateAction(index, { ...action, askToFollow: e.target.checked } as SendDmAction);
+                  }}
+                />
+                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-blue-500 peer-checked:to-purple-600"></div>
+              </label>
+            </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {(action as SendDmAction).actionButtons.map((button, buttonIndex) => (
-                          <motion.div
-                            key={button.id}
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            className="bg-slate-50/50 rounded-3xl border border-slate-100 p-5 space-y-3 shadow-sm relative group/btn"
-                          >
-                            {!readOnly && (
-                              <button
-                                onClick={() => removeActionButton(index, buttonIndex)}
-                                className="absolute -top-2 -right-2 w-7 h-7 bg-white text-red-400 rounded-full shadow-lg border border-red-50 flex items-center justify-center hover:bg-red-50 hover:text-red-600 transition-all opacity-0 group-hover/btn:opacity-100 scale-90 group-hover/btn:scale-100"
-                              >
-                                <X size={14} />
-                              </button>
-                            )}
-                            <div className="space-y-2">
-                              {/* Button Label */}
-                              <input
-                                type="text"
-                                value={button.text}
-                                onChange={(e) => {
-                                  const action = actions[index] as SendDmAction;
-                                  const newButtons = [...action.actionButtons];
-                                  newButtons[buttonIndex] = { ...newButtons[buttonIndex], text: e.target.value };
-                                  updateAction(index, { ...action, actionButtons: newButtons });
-                                }}
-                                placeholder="Button Label"
-                                disabled={readOnly}
-                                className={`w-full px-4 py-2 rounded-xl border-2 border-slate-100 bg-white focus:border-blue-500 font-semibold text-slate-700 text-xs text-center transition-all ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
-                              />
-
-                              {/* URL Input (only for web_url) */}
-                              {(button.buttonType || 'web_url') === 'web_url' && (
-                                <input
-                                  type="url"
-                                  value={button.url || ''}
-                                  onChange={(e) => {
-                                    const action = actions[index] as SendDmAction;
-                                    const newButtons = [...action.actionButtons];
-                                    newButtons[buttonIndex] = { ...newButtons[buttonIndex], url: e.target.value };
-                                    updateAction(index, { ...action, actionButtons: newButtons });
-                                  }}
-                                  placeholder="https://your-link.com"
-                                  disabled={readOnly}
-                                  className={`w-full px-4 py-2 rounded-xl border-2 border-slate-100 bg-white focus:border-blue-500 font-medium text-slate-500 text-[10px] transition-all ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
-                                />
-                              )}
-                            </div>
-                          </motion.div>
-                        ))}
-
-                        {(action as SendDmAction).actionButtons.length < 3 && !readOnly && (
-                          <motion.button
-                            whileHover={{ scale: 1.02, backgroundColor: '#f8fafc' }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={() => addActionButton(index)}
-                            className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 hover:text-blue-500 hover:border-blue-200 transition-all gap-2"
-                          >
-                            <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center">
-                              <Plus size={20} />
-                            </div>
-                            <span className="text-[10px] font-semibold uppercase tracking-widest">Add Button</span>
-                          </motion.button>
+            {/* Follow Gate expanded fields */}
+            <AnimatePresence>
+              {(action as SendDmAction).askToFollow && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="border border-slate-100 rounded-xl p-4 space-y-4"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">1. Initial Teaser</label>
+                        {!readOnly && (
+                          <button onClick={() => updateAction(index, { ...action, teaserMessage: DEFAULT_TEASER_MESSAGE } as SendDmAction)} className="text-[10px] text-purple-500 hover:text-purple-700 font-semibold">Auto-Fill</button>
                         )}
                       </div>
+                      <textarea
+                        value={(action as SendDmAction).teaserMessage || ''}
+                        onChange={(e) => updateAction(index, { ...action, teaserMessage: e.target.value } as SendDmAction)}
+                        placeholder="Initial message to hook them..."
+                        rows={2}
+                        disabled={readOnly}
+                        className={`w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
+                      />
+                      <input type="text" value={(action as SendDmAction).teaserBtnText || ''} onChange={(e) => updateAction(index, { ...action, teaserBtnText: e.target.value } as SendDmAction)} placeholder="Teaser Button Text" disabled={readOnly} className={`w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-center text-slate-700 transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`} />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">2. Verification Failed</label>
+                        {!readOnly && (
+                          <button onClick={() => updateAction(index, { ...action, askToFollowMessage: DEFAULT_NOT_FOLLOWING_MESSAGE } as SendDmAction)} className="text-[10px] text-slate-500 hover:text-slate-700 font-semibold">Auto-Fill</button>
+                        )}
+                      </div>
+                      <textarea value={(action as SendDmAction).askToFollowMessage || ''} onChange={(e) => updateAction(index, { ...action, askToFollowMessage: e.target.value } as SendDmAction)} placeholder="Message if not following..." rows={2} disabled={readOnly} className={`w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`} />
+                      <input type="text" value={(action as SendDmAction).askToFollowBtnText || ''} onChange={(e) => updateAction(index, { ...action, askToFollowBtnText: e.target.value } as SendDmAction)} placeholder="Follow Button Text" disabled={readOnly} className={`w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-center text-slate-700 transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`} />
                     </div>
                   </div>
-                )}
-              </motion.div>
-            ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-            {!readOnly && (
-              <motion.button
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.99 }}
-                onClick={() => setShowActionSelector(true)}
-                className="w-full py-6 border-2 border-dashed border-slate-200 rounded-[2.5rem] text-slate-400 font-semibold uppercase tracking-widest text-xs hover:border-blue-200 hover:text-blue-500 hover:bg-blue-50/10 transition-all flex items-center justify-center gap-3 mt-4"
-              >
-                <Plus size={20} /> Add Another Action Step
-              </motion.button>
-            )}
-          </div>
-        )}
-      </AnimatePresence>
+            {/* ─── Gradient bar ─── */}
+            <div className="h-[3px] w-full bg-gradient-to-r from-purple-500 via-blue-500 to-orange-400 rounded-full"></div>
 
-      {/* Action Selector Modal */}
-      {showActionSelector && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-          <AnimatePresence>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowActionSelector(false)}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl"
-            />
-          </AnimatePresence>
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="relative w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl overflow-hidden"
-          >
-            <div className="p-10">
-              <div className="flex items-center justify-between mb-8">
-                <div>
-                  <h3 className="text-2xl font-extrabold text-slate-800 font-outfit">Choose Action</h3>
-                  <p className="text-sm font-normal text-slate-500">Select how to respond to "{getTriggerName(triggerType)}"</p>
-                </div>
-                <button onClick={() => setShowActionSelector(false)} className="p-3 bg-slate-100 text-slate-400 rounded-2xl hover:bg-slate-200 transition-colors">
-                  <X size={24} />
-                </button>
+            {/* Response Flow header */}
+            <div className="flex items-center gap-3 py-1">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white shadow-md">
+                <GitBranch size={18} />
               </div>
-
-              <div className="grid gap-4">
-                {availableActions.map((option, idx) => (
-                  <motion.button
-                    key={option.type}
-                    whileHover={{ scale: 1.02, x: 5 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => addAction(option.type)}
-                    className="group flex items-start gap-6 p-6 rounded-[2rem] border-2 border-slate-100 hover:border-blue-500 hover:bg-blue-50/50 transition-all text-left"
-                  >
-                    <div className={cn(
-                      "w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-white shadow-lg shrink-0",
-                      option.color
-                    )}>
-                      <option.icon size={30} />
-                    </div>
-                    <div className="pt-1">
-                      <div className="flex items-center gap-3 mb-1">
-                        <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-400 text-[10px] font-semibold flex items-center justify-center">{idx + 1}</span>
-                        <h4 className="text-xl font-extrabold text-slate-800">{option.name}</h4>
-                      </div>
-                      <p className="text-sm font-normal text-slate-500 leading-relaxed">{option.description}</p>
-                    </div>
-                    <div className="ml-auto self-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <ArrowRight className="text-blue-500" />
-                    </div>
-                  </motion.button>
-                ))}
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold text-slate-700 text-sm">Response Flow</p>
+                  <span className="text-xs text-slate-400 font-medium">{Math.max(1, (action as SendDmAction).actionButtons?.length + 1)}/{11} Cards used</span>
+                </div>
+                <p className="text-slate-400 text-xs">Configure automated DM responses</p>
               </div>
             </div>
-          </motion.div>
-        </div>,
-        document.body
+
+            {/* DM action card fields */}
+            <div className="border border-slate-200 bg-white rounded-xl p-4 space-y-4">
+              {!readOnly && (
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Opening Message</label>
+                  {/* Simple toggle (always on for now) */}
+                  <div className="flex items-center gap-2 text-xs text-slate-500">
+                    <span>Simple</span>
+                    <div className="w-8 h-4 bg-slate-200 rounded-full relative">
+                      <div className="absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow-sm"></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Opening message / title */}
+              <div className="space-y-1">
+                <label className="text-xs text-slate-500 font-medium">Simple Text Message</label>
+                <textarea
+                  value={(action as SendDmAction).title || ''}
+                  onInput={(e) => { const t = e.target as HTMLTextAreaElement; t.style.height = 'auto'; t.style.height = `${t.scrollHeight}px`; }}
+                  onChange={(e) => updateAction(index, { ...action, title: e.target.value } as SendDmAction)}
+                  placeholder="Hey! Thanks for your comment 😊"
+                  disabled={readOnly}
+                  rows={3}
+                  className={`w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-slate-800 text-sm transition-all placeholder:text-slate-400 resize-none ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
+                />
+                <p className="text-xs text-slate-400 text-right">{((action as SendDmAction).title || '').length}/640</p>
+              </div>
+
+              {/* Image URL (optional) */}
+              <div className="space-y-1">
+                <label className="text-xs text-slate-500 font-medium">Image URL (optional)</label>
+                <input
+                  type="url"
+                  value={(action as SendDmAction).imageUrl || ''}
+                  onChange={(e) => updateAction(index, { ...action, imageUrl: e.target.value } as SendDmAction)}
+                  placeholder="https://example.com/promo.jpg"
+                  disabled={readOnly}
+                  className={`w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-slate-800 text-sm transition-all placeholder:text-slate-400 ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="space-y-2">
+                {(action as SendDmAction).actionButtons.map((button, buttonIndex) => (
+                  <motion.div key={button.id} initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200 group/btn">
+                    <div className="flex-1 grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        value={button.text}
+                        onChange={(e) => {
+                          const a = actions[index] as SendDmAction;
+                          const newButtons = [...a.actionButtons];
+                          newButtons[buttonIndex] = { ...newButtons[buttonIndex], text: e.target.value };
+                          updateAction(index, { ...a, actionButtons: newButtons });
+                        }}
+                        placeholder="Button Label"
+                        disabled={readOnly}
+                        className={`px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs text-center font-semibold focus:border-purple-500 transition-all ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
+                      />
+                      {(button.buttonType || 'web_url') === 'web_url' && (
+                        <input
+                          type="url"
+                          value={button.url || ''}
+                          onChange={(e) => {
+                            const a = actions[index] as SendDmAction;
+                            const newButtons = [...a.actionButtons];
+                            newButtons[buttonIndex] = { ...newButtons[buttonIndex], url: e.target.value };
+                            updateAction(index, { ...a, actionButtons: newButtons });
+                          }}
+                          placeholder="https://your-link.com"
+                          disabled={readOnly}
+                          className={`px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs focus:border-purple-500 transition-all ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
+                        />
+                      )}
+                    </div>
+                    {!readOnly && (
+                      <button onClick={() => removeActionButton(index, buttonIndex)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover/btn:opacity-100">
+                        <X size={14} />
+                      </button>
+                    )}
+                  </motion.div>
+                ))}
+                {(action as SendDmAction).actionButtons.length < 3 && !readOnly && (
+                  <button
+                    onClick={() => addActionButton(index)}
+                    className="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 text-xs font-semibold hover:border-purple-300 hover:text-purple-500 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Plus size={14} /> Add Button (Optional)
+                  </button>
+                )}
+              </div>
+
+              {/* Branding */}
+              <div className="pt-2 border-t border-slate-100">
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider text-center">Powered By Quickrevert.tech</p>
+              </div>
+            </div>
+
+            {/* Delete DM action */}
+            {!readOnly && (
+              <button onClick={() => deleteAction(index)} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-red-500 transition-colors">
+                <Trash size={14} /> Remove Response Flow
+              </button>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Add DM action if none yet */}
+      {actions.filter(a => a.type === 'send_dm').length === 0 && (
+        <motion.button
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.99 }}
+          onClick={() => !readOnly && addAction('send_dm')}
+          disabled={readOnly}
+          className={`w-full border-2 border-dashed border-slate-200 rounded-xl py-8 flex flex-col items-center gap-2 text-slate-400 hover:border-purple-300 hover:text-purple-500 transition-all group ${readOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          <div className="w-10 h-10 rounded-xl bg-slate-100 group-hover:bg-purple-50 flex items-center justify-center transition-colors">
+            <Send size={20} />
+          </div>
+          <span className="text-sm font-semibold">Setup Response Flow</span>
+          <span className="text-xs text-slate-400">Configure automated DM responses</span>
+        </motion.button>
       )}
 
       {/* Navigation Footer */}
-      <div className="flex justify-between items-center pt-8 border-t border-slate-100">
+      <div className="flex justify-between items-center pt-6 border-t border-slate-100">
         <button
           onClick={onBack}
-          className="px-8 py-3.5 text-slate-500 hover:text-slate-800 font-semibold text-sm uppercase tracking-widest transition-all"
+          className="px-6 py-2.5 text-slate-500 hover:text-slate-800 font-semibold text-sm transition-all"
         >
-          {isCondensed ? 'Back to Logic' : 'Back'}
+          ← Back
         </button>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           {!canSave && actions.length > 0 && (
-            <div className="flex items-center gap-2 text-amber-500 bg-amber-50 px-4 py-2 rounded-xl border border-amber-100">
+            <div className="flex items-center gap-2 text-amber-500 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-100">
               <AlertCircle size={14} />
               <span className="text-[10px] font-semibold uppercase tracking-widest">Complete all required fields</span>
             </div>
@@ -670,21 +443,47 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
               onClick={onSave}
               disabled={!canSave || saving}
               className={cn(
-                "px-10 py-4 rounded-2xl font-semibold text-sm uppercase tracking-widest shadow-lg flex items-center gap-3 transition-all",
+                "px-8 py-3 rounded-xl font-semibold text-sm shadow-lg flex items-center gap-2 transition-all",
                 canSave && !saving
-                  ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:shadow-emerald-500/20"
+                  ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:shadow-purple-500/20"
                   : "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
               )}
             >
-              {saving ? (
-                <>Deploying... <Sparkles className="animate-pulse" size={18} /></>
-              ) : (
-                <>Launch Automation <Save size={18} /></>
-              )}
+              {saving ? (<>Saving... <Sparkles className="animate-pulse" size={16} /></>) : (<>Launch Automation <Save size={16} /></>)}
             </motion.button>
           )}
         </div>
       </div>
+
+      {/* Action Selector Modal (for other action types if needed) */}
+      {showActionSelector && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowActionSelector(false)} className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
+          <motion.div initial={{ opacity: 0, scale: 0.92, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden p-8 space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-slate-800">Choose Action</h3>
+              <button onClick={() => setShowActionSelector(false)} className="p-2 bg-slate-100 text-slate-400 rounded-xl hover:bg-slate-200 transition-colors"><X size={20} /></button>
+            </div>
+            <div className="grid gap-3">
+              {availableActions.map((option) => (
+                <button key={option.type} onClick={() => addAction(option.type)}
+                  className="flex items-center gap-4 p-4 rounded-2xl border-2 border-slate-100 hover:border-purple-400 hover:bg-purple-50 transition-all text-left"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white shadow-md">
+                    <option.icon size={22} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-800">{option.name}</p>
+                    <p className="text-xs text-slate-500">{option.description}</p>
+                  </div>
+                  <ArrowRight className="ml-auto text-slate-300" size={18} />
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
