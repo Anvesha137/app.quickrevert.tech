@@ -322,7 +322,7 @@ export default function Dashboard() {
                     <div className="relative group/refresh">
                       <KPICard
                         title="Growth"
-                        value={loading ? '-' : ((stats.followersCount || 0) - (stats.initialFollowersCount || 0)).toLocaleString()}
+                        value={loading ? '-' : Math.max(0, (stats.followersCount || 0) - (stats.initialFollowersCount || 0)).toLocaleString()}
                         icon={TrendingUp}
                         iconColor="text-emerald-600"
                         iconBgColor="bg-emerald-50"
