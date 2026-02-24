@@ -190,10 +190,6 @@ Deno.serve(async (req: Request) => {
                   {
                     "name": "content-type",
                     "value": "application/json"
-                  },
-                  {
-                    "name": "Authorization",
-                    "value": `Bearer ${supabaseAnonKey}`
                   }
                 ]
               },
@@ -206,7 +202,13 @@ Deno.serve(async (req: Request) => {
             "typeVersion": 4.3,
             "position": [288, 464],
             "id": "update-followers-webhook",
-            "name": "HTTP Request"
+            "name": "HTTP Request",
+            "credentials": {
+              "httpHeaderAuth": {
+                "id": "uhPTiowIMVTOTKGn",
+                "name": "supabase anon"
+              }
+            }
           },
           {
             "parameters": {
