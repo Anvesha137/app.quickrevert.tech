@@ -412,34 +412,175 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
                   </div>
                 )}
 
-                {currentStep === 'configuration' && formData.triggerType && (
-                  <div className="space-y-0">
-                    <TriggerConfigStep
-                      triggerType={formData.triggerType}
-                      config={formData.triggerConfig}
-                      onConfigChange={(triggerConfig: TriggerConfig) => !readOnly && setFormData({ ...formData, triggerConfig })}
-                      onBack={() => {
-                        setCurrentStep('setup');
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
-                      isCondensed={true}
-                      readOnly={readOnly}
-                    />
-                    <ActionConfig
-                      triggerType={formData.triggerType}
-                      actions={formData.actions}
-                      onActionsChange={(actions: Action[]) => !readOnly && setFormData({ ...formData, actions })}
-                      onSave={executeSave}
-                      onBack={() => {
-                        setCurrentStep('setup');
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
-                      saving={saving}
-                      isCondensed={true}
-                      readOnly={readOnly}
-                    />
-                  </div>
-                )}
+                {currentStep === 'configuration' && formData.triggerType && (() => {
+                  const pc = formData.triggerConfig as any;
+                  const keywords: string[] = (pc?.keywords || []).filter((k: string) => k.trim());
+                  const dmAction = formData.actions.find(a => a.type === 'send_dm') as SendDmAction | undefined;
+                  const replyAction = formData.actions.find(a => a.type === 'reply_to_comment') as ReplyToCommentAction | undefined;
+                  const dmTitle = (dmAction?.title || '').trim();
+                  const replyText = (replyAction?.replyTemplates || []).find(t => t.trim()) || '';
+                  const isDM = formData.triggerType === 'user_directed_messages';
+                  const isStory = formData.triggerType === 'story_reply';
+                  const specificPostImg = pc?.specificPosts?.length > 0 ? null : null; // image from selected post (future)
+                  const dmButtons = (dmAction?.actionButtons || []).filter(b => b.text.trim());
+                  const hasAnything = keywords.length > 0 || dmTitle || replyText || dmButtons.length > 0;
+
+                  return (
+                    <div className="flex flex-col xl:flex-row gap-8 items-start">
+                      {/* ── Config panels (left) ── */}
+                      <div className="flex-1 min-w-0 space-y-0">
+                        <TriggerConfigStep
+                          triggerType={formData.triggerType}
+                          config={formData.triggerConfig}
+                          onConfigChange={(triggerConfig: TriggerConfig) => !readOnly && setFormData({ ...formData, triggerConfig })}
+                          onBack={() => { setCurrentStep('setup'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                          isCondensed={true}
+                          readOnly={readOnly}
+                        />
+                        <ActionConfig
+                          triggerType={formData.triggerType}
+                          actions={formData.actions}
+                          onActionsChange={(actions: Action[]) => !readOnly && setFormData({ ...formData, actions })}
+                          onSave={executeSave}
+                          onBack={() => { setCurrentStep('setup'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                          saving={saving}
+                          isCondensed={true}
+                          readOnly={readOnly}
+                        />
+                      </div>
+
+                      {/* ── Live Instagram Preview (right) ── */}
+                      <div className="hidden xl:block w-72 flex-shrink-0 sticky top-6">
+                        <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest mb-3 text-center">Live Preview</p>
+
+                        {/* Instagram card */}
+                        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-lg">
+                          {/* Instagram header */}
+                          <div className="flex items-center gap-2 px-3 py-2.5 border-b border-slate-100">
+                            <div className="w-8 h-8 rounded-full p-[2px] bg-gradient-to-br from-yellow-400 via-pink-500 to-purple-600 flex-shrink-0">
+                              <div className="w-full h-full rounded-full bg-white flex items-center justify-center bg-gradient-to-br from-purple-500 to-pink-500">
+                                <span className="text-white text-[11px] font-bold">r</span>
+                              </div>
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-slate-800 text-xs font-semibold leading-none">ruchita_1930</p>
+                              <p className="text-slate-400 text-[10px]">{isStory ? 'Your Story' : isDM ? 'Direct Message' : 'Your Post'}</p>
+                            </div>
+                            <span className="text-slate-400 text-base">···</span>
+                          </div>
+
+                          {isDM ? (
+                            /* ── DM preview ── */
+                            <div className="bg-slate-50 p-3 space-y-2 min-h-[120px]">
+                              {!hasAnything && (
+                                <p className="text-slate-300 text-xs text-center py-8 italic">Your DM preview will appear here as you type...</p>
+                              )}
+                              {keywords.length > 0 && (
+                                <div className="flex items-end gap-2">
+                                  <div className="w-6 h-6 rounded-full bg-slate-300 flex-shrink-0"></div>
+                                  <div className="bg-white border border-slate-200 rounded-2xl rounded-bl-sm px-3 py-1.5 text-xs text-slate-700 shadow-sm max-w-[80%]">
+                                    {keywords[0]}
+                                  </div>
+                                </div>
+                              )}
+                              {dmTitle && (
+                                <div className="flex flex-col items-end gap-1.5">
+                                  <div className="bg-blue-500 rounded-2xl rounded-br-sm px-3 py-1.5 text-xs text-white shadow-sm max-w-[85%]">
+                                    {dmTitle}
+                                  </div>
+                                  {dmButtons.map((btn, i) => (
+                                    <div key={i} className="border border-blue-300 bg-blue-50 rounded-xl px-3 py-1 text-xs text-blue-600 font-semibold text-center max-w-[85%]">
+                                      {btn.text}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            /* ── Post / Story preview ── */
+                            <div>
+                              {/* Post image placeholder or actual thumbnail */}
+                              <div className="bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center" style={{ height: '200px' }}>
+                                {specificPostImg ? (
+                                  <img src={specificPostImg} alt="Selected post" className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="flex flex-col items-center gap-1 text-slate-400">
+                                    <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                    <span className="text-[10px] font-medium">{isStory ? 'Story Preview' : 'Post Preview'}</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Like / Comment / Share row */}
+                              <div className="flex items-center gap-3 px-3 pt-2 pb-1 text-slate-600 text-base">
+                                <span>♡</span><span>💬</span><span>⬆</span>
+                                <span className="ml-auto">🔖</span>
+                              </div>
+                              <p className="text-slate-700 text-[11px] font-semibold px-3 pb-2">1,243 likes</p>
+
+                              {/* Comments section — only shows if user typed something */}
+                              {(keywords.length > 0 || replyText) && (
+                                <div className="border-t border-slate-100 px-3 py-2 space-y-2 bg-slate-50/50">
+                                  <p className="text-slate-400 text-[9px] uppercase tracking-wider font-semibold">Comments</p>
+
+                                  {/* User trigger comment */}
+                                  {keywords.length > 0 && (
+                                    <div className="flex items-start gap-2">
+                                      <div className="w-5 h-5 rounded-full bg-slate-300 flex-shrink-0 mt-0.5"></div>
+                                      <div>
+                                        <span className="text-slate-700 text-[11px] font-semibold">alex_doe </span>
+                                        <span className="text-slate-700 text-[11px]">{keywords[0]}</span>
+                                        {keywords.length > 1 && (
+                                          <div className="flex flex-wrap gap-1 mt-0.5">
+                                            {keywords.slice(1).map((kw, i) => (
+                                              <span key={i} className="text-slate-400 text-[9px] bg-slate-100 px-1.5 py-0.5 rounded-full">or "{kw}"</span>
+                                            ))}
+                                          </div>
+                                        )}
+                                        <div className="flex gap-2 mt-0.5">
+                                          <span className="text-slate-400 text-[9px]">Reply</span>
+                                          <span className="text-slate-400 text-[9px]">Send DM</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Bot auto-reply */}
+                                  {replyText && (
+                                    <div className="flex items-start gap-2 pl-4">
+                                      <div className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex-shrink-0 mt-0.5"></div>
+                                      <div>
+                                        <span className="text-slate-700 text-[11px] font-semibold">ruchita_1930 </span>
+                                        <span className="text-slate-500 text-[9px]">Just now</span>
+                                        <p className="text-slate-700 text-[11px]">{replyText}</p>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* DM card teaser (if dm action configured) */}
+                                  {dmTitle && (
+                                    <div className="pl-4">
+                                      <div className="bg-blue-500 text-white text-[10px] font-semibold px-3 py-1.5 rounded-xl inline-block max-w-full truncate shadow-sm">
+                                        📩 {dmTitle}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {!keywords.length && !replyText && !dmTitle && (
+                                <p className="text-slate-300 text-xs text-center py-4 px-3 italic">Configure keywords & replies to see the preview...</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Caption below */}
+                        <p className="text-[9px] text-slate-400 text-center mt-2">Updates as you type ✦</p>
+                      </div>
+                    </div>
+                  );
+                })()}
 
               </div>
             </GlassCard>
