@@ -286,10 +286,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                 <GitBranch size={18} />
               </div>
               <div className="flex-1">
-                <div className="flex items-center justify-between">
-                  <p className="font-semibold text-slate-700 text-sm">Response Flow</p>
-                  <span className="text-xs text-slate-400 font-medium">{Math.max(1, (action as SendDmAction).actionButtons?.length + 1)}/{11} Cards used</span>
-                </div>
+                <p className="font-semibold text-slate-700 text-sm">Response Flow</p>
                 <p className="text-slate-400 text-xs">Configure automated DM responses</p>
               </div>
             </div>
@@ -297,15 +294,8 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
             {/* DM action card fields */}
             <div className="border border-slate-200 bg-white rounded-xl p-4 space-y-4">
               {!readOnly && (
-                <div className="flex items-center justify-between mb-1">
+                <div className="mb-1">
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Message</label>
-                  {/* Simple toggle (always on for now) */}
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <span>Simple</span>
-                    <div className="w-8 h-4 bg-slate-200 rounded-full relative">
-                      <div className="absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow-sm"></div>
-                    </div>
-                  </div>
                 </div>
               )}
 

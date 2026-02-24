@@ -63,6 +63,13 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
     }
   }, [(config as PostCommentTriggerConfig)?.postsType]);
 
+  // Fetch posts in readOnly mode too, so we can display which posts are selected
+  useEffect(() => {
+    if (readOnly && triggerType === 'post_comment' && (config as PostCommentTriggerConfig)?.postsType === 'specific') {
+      fetchPosts();
+    }
+  }, [readOnly]);
+
   const fetchPosts = async () => {
     try {
       setLoadingMedia(true);
@@ -226,9 +233,48 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="w-full border border-slate-200 bg-white rounded-xl py-3 px-4 text-center font-semibold text-slate-700 text-sm"
                 >
-                  {postScopeLabel}
+                  {/* In readOnly + specific mode, show which posts are selected */}
+                  {readOnly && triggerType === 'post_comment' && (currentConfig as PostCommentTriggerConfig).postsType === 'specific' ? (
+                    <div className="space-y-2">
+                      <div className="w-full border border-slate-200 bg-white rounded-xl py-2 px-4 text-center font-semibold text-slate-700 text-sm">
+                        Specific Posts
+                        {(currentConfig as PostCommentTriggerConfig).specificPosts?.length
+                          ? ` · ${(currentConfig as PostCommentTriggerConfig).specificPosts!.length} selected`
+                          : ''}
+                      </div>
+                      {loadingMedia ? (
+                        <div className="flex justify-center py-4">
+                          <Loader2 className="h-5 w-5 animate-spin text-purple-500" />
+                        </div>
+                      ) : (() => {
+                        const specificIds = (currentConfig as PostCommentTriggerConfig).specificPosts || [];
+                        const selectedPostObjs = posts.filter(p => specificIds.includes(p.id));
+                        return selectedPostObjs.length > 0 ? (
+                          <div className="grid grid-cols-3 gap-2">
+                            {selectedPostObjs.map((post) => (
+                              <div key={post.id} className="relative aspect-square rounded-xl overflow-hidden border-2 border-purple-500">
+                                {post.media_type === 'VIDEO' ? (
+                                  <video src={post.media_url} poster={post.thumbnail_url} muted className="w-full h-full object-cover" />
+                                ) : (
+                                  <img src={post.media_url} alt={post.caption || 'Post'} className="w-full h-full object-cover" />
+                                )}
+                                <div className="absolute top-1 right-1 bg-purple-500 text-white p-0.5 rounded-md">
+                                  <CheckCircle2 size={12} />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : specificIds.length > 0 ? (
+                          <p className="text-xs text-slate-400 text-center py-2">{specificIds.length} post{specificIds.length > 1 ? 's' : ''} selected</p>
+                        ) : null;
+                      })()}
+                    </div>
+                  ) : (
+                    <div className="w-full border border-slate-200 bg-white rounded-xl py-3 px-4 text-center font-semibold text-slate-700 text-sm">
+                      {postScopeLabel}
+                    </div>
+                  )}
                 </motion.div>
               ) : (
                 <motion.div
