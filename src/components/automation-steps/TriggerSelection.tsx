@@ -1,4 +1,4 @@
-import { MessageSquare, Image, Mail, ChevronRight, Zap } from 'lucide-react';
+import { Zap, Image, Mail, Check, Diamond } from 'lucide-react';
 import { TriggerType } from '../../types/automation';
 
 interface TriggerSelectionProps {
@@ -13,24 +13,24 @@ interface TriggerSelectionProps {
 const triggers = [
   {
     type: 'post_comment' as TriggerType,
-    icon: MessageSquare,
-    title: 'User comments on your post or reel',
-    colorFrom: 'from-blue-500',
-    colorTo: 'to-purple-600',
+    icon: Zap,
+    title: 'Post Comment',
+    description: 'When someone comments on your post',
+    badges: ['Reply to Comment', 'Send DM'],
   },
   {
     type: 'story_reply' as TriggerType,
     icon: Image,
-    title: 'User replies to your story',
-    colorFrom: 'from-blue-500',
-    colorTo: 'to-purple-600',
+    title: 'Story Reply',
+    description: 'When someone replies to your story',
+    badges: ['Send DM'],
   },
   {
     type: 'user_directed_messages' as TriggerType,
     icon: Mail,
-    title: 'User sends you a DM',
-    colorFrom: 'from-blue-500',
-    colorTo: 'to-purple-600',
+    title: 'Direct Message',
+    description: 'When someone sends you a DM',
+    badges: ['Auto Reply'],
   },
 ];
 
@@ -49,23 +49,16 @@ export default function TriggerSelection({
 
   return (
     <div className="w-full">
-      <div className="flex items-center gap-4 mb-8">
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex flex-shrink-0 items-center justify-center text-white shadow-lg shadow-purple-500/30">
-          <Zap size={28} className="fill-white" />
-        </div>
+      <div className="flex items-center justify-between mb-8 cursor-pointer" onClick={() => !readOnly && onTriggerSelect(null as any)}>
         <div>
-          <h2 className="text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
+          <h2 className="text-xl md:text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
             Trigger Configuration
           </h2>
-          <p className="text-slate-500 text-sm mt-1">
-            Choose an event that will start the automation flow
+          <p className="text-slate-500 text-sm mt-1 flex items-center gap-1">
+            Choose what starts this automation <span className="text-slate-300">ⓘ</span>
           </p>
         </div>
       </div>
-
-      <div className="h-[1px] bg-slate-100 my-8 w-full"></div>
-
-      <h3 className="text-slate-500 font-semibold mb-4 text-sm">Select trigger type</h3>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {triggers.map((trigger) => {
@@ -77,18 +70,48 @@ export default function TriggerSelection({
               key={trigger.type}
               onClick={() => handleSelect(trigger.type)}
               disabled={readOnly}
-              className={`flex items-center p-4 border rounded-2xl transition-all group ${isSelected
-                ? 'border-purple-400 bg-purple-50'
-                : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
+              className={`relative p-5 text-left rounded-3xl transition-all flex flex-col items-start gap-4 border-2 ${isSelected
+                  ? 'bg-gradient-to-br from-blue-500 to-purple-600 border-transparent shadow-md shadow-purple-500/20'
+                  : 'bg-white border-slate-100 hover:border-slate-200 hover:shadow-sm'
                 } ${readOnly ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
             >
-              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${trigger.colorFrom} ${trigger.colorTo} flex items-center justify-center text-white mr-4 shadow-md`}>
-                <Icon size={24} />
+              {/* Top row: Icon and Title */}
+              <div className="w-full flex items-center gap-4">
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${isSelected ? 'bg-white text-blue-500' : 'bg-slate-50 text-slate-500'
+                  }`}>
+                  <Icon size={24} className={isSelected ? 'text-blue-500' : 'text-pink-400'} />
+                </div>
+                <h3 className={`text-lg font-bold flex-1 ${isSelected ? 'text-white' : 'text-slate-800'}`}>
+                  {trigger.title}
+                </h3>
+
+                {/* Selection Indicator */}
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors ${isSelected ? 'bg-white border-white' : 'border-slate-200'
+                  }`}>
+                  {isSelected && <Check size={14} className="text-purple-600 stroke-[3]" />}
+                </div>
               </div>
-              <span className="font-semibold text-slate-700 flex-1 text-left text-sm md:text-base">
-                {trigger.title}
-              </span>
-              <ChevronRight className={`transition-colors ${isSelected ? 'text-purple-500' : 'text-slate-300 group-hover:text-slate-500'}`} />
+
+              {/* Description */}
+              <p className={`text-sm ${isSelected ? 'text-white/90' : 'text-slate-500'}`}>
+                {trigger.description}
+              </p>
+
+              {/* Badges */}
+              <div className="flex flex-wrap gap-2 mt-auto pt-2">
+                {trigger.badges.map((badge, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${isSelected
+                        ? 'bg-white/20 text-white'
+                        : 'bg-slate-50 text-slate-600'
+                      }`}
+                  >
+                    <Diamond size={10} className={isSelected ? 'text-white/70' : 'text-slate-400'} />
+                    {badge}
+                  </div>
+                ))}
+              </div>
             </button>
           );
         })}
