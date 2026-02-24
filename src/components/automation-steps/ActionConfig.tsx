@@ -298,7 +298,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
             <div className="border border-slate-200 bg-white rounded-xl p-4 space-y-4">
               {!readOnly && (
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Opening Message</label>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Message</label>
                   {/* Simple toggle (always on for now) */}
                   <div className="flex items-center gap-2 text-xs text-slate-500">
                     <span>Simple</span>
