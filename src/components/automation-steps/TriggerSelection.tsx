@@ -93,6 +93,18 @@ export default function TriggerSelection({
           );
         })}
       </div>
+
+      {readOnly && selectedTrigger && (
+        <div className="flex justify-end mt-8">
+          <button
+            onClick={() => onNext(selectedTrigger)}
+            className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-semibold text-sm transition-all shadow-md shadow-purple-500/20"
+          >
+            Next
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
