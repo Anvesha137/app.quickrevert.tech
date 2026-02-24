@@ -508,5 +508,6 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
           </div>
         </div>
       </div>
-      );
+    </div>
+  );
 }
