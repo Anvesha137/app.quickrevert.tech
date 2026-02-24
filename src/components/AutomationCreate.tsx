@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ArrowLeft, Check } from 'lucide-react';
+import { Check, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from "motion/react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -286,73 +286,82 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col md:flex-row md:items-end justify-between gap-6"
+          className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white/60 backdrop-blur-xl p-4 md:p-6 rounded-3xl border border-white/80 shadow-sm"
         >
-          <div>
+          <div className="flex items-center gap-3">
             <button
               onClick={() => navigate('/automation')}
-              className="group flex items-center gap-2 text-slate-500 hover:text-blue-600 transition-all font-bold text-sm mb-4 bg-white/40 backdrop-blur-sm px-4 py-2 rounded-full border border-white/60 hover:border-blue-200 hover:shadow-md"
+              className="text-slate-500 hover:text-purple-600 transition-colors"
             >
-              <ArrowLeft size={16} className="transition-transform group-hover:-translate-x-1" />
-              Exit {readOnly ? 'View' : 'Journey'}
+              <span className="font-semibold text-sm">Automation</span>
             </button>
-            <h1 className="text-3xl font-black text-slate-800 tracking-tight">
-              {readOnly ? 'View Automation' : (id ? 'Refine Automation' : 'Design Automation')}
-            </h1>
-            <p className="text-slate-500 font-medium mt-0.5 text-sm">
-              {readOnly ? 'Review your validation strategy' : (id ? 'Make your strategy even sharper' : 'Craft a beautiful interaction flow for your audience')}
-            </p>
+            <span className="text-slate-300">/</span>
+
+            <div className="flex items-center group relative">
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => !readOnly && setFormData({ ...formData, name: e.target.value })}
+                placeholder="Untitled*"
+                disabled={readOnly}
+                className="bg-transparent border-none outline-none text-xl font-bold text-slate-800 placeholder-slate-400 focus:ring-0 p-0 w-[200px]"
+              />
+              {!readOnly && <Pencil size={16} className="text-slate-400 ml-2" />}
+            </div>
           </div>
 
+          <div className="flex items-center gap-4">
+            <button
+              onClick={executeSave}
+              disabled={saving || readOnly}
+              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-xl font-semibold text-sm transition-all shadow-md shadow-purple-500/20 flex items-center gap-2"
+            >
+              {saving ? 'Saving...' : 'Save Automation'}
+            </button>
+          </div>
         </motion.div>
 
         {/* Stepper */}
-        <div className="relative">
-          <div className="flex items-center gap-4 relative px-2">
-            {steps.map((step, index) => {
-              const isActive = currentStep === step.id;
-              const isCompleted = step.completed && currentStepIndex > index;
-              const isFuture = index > currentStepIndex;
+        {currentStep !== 'setup' && (
+          <div className="relative">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 pt-4">
+              <div className="flex items-center gap-4 relative px-2">
+                {steps.map((step, index) => {
+                  const isActive = currentStep === step.id;
+                  const isCompleted = step.completed && currentStepIndex > index;
+                  const isFuture = index > currentStepIndex;
 
-              if (isFuture) return null;
+                  if (isFuture) return null;
 
-              return (
-                <div key={step.id} className="flex items-center gap-3 relative z-10">
-                  <motion.div
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
-                    className={cn(
-                      "w-10 h-10 rounded-2xl flex items-center justify-center font-bold transition-all shadow-lg border-2 shrink-0",
-                      isCompleted || isActive
-                        ? "bg-gradient-to-br from-blue-600 to-indigo-700 text-white border-blue-400 shadow-blue-500/20"
-                        : "bg-white text-slate-400 border-slate-100 shadow-slate-200/50"
-                    )}
-                  >
-                    {isCompleted ? <Check size={20} className="stroke-[3]" /> : index + 1}
-                  </motion.div>
-                  <span
-                    className={cn(
-                      "text-[10px] font-black uppercase tracking-widest transition-colors whitespace-nowrap",
-                      isActive ? "text-blue-600" : "text-slate-800"
-                    )}
-                  >
-                    {step.name}
-                  </span>
-                  {step.id === 'setup' && isActive && (
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => !readOnly && setFormData({ ...formData, name: e.target.value })}
-                      placeholder="Name your automation"
-                      disabled={readOnly}
-                      className="ml-1 sm:ml-2 flex-1 w-full min-w-[140px] sm:min-w-[500px] px-3 sm:px-6 py-2 sm:py-2.5 border border-sky-200/50 bg-gradient-to-r from-sky-300/10 via-blue-300/10 to-indigo-300/10 rounded-2xl focus:ring-4 focus:ring-sky-300/20 focus:border-sky-300 text-black/70 placeholder-black/60 transition-all shadow-sm hover:from-sky-300/15 hover:to-indigo-300/15 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed backdrop-blur-md text-sm sm:text-base"
-                    />
-                  )}
-                </div>
-              );
-            })}
+                  return (
+                    <div key={step.id} className="flex items-center gap-3 relative z-10">
+                      <motion.div
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.95 }}
+                        className={cn(
+                          "w-10 h-10 rounded-2xl flex items-center justify-center font-bold transition-all shadow-lg border-2 shrink-0",
+                          isCompleted || isActive
+                            ? "bg-gradient-to-br from-pink-500 to-purple-600 text-white border-pink-400 shadow-purple-500/20"
+                            : "bg-white text-slate-400 border-slate-100 shadow-slate-200/50"
+                        )}
+                      >
+                        {isCompleted ? <Check size={20} className="stroke-[3]" /> : index + 1}
+                      </motion.div>
+                      <span
+                        className={cn(
+                          "text-[10px] font-black uppercase tracking-widest transition-colors whitespace-nowrap",
+                          isActive ? "text-purple-600" : "text-slate-800"
+                        )}
+                      >
+                        {step.name}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
-        </div>
+        )}
 
         <AnimatePresence mode="wait">
           <motion.div
@@ -367,7 +376,7 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
                 {currentStep === 'setup' && (
                   <div className="space-y-12">
                     {/* Name input is now inline in the stepper above */}
-                    <div className="pt-6 border-t border-slate-100">
+                    <div className="pt-2">
                       <TriggerSelection
                         selectedTrigger={formData.triggerType}
                         onTriggerSelect={(triggerType: TriggerType) => {
@@ -386,12 +395,13 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
                             triggerConfig: defaultConfig
                           });
                         }}
-                        onNext={() => {
-                          if (formData.name.trim() && formData.triggerType) {
+                        onNext={(triggerContextType?: TriggerType) => {
+                          const currentTrigger = triggerContextType || formData.triggerType;
+                          if (currentTrigger) {
                             setCurrentStep('configuration');
                             window.scrollTo({ top: 0, behavior: 'smooth' });
                           } else {
-                            toast.error('Please provide a name and select a trigger.');
+                            toast.error('Please select a trigger.');
                           }
                         }}
                         onBack={() => navigate('/automation')}

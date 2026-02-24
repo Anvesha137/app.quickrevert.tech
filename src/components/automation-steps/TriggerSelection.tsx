@@ -1,11 +1,10 @@
-import { MessageSquare, Image, Mail, ArrowRight, Zap, Sparkles } from 'lucide-react';
-import { motion } from "motion/react";
+import { MessageSquare, Image, Mail, ChevronRight, Zap } from 'lucide-react';
 import { TriggerType } from '../../types/automation';
 
 interface TriggerSelectionProps {
   selectedTrigger: TriggerType | null;
   onTriggerSelect: (trigger: TriggerType) => void;
-  onNext: () => void;
+  onNext: (trigger?: TriggerType) => void;
   onBack: () => void | Promise<void>;
   isCondensed?: boolean;
   readOnly?: boolean;
@@ -15,26 +14,23 @@ const triggers = [
   {
     type: 'post_comment' as TriggerType,
     icon: MessageSquare,
-    title: 'Post Comment',
-    description: 'When someone comments on a post',
-    actions: ['Reply to Comment', 'Send Direct Message'],
-    color: 'blue',
+    title: 'User comments on your post or reel',
+    colorFrom: 'from-pink-500',
+    colorTo: 'to-purple-500',
   },
   {
     type: 'story_reply' as TriggerType,
     icon: Image,
-    title: 'Story Reply',
-    description: 'When someone replies to your story',
-    actions: ['Send Direct Message'],
-    color: 'indigo',
+    title: 'User replies to your story',
+    colorFrom: 'from-blue-500',
+    colorTo: 'to-indigo-500',
   },
   {
     type: 'user_directed_messages' as TriggerType,
     icon: Mail,
-    title: 'User Direct Message',
-    description: 'When someone sends you a direct message',
-    actions: ['Reply to Direct Message'],
-    color: 'violet',
+    title: 'User sends you a DM',
+    colorFrom: 'from-orange-400',
+    colorTo: 'to-pink-500',
   },
 ];
 
@@ -42,125 +38,60 @@ export default function TriggerSelection({
   selectedTrigger,
   onTriggerSelect,
   onNext,
-  onBack,
-  isCondensed,
   readOnly
 }: TriggerSelectionProps) {
-  const handleNext = () => {
-    if (selectedTrigger) {
-      onNext();
-    }
+
+  const handleSelect = (type: TriggerType) => {
+    if (readOnly) return;
+    onTriggerSelect(type);
+    onNext(type); // pass type so parent knows it's selected immediately
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-start">
+    <div className="w-full">
+      <div className="flex items-center gap-4 mb-8">
+        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-pink-500 to-purple-600 flex flex-shrink-0 items-center justify-center text-white shadow-lg shadow-purple-500/30">
+          <Zap size={28} className="fill-white" />
+        </div>
         <div>
-          <h2 className="text-2xl font-extrabold text-slate-800 mb-1 font-outfit">
-            {isCondensed ? (readOnly ? 'Trigger Type' : 'Select Trigger Type') : 'Choose Your Event'}
+          <h2 className="text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
+            Trigger Configuration
           </h2>
-          <p className="text-slate-400 font-normal text-sm">
-            Select the spark that ignites this automation.
+          <p className="text-slate-500 text-sm mt-1">
+            Choose an event that will start the automation flow
           </p>
         </div>
-        {!isCondensed && (
-          <div className="bg-amber-50 px-4 py-2 rounded-2xl border border-amber-100 flex items-center gap-2">
-            <Zap className="h-4 w-4 text-amber-500 fill-amber-500" />
-            <span className="text-[10px] font-semibold text-amber-700 uppercase tracking-widest">Single Trigger</span>
-          </div>
-        )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-1 gap-5">
-        {triggers.map((trigger, index) => {
+      <div className="h-[1px] bg-slate-100 my-8 w-full"></div>
+
+      <h3 className="text-slate-500 font-semibold mb-4 text-sm">Select trigger type</h3>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {triggers.map((trigger) => {
           const Icon = trigger.icon;
           const isSelected = selectedTrigger === trigger.type;
 
-          const isInteractable = !readOnly;
-
           return (
-            <motion.button
+            <button
               key={trigger.type}
-              whileHover={isInteractable ? { scale: 1.01, y: -2 } : {}}
-              whileTap={isInteractable ? { scale: 0.99 } : {}}
-              onClick={() => isInteractable && onTriggerSelect(trigger.type)}
+              onClick={() => handleSelect(trigger.type)}
               disabled={readOnly}
-              className={`w-full text-left p-6 rounded-3xl transition-all relative overflow-hidden group ${isSelected
-                ? 'bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 text-white shadow-xl shadow-blue-600/20'
-                : (readOnly
-                  ? 'bg-slate-50 border-2 border-slate-100 opacity-60 cursor-not-allowed'
-                  : 'bg-white/50 border-2 border-slate-100 hover:border-blue-200 hover:bg-white hover:shadow-lg')
-                }`}
+              className={`flex items-center p-4 border rounded-2xl transition-all group ${isSelected
+                  ? 'border-purple-400 bg-purple-50'
+                  : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
+                } ${readOnly ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
             >
-              {isSelected && !readOnly && (
-                <div className="absolute top-0 right-0 p-8 opacity-20 transition-transform group-hover:scale-110">
-                  <Sparkles size={60} />
-                </div>
-              )}
-
-              <div className="flex items-start gap-6 relative z-10">
-                <div className={`flex items-center justify-center w-14 h-14 rounded-2xl shadow-inner transition-colors duration-300 ${isSelected ? 'bg-white/20' : 'bg-slate-50 text-blue-500'
-                  }`}>
-                  <Icon className={`w-7 h-7 ${isSelected ? 'text-white' : 'text-blue-500'}`} />
-                </div>
-
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className={`text-[10px] font-semibold w-6 h-6 rounded-lg flex items-center justify-center border transition-all ${isSelected ? 'bg-white/20 border-white/40' : 'bg-slate-100 border-slate-200 text-slate-500'
-                      }`}>
-                      {index + 1}
-                    </span>
-                    <h3 className={`text-lg font-extrabold tracking-tight ${isSelected ? 'text-white' : 'text-slate-800'}`}>
-                      {trigger.title}
-                    </h3>
-                  </div>
-                  <p className={`font-normal mb-3 text-sm ${isSelected ? 'text-blue-50' : 'text-slate-400'}`}>
-                    {trigger.description}
-                  </p>
-
-                  <div className="flex flex-wrap gap-2">
-                    {trigger.actions.map((action) => (
-                      <span key={action} className={`text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5 rounded-xl border transition-colors ${isSelected
-                        ? 'bg-white/10 border-white/20 text-white hover:bg-white/20'
-                        : 'bg-slate-50 border-slate-100 text-slate-500 hover:bg-white hover:border-slate-200'
-                        }`}>
-                        {action}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {!readOnly && (
-                  <div className={`self-center p-2 rounded-xl transition-all ${isSelected ? 'bg-white/20' : 'opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0'
-                    }`}>
-                    <ArrowRight size={24} className={isSelected ? 'text-white' : 'text-blue-500'} />
-                  </div>
-                )}
+              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${trigger.colorFrom} ${trigger.colorTo} flex items-center justify-center text-white mr-4 shadow-md`}>
+                <Icon size={24} />
               </div>
-            </motion.button>
+              <span className="font-semibold text-slate-700 flex-1 text-left text-sm md:text-base">
+                {trigger.title}
+              </span>
+              <ChevronRight className={`transition-colors ${isSelected ? 'text-purple-500' : 'text-slate-300 group-hover:text-slate-500'}`} />
+            </button>
           );
         })}
-      </div>
-
-      <div className="flex justify-between items-center pt-6">
-        <button
-          onClick={onBack}
-          className="px-8 py-3.5 text-slate-500 hover:text-slate-800 font-semibold text-sm uppercase tracking-widest transition-all"
-        >
-          {isCondensed ? 'Exit' : 'Back'}
-        </button>
-        <motion.button
-          whileHover={!readOnly && selectedTrigger ? { scale: 1.05 } : {}}
-          whileTap={!readOnly && selectedTrigger ? { scale: 0.95 } : {}}
-          onClick={handleNext}
-          disabled={!selectedTrigger}
-          className={`px-10 py-4 rounded-2xl transition-all font-semibold text-sm uppercase tracking-widest shadow-lg flex items-center gap-3 ${!selectedTrigger
-              ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
-              : 'bg-gradient-to-r from-blue-600 to-indigo-700 text-white hover:shadow-xl hover:shadow-blue-500/20'
-            }`}
-        >
-          {isCondensed ? (readOnly ? 'View Logic & Actions' : 'Set Logic & Actions') : 'Configure logic'} <ArrowRight size={18} />
-        </motion.button>
       </div>
     </div>
   );
