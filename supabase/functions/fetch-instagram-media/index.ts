@@ -35,7 +35,7 @@ Deno.serve(async (req: Request) => {
     // Get media type from query params first, then from request body
     const url = new URL(req.url);
     let mediaType = url.searchParams.get("type") || "posts";
-    
+
     if (req.method === "POST") {
       try {
         const body = await req.json();
@@ -66,10 +66,10 @@ Deno.serve(async (req: Request) => {
     // Check if token is expired or expiring soon (within 1 hour)
     const tokenExpiry = new Date(instagramAccount.token_expires_at);
     const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000);
-    
+
     if (tokenExpiry < oneHourFromNow) {
       console.log('Instagram token is expired or expiring soon, attempting refresh');
-      
+
       // Refresh the token
       const refreshUrl = new URL('https://graph.instagram.com/refresh_access_token');
       refreshUrl.searchParams.set('grant_type', 'ig_refresh_token');
@@ -81,7 +81,7 @@ Deno.serve(async (req: Request) => {
       if (refreshData.access_token) {
         const newAccessToken = refreshData.access_token;
         const newExpiresAt = new Date(Date.now() + (refreshData.expires_in || 5184000) * 1000).toISOString();
-        
+
         // Update the token in the database
         const { error: updateError } = await supabase
           .from('instagram_accounts')
@@ -115,7 +115,7 @@ Deno.serve(async (req: Request) => {
 
     if (mediaType === "posts") {
       const mediaResponse = await fetch(
-        `https://graph.instagram.com/me/media?fields=id,caption,media_type,media_url,permalink,timestamp&access_token=${instagramAccount.access_token}`
+        `https://graph.instagram.com/me/media?fields=id,caption,media_type,media_url,permalink,timestamp&limit=100&access_token=${instagramAccount.access_token}`
       );
 
       if (!mediaResponse.ok) {
