@@ -86,7 +86,7 @@ export default function MobileNav() {
                     <div className="p-4">
                         <div className="flex items-center justify-between mb-8">
                             <div className="flex items-center gap-3">
-                                <img src="/full_logo.png" alt="QuickRevert" className="h-8 w-auto object-contain" />
+                                <img src="/Logo_optimized.png" alt="QuickRevert" className="h-8 w-auto object-contain" />
                             </div>
                             <button
                                 onClick={() => setIsOpen(false)}

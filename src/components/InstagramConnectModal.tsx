@@ -10,7 +10,7 @@ interface InstagramConnectModalProps {
   onConnect: () => void;
 }
 
-const InstagramConnectModal = ({ isOpen, onClose, onConnect }: InstagramConnectModalProps) => {
+const InstagramConnectModal = ({ isOpen, onClose }: Omit<InstagramConnectModalProps, 'onConnect'>) => {
   // const { signOut } = useAuth(); // Not needed anymore
   // const { user } = useAuth(); // If needed later
   // Or just empty if only signOut was there
@@ -102,7 +102,7 @@ const InstagramConnectModal = ({ isOpen, onClose, onConnect }: InstagramConnectM
         <div className="p-8 pt-10 flex flex-col items-center">
           {/* Logo Branding */}
           <div className="flex items-center gap-1 justify-center mb-8">
-            <img src="/Logo.png" alt="QuickRevert Logo" className="w-12 h-12 object-contain" />
+            <img src="/Logo_optimized.png" alt="QuickRevert Logo" className="w-12 h-12 object-contain" />
             <h1 className="font-bold text-gray-800 text-3xl tracking-tighter">QuickRevert</h1>
           </div>
 

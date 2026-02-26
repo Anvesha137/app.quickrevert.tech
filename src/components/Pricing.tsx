@@ -40,7 +40,7 @@ export default function Pricing() {
             <div className="w-full md:w-1/3 bg-gray-50 flex flex-col items-center justify-center p-8 border-r border-gray-100">
                 <div className="flex flex-col items-center gap-4 text-center">
                     <div className="p-6 rounded-[2.5rem] bg-white shadow-xl shadow-blue-500/5 border border-gray-100 mb-4 transition-transform hover:scale-105 duration-500">
-                        <img src="/Logo.png" alt="QuickRevert Logo" className="w-32 h-32 object-contain" />
+                        <img src="/Logo_optimized.png" alt="QuickRevert Logo" className="w-12 h-12 object-contain" />
                     </div>
                     <h1 className="text-4xl font-black tracking-tighter text-gray-900">QuickRevert</h1>
                     <p className="text-sm text-gray-500 font-medium tracking-wide max-w-[200px] leading-relaxed">

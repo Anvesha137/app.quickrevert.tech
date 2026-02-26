@@ -47,7 +47,7 @@ export default function Sidebar() {
       {/* Logo Section */}
       <div className="mb-6 p-3 rounded-2xl bg-gradient-to-br from-blue-500/10 to-purple-500/10 backdrop-blur-md border border-white/20">
         <div className="flex items-center gap-0 justify-center mb-1">
-          <img src="/Logo.png" alt="QuickRevert Logo" className="w-12 h-12 object-contain -mr-1" />
+          <img src="/Logo_optimized.png" alt="QuickRevert Logo" className="w-12 h-12 object-contain -mr-1" />
           <h1 className="font-bold text-gray-800 text-2xl tracking-tighter -mt-1">QuickRevert</h1>
         </div>
         <p className="text-[9px] text-gray-500 tracking-tight text-center leading-none">

@@ -173,7 +173,7 @@ const Billing = () => {
             <div className="mt-auto flex flex-col sm:flex-row gap-4">
               {!isPremium ? (
                 <button
-                  onClick={openUpgradeModal}
+                  onClick={() => openUpgradeModal()}
                   className="flex-1 py-4 bg-white text-black font-black text-xs tracking-widest rounded-xl hover:bg-gray-100 transition-all uppercase flex items-center justify-center gap-2"
                 >
                   Upgrade Plan
