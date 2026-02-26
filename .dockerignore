@@ -1,38 +1,44 @@
+# Dependencies
 node_modules
 .git
+
+# Build outputs
+/dist
+/build
+/output
+/.cache
+
+# Root-level scripts (ignoring dozens of local diagnostic scripts)
+/*.js
+/*.ts
+/*.sql
+/*.json
+/*.cjs
+/*.ps1
+/*.sh
+/*.txt
+
+# Exceptions for critical config files in root
+!/package.json
+!/package-lock.json
+!/tsconfig.json
+!/tsconfig.app.json
+!/tsconfig.node.json
+!/eslint.config.js
+!/postcss.config.js
+!/tailwind.config.js
+!/vite.config.ts
+
+# Large local folders
+/temp_deploy
+/scripts
+/supabase
+
+# Docker/Git configs
 .gitignore
 .dockerignore
-dist
-build
+Dockerfile
+
+# Logs
 *.log
-*.sql
-*.js
-*.ts
-!eslint.config.js
-!postcss.config.js
-!tailwind.config.js
-!vite.config.ts
-!package.json
-!package-lock.json
-!tsconfig.json
-!tsconfig.app.json
-!tsconfig.node.json
-DEBUG_STEPS.md
-SETUP_SECRETS.md
-WEBHOOK_DIAGNOSTIC_TEST.md
-*.txt
-*.json
-!package.json
-!package-lock.json
-!tsconfig.json
-!tsconfig.app.json
-!tsconfig.node.json
-!eslint.config.js
-!postcss.config.js
-!tailwind.config.js
-!vite.config.ts
-*.cjs
-*.ps1
-temp_deploy
-scripts
-supabase
+npm-debug.log*
