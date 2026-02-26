@@ -274,12 +274,12 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
   };
 
   return (
-    <div className="flex-1 relative min-h-screen overflow-x-hidden p-4 md:p-8">
+    <div className="flex-1 relative min-h-screen overflow-x-hidden p-4 md:p-8 bg-[#5a5f85]">
       {/* Animated Background Blobs */}
-      <div className="fixed inset-0 -z-10 bg-[#f8fafc]">
-        <div className="absolute top-0 -left-4 w-[500px] h-[500px] bg-blue-100/30 rounded-full mix-blend-multiply filter blur-3xl animate-blob opacity-70"></div>
-        <div className="absolute top-1/4 -right-4 w-[500px] h-[500px] bg-indigo-100/20 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000 opacity-60"></div>
-        <div className="absolute -bottom-20 left-1/4 w-[600px] h-[600px] bg-slate-200/30 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000 opacity-50"></div>
+      <div className="fixed inset-0 -z-10 bg-[#5a5f85]">
+        <div className="absolute top-0 -left-4 w-[500px] h-[500px] bg-white/10 rounded-full mix-blend-overlay filter blur-3xl animate-blob opacity-70"></div>
+        <div className="absolute top-1/4 -right-4 w-[500px] h-[500px] bg-indigo-200/10 rounded-full mix-blend-overlay filter blur-3xl animate-blob animation-delay-2000 opacity-60"></div>
+        <div className="absolute -bottom-20 left-1/4 w-[600px] h-[600px] bg-purple-200/10 rounded-full mix-blend-overlay filter blur-3xl animate-blob animation-delay-4000 opacity-50"></div>
       </div>
 
       <div className="max-w-6xl mx-auto space-y-8">
@@ -304,7 +304,7 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
                 onChange={(e) => !readOnly && setFormData({ ...formData, name: e.target.value })}
                 placeholder="Untitled*"
                 disabled={readOnly}
-                className="bg-transparent border-none outline-none text-xl font-bold text-slate-800 placeholder-slate-400 focus:ring-0 p-0 w-[200px]"
+                className="bg-transparent border-none outline-none text-xl font-bold text-white placeholder-indigo-200 focus:ring-0 p-0 w-[200px]"
               />
               {!readOnly && <Pencil size={16} className="text-slate-400 ml-2" />}
             </div>
