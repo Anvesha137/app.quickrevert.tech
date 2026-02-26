@@ -147,14 +147,14 @@ serve(async (req) => {
                 },
                 {
                     "parameters": {
-                        "amount": 12,
-                        "unit": "hours"
+                        "amount": 2,
+                        "unit": "days"
                     },
                     "type": "n8n-nodes-base.wait",
                     "typeVersion": 1.1,
                     "position": [128, -48],
-                    "id": "wait-12h",
-                    "name": "Wait 12 Hours"
+                    "id": "wait-2d",
+                    "name": "Wait 2 Days"
                 },
                 {
                     "parameters": {
@@ -235,14 +235,14 @@ serve(async (req) => {
                     "main": [
                         [
                             {
-                                "node": "Wait 12 Hours",
+                                "node": "Wait 2 Days",
                                 "type": "main",
                                 "index": 0
                             }
                         ]
                     ]
                 },
-                "Wait 12 Hours": {
+                "Wait 2 Days": {
                     "main": [
                         [
                             {
@@ -268,7 +268,7 @@ serve(async (req) => {
                     "main": [
                         [
                             {
-                                "node": "Wait 12 Hours",
+                                "node": "Wait 2 Days",
                                 "type": "main",
                                 "index": 0
                             }

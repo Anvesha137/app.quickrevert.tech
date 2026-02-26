@@ -167,8 +167,8 @@ Deno.serve(async (req: Request) => {
               "rule": {
                 "interval": [
                   {
-                    "field": "hours",
-                    "hoursInterval": 12
+                    "field": "days",
+                    "daysInterval": 2
                   }
                 ]
               }

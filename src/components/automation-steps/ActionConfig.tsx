@@ -94,7 +94,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
 
   const addActionButton = (actionIndex: number) => {
     const action = actions[actionIndex] as SendDmAction;
-    updateAction(actionIndex, { ...action, actionButtons: [...action.actionButtons, { id: Date.now().toString(), text: '', url: '' }] });
+    updateAction(actionIndex, { ...action, actionButtons: [...action.actionButtons, { id: Date.now().toString(), text: '', url: '', buttonType: 'web_url' }] });
   };
 
   const removeActionButton = (actionIndex: number, buttonIndex: number) => {
@@ -330,7 +330,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
               {/* Action Buttons */}
               <div className="space-y-2">
                 {(action as SendDmAction).actionButtons.map((button, buttonIndex) => {
-                  const btnType = button.buttonType || (button.url ? 'web_url' : 'postback');
+                  const btnType = button.buttonType || 'web_url';
                   return (
                     <motion.div key={button.id} initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200 group/btn">
                       <div className="flex-1 grid grid-cols-2 gap-2">
