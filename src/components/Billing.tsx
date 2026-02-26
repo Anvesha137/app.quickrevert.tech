@@ -108,8 +108,8 @@ const Billing = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      <div className="flex items-center justify-center min-h-screen bg-[#5a5f85]">
+        <div className="w-8 h-8 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -128,15 +128,15 @@ const Billing = () => {
       {/* Header Section */}
       <div className="mb-8">
         <h1 className="text-4xl font-black tracking-tight text-white leading-none">
-          <span className="text-blue-600">Billing & Subscription</span>
+          Billing & Subscription
         </h1>
       </div>
 
       {/* Main Two-Section Layout */}
       <div className="flex flex-col lg:flex-row gap-8 flex-1">
         {/* Left Section: Current Plan */}
-        <div className="flex-1 bg-[#0F0F12] border border-white/10 rounded-[2.5rem] p-8 relative overflow-hidden group">
-          <div className="absolute -top-24 -right-24 w-96 h-96 bg-blue-600/5 blur-[100px] rounded-full pointer-events-none"></div>
+        <div className="flex-1 bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8 relative overflow-hidden group">
+          <div className="absolute -top-24 -right-24 w-96 h-96 bg-white/5 blur-[100px] rounded-full pointer-events-none"></div>
 
           <div className="relative z-10 flex flex-col h-full">
             <div className="flex justify-between items-start mb-8">
@@ -151,7 +151,7 @@ const Billing = () => {
                   <span className="text-4xl font-bold text-white tracking-tight">
                     {getPlanPrice(subscription?.plan_id, subscription?.amount_paid)}
                   </span>
-                  <span className="text-sm text-gray-500 font-medium uppercase">{subscription?.plan_id?.includes('annual') ? '/ annual' : '/ quarterly'}</span>
+                  <span className="text-sm text-indigo-100 font-medium uppercase">{subscription?.plan_id?.includes('annual') ? '/ annual' : '/ quarterly'}</span>
                 </div>
               </div>
               <div className="w-16 h-16 bg-white/5 rounded-2xl border border-white/10 flex items-center justify-center backdrop-blur-xl shrink-0">
@@ -161,11 +161,11 @@ const Billing = () => {
 
             <div className="grid grid-cols-2 gap-8 py-6 border-y border-white/[0.05] mb-8">
               <div className="space-y-1">
-                <p className="text-gray-600 text-[9px] font-black uppercase tracking-widest">Next Billing Date</p>
+                <p className="text-indigo-100 text-[9px] font-black uppercase tracking-widest">Next Billing Date</p>
                 <p className="text-white text-lg font-bold">{formatDate(subscription?.current_period_end)}</p>
               </div>
               <div className="space-y-1 text-right">
-                <p className="text-gray-600 text-[9px] font-black uppercase tracking-widest">Status</p>
+                <p className="text-indigo-100 text-[9px] font-black uppercase tracking-widest">Status</p>
                 <p className="text-green-500 text-lg font-bold uppercase tracking-tighter">Active</p>
               </div>
             </div>
@@ -173,7 +173,7 @@ const Billing = () => {
             <div className="mt-auto flex flex-col sm:flex-row gap-4">
               {!isPremium ? (
                 <button
-                  onClick={openUpgradeModal}
+                  onClick={() => openUpgradeModal()}
                   className="flex-1 py-4 bg-white text-black font-black text-xs tracking-widest rounded-xl hover:bg-gray-100 transition-all uppercase flex items-center justify-center gap-2"
                 >
                   Upgrade Plan
@@ -191,14 +191,14 @@ const Billing = () => {
         {/* Right Section: Usage & History Tabs */}
         <div className="lg:w-1/3 flex flex-col gap-6">
           {/* Operational Usage Card */}
-          <div className="bg-[#0F0F12] border border-white/10 rounded-[2.5rem] p-8 flex-1 flex flex-col justify-center">
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8 flex-1 flex flex-col justify-center">
             <h4 className="text-lg font-black text-white tracking-tight mb-6 uppercase">Operational Usage</h4>
 
             <div className="space-y-6">
               <div className="space-y-2">
                 <div className="flex justify-between items-end text-[10px] font-black uppercase tracking-widest">
-                  <span className="text-gray-500">DMs Delivered</span>
-                  <span className="text-blue-500">{usage.dms.toLocaleString()} / {planLimit.toLocaleString()}</span>
+                  <span className="text-indigo-100 uppercase">DMs Delivered</span>
+                  <span className="text-white font-bold">{usage.dms.toLocaleString()} / {planLimit.toLocaleString()}</span>
                 </div>
                 <div className="h-2.5 bg-white/[0.03] rounded-full overflow-hidden border border-white/5">
                   <div
@@ -209,22 +209,22 @@ const Billing = () => {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl">
-                  <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Contacts</p>
+                <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
+                  <p className="text-[9px] font-black text-indigo-100 uppercase tracking-widest mb-1">Contacts</p>
                   <p className="text-xl font-black text-white">{usage.contacts.toLocaleString()}</p>
                 </div>
-                <div className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl">
-                  <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Automations</p>
+                <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
+                  <p className="text-[9px] font-black text-indigo-100 uppercase tracking-widest mb-1">Automations</p>
                   <div className="flex items-baseline gap-1">
                     <p className="text-xl font-black text-white">{usage.automations}</p>
-                    {!isPremium && <span className="text-xs text-gray-500 font-bold">/ 3</span>}
+                    {!isPremium && <span className="text-xs text-indigo-100 font-bold">/ 3</span>}
                   </div>
                 </div>
                 {!isPremium && (
-                  <div className="col-span-2 p-4 bg-white/[0.02] border border-white/5 rounded-2xl flex justify-between items-center">
+                  <div className="col-span-2 p-4 bg-white/5 border border-white/5 rounded-2xl flex justify-between items-center">
                     <div>
-                      <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Keyword Triggers</p>
-                      <p className="text-sm font-bold text-gray-400">2 per post</p>
+                      <p className="text-[9px] font-black text-indigo-100 uppercase tracking-widest mb-1">Keyword Triggers</p>
+                      <p className="text-sm font-bold text-indigo-200">2 per post</p>
                     </div>
                     <div className="px-2 py-1 bg-blue-500/10 rounded-lg border border-blue-500/20">
                       <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Basic Limit</span>
@@ -242,8 +242,8 @@ const Billing = () => {
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Calendar className="w-5 h-5 text-gray-400" />
-                <span className="text-xs font-black uppercase tracking-widest text-black">Billing History</span>
+                <Calendar className="w-5 h-5 text-indigo-100" />
+                <span className="text-xs font-black uppercase tracking-widest text-white">Billing History</span>
               </div>
               <ChevronRight className="w-4 h-4 text-gray-500" />
             </div>
@@ -253,12 +253,12 @@ const Billing = () => {
 
       {/* History Modal-like View if Active */}
       {activeTab === 'invoices' && (
-        <div className="mt-8 bg-[#0F0F12] border border-white/10 rounded-[2.5rem] overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
-          <div className="p-6 border-b border-white/[0.03] flex justify-between items-center bg-white/[0.01]">
+        <div className="mt-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2.5rem] overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
+          <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
             <h3 className="text-lg font-black text-white uppercase tracking-tight">Invoice Records</h3>
             <button
               onClick={() => setActiveTab('overview')}
-              className="text-[10px] font-black text-gray-400 hover:text-white transition-colors uppercase tracking-widest"
+              className="text-[10px] font-black text-indigo-100 hover:text-white transition-colors uppercase tracking-widest"
             >
               Close History
             </button>
@@ -266,7 +266,7 @@ const Billing = () => {
           <div className="p-6 overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="text-[9px] font-black text-gray-600 uppercase tracking-[0.2em] border-b border-white/5">
+                <tr className="text-[9px] font-black text-indigo-100 uppercase tracking-[0.2em] border-b border-white/10">
                   <th className="pb-4">Reference</th>
                   <th className="pb-4">Date</th>
                   <th className="pb-4 text-right">Amount</th>
@@ -284,7 +284,7 @@ const Billing = () => {
                   </tr>
                 ) : (
                   <tr>
-                    <td colSpan={3} className="py-8 text-center text-gray-600 font-bold uppercase tracking-widest">No records found</td>
+                    <td colSpan={3} className="py-8 text-center text-indigo-100 font-bold uppercase tracking-widest">No records found</td>
                   </tr>
                 )}
               </tbody>
