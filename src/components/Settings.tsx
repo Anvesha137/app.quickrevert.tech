@@ -33,7 +33,7 @@ const GlassCard = ({ children, className, delay = 0, noPadding = false }: any) =
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.5, delay: delay, ease: "easeOut" }}
     className={cn(
-      "relative rounded-3xl border border-white/10 bg-white/5 shadow-xl backdrop-blur-2xl transition-all hover:border-white/20 hover:shadow-2xl hover:shadow-white/5 group",
+      "relative rounded-3xl border border-white/60 bg-white/40 shadow-xl backdrop-blur-2xl transition-all hover:border-white/80 hover:shadow-2xl hover:shadow-blue-500/5 group",
       !noPadding && "p-8",
       className
     )}
@@ -46,8 +46,8 @@ const GlassCard = ({ children, className, delay = 0, noPadding = false }: any) =
 const GlassInput = ({ label, icon: Icon, placeholder, value, onChange, type = "text", subLabel, disabled = false }: any) => (
   <div className="space-y-2 group">
     <div className="flex justify-between items-baseline">
-      <label className="flex items-center gap-2 text-sm font-semibold text-white transition-colors group-focus-within:text-indigo-200">
-        {Icon && <Icon className="h-4 w-4 text-indigo-100 group-focus-within:text-white transition-colors" />}
+      <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 transition-colors group-focus-within:text-blue-600">
+        {Icon && <Icon className="h-4 w-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />}
         {label}
       </label>
     </div>
@@ -58,22 +58,22 @@ const GlassInput = ({ label, icon: Icon, placeholder, value, onChange, type = "t
         onChange={onChange}
         disabled={disabled}
         className={cn(
-          "w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-indigo-200 shadow-sm backdrop-blur-sm transition-all",
-          "focus:border-white/20 focus:bg-white/10 focus:outline-none focus:ring-4 focus:ring-white/5",
-          "hover:bg-white/10 hover:border-white/20",
-          disabled && "cursor-not-allowed bg-white/5 text-white/50 hover:bg-white/5 hover:border-white/10"
+          "w-full rounded-xl border border-slate-200/60 bg-white/50 px-4 py-3 text-slate-800 placeholder-slate-400 shadow-sm backdrop-blur-sm transition-all",
+          "focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10",
+          "hover:bg-white/70 hover:border-slate-300",
+          disabled && "cursor-not-allowed bg-slate-100/50 text-slate-500 hover:bg-slate-100/50 hover:border-slate-200/60"
         )}
         placeholder={placeholder}
       />
     </div>
-    {subLabel && <p className="text-xs text-indigo-100 pl-1">{subLabel}</p>}
+    {subLabel && <p className="text-xs text-slate-400 pl-1">{subLabel}</p>}
   </div>
 );
 
 const GlassSelect = ({ label, icon: Icon, value, onChange, options, placeholder }: any) => (
   <div className="space-y-2 group">
-    <label className="flex items-center gap-2 text-sm font-semibold text-white transition-colors group-focus-within:text-indigo-200">
-      {Icon && <Icon className="h-4 w-4 text-indigo-100 group-focus-within:text-white transition-colors" />}
+    <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 transition-colors group-focus-within:text-blue-600">
+      {Icon && <Icon className="h-4 w-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />}
       {label}
     </label>
     <div className="relative">
@@ -81,30 +81,30 @@ const GlassSelect = ({ label, icon: Icon, value, onChange, options, placeholder 
         value={value}
         onChange={onChange}
         className={cn(
-          "w-full appearance-none rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white shadow-sm backdrop-blur-sm transition-all cursor-pointer",
-          "focus:border-white/20 focus:bg-white/10 focus:outline-none focus:ring-4 focus:ring-white/5",
-          "hover:bg-white/10 hover:border-white/20",
-          value === "" && "text-indigo-200"
+          "w-full appearance-none rounded-xl border border-slate-200/60 bg-white/50 px-4 py-3 text-slate-800 shadow-sm backdrop-blur-sm transition-all cursor-pointer",
+          "focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10",
+          "hover:bg-white/70 hover:border-slate-300",
+          value === "" && "text-slate-400"
         )}
       >
         <option value="" disabled>{placeholder}</option>
         {options.map((option: string) => (
-          <option key={option} value={option} className="text-slate-800 bg-white">
+          <option key={option} value={option} className="text-slate-800">
             {option}
           </option>
         ))}
       </select>
-      <ChevronDown className="absolute right-4 top-3.5 h-4 w-4 text-indigo-100 pointer-events-none group-focus-within:text-white transition-colors" />
+      <ChevronDown className="absolute right-4 top-3.5 h-4 w-4 text-slate-400 pointer-events-none group-focus-within:text-blue-500 transition-colors" />
     </div>
   </div>
 );
 
 const GlassButton = ({ children, variant = "primary", className, icon: Icon, onClick, loading = false, type = "button", disabled = false }: any) => {
   const variants = {
-    primary: "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 hover:brightness-110 border-transparent",
-    secondary: "bg-white/5 text-white hover:bg-white/10 border-white/10 shadow-sm hover:shadow-md",
-    danger: "bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20 hover:text-red-300 hover:border-red-500/30 shadow-sm",
-    ghost: "bg-transparent text-indigo-100 hover:text-white hover:bg-white/5"
+    primary: "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:brightness-110 border-transparent",
+    secondary: "bg-white/60 text-slate-700 hover:bg-white/90 border-slate-200/50 shadow-sm hover:shadow-md",
+    danger: "bg-red-50 text-red-600 border-red-100 hover:bg-red-100 hover:text-red-700 hover:border-red-200 shadow-sm",
+    ghost: "bg-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100/50"
   };
 
   return (
@@ -307,15 +307,15 @@ export default function Settings() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-6"
         >
-          <h2 className="text-3xl font-bold text-white tracking-tight">Profile Settings</h2>
-          <p className="text-indigo-100 font-medium">Manage your public profile and business details.</p>
+          <h2 className="text-3xl font-bold text-slate-800 tracking-tight">Profile Settings</h2>
+          <p className="text-slate-500 font-medium">Manage your public profile and business details.</p>
         </motion.div>
 
 
         {/* Inputs Grid */}
         <GlassCard delay={0.2} className="grid md:grid-cols-2 gap-x-8 gap-y-6">
-          <div className="col-span-2 pb-2 border-b border-white/10 mb-2">
-            <h3 className="text-lg font-bold text-white">Personal & Business Details</h3>
+          <div className="col-span-2 pb-2 border-b border-slate-200/50 mb-2">
+            <h3 className="text-lg font-bold text-slate-800">Personal & Business Details</h3>
           </div>
 
           <GlassInput

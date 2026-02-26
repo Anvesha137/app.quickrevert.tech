@@ -194,23 +194,23 @@ export default function Dashboard() {
   const overallProgress = Math.round((setupTasks.filter(t => t.completed).length / setupTasks.length) * 100);
 
   return (
-    <div className="flex-1 relative min-h-screen overflow-x-hidden bg-[#5a5f85] font-outfit">
+    <div className="flex-1 relative min-h-screen overflow-x-hidden bg-[#fafbff] font-outfit">
       {/* Animated Background Blobs - Refined */}
-      <div className="fixed inset-0 -z-10 bg-[#5a5f85]">
-        <div className="absolute top-0 -left-10 w-[500px] h-[500px] bg-white/10 rounded-full mix-blend-overlay filter blur-3xl animate-blob"></div>
-        <div className="absolute top-0 -right-10 w-[500px] h-[500px] bg-indigo-200/10 rounded-full mix-blend-overlay filter blur-3xl animate-blob animation-delay-2000"></div>
-        <div className="absolute bottom-20 left-1/4 w-[600px] h-[600px] bg-purple-200/10 rounded-full mix-blend-overlay filter blur-3xl animate-blob animation-delay-4000"></div>
+      <div className="fixed inset-0 -z-10 bg-slate-50/50">
+        <div className="absolute top-0 -left-10 w-[500px] h-[500px] bg-blue-100/30 rounded-full mix-blend-multiply filter blur-3xl animate-blob"></div>
+        <div className="absolute top-0 -right-10 w-[500px] h-[500px] bg-purple-100/30 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000"></div>
+        <div className="absolute bottom-20 left-1/4 w-[600px] h-[600px] bg-indigo-100/20 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000"></div>
       </div>
 
       <div className="max-w-7xl mx-auto p-6 md:p-10 space-y-10">
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 animate-in fade-in slide-in-from-top-4 duration-700">
           <div className="space-y-2">
-            <h2 className="text-4xl md:text-4xl font-black text-white tracking-tight leading-tight flex items-center gap-4">
+            <h2 className="text-4xl md:text-4xl font-black text-gray-900 tracking-tight leading-tight flex items-center gap-4">
               Hello, {displayName?.split(' ')[0] || 'Creator'}
               <Hand className="w-10 h-10 text-amber-400 fill-amber-400/20 animate-jump" />
             </h2>
-            <p className="text-lg text-indigo-100 font-medium">
+            <p className="text-lg text-gray-500 font-medium">
               Here's what's happening with your Instagram today.
             </p>
           </div>

@@ -62,7 +62,7 @@ function AuthenticatedApp() {
   const { isPremium } = useSubscription();
 
   return (
-    <div className="min-h-screen bg-[#5a5f85]">
+    <div className="min-h-screen bg-slate-50">
       <div className={`transition-all duration-300 ${!isPremium ? 'pt-6' : ''}`}>
         <PlanBanner />
         <Sidebar />

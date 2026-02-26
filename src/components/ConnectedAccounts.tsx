@@ -161,10 +161,10 @@ export default function ConnectedAccounts() {
 
   if (loading) {
     return (
-      <div className="flex-1 overflow-auto bg-[#5a5f85]">
+      <div className="flex-1 overflow-auto bg-gray-50">
         <div className="max-w-7xl mx-auto p-8">
-          <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6">
-            <h2 className="text-xl font-bold text-white mb-4">Connected Accounts</h2>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Connected Accounts</h2>
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             </div>
@@ -175,16 +175,16 @@ export default function ConnectedAccounts() {
   }
 
   return (
-    <div className="flex-1 overflow-auto bg-[#5a5f85]">
+    <div className="flex-1 overflow-auto bg-gradient-to-br from-gray-50 via-white to-pink-50/20">
       <div className="max-w-7xl mx-auto p-8">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white tracking-tight mb-2">Connected Accounts</h1>
-          <p className="text-indigo-100 text-lg">Manage your Instagram account connections</p>
+          <h1 className="text-4xl font-bold text-gray-900 tracking-tight mb-2">Connected Accounts</h1>
+          <p className="text-gray-600 text-lg">Manage your Instagram account connections</p>
         </div>
 
-        <div className="bg-white/5 backdrop-blur-xl rounded-2xl shadow-xl border border-white/10 p-8">
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border-2 border-gray-200 p-8">
           <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl font-bold text-white">Instagram Accounts</h2>
+            <h2 className="text-2xl font-bold text-gray-900">Instagram Accounts</h2>
           </div>
 
           {successMessage && (
@@ -234,8 +234,8 @@ export default function ConnectedAccounts() {
               <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-pink-100 via-rose-100 to-orange-100 rounded-3xl mb-6 shadow-lg">
                 <Instagram size={48} className="text-pink-600" />
               </div>
-              <h3 className="text-2xl font-bold text-white mb-3">No accounts connected</h3>
-              <p className="text-indigo-100 mb-8 text-lg">Connect your Instagram account to start automating</p>
+              <h3 className="text-2xl font-bold text-gray-900 mb-3">No accounts connected</h3>
+              <p className="text-gray-600 mb-8 text-lg">Connect your Instagram account to start automating</p>
               <button
                 onClick={handleConnectInstagram}
                 className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-pink-500 via-rose-500 to-orange-500 text-white rounded-xl hover:from-pink-600 hover:via-rose-600 hover:to-orange-600 transition-all shadow-lg hover:shadow-xl hover:scale-105 font-semibold text-lg"
@@ -249,7 +249,7 @@ export default function ConnectedAccounts() {
               {accounts.map((account) => (
                 <div
                   key={account.id}
-                  className="group flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 sm:p-6 border border-white/10 rounded-2xl hover:border-pink-300 hover:shadow-lg transition-all bg-white/5 gap-4 sm:gap-0"
+                  className="group flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 sm:p-6 border-2 border-gray-200 rounded-2xl hover:border-pink-300 hover:shadow-lg transition-all bg-gradient-to-br from-white to-pink-50/30 gap-4 sm:gap-0"
                 >
                   <div className="flex items-start sm:items-center gap-3 sm:gap-5 w-full sm:w-auto">
                     {account.profile_picture_url ? (
@@ -264,7 +264,7 @@ export default function ConnectedAccounts() {
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <h3 className="font-bold text-white text-base sm:text-lg mb-1 truncate">@{account.username}</h3>
+                      <h3 className="font-bold text-gray-900 text-base sm:text-lg mb-1 truncate">@{account.username}</h3>
                       <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1 sm:mt-2">
                         <span
                           className={`inline-flex items-center px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wide ${account.status === 'active'
@@ -276,7 +276,7 @@ export default function ConnectedAccounts() {
                         >
                           {account.status}
                         </span>
-                        <span className="text-xs sm:text-sm text-indigo-100 font-medium px-2 py-1 bg-white/5 border border-white/5 rounded-md whitespace-nowrap">
+                        <span className="text-xs sm:text-sm text-gray-600 font-medium px-2 py-1 bg-gray-100 rounded-md whitespace-nowrap">
                           Connected {formatDate(account.connected_at)}
                         </span>
                       </div>

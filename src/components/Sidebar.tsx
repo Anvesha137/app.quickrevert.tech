@@ -43,14 +43,14 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="hidden md:flex fixed left-0 top-0 h-full w-80 backdrop-blur-xl bg-white/5 border-r border-white/10 shadow-2xl flex-col z-50 p-4">
+    <aside className="hidden md:flex fixed left-0 top-0 h-full w-80 backdrop-blur-xl bg-white/40 border-r border-white/20 shadow-2xl flex-col z-50 p-4">
       {/* Logo Section */}
-      <div className="mb-6 p-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10">
+      <div className="mb-6 p-3 rounded-2xl bg-gradient-to-br from-blue-500/10 to-purple-500/10 backdrop-blur-md border border-white/20">
         <div className="flex items-center gap-0 justify-center mb-1">
           <img src="/Logo.png" alt="QuickRevert Logo" className="w-12 h-12 object-contain -mr-1" />
-          <h1 className="font-bold text-white text-2xl tracking-tighter -mt-1">QuickRevert</h1>
+          <h1 className="font-bold text-gray-800 text-2xl tracking-tighter -mt-1">QuickRevert</h1>
         </div>
-        <p className="text-[9px] text-indigo-100 tracking-tight text-center leading-none">
+        <p className="text-[9px] text-gray-500 tracking-tight text-center leading-none">
           Intelligent Responses | Zero Wait Time | 24x7
         </p>
       </div>
@@ -73,7 +73,7 @@ export default function Sidebar() {
               to={item.path}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${isActive
                 ? `${activeGradient} text-white shadow-lg`
-                : 'text-indigo-50 hover:bg-white/10 hover:backdrop-blur-md transition-colors'
+                : 'text-gray-700 hover:bg-white/50 hover:backdrop-blur-md transition-colors'
                 }`}
             >
               <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-gray-500'}`} />
@@ -96,9 +96,9 @@ export default function Sidebar() {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-1">
-              <p className="text-sm font-semibold text-white truncate">{getUserName()}</p>
+              <p className="text-sm font-semibold text-gray-800 truncate">{getUserName()}</p>
             </div>
-            <p className="text-[10px] text-indigo-100 truncate">{user?.email}</p>
+            <p className="text-[10px] text-gray-600 truncate">{user?.email}</p>
           </div>
         </div>
 
