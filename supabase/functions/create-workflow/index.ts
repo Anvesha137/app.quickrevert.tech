@@ -103,6 +103,7 @@ Deno.serve(async (req: Request) => {
       const triggerType = bodyTriggerType || automationData?.trigger_type || "user_dm";
       const actions = automationData?.actions || [];
       const hasAskToFollow = actions.some((a: any) => a.type === 'send_dm' && a.askToFollow);
+      const uniqueId = automationId ? automationId.replace(/-/g, '') : Date.now().toString();
 
       // 0. Analytics Workflow (Special Case)
       if (bodyTriggerType === 'enable_analytics') {
@@ -447,7 +448,7 @@ Deno.serve(async (req: Request) => {
               postbackButtons.push({
                 type: 'postback',
                 title: b.text,
-                payload: b.text
+                payload: `${b.text}_${uniqueId}`
               });
             }
           });
@@ -521,7 +522,7 @@ Deno.serve(async (req: Request) => {
                 if (btnType === 'web_url') {
                   templateButtons.push({ type: "web_url", url: b.url, title: b.text });
                 } else {
-                  templateButtons.push({ type: "postback", title: b.text, payload: b.text });
+                  templateButtons.push({ type: "postback", title: b.text, payload: `${b.text}_${uniqueId}` });
                 }
               });
             }
@@ -585,7 +586,7 @@ Deno.serve(async (req: Request) => {
               if (btnType === 'web_url') {
                 templateButtons.push({ type: "web_url", url: b.url, title: b.text });
               } else {
-                templateButtons.push({ type: "postback", title: b.text, payload: b.text });
+                templateButtons.push({ type: "postback", title: b.text, payload: `${b.text}_${uniqueId}` });
               }
             });
           }
@@ -927,7 +928,7 @@ Deno.serve(async (req: Request) => {
                           {
                             type: "postback",
                             title: (action.teaserBtnText || "link please "),
-                            payload: "SEND_LINK"
+                            payload: `SEND_LINK_${uniqueId}`
                           }
                         ]
                       }
@@ -946,7 +947,7 @@ Deno.serve(async (req: Request) => {
                 nodeCredentialType: "facebookGraphApi",
                 sendBody: true,
                 specifyBody: "json",
-                jsonBody: `={\n  \"recipient\": {\n    \"comment_id\": \"{{ $('Worker Webhook').item.json.body.entry[0].changes[0].value.id }}\"\n  },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"${(action.teaserMessage || "Hey there! I'm so happy you're here...").replace(/"/g, '\\"').replace(/\n/g, '\\n')}\",\n            \"subtitle\": \"Powered By Quickrevert.tech\",\n            \"buttons\": [\n              {\n                \"type\": \"postback\",\n                \"title\": \"${(action.teaserBtnText || "send link please ").replace(/"/g, '\\"').substring(0, 20)}\",\n                \"payload\": \"SEND_LINK\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}`,
+                jsonBody: `={\n  \"recipient\": {\n    \"comment_id\": \"{{ $('Worker Webhook').item.json.body.entry[0].changes[0].value.id }}\"\n  },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"${(action.teaserMessage || "Hey there! I'm so happy you're here...").replace(/"/g, '\\"').replace(/\n/g, '\\n')}\",\n            \"subtitle\": \"Powered By Quickrevert.tech\",\n            \"buttons\": [\n              {\n                \"type\": \"postback\",\n                \"title\": \"${(action.teaserBtnText || "send link please ").replace(/"/g, '\\"').substring(0, 20)}\",\n                \"payload\": \"SEND_LINK_${uniqueId}\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}`,
                 options: {}
               },
               credentials: { facebookGraphApi: { id: credentialId } }
@@ -982,7 +983,7 @@ Deno.serve(async (req: Request) => {
                 if (btnType === 'web_url') {
                   templateButtons.push({ type: "web_url", url: b.url, title: (b.text || "Open") });
                 } else {
-                  templateButtons.push({ type: "postback", title: (b.text || "Click"), payload: b.text });
+                  templateButtons.push({ type: "postback", title: (b.text || "Click"), payload: `${b.text || "Click"}_${uniqueId}` });
                 }
               });
             }
@@ -1047,7 +1048,7 @@ Deno.serve(async (req: Request) => {
             {
               conditions: {
                 options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
-                conditions: [{ id: "check", leftValue: payloadPath, rightValue: "CHECK_FOLLOW", operator: { type: "string", operation: "equals" } }],
+                conditions: [{ id: "check", leftValue: payloadPath, rightValue: `CHECK_FOLLOW_${uniqueId}`, operator: { type: "string", operation: "equals" } }],
                 combinator: "and"
               },
               renameOutput: true, outputKey: "Check Follow"
@@ -1055,7 +1056,7 @@ Deno.serve(async (req: Request) => {
             {
               conditions: {
                 options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
-                conditions: [{ id: "send", leftValue: payloadPath, rightValue: "SEND_LINK", operator: { type: "string", operation: "equals" } }],
+                conditions: [{ id: "send", leftValue: payloadPath, rightValue: `SEND_LINK_${uniqueId}`, operator: { type: "string", operation: "equals" } }],
                 combinator: "and"
               },
               renameOutput: true, outputKey: "Send Link"
@@ -1218,7 +1219,7 @@ return { json: { userId, username, isFollowing } };`
                         {
                           type: "postback",
                           title: askBtn,
-                          payload: "CHECK_FOLLOW"
+                          payload: `CHECK_FOLLOW_${uniqueId}`
                         }
                       ]
                     }
@@ -1239,7 +1240,7 @@ return { json: { userId, username, isFollowing } };`
               nodeCredentialType: "facebookGraphApi",
               sendBody: true,
               specifyBody: "json",
-              jsonBody: `={\n  \"recipient\": {\n    \"id\": \"{{ $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id }}\"\n  },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"${(action.askToFollowMessage || "Oops! Looks like you haven't followed me yet 👀...").replace(/"/g, '\\"').replace(/\n/g, '\\n')}\",\n            \"subtitle\": \"Please follow us first!\",\n            \"buttons\": [\n              {\n                \"type\": \"web_url\",\n                \"url\": \"https://www.instagram.com/${instagramAccount.username}/\",\n                \"title\": \"Follow Now\"\n              },\n              {\n                \"type\": \"postback\",\n                \"title\": \"${(action.askToFollowBtnText || "followed").replace(/"/g, '\\"')}\",\n                \"payload\": \"CHECK_FOLLOW\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}`,
+              jsonBody: `={\n  \"recipient\": {\n    \"id\": \"{{ $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id }}\"\n  },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"${(action.askToFollowMessage || "Oops! Looks like you haven't followed me yet 👀...").replace(/"/g, '\\"').replace(/\n/g, '\\n')}\",\n            \"subtitle\": \"Please follow us first!\",\n            \"buttons\": [\n              {\n                \"type\": \"web_url\",\n                \"url\": \"https://www.instagram.com/${instagramAccount.username}/\",\n                \"title\": \"Follow Now\"\n              },\n              {\n                \"type\": \"postback\",\n                \"title\": \"${(action.askToFollowBtnText || "followed").replace(/"/g, '\\"')}\",\n                \"payload\": \"CHECK_FOLLOW_${uniqueId}\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}`,
               options: {}
             },
             credentials: { facebookGraphApi: { id: credentialId } }
