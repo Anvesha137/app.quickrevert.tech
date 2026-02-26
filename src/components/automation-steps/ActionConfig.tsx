@@ -211,6 +211,9 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                 <div>
                   <div className="flex items-center gap-2">
                     <p className="font-semibold text-slate-700 text-sm">Follow Gate</p>
+                    <span className="bg-emerald-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
+                      RECOMMENDED
+                    </span>
                     {!canUseAskToFollow && (
                       <span className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
                         <Crown size={8} /> PREMIUM
