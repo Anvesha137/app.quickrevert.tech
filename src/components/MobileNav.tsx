@@ -85,8 +85,9 @@ export default function MobileNav() {
                 <div className="md:hidden fixed inset-0 bg-white z-[60] overflow-y-auto animate-in slide-in-from-bottom duration-300">
                     <div className="p-4">
                         <div className="flex items-center justify-between mb-8">
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
                                 <img src="/Logo_optimized.png" alt="QuickRevert" className="h-8 w-auto object-contain" />
+                                <h1 className="font-bold text-gray-800 text-xl tracking-tighter">QuickRevert</h1>
                             </div>
                             <button
                                 onClick={() => setIsOpen(false)}

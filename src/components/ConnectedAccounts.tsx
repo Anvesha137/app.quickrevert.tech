@@ -114,9 +114,6 @@ export default function ConnectedAccounts() {
     }
   };
 
-  const handleModalConnect = () => {
-    setShowConnectModal(false);
-  };
 
   const handleDisconnect = (accountId: string) => {
     setAccountToDisconnect(accountId);
@@ -310,7 +307,6 @@ export default function ConnectedAccounts() {
       <InstagramConnectModal
         isOpen={showConnectModal}
         onClose={() => setShowConnectModal(false)}
-        onConnect={handleModalConnect}
       />
 
       <ConfirmationModal
