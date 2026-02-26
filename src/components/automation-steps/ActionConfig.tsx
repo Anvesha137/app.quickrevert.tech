@@ -63,8 +63,8 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
   const updateAction = (index: number, updatedAction: Action) => {
     if (readOnly) return;
     const newActions = [...actions];
-    if (updatedAction.type === 'send_dm') (updatedAction as SendDmAction).subtitle = 'Powered By Quickrevert.tech';
-    newActions[index] = updatedAction;
+    // Copy the action and update it immutably
+    newActions[index] = { ...updatedAction };
     onActionsChange(newActions);
   };
 
@@ -329,45 +329,49 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
 
               {/* Action Buttons */}
               <div className="space-y-2">
-                {(action as SendDmAction).actionButtons.map((button, buttonIndex) => (
-                  <motion.div key={button.id} initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200 group/btn">
-                    <div className="flex-1 grid grid-cols-2 gap-2">
-                      <input
-                        type="text"
-                        value={button.text}
-                        onChange={(e) => {
-                          const a = actions[index] as SendDmAction;
-                          const newButtons = [...a.actionButtons];
-                          newButtons[buttonIndex] = { ...newButtons[buttonIndex], text: e.target.value };
-                          updateAction(index, { ...a, actionButtons: newButtons });
-                        }}
-                        placeholder="Button Label"
-                        disabled={readOnly}
-                        className={`px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs text-center font-semibold focus:border-purple-500 transition-all ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
-                      />
-                      {(button.buttonType || 'web_url') === 'web_url' && (
+                {(action as SendDmAction).actionButtons.map((button, buttonIndex) => {
+                  const btnType = button.buttonType || (button.url ? 'web_url' : 'postback');
+                  return (
+                    <motion.div key={button.id} initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200 group/btn">
+                      <div className="flex-1 grid grid-cols-2 gap-2">
                         <input
-                          type="url"
-                          value={button.url || ''}
+                          type="text"
+                          value={button.text}
                           onChange={(e) => {
                             const a = actions[index] as SendDmAction;
                             const newButtons = [...a.actionButtons];
-                            newButtons[buttonIndex] = { ...newButtons[buttonIndex], url: e.target.value };
+                            newButtons[buttonIndex] = { ...newButtons[buttonIndex], text: e.target.value };
                             updateAction(index, { ...a, actionButtons: newButtons });
                           }}
-                          placeholder="https://your-link.com"
+                          placeholder="Button Label"
                           disabled={readOnly}
-                          className={`px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs focus:border-purple-500 transition-all ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
+                          className={`px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs text-center font-semibold focus:border-purple-500 transition-all ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
                         />
+                        {btnType === 'web_url' && (
+                          <input
+                            type="url"
+                            value={button.url || ''}
+                            onChange={(e) => {
+                              const a = actions[index] as SendDmAction;
+                              const newButtons = [...a.actionButtons];
+                              newButtons[buttonIndex] = { ...newButtons[buttonIndex], url: e.target.value };
+                              updateAction(index, { ...a, actionButtons: newButtons });
+                            }}
+                            placeholder="https://your-link.com"
+                            disabled={readOnly}
+                            className={`px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs focus:border-purple-500 transition-all ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
+                          />
+                        )}
+                      </div>
+                      {!readOnly && (
+                        <button onClick={() => removeActionButton(index, buttonIndex)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover/btn:opacity-100">
+                          <X size={14} />
+                        </button>
                       )}
-                    </div>
-                    {!readOnly && (
-                      <button onClick={() => removeActionButton(index, buttonIndex)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover/btn:opacity-100">
-                        <X size={14} />
-                      </button>
-                    )}
-                  </motion.div>
-                ))}
+                    </motion.div>
+                  );
+                })}
+
                 {(action as SendDmAction).actionButtons.length < 3 && !readOnly && (
                   <button
                     onClick={() => addActionButton(index)}

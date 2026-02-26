@@ -30,6 +30,7 @@ export interface ActionButton {
   id: string;
   text: string;
   url?: string;
+  buttonType?: 'web_url' | 'postback';
 }
 
 export interface ReplyToCommentAction {

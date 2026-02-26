@@ -766,7 +766,7 @@ Deno.serve(async (req: Request) => {
         if (specificStories.length > 0) {
           const conditions = specificStories.map((id: string, index: number) => ({
             id: `story-${index}`,
-            leftValue: "={{ $json.body.entry?.[0]?.messaging?.[0]?.message?.reply_to?.story_id || $json.body.payload?.message?.reply_to?.story_id }}",
+            leftValue: "={{ $('Worker Webhook').item.json.body.entry[0].messaging[0].message.reply_to.story.id }}",
             rightValue: id,
             operator: { type: "string", operation: "equals" }
           }));
@@ -1183,43 +1183,22 @@ return { json: { userId, username, isFollowing } };`
           postbackNodeX += 250;
 
           // 3.5 REWARD (True Branch) - Use Generic Template
-          const text = action.title || "Check out this link!";
-          const subtitle = action.subtitle || "Powered by Quickrevert.tech";
-          const imageUrl = action.imageUrl || "https://your-image-url.com/image.jpg";
-          const webUrl = action.actionButtons?.[0]?.url || "https://your-link.com";
-          const btnTitle = action.actionButtons?.[0]?.text || "View Link";
-
-          const rewardPayload = {
-            recipient: {
-              id: "{{ $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id }}"
-            },
-            message: {
-              attachment: {
-                type: "template",
-                payload: {
-                  template_type: "generic",
-                  elements: [
-                    {
-                      title: text,
-                      image_url: imageUrl,
-                      subtitle: subtitle,
-                      default_action: {
-                        type: "web_url",
-                        url: webUrl
-                      },
-                      buttons: [
-                        {
-                          type: "web_url",
-                          url: webUrl,
-                          title: btnTitle
-                        }
-                      ]
-                    }
-                  ]
-                }
-              }
-            }
-          };
+          const rewardButtons: any[] = [];
+          if (action.actionButtons && action.actionButtons.length > 0) {
+            action.actionButtons.slice(0, 3).forEach((b: any) => {
+              rewardButtons.push({
+                type: "web_url",
+                url: (b.url || "https://quickrevert.tech").replace(/"/g, '\\"'),
+                title: (b.text || "link").replace(/"/g, '\\"').substring(0, 20)
+              });
+            });
+          } else {
+            rewardButtons.push({
+              type: "web_url",
+              url: "https://quickrevert.tech",
+              title: "link"
+            });
+          }
 
           const rewardName = `Send Reward 2`; // Match user JSON naming
           nodes.push({
@@ -1232,7 +1211,7 @@ return { json: { userId, username, isFollowing } };`
               nodeCredentialType: "facebookGraphApi",
               sendBody: true,
               specifyBody: "json",
-              jsonBody: `={\n  \"recipient\": {\n    \"id\": \"{{ $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id }}\"\n  },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"${(action.title || "hey, heres your link").replace(/"/g, '\\"').replace(/\n/g, '\\n')}\",\n            \"image_url\": \"${(action.imageUrl || "").replace(/"/g, '\\"')}\",\n            \"subtitle\": \"${(action.subtitle || "Powered By Quickrevert.tech").replace(/"/g, '\\"').replace(/\n/g, '\\n')}\",\n            \"default_action\": {\n              \"type\": \"web_url\",\n              \"url\": \"${(action.actionButtons?.[0]?.url || "quickrevert.tech").replace(/"/g, '\\"')}\"\n            },\n            \"buttons\": [\n              {\n                \"type\": \"web_url\",\n                \"url\": \"${(action.actionButtons?.[0]?.url || "quickrevert.tech").replace(/"/g, '\\"')}\",\n                \"title\": \"${(action.actionButtons?.[0]?.text || "link").replace(/"/g, '\\"').substring(0, 20)}\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}`,
+              jsonBody: `={\n  \"recipient\": {\n    \"id\": \"{{ $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id }}\"\n  },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"${(action.title || "hey, heres your link").replace(/"/g, '\\"').replace(/\n/g, '\\n')}\",\n            \"image_url\": \"${(action.imageUrl || "").replace(/"/g, '\\"')}\",\n            \"subtitle\": \"${(action.subtitle || "Powered By Quickrevert.tech").replace(/"/g, '\\"').replace(/\n/g, '\\n')}\",\n            \"default_action\": {\n              \"type\": \"web_url\",\n              \"url\": \"${(action.actionButtons?.[0]?.url || "quickrevert.tech").replace(/"/g, '\\"')}\"\n            },\n            \"buttons\": ${JSON.stringify(rewardButtons, null, 2)}\n          }\n        ]\n      }\n    }\n  }\n}`,
               options: {}
             },
             credentials: { facebookGraphApi: { id: credentialId } }
