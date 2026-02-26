@@ -12,7 +12,7 @@ if [ -z "$VITE_SUPABASE_ANON_KEY" ]; then
 fi
 
 # Install dependencies
-pnpm install
+npm install
 
 # Build the application
-pnpm run build
+npm run build
