@@ -115,7 +115,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
   const getConfig = (): TriggerConfig => {
     if (config) return config;
     if (triggerType === 'post_comment') return { postsType: 'all', commentsType: 'all' } as PostCommentTriggerConfig;
-    if (triggerType === 'story_reply') return { storiesType: 'all' } as StoryReplyTriggerConfig;
+    if (triggerType === 'story_reply') return { storiesType: 'all', replyType: 'all' } as StoryReplyTriggerConfig;
     return { messageType: 'all' } as UserDirectMessageTriggerConfig;
   };
   const currentConfig = getConfig();
@@ -134,11 +134,17 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
     onConfigChange(newConfig);
   };
 
-  const handleStoriesTypeChange = (storiesType: 'all' | 'specific' | 'keywords') => {
+  const handleStoriesTypeChange = (storiesType: 'all' | 'specific') => {
     if (readOnly) return;
     const newConfig = { ...currentConfig, storiesType } as StoryReplyTriggerConfig;
-    if (storiesType !== 'specific') { delete newConfig.specificStories; } else { newConfig.specificStories = []; }
-    if (storiesType !== 'keywords') { delete newConfig.keywords; } else { newConfig.keywords = []; }
+    if (storiesType === 'all') { delete newConfig.specificStories; } else { newConfig.specificStories = []; }
+    onConfigChange(newConfig);
+  };
+
+  const handleStoriesReplyTypeChange = (replyType: 'all' | 'keywords') => {
+    if (readOnly) return;
+    const newConfig = { ...currentConfig, replyType } as StoryReplyTriggerConfig;
+    if (replyType === 'all') { delete newConfig.keywords; } else { newConfig.keywords = []; }
     onConfigChange(newConfig);
   };
 
@@ -193,7 +199,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
   const keywordsEnabled = triggerType === 'post_comment'
     ? (currentConfig as PostCommentTriggerConfig).commentsType === 'keywords'
     : triggerType === 'story_reply'
-      ? (currentConfig as StoryReplyTriggerConfig).storiesType === 'keywords'
+      ? (currentConfig as StoryReplyTriggerConfig).replyType === 'keywords'
       : (currentConfig as UserDirectMessageTriggerConfig).messageType === 'keywords';
 
   const postScopeLabel = triggerType === 'post_comment'
@@ -443,14 +449,14 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                     const isActive = triggerType === 'post_comment'
                       ? (currentConfig as PostCommentTriggerConfig).commentsType === opt
                       : triggerType === 'story_reply'
-                        ? (currentConfig as StoryReplyTriggerConfig).storiesType === opt
+                        ? (currentConfig as StoryReplyTriggerConfig).replyType === opt
                         : (currentConfig as UserDirectMessageTriggerConfig).messageType === opt;
                     return (
                       <button
                         key={opt}
                         onClick={() => {
                           if (triggerType === 'post_comment') handleCommentsTypeChange(opt as any);
-                          else if (triggerType === 'story_reply') handleStoriesTypeChange(opt as any);
+                          else if (triggerType === 'story_reply') handleStoriesReplyTypeChange(opt as any);
                           else handleMessageTypeChange(opt as any);
                         }}
                         className={cn(

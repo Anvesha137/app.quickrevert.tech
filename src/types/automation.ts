@@ -10,7 +10,8 @@ export interface PostCommentTriggerConfig {
 }
 
 export interface StoryReplyTriggerConfig {
-  storiesType: 'all' | 'specific' | 'keywords';
+  storiesType: 'all' | 'specific';
+  replyType: 'all' | 'keywords';
   specificStories?: string[];
   keywords?: string[];
 }

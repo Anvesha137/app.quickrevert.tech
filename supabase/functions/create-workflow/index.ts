@@ -696,7 +696,12 @@ Deno.serve(async (req: Request) => {
                         id: "not-a-message-edit",
                         leftValue: "={{ $('Worker Webhook').item.json.body.entry[0].messaging[0].message_edit }}",
                         operator: { type: "object", operation: "notExists" }
-                      }
+                      },
+                      ...(triggerType === 'story_reply' ? [{
+                        id: "is-story-reply",
+                        leftValue: "={{ $('Worker Webhook').item.json.body.entry[0].messaging[0].message.reply_to.story }}",
+                        operator: { type: "object", operation: "exists" }
+                      }] : [])
                     ],
                     combinator: "and"
                   }
