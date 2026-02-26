@@ -925,11 +925,42 @@ Deno.serve(async (req: Request) => {
         }
 
         if (action.type === 'reply_to_comment') {
-          nodeName = `Reply to Comment`;
-          const replyText = `@${usernamePath} ${action.replyTemplates?.[0] || action.text || "Thanks!"}`;
+          const pickerNodeName = `Round Robin Picker ${index + 1}`;
+          nodeName = `Reply to Comment ${index + 1}`;
+
+          // 1. Round Robin Picker (n8n Code node)
+          const templates = action.replyTemplates && action.replyTemplates.length > 0
+            ? action.replyTemplates
+            : [action.text || "Thanks!"];
+
+          nodes.push({
+            id: `picker-${index}`, name: pickerNodeName, type: "n8n-nodes-base.code", typeVersion: 2,
+            position: [850, -1000],
+            parameters: {
+              jsCode: `// Round Robin Picker
+const replies = ${JSON.stringify(templates)};
+const username = $('Worker Webhook').item.json.body.entry[0].changes[0].value.from.username;
+
+if (typeof $getWorkflowStaticData === 'function') {
+  const staticData = $getWorkflowStaticData('global');
+  if (staticData.replyIndex === undefined) staticData.replyIndex = 0;
+  const index = staticData.replyIndex;
+  staticData.replyIndex = (index + 1) % replies.length;
+  // User asked for exact snippet logic: replace {username}
+  const chosenReply = replies[index].replace('{username}', username).replace('@{username}', '@' + username);
+  return [{ json: { chosenReply, index } }];
+} else {
+  // Fallback if static data not available
+  const chosenReply = replies[0].replace('{username}', username).replace('@{username}', '@' + username);
+  return [{ json: { chosenReply, index: 0 } }];
+}`
+            }
+          });
+
+          // 2. Reply to Comment (HTTP Request)
           nodes.push({
             id: `act-reply-${index}`, name: nodeName, type: "n8n-nodes-base.httpRequest", typeVersion: 4.3,
-            position: [1100, -1000], // Adjusted position
+            position: [1100, -1000],
             parameters: {
               method: "POST",
               url: `=https://graph.instagram.com/v24.0/${commentIdPath}/replies`,
@@ -937,17 +968,21 @@ Deno.serve(async (req: Request) => {
               nodeCredentialType: "facebookGraphApi",
               sendBody: true,
               specifyBody: "json",
-              jsonBody: `={\n  \"message\": \"@${usernamePath} ${(action.replyTemplates?.[0] || action.text || "check dm ").replace(/"/g, '\\"')}\"\n}`,
+              jsonBody: `={\n  \"message\": \"{{ $json.chosenReply }}\"\n}`,
               options: {}
             },
             credentials: { facebookGraphApi: { id: credentialId } }
           });
 
+          // 3. Connect Picker -> Reply
+          connections[pickerNodeName] = { main: [[{ node: nodeName, type: "main", index: 0 }]] };
+
+          // 4. Connect Anchor -> Picker (if no teaser)
           const hasTeaser = actions.some((a: any) => a.type === 'send_dm' && a.askToFollow);
           if (!hasTeaser) {
             if (!connections[triggerAnchorNode]) connections[triggerAnchorNode] = { main: [[]] };
             if (!connections[triggerAnchorNode].main[0]) connections[triggerAnchorNode].main[0] = [];
-            connections[triggerAnchorNode].main[0].push({ node: nodeName, type: "main", index: 0 });
+            connections[triggerAnchorNode].main[0].push({ node: pickerNodeName, type: "main", index: 0 });
           }
           return;
         }
@@ -1001,10 +1036,10 @@ Deno.serve(async (req: Request) => {
             if (!connections[triggerAnchorNode].main[0]) connections[triggerAnchorNode].main[0] = [];
             connections[triggerAnchorNode].main[0].push({ node: teaserNodeName, type: "main", index: 0 });
 
-            // 2. Connect Teaser to Reply (Sequential chain)
-            const hasReply = actions.some((a: any) => a.type === 'reply_to_comment');
-            if (hasReply) {
-              connections[teaserNodeName] = { main: [[{ node: "Reply to Comment", type: "main", index: 0 }]] };
+            // 2. Connect Teaser to Picker -> Reply (Sequential chain)
+            const replyActionIndex = actions.findIndex((a: any) => a.type === 'reply_to_comment');
+            if (replyActionIndex !== -1) {
+              connections[teaserNodeName] = { main: [[{ node: `Round Robin Picker ${replyActionIndex + 1}`, type: "main", index: 0 }]] };
             }
 
             nodeX += 300;
