@@ -295,9 +295,16 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                       })()}
                     </div>
                   ) : (
-                    <div className="w-full border border-slate-200 bg-white rounded-xl py-3 px-4 text-center font-semibold text-slate-700 text-sm">
+                    <button
+                      onClick={() => !readOnly && setEditingPostScope(true)}
+                      disabled={readOnly}
+                      className={cn(
+                        "w-full border border-slate-200 bg-white rounded-xl py-3 px-4 text-center font-semibold text-slate-700 text-sm transition-all",
+                        !readOnly && "hover:border-purple-300 hover:bg-purple-50/50 cursor-pointer"
+                      )}
+                    >
                       {postScopeLabel}
-                    </div>
+                    </button>
                   )}
                 </motion.div>
               ) : (
