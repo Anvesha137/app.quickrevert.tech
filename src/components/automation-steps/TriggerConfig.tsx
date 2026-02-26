@@ -235,7 +235,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
         {(triggerType === 'post_comment' || triggerType === 'story_reply') && postScopeLabel && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-slate-700 font-medium text-sm">
+              <p className="text-slate-800 font-semibold text-base">
                 {triggerType === 'post_comment' ? 'Which Post or Reel do you want to use?' : 'Which Story do you want to use?'}
               </p>
               {!readOnly && (
@@ -400,7 +400,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
         {/* Keywords */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-slate-700 font-medium text-sm">
+            <p className="text-slate-800 font-semibold text-base">
               {triggerType === 'post_comment' ? 'What keywords will start your automation?' :
                 triggerType === 'story_reply' ? 'What story keywords will trigger this?' :
                   'What keywords will start your automation?'}

@@ -119,7 +119,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
       {/* What do you want to reply - section header */}
       {triggerType === 'post_comment' && (
         <div className="space-y-2">
-          <p className="text-slate-700 font-medium text-sm">What do you want to reply to those comments?</p>
+          <p className="text-slate-800 font-semibold text-base">What do you want to reply to those comments?</p>
 
           <AnimatePresence mode="popLayout">
             {actions.filter(a => a.type === 'reply_to_comment').length === 0 ? (
@@ -210,7 +210,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <p className="font-semibold text-slate-700 text-sm">Follow Gate</p>
+                    <p className="font-semibold text-slate-800 text-base">Follow Gate</p>
                     <span className="bg-emerald-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
                       RECOMMENDED
                     </span>
@@ -289,7 +289,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                 <GitBranch size={18} />
               </div>
               <div className="flex-1">
-                <p className="font-semibold text-slate-700 text-sm">Response Flow</p>
+                <p className="font-semibold text-slate-800 text-base">Response Flow</p>
                 <p className="text-slate-400 text-xs">Configure automated DM responses</p>
               </div>
             </div>
