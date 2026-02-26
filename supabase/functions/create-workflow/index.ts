@@ -752,6 +752,44 @@ Deno.serve(async (req: Request) => {
         }
       }
 
+      // 1.56 Story Filter Switch
+      const isSpecificStoryTrigger = triggerType === 'story_reply' && (automationData?.trigger_config as any)?.storiesType === 'specific';
+      if (!hasAskToFollow && isSpecificStoryTrigger) {
+        const specificStories = Array.isArray((automationData?.trigger_config as any)?.specificStories)
+          ? (automationData.trigger_config as any).specificStories
+          : [];
+        if (specificStories.length > 0) {
+          const conditions = specificStories.map((id: string, index: number) => ({
+            id: `story-${index}`,
+            leftValue: "={{ $json.body.entry?.[0]?.messaging?.[0]?.message?.reply_to?.story_id || $json.body.payload?.message?.reply_to?.story_id }}",
+            rightValue: id,
+            operator: { type: "string", operation: "equals" }
+          }));
+          const rules = [{
+            conditions: {
+              options: { caseSensitive: false, leftValue: "", typeValidation: "strict", version: 2 },
+              conditions: conditions,
+              combinator: "or"
+            }
+          }];
+          nodes.push({
+            id: "story-switch", name: "Story Filter Switch",
+            type: "n8n-nodes-base.switch", typeVersion: 3.3,
+            position: [nodeX, 300],
+            parameters: { rules: { values: rules }, options: { ignoreCase: true } }
+          });
+
+          // Connect from previous anchor
+          if (!connections[previousNode]) connections[previousNode] = { main: [] };
+          const outputIndex = 0;
+          if (!connections[previousNode].main[outputIndex]) connections[previousNode].main[outputIndex] = [];
+          connections[previousNode].main[outputIndex].push({ node: "Story Filter Switch", type: "main", index: 0 });
+
+          previousNode = "Story Filter Switch";
+          nodeX += 300;
+        }
+      }
+
       // 1.6 Comment Keyword Switch
       const isCommentKeywordTrigger = triggerType === 'post_comment' && automationData?.trigger_config?.commentsType === 'keywords';
       if (!hasAskToFollow && isCommentKeywordTrigger) {

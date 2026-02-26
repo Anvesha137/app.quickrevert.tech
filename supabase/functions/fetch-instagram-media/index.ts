@@ -126,7 +126,17 @@ Deno.serve(async (req: Request) => {
       const mediaJson = await mediaResponse.json();
       mediaData = mediaJson.data || [];
     } else if (mediaType === "stories") {
-      mediaData = [];
+      const storiesResponse = await fetch(
+        `https://graph.instagram.com/me/stories?fields=id,caption,media_type,media_url,permalink,timestamp&access_token=${instagramAccount.access_token}`
+      );
+
+      if (!storiesResponse.ok) {
+        const errorData = await storiesResponse.json().catch(() => ({}));
+        throw new Error(`Failed to fetch Instagram stories: ${errorData.error?.message || storiesResponse.statusText || 'Unknown error'}`);
+      }
+
+      const storiesJson = await storiesResponse.json();
+      mediaData = storiesJson.data || [];
     }
 
     return new Response(

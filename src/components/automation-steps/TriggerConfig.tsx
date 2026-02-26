@@ -59,42 +59,57 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
 
   useEffect(() => {
     if (triggerType === 'post_comment' && (config as PostCommentTriggerConfig)?.postsType === 'specific') {
-      fetchPosts();
+      fetchMedia('posts');
+    } else if (triggerType === 'story_reply' && (config as StoryReplyTriggerConfig)?.storiesType === 'specific') {
+      fetchMedia('stories');
     }
-  }, [(config as PostCommentTriggerConfig)?.postsType]);
+  }, [triggerType, (config as PostCommentTriggerConfig)?.postsType, (config as StoryReplyTriggerConfig)?.storiesType]);
 
-  // Fetch posts in readOnly mode too, so we can display which posts are selected
+  // Fetch media in readOnly mode too
   useEffect(() => {
-    if (readOnly && triggerType === 'post_comment' && (config as PostCommentTriggerConfig)?.postsType === 'specific') {
-      fetchPosts();
+    if (readOnly) {
+      if (triggerType === 'post_comment' && (config as PostCommentTriggerConfig)?.postsType === 'specific') {
+        fetchMedia('posts');
+      } else if (triggerType === 'story_reply' && (config as StoryReplyTriggerConfig)?.storiesType === 'specific') {
+        fetchMedia('stories');
+      }
     }
   }, [readOnly]);
 
-  const fetchPosts = async () => {
+  const fetchMedia = async (type: 'posts' | 'stories') => {
     try {
       setLoadingMedia(true);
       const session = await supabase.auth.getSession();
       const { data, error } = await supabase.functions.invoke('fetch-instagram-media', {
         headers: { Authorization: `Bearer ${session.data.session?.access_token}` },
-        body: { type: 'posts' },
+        body: { type },
       });
       if (error) throw error;
       setPosts(data.media || []);
     } catch (error: any) {
-      console.error('Error fetching posts:', error);
-      toast.error('Failed to fetch Instagram posts: ' + (error.message || 'Unknown error'));
+      console.error(`Error fetching ${type}:`, error);
+      toast.error(`Failed to fetch Instagram ${type}: ` + (error.message || 'Unknown error'));
     } finally {
       setLoadingMedia(false);
     }
   };
 
-  const togglePostSelection = (postId: string) => {
+  const toggleMediaSelection = (mediaId: string) => {
     if (readOnly) return;
-    const newSelection = selectedPosts.includes(postId)
-      ? selectedPosts.filter(id => id !== postId)
-      : [...selectedPosts, postId];
-    setSelectedPosts(newSelection);
-    onConfigChange({ ...currentConfig, specificPosts: newSelection } as PostCommentTriggerConfig);
+    const isPostComment = triggerType === 'post_comment';
+    const currentSpecific = isPostComment
+      ? (currentConfig as PostCommentTriggerConfig).specificPosts || []
+      : (currentConfig as StoryReplyTriggerConfig).specificStories || [];
+
+    const newSelection = currentSpecific.includes(mediaId)
+      ? currentSpecific.filter(id => id !== mediaId)
+      : [...currentSpecific, mediaId];
+
+    if (isPostComment) {
+      onConfigChange({ ...currentConfig, specificPosts: newSelection } as PostCommentTriggerConfig);
+    } else {
+      onConfigChange({ ...currentConfig, specificStories: newSelection } as StoryReplyTriggerConfig);
+    }
   };
 
   const getConfig = (): TriggerConfig => {
@@ -119,10 +134,11 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
     onConfigChange(newConfig);
   };
 
-  const handleStoriesTypeChange = (storiesType: 'all' | 'keywords') => {
+  const handleStoriesTypeChange = (storiesType: 'all' | 'specific' | 'keywords') => {
     if (readOnly) return;
     const newConfig = { ...currentConfig, storiesType } as StoryReplyTriggerConfig;
-    if (storiesType === 'all') { delete newConfig.keywords; } else { newConfig.keywords = []; }
+    if (storiesType !== 'specific') { delete newConfig.specificStories; } else { newConfig.specificStories = []; }
+    if (storiesType !== 'keywords') { delete newConfig.keywords; } else { newConfig.keywords = []; }
     onConfigChange(newConfig);
   };
 
@@ -183,7 +199,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
   const postScopeLabel = triggerType === 'post_comment'
     ? ((currentConfig as PostCommentTriggerConfig).postsType === 'specific' ? 'Specific Posts' : 'All Posts and Reels')
     : triggerType === 'story_reply'
-      ? 'All Stories'
+      ? ((currentConfig as StoryReplyTriggerConfig).storiesType === 'specific' ? 'Specific Stories' : 'All Stories')
       : null;
 
   return (
@@ -235,20 +251,22 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                   exit={{ opacity: 0 }}
                 >
                   {/* In readOnly + specific mode, show which posts are selected */}
-                  {readOnly && triggerType === 'post_comment' && (currentConfig as PostCommentTriggerConfig).postsType === 'specific' ? (
+                  {readOnly && ((triggerType === 'post_comment' && (currentConfig as PostCommentTriggerConfig).postsType === 'specific') || (triggerType === 'story_reply' && (currentConfig as StoryReplyTriggerConfig).storiesType === 'specific')) ? (
                     <div className="space-y-2">
                       <div className="w-full border border-slate-200 bg-white rounded-xl py-2 px-4 text-center font-semibold text-slate-700 text-sm">
-                        Specific Posts
-                        {(currentConfig as PostCommentTriggerConfig).specificPosts?.length
-                          ? ` · ${(currentConfig as PostCommentTriggerConfig).specificPosts!.length} selected`
-                          : ''}
+                        {triggerType === 'post_comment' ? 'Specific Posts' : 'Specific Stories'}
+                        {triggerType === 'post_comment'
+                          ? ((currentConfig as PostCommentTriggerConfig).specificPosts?.length ? ` · ${(currentConfig as PostCommentTriggerConfig).specificPosts!.length} selected` : '')
+                          : ((currentConfig as StoryReplyTriggerConfig).specificStories?.length ? ` · ${(currentConfig as StoryReplyTriggerConfig).specificStories!.length} selected` : '')}
                       </div>
                       {loadingMedia ? (
                         <div className="flex justify-center py-4">
                           <Loader2 className="h-5 w-5 animate-spin text-purple-500" />
                         </div>
                       ) : (() => {
-                        const specificIds = (currentConfig as PostCommentTriggerConfig).specificPosts || [];
+                        const specificIds = triggerType === 'post_comment'
+                          ? (currentConfig as PostCommentTriggerConfig).specificPosts || []
+                          : (currentConfig as StoryReplyTriggerConfig).specificStories || [];
                         const selectedPostObjs = posts.filter(p => specificIds.includes(p.id));
                         return selectedPostObjs.length > 0 ? (
                           <div className="grid grid-cols-3 gap-2">
@@ -285,22 +303,32 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                   className="space-y-3"
                 >
                   <div className="grid grid-cols-2 gap-3">
-                    {['all', 'specific'].map((option) => (
-                      <button
-                        key={option}
-                        onClick={() => { if (triggerType === 'post_comment') handlePostsTypeChange(option as any); }}
-                        className={cn(
-                          "py-3 px-4 rounded-xl border-2 text-sm font-semibold transition-all",
-                          (triggerType === 'post_comment' && (currentConfig as PostCommentTriggerConfig).postsType === option)
-                            ? "border-purple-500 bg-purple-50 text-purple-700"
-                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                        )}
-                      >
-                        {option === 'all' ? 'All Posts and Reels' : 'Specific Posts'}
-                      </button>
-                    ))}
+                    {['all', 'specific'].map((option) => {
+                      const isActive = triggerType === 'post_comment'
+                        ? (currentConfig as PostCommentTriggerConfig).postsType === option
+                        : (currentConfig as StoryReplyTriggerConfig).storiesType === option;
+                      return (
+                        <button
+                          key={option}
+                          onClick={() => {
+                            if (triggerType === 'post_comment') handlePostsTypeChange(option as any);
+                            else if (triggerType === 'story_reply') handleStoriesTypeChange(option as any);
+                          }}
+                          className={cn(
+                            "py-3 px-4 rounded-xl border-2 text-sm font-semibold transition-all",
+                            isActive
+                              ? "border-purple-500 bg-purple-50 text-purple-700"
+                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                          )}
+                        >
+                          {option === 'all'
+                            ? (triggerType === 'post_comment' ? 'All Posts and Reels' : 'All Stories')
+                            : (triggerType === 'post_comment' ? 'Specific Posts' : 'Specific Stories')}
+                        </button>
+                      );
+                    })}
                   </div>
-                  {triggerType === 'post_comment' && (currentConfig as PostCommentTriggerConfig).postsType === 'specific' && (
+                  {((triggerType === 'post_comment' && (currentConfig as PostCommentTriggerConfig).postsType === 'specific') || (triggerType === 'story_reply' && (currentConfig as StoryReplyTriggerConfig).storiesType === 'specific')) && (
                     <div className="border border-slate-100 rounded-xl p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Available Media</h4>
@@ -308,27 +336,33 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                       </div>
                       {posts.length > 0 ? (
                         <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
-                          {posts.map((post) => (
-                            <div
-                              key={post.id}
-                              onClick={() => togglePostSelection(post.id)}
-                              className={cn(
-                                "relative cursor-pointer aspect-square rounded-xl overflow-hidden border-2 transition-all",
-                                selectedPosts.includes(post.id) ? "border-purple-500" : "border-transparent hover:border-purple-200"
-                              )}
-                            >
-                              {post.media_type === 'VIDEO' ? (
-                                <video src={post.media_url} poster={post.thumbnail_url} muted className="w-full h-full object-cover" />
-                              ) : (
-                                <img src={post.media_url} alt={post.caption || 'Post'} className="w-full h-full object-cover" />
-                              )}
-                              {selectedPosts.includes(post.id) && (
-                                <div className="absolute top-1 right-1 bg-purple-500 text-white p-0.5 rounded-md">
-                                  <CheckCircle2 size={12} />
-                                </div>
-                              )}
-                            </div>
-                          ))}
+                          {posts.map((post) => {
+                            const specificIds = triggerType === 'post_comment'
+                              ? (currentConfig as PostCommentTriggerConfig).specificPosts || []
+                              : (currentConfig as StoryReplyTriggerConfig).specificStories || [];
+                            const isSelected = specificIds.includes(post.id);
+                            return (
+                              <div
+                                key={post.id}
+                                onClick={() => toggleMediaSelection(post.id)}
+                                className={cn(
+                                  "relative cursor-pointer aspect-square rounded-xl overflow-hidden border-2 transition-all",
+                                  isSelected ? "border-purple-500" : "border-transparent hover:border-purple-200"
+                                )}
+                              >
+                                {post.media_type === 'VIDEO' ? (
+                                  <video src={post.media_url} poster={post.thumbnail_url} muted className="w-full h-full object-cover" />
+                                ) : (
+                                  <img src={post.media_url} alt={post.caption || 'Post'} className="w-full h-full object-cover" />
+                                )}
+                                {isSelected && (
+                                  <div className="absolute top-1 right-1 bg-purple-500 text-white p-0.5 rounded-md">
+                                    <CheckCircle2 size={12} />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       ) : !loadingMedia && (
                         <div className="text-center py-6">
