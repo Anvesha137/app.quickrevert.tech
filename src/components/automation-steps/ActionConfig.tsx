@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, X, Sparkles, Send, MessageSquare, ArrowRight, Save, Trash, AlertCircle, UserPlus, Crown, GitBranch } from 'lucide-react';
 import { motion, AnimatePresence } from "motion/react";
@@ -45,6 +45,18 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
   const { openModal } = useUpgradeModal();
 
   const availableActions = getAvailableActions(triggerType);
+
+  // Reset askToFollow if trigger type is "User sends you a DM"
+  useEffect(() => {
+    if (triggerType === 'user_directed_messages') {
+      const needsUpdate = actions.some(a => a.type === 'send_dm' && (a as SendDmAction).askToFollow);
+      if (needsUpdate) {
+        onActionsChange(actions.map(a =>
+          a.type === 'send_dm' ? { ...a, askToFollow: false } : a
+        ));
+      }
+    }
+  }, [triggerType, actions, onActionsChange]);
 
   const addAction = (actionType: ActionType) => {
     let newAction: Action;
@@ -200,85 +212,90 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
         return (
           <div key={index} className="space-y-4">
             {/* Follow Gate */}
-            <div className="flex items-center justify-between py-3 border-b border-slate-100">
-              <div className="flex items-center gap-3">
-                <div className={cn(
-                  "w-9 h-9 rounded-xl flex items-center justify-center transition-colors",
-                  (action as SendDmAction).askToFollow ? "bg-gradient-to-br from-blue-500 to-purple-600 text-white" : "bg-slate-100 text-slate-400"
-                )}>
-                  <UserPlus size={18} />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-semibold text-slate-800 text-base">Follow Gate</p>
-                    <span className="bg-emerald-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
-                      RECOMMENDED
-                    </span>
-                    {!canUseAskToFollow && (
-                      <span className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                        <Crown size={8} /> PREMIUM
-                      </span>
-                    )}
+            {triggerType !== 'user_directed_messages' && (
+              <>
+                <div className="flex items-center justify-between py-3 border-b border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "w-9 h-9 rounded-xl flex items-center justify-center transition-colors",
+                      (action as SendDmAction).askToFollow ? "bg-gradient-to-br from-blue-500 to-purple-600 text-white" : "bg-slate-100 text-slate-400"
+                    )}>
+                      <UserPlus size={18} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-slate-800 text-base">Follow Gate</p>
+                        <span className="bg-emerald-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
+                          RECOMMENDED
+                        </span>
+                        {!canUseAskToFollow && (
+                          <span className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <Crown size={8} /> PREMIUM
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-slate-400 text-xs">Require users to follow you before they can access your automation</p>
+                    </div>
                   </div>
-                  <p className="text-slate-400 text-xs">Require users to follow you before they can access your automation</p>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      disabled={!canUseAskToFollow || readOnly}
+                      checked={(action as SendDmAction).askToFollow || false}
+                      onChange={(e) => {
+                        if (!canUseAskToFollow) { openModal(); return; }
+                        updateAction(index, { ...action, askToFollow: e.target.checked } as SendDmAction);
+                      }}
+                    />
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-blue-500 peer-checked:to-purple-600"></div>
+                  </label>
                 </div>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="sr-only peer"
-                  disabled={!canUseAskToFollow || readOnly}
-                  checked={(action as SendDmAction).askToFollow || false}
-                  onChange={(e) => {
-                    if (!canUseAskToFollow) { openModal(); return; }
-                    updateAction(index, { ...action, askToFollow: e.target.checked } as SendDmAction);
-                  }}
-                />
-                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-blue-500 peer-checked:to-purple-600"></div>
-              </label>
-            </div>
 
-            {/* Follow Gate expanded fields */}
-            <AnimatePresence>
-              {(action as SendDmAction).askToFollow && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="border border-slate-100 rounded-xl p-4 space-y-4"
-                >
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">1. Initial Teaser</label>
-                        {!readOnly && (
-                          <button onClick={() => updateAction(index, { ...action, teaserMessage: DEFAULT_TEASER_MESSAGE } as SendDmAction)} className="text-[10px] text-purple-500 hover:text-purple-700 font-semibold">Auto-Fill</button>
-                        )}
+                {/* Follow Gate expanded fields */}
+                <AnimatePresence>
+                  {(action as SendDmAction).askToFollow && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="border border-slate-100 rounded-xl p-4 space-y-4"
+                    >
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">1. Initial Teaser</label>
+                            {!readOnly && (
+                              <button onClick={() => updateAction(index, { ...action, teaserMessage: DEFAULT_TEASER_MESSAGE } as SendDmAction)} className="text-[10px] text-purple-500 hover:text-purple-700 font-semibold">Auto-Fill</button>
+                            )}
+                          </div>
+                          <textarea
+                            value={(action as SendDmAction).teaserMessage || ''}
+                            onChange={(e) => updateAction(index, { ...action, teaserMessage: e.target.value } as SendDmAction)}
+                            placeholder="Initial message to hook them..."
+                            rows={2}
+                            disabled={readOnly}
+                            className={`w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
+                          />
+                          <input type="text" value={(action as SendDmAction).teaserBtnText || ''} onChange={(e) => updateAction(index, { ...action, teaserBtnText: e.target.value } as SendDmAction)} placeholder="Teaser Button Text" disabled={readOnly} className={`w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-center text-slate-700 transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`} />
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">2. Verification Failed</label>
+                            {!readOnly && (
+                              <button onClick={() => updateAction(index, { ...action, askToFollowMessage: DEFAULT_NOT_FOLLOWING_MESSAGE } as SendDmAction)} className="text-[10px] text-slate-500 hover:text-slate-700 font-semibold">Auto-Fill</button>
+                            )}
+                          </div>
+                          <textarea value={(action as SendDmAction).askToFollowMessage || ''} onChange={(e) => updateAction(index, { ...action, askToFollowMessage: e.target.value } as SendDmAction)} placeholder="Message if not following..." rows={2} disabled={readOnly} className={`w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`} />
+                          <input type="text" value={(action as SendDmAction).askToFollowBtnText || ''} onChange={(e) => updateAction(index, { ...action, askToFollowBtnText: e.target.value } as SendDmAction)} placeholder="Follow Button Text" disabled={readOnly} className={`w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-center text-slate-700 transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`} />
+                        </div>
                       </div>
-                      <textarea
-                        value={(action as SendDmAction).teaserMessage || ''}
-                        onChange={(e) => updateAction(index, { ...action, teaserMessage: e.target.value } as SendDmAction)}
-                        placeholder="Initial message to hook them..."
-                        rows={2}
-                        disabled={readOnly}
-                        className={`w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
-                      />
-                      <input type="text" value={(action as SendDmAction).teaserBtnText || ''} onChange={(e) => updateAction(index, { ...action, teaserBtnText: e.target.value } as SendDmAction)} placeholder="Teaser Button Text" disabled={readOnly} className={`w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-center text-slate-700 transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`} />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">2. Verification Failed</label>
-                        {!readOnly && (
-                          <button onClick={() => updateAction(index, { ...action, askToFollowMessage: DEFAULT_NOT_FOLLOWING_MESSAGE } as SendDmAction)} className="text-[10px] text-slate-500 hover:text-slate-700 font-semibold">Auto-Fill</button>
-                        )}
-                      </div>
-                      <textarea value={(action as SendDmAction).askToFollowMessage || ''} onChange={(e) => updateAction(index, { ...action, askToFollowMessage: e.target.value } as SendDmAction)} placeholder="Message if not following..." rows={2} disabled={readOnly} className={`w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`} />
-                      <input type="text" value={(action as SendDmAction).askToFollowBtnText || ''} onChange={(e) => updateAction(index, { ...action, askToFollowBtnText: e.target.value } as SendDmAction)} placeholder="Follow Button Text" disabled={readOnly} className={`w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-center text-slate-700 transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`} />
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </>
+            )}
+
 
             {/* ─── Gradient bar ─── */}
             <div className="h-[3px] w-full bg-gradient-to-r from-purple-500 via-blue-500 to-orange-400 rounded-full"></div>
