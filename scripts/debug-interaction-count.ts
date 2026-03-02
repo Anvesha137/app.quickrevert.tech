@@ -2,10 +2,10 @@
 import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 
-const SUPABASE_URL = 'https://quickrevert.jiobase.com';
+const supabaseUrl = 'https://unwijhqoqvwztpbahlly.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVud2lqaHFvcXZ3enRwYmFobGx5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NzU5ODU2OCwiZXhwIjoyMDgzMTc0NTY4fQ.qgFAZRYHuU2XDLkDCxF6O70McSKeEmFQNS-xPcnazfY';
 
-const supabase = createClient(SUPABASE_URL, supabaseKey, {
+const supabase = createClient(supabaseUrl, supabaseKey, {
     auth: { autoRefreshToken: false, persistSession: false }
 });
 

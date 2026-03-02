@@ -50,32 +50,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signInWithGoogle = async () => {
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/pricing`,
-        skipBrowserRedirect: true,
       },
     });
-
     if (error) throw error;
-
-    if (data?.url) {
-      // Force BOTH the Supabase domain AND the redirect back to use the proxy
-      // We use a case-insensitive global regex here to be absolutely sure
-      let correctedUrl = data.url
-        .replace(/unwijhqoqvwztpbahlly\.supabase\.co/gi, 'quickrevert.jiobase.com')
-        .replace(/redirect_uri=[^&]*/gi, `redirect_uri=${encodeURIComponent('https://quickrevert.jiobase.com/auth/v1/callback')}`);
-
-      // PERSISTENT LOG: Save the URL we are about to visit so user can check it after failure
-      localStorage.setItem('last_auth_attempt', correctedUrl);
-
-      // FAILSAFE ALERT: This will pause the redirect and show the user exactly where they are going
-      // This also proves that THIS version of the code is running
-      window.alert('PROXY-FIX-V3: Redirecting to Google via: ' + correctedUrl);
-
-      window.location.href = correctedUrl;
-    }
   };
 
 

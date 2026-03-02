@@ -42,10 +42,6 @@ export default function Login() {
 
   return (
     <div className="h-screen overflow-hidden bg-white font-outfit flex">
-      {/* DEPLOY VERIFICATION BANNER */}
-      <div className="fixed top-0 left-0 w-full bg-red-600 text-white text-[10px] text-center py-1 z-[9999] font-bold uppercase tracking-widest shadow-lg">
-        Active Version: PROXY-AUTH-FIX-V3 (MARCH 2026)
-      </div>
       {/* Left Side: Login Form */}
       <div className="w-full lg:w-1/2 flex flex-col justify-center px-6 md:px-12 py-6 bg-[#fafbff]">
         <div className="max-w-[480px] mx-auto w-full">
@@ -130,8 +126,6 @@ export default function Login() {
               <img
                 src={src}
                 alt={`Slide ${index + 1}`}
-                loading={index === 0 ? 'eager' : 'lazy'}
-                fetchPriority={index === 0 ? 'high' : 'low'}
                 className={`max-w-full max-h-full object-contain rounded-[2.5rem] transition-transform duration-[5000ms] linear ${index === currentImageIndex ? 'scale-110' : 'scale-100'
                   }`}
               />
