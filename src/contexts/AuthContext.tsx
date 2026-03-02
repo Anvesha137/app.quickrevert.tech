@@ -50,13 +50,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signInWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/pricing`,
+        skipBrowserRedirect: true,
       },
     });
+
     if (error) throw error;
+
+    if (data?.url) {
+      // Manually replace the blocked domain in the Google Auth URL before redirecting the user
+      const correctedUrl = data.url.replace(
+        'unwijhqoqvwztpbahlly.supabase.co',
+        'quickrevert.jiobase.com'
+      );
+      window.location.href = correctedUrl;
+    }
   };
 
 
