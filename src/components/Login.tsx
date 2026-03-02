@@ -126,6 +126,8 @@ export default function Login() {
               <img
                 src={src}
                 alt={`Slide ${index + 1}`}
+                loading={index === 0 ? 'eager' : 'lazy'}
+                fetchPriority={index === 0 ? 'high' : 'low'}
                 className={`max-w-full max-h-full object-contain rounded-[2.5rem] transition-transform duration-[5000ms] linear ${index === currentImageIndex ? 'scale-110' : 'scale-100'
                   }`}
               />
