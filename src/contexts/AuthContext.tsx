@@ -61,11 +61,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error;
 
     if (data?.url) {
-      // Manually replace the blocked domain in the Google Auth URL before redirecting the user
-      const correctedUrl = data.url.replace(
-        'unwijhqoqvwztpbahlly.supabase.co',
-        'quickrevert.jiobase.com'
-      );
+      // Force BOTH the Supabase domain AND the redirect back to use the proxy
+      // This ensures that even if Supabase server-side logic fails, the browser handles it
+      const correctedUrl = data.url
+        .replace(/unwijhqoqvwztpbahlly\.supabase\.co/g, 'quickrevert.jiobase.com')
+        .replace(/redirect_uri=[^&]*/, `redirect_uri=${encodeURIComponent('https://quickrevert.jiobase.com/auth/v1/callback')}`);
+
       window.location.href = correctedUrl;
     }
   };
