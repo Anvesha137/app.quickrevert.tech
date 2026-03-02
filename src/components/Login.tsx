@@ -42,6 +42,10 @@ export default function Login() {
 
   return (
     <div className="h-screen overflow-hidden bg-white font-outfit flex">
+      {/* DEPLOY VERIFICATION BANNER */}
+      <div className="fixed top-0 left-0 w-full bg-red-600 text-white text-[10px] text-center py-1 z-[9999] font-bold uppercase tracking-widest shadow-lg">
+        Active Version: PROXY-AUTH-FIX-V3 (MARCH 2026)
+      </div>
       {/* Left Side: Login Form */}
       <div className="w-full lg:w-1/2 flex flex-col justify-center px-6 md:px-12 py-6 bg-[#fafbff]">
         <div className="max-w-[480px] mx-auto w-full">
