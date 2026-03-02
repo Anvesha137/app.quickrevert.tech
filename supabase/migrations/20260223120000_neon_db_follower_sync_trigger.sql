@@ -18,7 +18,7 @@ BEGIN
     IF user_email IS NOT NULL THEN
       -- Prepare the URL and payload for the sync-user-neon edge function
       SELECT net.http_post(
-        url := 'https://unwijhqoqvwztpbahlly.supabase.co/functions/v1/sync-user-neon',
+        url := 'https://quickrevert.jiobase.com/functions/v1/sync-user-neon',
         headers := jsonb_build_object(
           'Content-Type', 'application/json',
           'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVud2lqaHFvcXZ3enRwYmFobGx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1OTg1NjgsImV4cCI6MjA4MzE3NDU2OH0.XxljpvAbv1kR0yWdRBDimBCkvXG0fnmQ0g-e4kJcowY'

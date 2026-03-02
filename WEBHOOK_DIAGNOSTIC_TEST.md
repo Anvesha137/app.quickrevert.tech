@@ -47,7 +47,7 @@ LIMIT 5;
 
 **If NOT found:** Webhooks are not reaching your Supabase function. Check:
 - Meta App Dashboard webhook subscription status
-- Callback URL is correct: `https://unwijhqoqvwztpbahlly.supabase.co/functions/v1/webhook-meta`
+- Callback URL is correct: `https://quickrevert.jiobase.com/functions/v1/webhook-handler-v3-beta`
 
 ### Step 3: Check if Account Was Found
 
