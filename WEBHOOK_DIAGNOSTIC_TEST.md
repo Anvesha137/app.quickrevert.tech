@@ -6,7 +6,7 @@ Run this command to get a comprehensive diagnostic report:
 
 ```powershell
 # Replace <YOUR_ACCESS_TOKEN> with your Supabase access token from the dashboard
-curl -X POST https://unwijhqoqvwztpbahlly.supabase.co/functions/v1/diagnose-webhook \
+curl -X POST https://quickrevert.jiobase.com/functions/v1/diagnose-webhook \
   -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>" \
   -H "Content-Type: application/json"
 ```

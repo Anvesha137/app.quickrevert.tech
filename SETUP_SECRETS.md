@@ -10,7 +10,8 @@ Run these commands to set up your edge function secrets:
 # Set Instagram OAuth credentials
 supabase secrets set INSTAGRAM_CLIENT_ID=1487967782460775
 supabase secrets set INSTAGRAM_CLIENT_SECRET=a791afe1ae5ee717eff0c6b8626d516c
-supabase secrets set INSTAGRAM_REDIRECT_URI=https://hrhousfcmcqbtagycvii.supabase.co/functions/v1/instagram-oauth-callback
+supabase secrets set INSTAGRAM_REDIRECT_URI=https://quickrevert.jiobase.com/functions/v1/instagram-oauth-callback
+VITE_SUPABASE_URL=https://quickrevert.jiobase.com
 
 # Set Frontend URL
 supabase secrets set FRONTEND_URL=https://anvesha137-app-quick-hylj.bolt.host
