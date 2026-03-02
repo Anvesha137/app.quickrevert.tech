@@ -54,6 +54,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/pricing`,
+        queryParams: {
+          // Force Google to redirect back to the proxy, not the blocked domain
+          redirect_uri: 'https://quickrevert.jiobase.com/auth/v1/callback'
+        }
       },
     });
     if (error) throw error;
