@@ -67,6 +67,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .replace(/unwijhqoqvwztpbahlly\.supabase\.co/g, 'quickrevert.jiobase.com')
         .replace(/redirect_uri=[^&]*/, `redirect_uri=${encodeURIComponent('https://quickrevert.jiobase.com/auth/v1/callback')}`);
 
+      // PERSISTENT LOG: Save the URL we are about to visit so user can check it after failure
+      localStorage.setItem('last_auth_attempt', correctedUrl);
+      console.log('Redirecting to corrected OAuth URL:', correctedUrl);
+
       window.location.href = correctedUrl;
     }
   };
