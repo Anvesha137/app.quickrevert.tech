@@ -275,16 +275,16 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                           : (currentConfig as StoryReplyTriggerConfig).specificStories || [];
                         const selectedPostObjs = posts.filter(p => specificIds.includes(p.id));
                         return selectedPostObjs.length > 0 ? (
-                          <div className="grid grid-cols-3 gap-2">
+                          <div className="grid grid-cols-4 gap-1.5 max-h-52 overflow-y-auto">
                             {selectedPostObjs.map((post) => (
-                              <div key={post.id} className="relative aspect-square rounded-xl overflow-hidden border-2 border-purple-500">
+                              <div key={post.id} className="relative w-full h-16 rounded-lg overflow-hidden border-2 border-purple-500">
                                 {post.media_type === 'VIDEO' ? (
                                   <video src={post.media_url} poster={post.thumbnail_url} muted className="w-full h-full object-cover" />
                                 ) : (
                                   <img src={post.media_url} alt={post.caption || 'Post'} className="w-full h-full object-cover" />
                                 )}
-                                <div className="absolute top-1 right-1 bg-purple-500 text-white p-0.5 rounded-md">
-                                  <CheckCircle2 size={12} />
+                                <div className="absolute top-0.5 right-0.5 bg-purple-500 text-white p-0.5 rounded-sm">
+                                  <CheckCircle2 size={10} />
                                 </div>
                               </div>
                             ))}
@@ -348,7 +348,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                         {loadingMedia && <Loader2 className="h-4 w-4 animate-spin text-purple-500" />}
                       </div>
                       {posts.length > 0 ? (
-                        <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+                        <div className="grid grid-cols-4 gap-1.5 max-h-56 overflow-y-auto">
                           {posts.map((post) => {
                             const specificIds = triggerType === 'post_comment'
                               ? (currentConfig as PostCommentTriggerConfig).specificPosts || []
@@ -359,7 +359,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                                 key={post.id}
                                 onClick={() => toggleMediaSelection(post.id)}
                                 className={cn(
-                                  "relative cursor-pointer aspect-square rounded-xl overflow-hidden border-2 transition-all",
+                                  "relative cursor-pointer w-full h-16 rounded-lg overflow-hidden border-2 transition-all",
                                   isSelected ? "border-purple-500" : "border-transparent hover:border-purple-200"
                                 )}
                               >
@@ -369,8 +369,8 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                                   <img src={post.media_url} alt={post.caption || 'Post'} className="w-full h-full object-cover" />
                                 )}
                                 {isSelected && (
-                                  <div className="absolute top-1 right-1 bg-purple-500 text-white p-0.5 rounded-md">
-                                    <CheckCircle2 size={12} />
+                                  <div className="absolute top-0.5 right-0.5 bg-purple-500 text-white p-0.5 rounded-sm">
+                                    <CheckCircle2 size={10} />
                                   </div>
                                 )}
                               </div>
