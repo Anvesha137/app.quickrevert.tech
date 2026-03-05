@@ -10,13 +10,11 @@ import {
   User,
   Headset,
   Instagram,
-  AlertCircle,
   RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
-import { useUpgradeModal } from '../contexts/UpgradeModalContext';
 import { N8nWorkflowService } from '../lib/n8nService';
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabase';
@@ -53,10 +51,9 @@ export default function Dashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [enablingAnalytics, setEnablingAnalytics] = useState(false);
-  const [refreshingAnalytics, setRefreshingAnalytics] = useState(false);
+  const [isRefreshingAnalytics, _setRefreshingAnalytics] = useState(false);
   const [instagramAccount, setInstagramAccount] = useState<any>(null);
   const { isPremium } = useSubscription();
-  const { openModal } = useUpgradeModal();
 
   useEffect(() => {
     if (user) {
@@ -90,7 +87,9 @@ export default function Dashboard() {
       const { data: allActivities, error: activitiesError } = await supabase
         .from('automation_activities')
         .select('activity_type, metadata')
-        .eq('user_id', user!.id);
+        .eq('user_id', user!.id)
+        .order('created_at', { ascending: false })
+        .limit(1000);
 
       if (activitiesError) throw activitiesError;
 
@@ -329,11 +328,11 @@ export default function Dashboard() {
                       />
                       <button
                         onClick={handleRefreshAnalytics}
-                        disabled={refreshingAnalytics || loading}
+                        disabled={isRefreshingAnalytics || loading}
                         className="absolute top-3 right-3 p-1.5 rounded-lg bg-white/50 backdrop-blur-sm border border-white/40 shadow-sm opacity-0 group-hover/refresh:opacity-100 transition-opacity hover:bg-white hover:scale-110 disabled:opacity-50"
                         title="Refresh Analytics"
                       >
-                        <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${refreshingAnalytics ? 'animate-spin' : ''}`} />
+                        <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isRefreshingAnalytics ? 'animate-spin' : ''}`} />
                       </button>
                     </div>
                   </>

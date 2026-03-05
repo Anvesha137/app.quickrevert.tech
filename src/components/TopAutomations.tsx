@@ -41,7 +41,9 @@ export default function TopAutomations() {
       const { data: activities, error: activitiesError } = await supabase
         .from('automation_activities')
         .select('automation_id, status')
-        .eq('user_id', user!.id);
+        .order('created_at', { ascending: false })
+        .eq('user_id', user!.id)
+        .limit(1000);
 
       if (activitiesError) throw activitiesError;
 

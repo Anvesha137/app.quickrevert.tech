@@ -28,6 +28,7 @@ interface Automation {
   trigger_type: string;
   is_active: boolean;
   description: string | null;
+  instagram_account_name?: string | null;
 }
 
 interface AutomationActivityDetailProps {
@@ -96,12 +97,29 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
     try {
       const { data: automationData, error: automationError } = await supabase
         .from('automations')
-        .select('*')
+        .select(`
+          *,
+          n8n_workflows!automation_id(
+            n8n_workflow_id
+          )
+        `)
         .eq('id', automationId)
         .maybeSingle();
 
       if (automationError) throw automationError;
-      setAutomation(automationData);
+
+      // Fetch the instagram account linked to the most recent activity for this automation
+      const { data: recentActivity } = await supabase
+        .from('automation_activities')
+        .select('instagram_account:instagram_accounts(username)')
+        .eq('automation_id', automationId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const accountName = (recentActivity?.instagram_account as any)?.username || null;
+
+      setAutomation(automationData ? { ...automationData, instagram_account_name: accountName } : null);
 
       // Fetch activities from automation_activities table
       // JOIN with contacts to get the REAL resolved username
@@ -247,7 +265,14 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
                 {automation.is_active ? 'Active' : 'Inactive'}
               </span>
             </div>
-            <p className="text-gray-600 capitalize text-lg">{automation.trigger_type.replace('_', ' ')} Trigger</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-gray-600 capitalize text-lg">{automation.trigger_type.replace('_', ' ')} Trigger</p>
+              {automation.instagram_account_name && (
+                <span className="text-sm font-semibold px-2.5 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-full">
+                  @{automation.instagram_account_name}
+                </span>
+              )}
+            </div>
             {automation.description && (
               <p className="text-sm text-gray-500 mt-1">{automation.description}</p>
             )}

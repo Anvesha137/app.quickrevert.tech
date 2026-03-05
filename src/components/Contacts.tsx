@@ -56,7 +56,9 @@ export default function Contacts() {
       const { data: activities } = await supabase
         .from('automation_activities')
         .select('target_username, automation_id, metadata')
-        .eq('user_id', user!.id);
+        .eq('user_id', user!.id)
+        .order('created_at', { ascending: false })
+        .limit(2000);
 
       if (!activities) return;
 
@@ -189,7 +191,9 @@ export default function Contacts() {
       const { data: activities } = await supabase
         .from('automation_activities')
         .select('*')
-        .eq('user_id', user!.id);
+        .eq('user_id', user!.id)
+        .order('created_at', { ascending: false })
+        .limit(2000);
 
       if (!activities || activities.length === 0) return;
 

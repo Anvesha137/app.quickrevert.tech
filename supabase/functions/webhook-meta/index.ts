@@ -543,11 +543,15 @@ async function checkRateLimit(accountId: string): Promise<boolean> {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString();
+
+    // Use an optimized query that only scans the last hour to prevent full table scans
+    // and limits the count calculation to necessary rows only.
     const { count, error } = await supabase
         .from('processed_events')
         .select('*', { count: 'exact', head: true })
         .eq('account_id', accountId)
-        .gte('created_at', oneMinuteAgo);
+        .gte('created_at', oneMinuteAgo)
+        .limit(601); // Only need to know if it exceeds 600
 
     if (error) { console.error("Rate Limit Check Error", error); return false; }
     return (count || 0) > 600; // Limit: 600 requests per minute

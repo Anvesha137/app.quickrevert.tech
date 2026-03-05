@@ -35,7 +35,9 @@ export default function TopPerforming() {
             const { data: activities, error: activitiesError } = await supabase
                 .from('automation_activities')
                 .select('automation_id, metadata')
-                .eq('user_id', user!.id);
+                .eq('user_id', user!.id)
+                .order('created_at', { ascending: false })
+                .limit(2000);
 
             if (activitiesError) throw activitiesError;
 

@@ -10,6 +10,7 @@ interface Automation {
   is_active: boolean;
   activityCount: number;
   lastActivity: string | null;
+  accountUsername?: string | null;
 }
 
 export default function ActivityLog() {
@@ -33,25 +34,39 @@ export default function ActivityLog() {
 
       const { data: activitiesData, error: activitiesError } = await supabase
         .from('automation_activities')
-        .select('automation_id, created_at');
+        .select(`
+          automation_id, 
+          created_at,
+          instagram_account:instagram_accounts(username)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(1000);
 
       if (activitiesError) throw activitiesError;
 
-      const activityMap = new Map<string, { count: number; lastActivity: string | null }>();
+      const activityMap = new Map<string, { count: number; lastActivity: string | null; accountUsername: string | null }>();
 
       activitiesData?.forEach((activity) => {
         if (!activity.automation_id) return;
+
+        // Extract the joined username safely
+        const accountUsername = activity.instagram_account && Array.isArray(activity.instagram_account)
+          ? activity.instagram_account[0]?.username
+          : (activity.instagram_account as any)?.username || null;
 
         const existing = activityMap.get(activity.automation_id);
         if (!existing) {
           activityMap.set(activity.automation_id, {
             count: 1,
             lastActivity: activity.created_at,
+            accountUsername: accountUsername
           });
         } else {
           existing.count++;
           if (!existing.lastActivity || new Date(activity.created_at) > new Date(existing.lastActivity)) {
             existing.lastActivity = activity.created_at;
+            // Keep the most recent username for this automation if it fired across multiple
+            if (accountUsername) existing.accountUsername = accountUsername;
           }
         }
       });
@@ -62,6 +77,7 @@ export default function ActivityLog() {
           ...automation,
           activityCount: stats?.count || 0,
           lastActivity: stats?.lastActivity || null,
+          accountUsername: stats?.accountUsername || null,
         };
       }) || [];
 
@@ -150,11 +166,10 @@ export default function ActivityLog() {
                 <button
                   key={automation.id}
                   onClick={() => setSelectedAutomation(automation.id)}
-                  className={`w-full p-4 flex items-center gap-4 hover:bg-gradient-to-r hover:from-green-50 hover:to-transparent transition-all text-left group ${
-                    selectedAutomation === automation.id
-                      ? 'bg-gradient-to-r from-green-50 via-emerald-50 to-transparent border-l-4 border-green-600 shadow-sm'
-                      : 'border-l-4 border-transparent'
-                  }`}
+                  className={`w-full p-4 flex items-center gap-4 hover:bg-gradient-to-r hover:from-green-50 hover:to-transparent transition-all text-left group ${selectedAutomation === automation.id
+                    ? 'bg-gradient-to-r from-green-50 via-emerald-50 to-transparent border-l-4 border-green-600 shadow-sm'
+                    : 'border-l-4 border-transparent'
+                    }`}
                 >
                   <div className={`w-14 h-14 rounded-xl ${automation.is_active ? 'bg-gradient-to-br from-green-400 to-emerald-500' : 'bg-gray-200'} flex items-center justify-center flex-shrink-0 shadow-lg group-hover:shadow-xl transition-shadow`}>
                     <Zap className={`w-7 h-7 ${automation.is_active ? 'text-white' : 'text-gray-500'}`} />
@@ -166,9 +181,16 @@ export default function ActivityLog() {
                       </p>
                       <span className={`w-2.5 h-2.5 rounded-full ${automation.is_active ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
                     </div>
-                    <p className="text-xs text-gray-600 mb-2 truncate capitalize font-medium">
-                      {automation.trigger_type.replace('_', ' ')}
-                    </p>
+                    <div className="flex items-center gap-2 mb-2">
+                      <p className="text-xs text-gray-600 truncate capitalize font-medium">
+                        {automation.trigger_type.replace('_', ' ')}
+                      </p>
+                      {automation.accountUsername && (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-full truncate">
+                          @{automation.accountUsername}
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-1.5 bg-blue-50 px-2 py-1 rounded-md">
                         <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
