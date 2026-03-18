@@ -435,7 +435,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
               </div>
               <div className="flex-1 pointer-events-none">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-bold text-sm text-gray-900">Follow Gate</span>
+                  <span className="font-bold text-sm text-gray-900">Ask To Follow</span>
                   <span className="bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase">Recommended</span>
                   {!canUseAskToFollow && <span className="bg-purple-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase">Premium</span>}
                 </div>

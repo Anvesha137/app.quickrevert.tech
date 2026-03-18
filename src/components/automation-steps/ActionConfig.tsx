@@ -184,7 +184,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <h3 className="font-bold text-gray-900 text-[14px] md:text-[15px]">Follow Gate</h3>
+                    <h3 className="font-bold text-gray-900 text-[14px] md:text-[15px]">Ask To Follow</h3>
                     <span className="bg-[#10b981] text-white text-[9px] md:text-[10px] font-bold px-1.5 py-0.5 md:px-2 md:py-1 rounded-md uppercase tracking-wider">RECOMMENDED</span>
                     {!canUseAskToFollow && (
                       <span className="bg-purple-600 text-white text-[9px] md:text-[10px] font-bold px-1.5 py-0.5 md:px-2 md:py-1 rounded-md uppercase tracking-wider">PREMIUM</span>
