@@ -294,7 +294,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                   {loadingMedia ? (
                     <div className="flex justify-center p-4"><Loader2 className="w-6 h-6 animate-spin text-purple-500" /></div>
                   ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-[310px] overflow-y-auto pr-1">
                       {posts.map(post => {
                         const specificIds = triggerType === 'post_comment' ? (triggerConfig as PostCommentTriggerConfig)?.specificPosts || [] : (triggerConfig as StoryReplyTriggerConfig)?.specificStories || [];
                         const isSelected = specificIds.includes(post.id);
@@ -341,7 +341,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input type="text" value={keyword} onChange={(e) => setKeyword(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addKeyword(); } }} placeholder="Add a keyword (e.g. LINK)" className="w-full pl-10 pr-3 py-2.5 rounded-xl border-2 border-gray-200 bg-white focus:border-purple-500 text-sm text-gray-800 outline-none font-medium" />
+                  <input type="text" value={keyword} onChange={(e) => setKeyword(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addKeyword(); } }} placeholder="Add a keyword (e.g. LINK)" className="w-full pl-10 pr-3 py-2.5 rounded-xl border-2 border-gray-200 bg-white focus:border-purple-500 text-base text-gray-800 outline-none font-medium" />
                 </div>
                 <button onClick={addKeyword} className="px-4 py-2.5 bg-purple-600 text-white rounded-xl font-bold text-sm shadow-md">Add</button>
               </div>
@@ -406,7 +406,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
               <div className="px-5 py-4 space-y-3">
                 {replyAction.replyTemplates.map((t, i) => (
                   <div key={i} className="flex items-center gap-2">
-                    <input type="text" value={t} onChange={(e) => { const n = [...replyAction.replyTemplates]; n[i] = e.target.value; updateReplyAction({ replyTemplates: n }); }} disabled={readOnly} className="flex-1 border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm bg-gray-50 focus:bg-white transition-all" placeholder="e.g., Check your DMs for the link! 👆" />
+                    <input type="text" value={t} onChange={(e) => { const n = [...replyAction.replyTemplates]; n[i] = e.target.value; updateReplyAction({ replyTemplates: n }); }} disabled={readOnly} className="flex-1 border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-base bg-gray-50 focus:bg-white transition-all" placeholder="e.g., Check your DMs for the link! 👆" />
                     {replyAction.replyTemplates.length > 1 && !readOnly && <button onClick={() => updateReplyAction({ replyTemplates: replyAction.replyTemplates.filter((_, idx) => idx !== i) })} className="text-gray-300 hover:text-red-400 transition-colors"><X size={18} /></button>}
                   </div>
                 ))}
@@ -459,7 +459,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                          onChange={(e) => updateDmAction({ teaserMessage: e.target.value })}
                          disabled={readOnly}
                          rows={2}
-                         className="w-full border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm bg-gray-50 focus:bg-white transition-all resize-none"
+                         className="w-full border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-base bg-gray-50 focus:bg-white transition-all resize-none"
                        />
                        <label className="text-xs font-semibold text-gray-600 block mt-2">Teaser Button Text</label>
                        <input
@@ -468,7 +468,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                          onChange={(e) => updateDmAction({ teaserBtnText: e.target.value })}
                          disabled={readOnly}
                          placeholder="e.g. Verify Follow 🔗"
-                         className="w-full border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm bg-gray-50 focus:bg-white transition-all"
+                         className="w-full border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-base bg-gray-50 focus:bg-white transition-all"
                        />
                      </div>
                      <div className="space-y-1.5">
@@ -478,7 +478,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                          onChange={(e) => updateDmAction({ askToFollowMessage: e.target.value })}
                          disabled={readOnly}
                          rows={2}
-                         className="w-full border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm bg-gray-50 focus:bg-white transition-all resize-none"
+                         className="w-full border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-base bg-gray-50 focus:bg-white transition-all resize-none"
                        />
                        <label className="text-xs font-semibold text-gray-600 block mt-2">Verification Button Text</label>
                        <input
@@ -487,7 +487,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                          onChange={(e) => updateDmAction({ askToFollowBtnText: e.target.value })}
                          disabled={readOnly}
                          placeholder="e.g. I've Followed! ✅"
-                         className="w-full border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm bg-gray-50 focus:bg-white transition-all"
+                         className="w-full border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-base bg-gray-50 focus:bg-white transition-all"
                        />
                      </div>
                   </div>
@@ -533,7 +533,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                     disabled={readOnly}
                     rows={4}
                     placeholder="Hey! Thanks for your comment so much. Here is the link you asked for..."
-                    className="w-full border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-3 outline-none text-gray-900 font-medium text-sm bg-gray-50 focus:bg-white transition-all resize-none"
+                    className="w-full border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-3 outline-none text-gray-900 font-medium text-base bg-gray-50 focus:bg-white transition-all resize-none"
                   />
                   <p className="text-right text-[11px] text-gray-400 font-bold">{(dmAction?.title || '').length}/640</p>
                 </div>
@@ -559,8 +559,8 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                           <span className="text-[10px] font-bold text-gray-500">Button {i + 1}</span>
                           {!readOnly && <button onClick={() => updateDmAction({ actionButtons: dmAction.actionButtons.filter((_, idx) => idx !== i) })} className="text-gray-400 hover:text-red-500"><X size={14} /></button>}
                         </div>
-                        <input type="text" placeholder="Button Text" value={btn.text} onChange={(e) => { const btns = [...dmAction.actionButtons]; btns[i].text = e.target.value; updateDmAction({ actionButtons: btns }); }} className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-lg px-3 py-1.5 outline-none text-gray-900 font-medium text-[13px]" />
-                        <input type="url" placeholder="URL Link" value={btn.url} onChange={(e) => { const btns = [...dmAction.actionButtons]; btns[i].url = e.target.value; updateDmAction({ actionButtons: btns }); }} className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-lg px-3 py-1.5 outline-none text-gray-900 font-medium text-[13px]" />
+                        <input type="text" placeholder="Button Text" value={btn.text} onChange={(e) => { const btns = [...dmAction.actionButtons]; btns[i].text = e.target.value; updateDmAction({ actionButtons: btns }); }} className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-lg px-3 py-1.5 outline-none text-gray-900 font-medium text-base" />
+                        <input type="url" placeholder="URL Link" value={btn.url} onChange={(e) => { const btns = [...dmAction.actionButtons]; btns[i].url = e.target.value; updateDmAction({ actionButtons: btns }); }} className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-lg px-3 py-1.5 outline-none text-gray-900 font-medium text-base" />
                       </div>
                     ))}
                   </div>

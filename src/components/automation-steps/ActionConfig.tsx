@@ -153,7 +153,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                               updateReplyAction({ replyTemplates: newT });
                             }}
                             disabled={readOnly}
-                            className={`w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-semibold text-sm transition-all ${readOnly ? 'opacity-70 bg-gray-50 cursor-not-allowed' : ''}`}
+                            className={`w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-semibold text-base transition-all ${readOnly ? 'opacity-70 bg-gray-50 cursor-not-allowed' : ''}`}
                             placeholder="e.g. Check your DMs for the link!"
                           />
                           {replyAction.replyTemplates.length > 1 && !readOnly && (
@@ -278,7 +278,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                          disabled={readOnly}
                          rows={4}
                          placeholder="Hey! Thanks for your comment so much. Here is the link you asked for..."
-                         className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm transition-all"
+                         className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-base transition-all"
                        />
                        <p className="text-right text-[10px] text-gray-400 font-bold">{(dmAction?.title || '').length} / 640</p>
                     </div>
@@ -291,7 +291,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                          onChange={(e) => updateDmAction({ imageUrl: e.target.value })}
                          disabled={readOnly}
                          placeholder="https://yourapp.com/image.jpg"
-                         className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm transition-all"
+                         className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-base transition-all"
                        />
                     </div>
 
@@ -316,7 +316,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                                  updateDmAction({ actionButtons: btns });
                               }}
                               disabled={readOnly}
-                              className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-lg px-3 py-1.5 outline-none text-gray-900 font-medium text-[13px] transition-all"
+                              className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-lg px-3 py-1.5 outline-none text-gray-900 font-medium text-base transition-all"
                             />
                             <input
                               type="url"
@@ -328,7 +328,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                                  updateDmAction({ actionButtons: btns });
                               }}
                               disabled={readOnly}
-                              className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-lg px-3 py-1.5 outline-none text-gray-900 font-medium text-[13px] transition-all"
+                              className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-lg px-3 py-1.5 outline-none text-gray-900 font-medium text-base transition-all"
                             />
                          </div>
                        ))}

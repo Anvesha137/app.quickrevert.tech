@@ -193,7 +193,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
         {loadingMedia ? (
           <div className="flex justify-center p-4"><Loader2 className="w-6 h-6 animate-spin text-purple-500" /></div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-[310px] overflow-y-auto pr-1">
             {posts.map((post) => {
               const isSelected = specificIds.includes(post.id);
               return (
@@ -235,7 +235,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addKeyword(); } }}
               placeholder="Add a keyword (e.g. LINK)"
               disabled={readOnly}
-              className="w-full pl-10 pr-3 py-2.5 rounded-xl border-2 border-gray-200 bg-white focus:border-purple-500 text-sm text-gray-800 transition-all placeholder:text-gray-400 outline-none font-medium"
+              className="w-full pl-10 pr-3 py-2.5 rounded-xl border-2 border-gray-200 bg-white focus:border-purple-500 text-base text-gray-800 transition-all placeholder:text-gray-400 outline-none font-medium"
             />
           </div>
           <button
