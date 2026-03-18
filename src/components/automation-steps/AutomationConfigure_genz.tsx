@@ -14,6 +14,8 @@ import { motion, AnimatePresence } from 'motion/react';
 
 const DEFAULT_TEASER_MESSAGE = "Hey there! I'm so happy you're here... Click below and I'll send you the link in just a sec ✨";
 const DEFAULT_NOT_FOLLOWING_MESSAGE = "Oops! Looks like you haven't followed me yet 👀...";
+const DEFAULT_TEASER_BTN_TEXT = "Verify Follow 🔗";
+const DEFAULT_VERIFY_BTN_TEXT = "I've Followed! ✅";
 
 interface InstagramMedia {
   id: string;
@@ -204,13 +206,13 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
     if (readOnly) return;
     if (!canUseAskToFollow) { openModal(); return; }
     if (!hasDm) {
-      updateActions([...actions, { type: 'send_dm', title: '', imageUrl: '', subtitle: 'Powered By Quickrevert.tech', messageTemplate: '', actionButtons: [], askToFollow: true, teaserMessage: DEFAULT_TEASER_MESSAGE, askToFollowMessage: DEFAULT_NOT_FOLLOWING_MESSAGE } as SendDmAction]);
+      updateActions([...actions, { type: 'send_dm', title: '', imageUrl: '', subtitle: 'Powered By Quickrevert.tech', messageTemplate: '', actionButtons: [], askToFollow: true, teaserMessage: DEFAULT_TEASER_MESSAGE, askToFollowMessage: DEFAULT_NOT_FOLLOWING_MESSAGE, teaserBtnText: DEFAULT_TEASER_BTN_TEXT, askToFollowBtnText: DEFAULT_VERIFY_BTN_TEXT } as SendDmAction]);
       return;
     }
     const newActions = [...actions];
     const idx = newActions.findIndex(a => a.type === 'send_dm');
     if (idx >= 0) {
-      newActions[idx] = { ...newActions[idx], askToFollow: !hasFollowGate, teaserMessage: !hasFollowGate ? DEFAULT_TEASER_MESSAGE : '', askToFollowMessage: !hasFollowGate ? DEFAULT_NOT_FOLLOWING_MESSAGE : '' } as SendDmAction;
+      newActions[idx] = { ...newActions[idx], askToFollow: !hasFollowGate, teaserMessage: !hasFollowGate ? DEFAULT_TEASER_MESSAGE : '', askToFollowMessage: !hasFollowGate ? DEFAULT_NOT_FOLLOWING_MESSAGE : '', teaserBtnText: !hasFollowGate ? DEFAULT_TEASER_BTN_TEXT : '', askToFollowBtnText: !hasFollowGate ? DEFAULT_VERIFY_BTN_TEXT : '' } as SendDmAction;
       updateActions(newActions);
     }
   };
@@ -459,6 +461,15 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                          rows={2}
                          className="w-full border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm bg-gray-50 focus:bg-white transition-all resize-none"
                        />
+                       <label className="text-xs font-semibold text-gray-600 block mt-2">Teaser Button Text</label>
+                       <input
+                         type="text"
+                         value={dmAction?.teaserBtnText || ''}
+                         onChange={(e) => updateDmAction({ teaserBtnText: e.target.value })}
+                         disabled={readOnly}
+                         placeholder="e.g. Verify Follow 🔗"
+                         className="w-full border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm bg-gray-50 focus:bg-white transition-all"
+                       />
                      </div>
                      <div className="space-y-1.5">
                        <label className="text-xs font-semibold text-gray-600">Verification Failed (Not Following)</label>
@@ -468,6 +479,15 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                          disabled={readOnly}
                          rows={2}
                          className="w-full border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm bg-gray-50 focus:bg-white transition-all resize-none"
+                       />
+                       <label className="text-xs font-semibold text-gray-600 block mt-2">Verification Button Text</label>
+                       <input
+                         type="text"
+                         value={dmAction?.askToFollowBtnText || ''}
+                         onChange={(e) => updateDmAction({ askToFollowBtnText: e.target.value })}
+                         disabled={readOnly}
+                         placeholder="e.g. I've Followed! ✅"
+                         className="w-full border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm bg-gray-50 focus:bg-white transition-all"
                        />
                      </div>
                   </div>

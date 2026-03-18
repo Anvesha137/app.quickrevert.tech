@@ -16,6 +16,8 @@ interface ActionConfigProps {
 
 const DEFAULT_TEASER_MESSAGE = "Hey there! I'm so happy you're here... Click below and I'll send you the link in just a sec ✨";
 const DEFAULT_NOT_FOLLOWING_MESSAGE = "Oops! Looks like you haven't followed me yet 👀...";
+const DEFAULT_TEASER_BTN_TEXT = "Verify Follow 🔗";
+const DEFAULT_VERIFY_BTN_TEXT = "I've Followed! ✅";
 
 export default function ActionConfig({ triggerType, actions, onActionsChange, onSave, saving, readOnly }: ActionConfigProps) {
   const { canUseAskToFollow } = useSubscription();
@@ -66,11 +68,12 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
        // if DM is off, toggle it ON first and add follow gate
        onActionsChange([...actions, {
          type: 'send_dm', title: '', imageUrl: '', subtitle: 'Powered By Quickrevert.tech', messageTemplate: '', actionButtons: [], askToFollow: true,
-         teaserMessage: DEFAULT_TEASER_MESSAGE, askToFollowMessage: DEFAULT_NOT_FOLLOWING_MESSAGE
+         teaserMessage: DEFAULT_TEASER_MESSAGE, askToFollowMessage: DEFAULT_NOT_FOLLOWING_MESSAGE,
+         teaserBtnText: DEFAULT_TEASER_BTN_TEXT, askToFollowBtnText: DEFAULT_VERIFY_BTN_TEXT
        } as SendDmAction]);
        return;
     }
-    updateDmAction({ askToFollow: !hasFollowGate, teaserMessage: !hasFollowGate ? DEFAULT_TEASER_MESSAGE : '', askToFollowMessage: !hasFollowGate ? DEFAULT_NOT_FOLLOWING_MESSAGE : '' });
+    updateDmAction({ askToFollow: !hasFollowGate, teaserMessage: !hasFollowGate ? DEFAULT_TEASER_MESSAGE : '', askToFollowMessage: !hasFollowGate ? DEFAULT_NOT_FOLLOWING_MESSAGE : '', teaserBtnText: !hasFollowGate ? DEFAULT_TEASER_BTN_TEXT : '', askToFollowBtnText: !hasFollowGate ? DEFAULT_VERIFY_BTN_TEXT : '' });
   };
 
   const updateDmAction = (updates: Partial<SendDmAction>) => {
@@ -208,6 +211,15 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                            onChange={(e) => updateDmAction({ teaserMessage: e.target.value })}
                            disabled={readOnly}
                            rows={2}
+                           className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm transition-all resize-none"
+                         />
+                         <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide block mt-2">Teaser Button Text</label>
+                         <input
+                           type="text"
+                           value={dmAction?.teaserBtnText || ''}
+                           onChange={(e) => updateDmAction({ teaserBtnText: e.target.value })}
+                           disabled={readOnly}
+                           placeholder="e.g. Verify Follow 🔗"
                            className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm transition-all"
                          />
                        </div>
@@ -218,6 +230,15 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                            onChange={(e) => updateDmAction({ askToFollowMessage: e.target.value })}
                            disabled={readOnly}
                            rows={2}
+                           className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm transition-all resize-none"
+                         />
+                         <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide block mt-2">Verification Button Text</label>
+                         <input
+                           type="text"
+                           value={dmAction?.askToFollowBtnText || ''}
+                           onChange={(e) => updateDmAction({ askToFollowBtnText: e.target.value })}
+                           disabled={readOnly}
+                           placeholder="e.g. I've Followed! ✅"
                            className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm transition-all"
                          />
                        </div>
