@@ -75,7 +75,7 @@ Deno.serve(async (req: Request) => {
     console.log('\n🔍 STEP 2: Fetching user profile...');
     try {
       const apiVersion = 'v21.0';
-      const userProfileUrl = `https://graph.facebook.com/${apiVersion}/${eventData.from.id}?fields=name,profile_pic,is_user_follow_business&access_token=${instagramAccount.access_token}`;
+      const userProfileUrl = `https://graph.facebook.com/${apiVersion}/${eventData.from.id}?fields=name,username,profile_pic,is_user_follow_business&access_token=${instagramAccount.access_token}`;
       const userProfileRes = await fetch(userProfileUrl);
       if (userProfileRes.ok) {
         const userProfile = await userProfileRes.json();

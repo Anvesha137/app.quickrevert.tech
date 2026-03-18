@@ -476,7 +476,7 @@ async function fetchInstagramProfile(senderId: string, accessToken: string) {
     try {
         // Use graph.instagram.com for Instagram Business IDs (Messaging PSIDs)
         // Fields for Instagram Messaging: name, profile_pic
-        const url = `https://graph.instagram.com/v21.0/${senderId}?fields=name,profile_pic&access_token=${accessToken}`;
+        const url = `https://graph.instagram.com/v21.0/${senderId}?fields=name,username,profile_pic&access_token=${accessToken}`;
         const res = await fetch(url);
         if (res.ok) {
             const data = await res.json();

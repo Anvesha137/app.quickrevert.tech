@@ -15,7 +15,6 @@ interface Contact {
   instagram_user_id?: string;
   username: string;
   full_name: string | null;
-  follows_us: boolean;
   interacted_automations: string[];
   interaction_count: number;
   last_interaction_at: string;
@@ -152,19 +151,26 @@ export default function Contacts() {
   }
 
   const processAndSetContacts = (data: any[], igUsernames: string[]) => {
-    const validContacts = (data || [])
-      .filter(c => {
-        const normalized = c.username?.toLowerCase().trim();
-        return !igUsernames.includes(normalized);
-      })
+    if (!data) {
+      setContacts([]);
+      return;
+    }
+    
+    const validContacts = data
       .map(c => {
         const hasValidUsername = c.username && c.username !== 'Unknown' && c.username !== 'UnknownError' && !c.username.includes('undefined') && !c.username.includes('null');
         return {
           ...c,
-          username: hasValidUsername ? c.username : `IG:${c.instagram_user_id?.substring(0, 8)}`,
-          full_name: c.full_name || (hasValidUsername ? c.username : `User ${c.instagram_user_id?.substring(0, 4)}`)
+          username: hasValidUsername ? c.username : `IG:${c.instagram_user_id?.substring(0, 8) || 'User'}`,
+          full_name: c.full_name || (hasValidUsername ? c.username : `User ${c.instagram_user_id?.substring(0, 4) || ''}`)
         };
+      })
+      .filter(c => {
+        // Only filter out IF it's exactly the same as a connected account
+        const normalized = c.username?.toLowerCase().trim();
+        return !igUsernames.includes(normalized);
       });
+      
     setContacts(validContacts);
   };
 
@@ -368,7 +374,6 @@ export default function Contacts() {
               <thead>
                 <tr className="bg-white/40 border-b border-white/20">
                   <th className="px-6 py-5 text-xs font-bold text-gray-500 uppercase tracking-widest">User Details</th>
-                  <th className="px-6 py-5 text-xs font-bold text-gray-500 uppercase tracking-widest">Follow Status</th>
                   <th className="px-6 py-5 text-xs font-bold text-gray-500 uppercase tracking-widest">Automations</th>
                   <th className="px-6 py-5 text-xs font-bold text-gray-500 uppercase tracking-widest text-center">Interactions</th>
                   <th className="px-6 py-5 text-xs font-bold text-gray-500 uppercase tracking-widest">Last Active</th>
@@ -377,7 +382,7 @@ export default function Contacts() {
               <tbody className="divide-y divide-white/20">
                 {filteredContacts.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-20 text-center">
+                    <td colSpan={4} className="px-6 py-20 text-center">
                       <div className="flex flex-col items-center justify-center">
                         <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mb-4 shadow-inner">
                           <User className="w-8 h-8" />
@@ -435,19 +440,6 @@ export default function Contacts() {
                             })()}
                           </div>
                         </div>
-                      </td>
-                      <td className="px-6 py-5">
-                        {contact.follows_us ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-green-500/10 text-green-700 text-[10px] font-bold uppercase tracking-wider border border-green-200">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            Follows you
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-wider border border-slate-200">
-                            <XCircle className="w-3.5 h-3.5" />
-                            Not following
-                          </span>
-                        )}
                       </td>
                       <td className="px-6 py-5">
                         {(function () {
