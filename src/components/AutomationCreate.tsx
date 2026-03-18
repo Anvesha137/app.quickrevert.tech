@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Check, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from "motion/react";
@@ -47,7 +47,12 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
   const { id } = useParams<{ id: string }>();
   // For view mode, show configuration directly if loaded, or just stick to 'setup' -> 'configuration' flow but pre-filled?
   // Better to just show steps as usual but disabled.
-  const [currentStep, setCurrentStep] = useState<Step>('setup');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentStep = (searchParams.get('step') || 'setup') as Step;
+
+  const setCurrentStep = (newStep: Step) => {
+    setSearchParams({ step: newStep });
+  };
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState<AutomationFormData>({
     name: '',
@@ -403,7 +408,7 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
                             toast.error('Please select a trigger.');
                           }
                         }}
-                        onBack={() => navigate('/automation')}
+                        onBack={() => navigate(-1)}
                         isCondensed={true}
                         readOnly={readOnly}
                       />
@@ -419,7 +424,7 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
                     saving={saving}
                     readOnly={readOnly}
                     onBack={() => {
-                      setCurrentStep('setup');
+                      navigate(-1);
                       window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
                   />

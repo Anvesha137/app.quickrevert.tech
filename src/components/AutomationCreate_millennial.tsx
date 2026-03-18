@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   ArrowLeft, Check, Zap, MessageSquare, Image as ImageIcon, Mail, Pencil
@@ -52,7 +52,13 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
 
-  const [step, setStep] = useState<WizardStep>(0);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const stepParam = searchParams.get('step');
+  const step = (stepParam && !isNaN(parseInt(stepParam)) ? parseInt(stepParam) : 0) as WizardStep;
+
+  const setStep = (newStep: WizardStep) => {
+    setSearchParams({ step: newStep.toString() });
+  };
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState<AutomationFormData>({
     name: '',
@@ -219,7 +225,7 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
         
         {/* Fixed Header */}
         <div className="flex items-center gap-2 p-4 md:px-8 md:py-6 bg-white/90 backdrop-blur-xl sticky top-0 z-20 border-b border-gray-100 w-full">
-          <button onClick={() => { if (step > 0) setStep((step - 1) as WizardStep); else navigate('/automation'); }} className="p-2 md:p-3 bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-900 rounded-2xl transition-all">
+          <button onClick={() => { if (step > 0) navigate(-1); else navigate('/automation'); }} className="p-2 md:p-3 bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-900 rounded-2xl transition-all">
             <ArrowLeft className="w-5 h-5 md:w-6 md:h-6" strokeWidth={2.5} />
           </button>
           
