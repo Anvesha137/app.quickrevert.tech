@@ -16,6 +16,7 @@ const InstagramConnectModal = ({ isOpen, onClose }: Omit<InstagramConnectModalPr
   // Or just empty if only signOut was there
   const { } = useAuth();
   const [oauthUrl, setOauthUrl] = useState<string>('');
+  const [directRedirectUrl, setDirectRedirectUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showTerms, setShowTerms] = useState(false);
@@ -65,6 +66,7 @@ const InstagramConnectModal = ({ isOpen, onClose }: Omit<InstagramConnectModalPr
         }
 
         setOauthUrl(result.authUrl);
+        setDirectRedirectUrl(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/instagram-oauth-init?redirect=true&token=${session.access_token}`);
       } catch (err: any) {
         console.error('Error fetching OAuth URL:', err);
         setError(err.message || 'Failed to initialize connection');
@@ -79,11 +81,16 @@ const InstagramConnectModal = ({ isOpen, onClose }: Omit<InstagramConnectModalPr
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
 
   const handleConnect = (e: React.MouseEvent) => {
-    if (!oauthUrl || loading) {
+    if (loading || (!oauthUrl && !directRedirectUrl)) {
       e.preventDefault();
       return;
     }
-    // No window.location.href here — we use the <a> tag's default behavior with target="_blank"
+    // We let the default <a> behavior take over if possible, 
+    // but we can also force it for consistency
+    if (directRedirectUrl) {
+      window.location.href = directRedirectUrl;
+      e.preventDefault();
+    }
   };
 
 
@@ -154,12 +161,10 @@ const InstagramConnectModal = ({ isOpen, onClose }: Omit<InstagramConnectModalPr
           )}
 
           <a
-            href={oauthUrl || '#'}
-            target="_blank"
-            rel="noopener noreferrer"
+            href={directRedirectUrl || oauthUrl || '#'}
             onClick={handleConnect}
             className={`w-full bg-gradient-to-r from-orange-500 to-purple-700 text-white font-bold py-4 rounded-2xl shadow-xl shadow-purple-500/20 hover:shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 mb-4 ${
-              loading || !oauthUrl ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''
+              loading || (!oauthUrl && !directRedirectUrl) ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''
             }`}
           >
             {loading ? (

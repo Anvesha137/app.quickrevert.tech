@@ -17,32 +17,37 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const url = new URL(req.url);
+    const redirectParam = url.searchParams.get("redirect") === "true";
+    const tokenParam = url.searchParams.get("token");
     const authHeader = req.headers.get("Authorization");
 
-    if (!authHeader?.startsWith("Bearer ")) {
+    // Support both Header (JSON) and Query Param (Direct Redirect)
+    const jwt = authHeader?.replace("Bearer ", "") || tokenParam;
+
+    if (!jwt) {
       return new Response(JSON.stringify({ error: "Unauthorized", details: "Missing authorization token" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const jwt = authHeader.replace("Bearer ", "");
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const { data, error } = await supabase.auth.getUser(jwt);
+    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
 
-    if (error || !data?.user) {
-      return new Response(JSON.stringify({ error: "Authentication failed", details: error?.message || "Invalid token" }), {
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "Authentication failed", details: authError?.message || "Invalid token" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const stateData = JSON.stringify({
-      user_id: data.user.id,
+      user_id: user.id,
       nonce: crypto.randomUUID(),
     });
     const encoder = new TextEncoder();
@@ -52,7 +57,8 @@ Deno.serve(async (req) => {
       .replace(/\//g, '_')
       .replace(/=/g, '');
 
-    const authUrl = new URL("https://www.instagram.com/oauth/authorize");
+    // Using api.instagram.com instead of www.instagram.com to bypass iOS Universal Links
+    const authUrl = new URL("https://api.instagram.com/oauth/authorize");
     authUrl.searchParams.set("client_id", INSTAGRAM_CLIENT_ID);
     authUrl.searchParams.set("redirect_uri", INSTAGRAM_REDIRECT_URI);
     authUrl.searchParams.set("response_type", "code");
@@ -63,8 +69,13 @@ Deno.serve(async (req) => {
         "instagram_business_basic",
         "instagram_business_manage_messages",
         "instagram_business_manage_comments",
-      ].join(" ")  // FIXED: IG Business Login expects space-separated scopes
+      ].join(" ")
     );
+
+    if (redirectParam) {
+      // 302 Redirect is the "Gold Standard" for bypassing App interception on iOS
+      return Response.redirect(authUrl.toString(), 302);
+    }
 
     return new Response(JSON.stringify({ authUrl: authUrl.toString() }), {
       status: 200,
