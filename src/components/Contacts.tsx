@@ -169,21 +169,33 @@ export default function Contacts() {
   };
 
   async function manualSync() {
-    setIsSyncing(true);
-    await syncHistoricalContactsInternal(ownUsernames);
-    
-    // Refresh fully
-    const { data: refreshedData } = await supabase
-      .from('contacts')
-      .select('*')
-      .eq('user_id', user!.id)
-      .order('last_interaction_at', { ascending: false });
+    try {
+      setIsSyncing(true);
+      
+      const { data, error } = await supabase.functions.invoke('sync-contacts-data');
+      
+      if (error) throw error;
+      
+      console.log('Sync result:', data);
+      
+      // Re-fetch contacts after sync
+      const { data: refreshedData } = await supabase
+        .from('contacts')
+        .select('*')
+        .eq('user_id', user!.id)
+        .order('last_interaction_at', { ascending: false });
 
-    if (refreshedData) {
-      processAndSetContacts(refreshedData, ownUsernames);
-      await fetchActivitiesAndBuildNames();
+      if (refreshedData) {
+        processAndSetContacts(refreshedData, ownUsernames);
+        await fetchActivitiesAndBuildNames();
+      }
+    } catch (err) {
+      console.error('Manual sync failed:', err);
+      // Fallback to local sync if edge function fails
+      await syncHistoricalContactsInternal(ownUsernames);
+    } finally {
+      setIsSyncing(false);
     }
-    setIsSyncing(false);
   }
 
   async function syncHistoricalContactsInternal(igUsernames: string[]) {

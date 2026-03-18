@@ -260,11 +260,11 @@ async function processEvent(body: any) {
                 let profilePic: string | null = null;
                 let primaryActivityId: string | null = null;
 
-                // Try to fetch profile using the FIRST available token
+                let profile: any = null;
                 const primaryAccount = accountsData?.[0];
                 if (primaryAccount && targetUserId) {
                     // console.log(`Fetching profile for ${targetUserId} (isEcho: ${isEcho})`);
-                    const profile = await fetchInstagramProfile(targetUserId, primaryAccount.access_token);
+                    profile = await fetchInstagramProfile(targetUserId, primaryAccount.access_token);
 
                     if (profile) {
                         resolvedUsername = profile.username;
@@ -285,6 +285,7 @@ async function processEvent(body: any) {
                             username: resolvedUsername, // Can be null
                             full_name: profileName,
                             avatar_url: profilePic,
+                            follows_us: (profile as any)?.is_user_follow_business || (profile as any)?.is_follower || false,
                             platform: 'instagram'
                         });
                         if (contact) contactIds.push(contact.id);
@@ -408,9 +409,10 @@ async function processEvent(body: any) {
                     let profileName = null;
                     let profilePic = null;
 
+                    let profile: any = null;
                     const primaryAccount = accountsData[0];
                     if (primaryAccount && change.value?.from?.id) {
-                        const profile = await fetchInstagramProfile(change.value.from.id, primaryAccount.access_token);
+                        profile = await fetchInstagramProfile(change.value.from.id, primaryAccount.access_token);
                         if (profile) {
                             resolvedUsername = profile.username || resolvedUsername;
                             profileName = profile.name;
@@ -427,6 +429,7 @@ async function processEvent(body: any) {
                             username: resolvedUsername,
                             full_name: profileName,
                             avatar_url: profilePic,
+                            follows_us: (profile as any)?.is_user_follow_business || false,
                             platform: 'instagram'
                         });
 
@@ -475,8 +478,8 @@ async function processEvent(body: any) {
 async function fetchInstagramProfile(senderId: string, accessToken: string) {
     try {
         // Use graph.instagram.com for Instagram Business IDs (Messaging PSIDs)
-        // Fields for Instagram Messaging: name, profile_pic
-        const url = `https://graph.instagram.com/v21.0/${senderId}?fields=name,profile_pic&access_token=${accessToken}`;
+        // Fields for Instagram Messaging: name, profile_pic, is_follower, is_user_follow_business
+        const url = `https://graph.instagram.com/v21.0/${senderId}?fields=name,profile_pic,is_follower,is_user_follow_business&access_token=${accessToken}`;
         const res = await fetch(url);
         if (res.ok) {
             const data = await res.json();
@@ -506,6 +509,7 @@ async function upsertContact(supabase: any, contact: any) {
                 avatar_url: contact.avatar_url,
                 last_interaction_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
+                follows_us: contact.follows_us || false,
                 platform: contact.platform || 'instagram'
             }, {
                 onConflict: 'user_id, instagram_account_id, instagram_user_id',
