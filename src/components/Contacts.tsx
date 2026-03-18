@@ -29,10 +29,7 @@ export default function Contacts() {
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [ownUsernames, setOwnUsernames] = useState<string[]>([]);
-<<<<<<< HEAD
   const [automationNames, setAutomationNames] = useState<Record<string, string[]>>({});
-=======
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
 
   useEffect(() => {
     if (user) {
@@ -40,21 +37,10 @@ export default function Contacts() {
     }
   }, [user]);
 
-<<<<<<< HEAD
   async function fetchAutomationNamesForActivities(activitiesData: any[]) {
     if (!activitiesData || activitiesData.length === 0) return;
 
     try {
-=======
-  // New state for automation map
-  const [automationNames, setAutomationNames] = useState<Record<string, string[]>>({});
-
-  async function fetchAutomationNames(contactIds: string[]) {
-    if (contactIds.length === 0) return;
-
-    try {
-      // 1. Get all automations to create ID -> Name map
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
       const { data: automations } = await supabase
         .from('automations')
         .select('id, name')
@@ -63,41 +49,17 @@ export default function Contacts() {
       const autoMap = new Map<string, string>();
       automations?.forEach(a => autoMap.set(a.id, a.name));
 
-<<<<<<< HEAD
       const contactAutomations: Record<string, string[]> = {};
 
       activitiesData.forEach(act => {
         const username = act.target_username;
         const psid = (act.metadata as any)?.raw_id || (act.metadata as any)?.sender_id || (act.metadata as any)?.from?.id;
 
-=======
-      // 2. Get activities for these contacts
-      const { data: activities } = await supabase
-        .from('automation_activities')
-        .select('target_username, automation_id, metadata')
-        .eq('user_id', user!.id)
-        .order('created_at', { ascending: false })
-        .limit(2000);
-
-      if (!activities) return;
-
-      const contactAutomations: Record<string, string[]> = {};
-
-      activities.forEach(act => {
-        const username = act.target_username;
-        const psid = (act.metadata as any)?.raw_id || (act.metadata as any)?.sender_id || (act.metadata as any)?.from?.id;
-
-        // Normalize
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
         const normalizedUser = username?.toLowerCase().replace('@', '').trim();
         const contactKey = psid ? String(psid) : normalizedUser;
 
         if (!contactKey) return;
 
-<<<<<<< HEAD
-=======
-        // Find automation name
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
         const autoId = act.automation_id || (act.metadata as any)?.automation_id || (act.metadata as any)?.automationId || (act.metadata as any)?.AutomationId;
         const name = autoId ? autoMap.get(autoId) : null;
 
@@ -112,10 +74,6 @@ export default function Contacts() {
       });
 
       setAutomationNames(contactAutomations);
-<<<<<<< HEAD
-=======
-
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
     } catch (e) {
       console.error("Error fetching automation details", e);
     }
@@ -127,7 +85,6 @@ export default function Contacts() {
     try {
       setLoading(true);
 
-<<<<<<< HEAD
       // Parallelize accounts and contacts fetch
       const [igAccountsResult, contactsResult] = await Promise.all([
         supabase
@@ -153,69 +110,22 @@ export default function Contacts() {
         await syncHistoricalContactsInternal(connectedUsernames);
         
         // Re-fetch after initial sync
-=======
-      // Fetch connected Instagram account usernames to exclude from contacts
-      const { data: igAccounts } = await supabase
-        .from('instagram_accounts')
-        .select('username')
-        .eq('user_id', user.id)
-        .eq('status', 'active');
-      const connectedUsernames = (igAccounts || []).map(a => a.username?.toLowerCase().trim()).filter(Boolean);
-      setOwnUsernames(connectedUsernames);
-
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('last_interaction_at', { ascending: false });
-
-      if (error) throw error;
-
-      if (!data || data.length === 0) {
-        await syncHistoricalContacts();
-        // Re-fetch...
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
         const { data: syncedData } = await supabase
           .from('contacts')
           .select('*')
           .eq('user_id', user.id)
           .order('last_interaction_at', { ascending: false });
 
-<<<<<<< HEAD
         if (syncedData && syncedData.length > 0) {
           processAndSetContacts(syncedData, connectedUsernames);
           // Only fetch activities once for automation names
           await fetchActivitiesAndBuildNames();
-=======
-        if (syncedData) {
-          processAndSetContacts(syncedData);
-          fetchAutomationNames(syncedData.map(c => c.id));
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
         } else {
           setContacts([]);
         }
       } else {
-<<<<<<< HEAD
         processAndSetContacts(initialContacts, connectedUsernames);
         await fetchActivitiesAndBuildNames();
-=======
-        processAndSetContacts(data);
-        fetchAutomationNames(data.map(c => c.id));
-
-        // Background sync to update interaction counts + backfill
-        syncHistoricalContacts().then(async () => {
-          // Optional: Refetch after sync to show updated counts immediately
-          const { data: refreshed } = await supabase
-            .from('contacts')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('last_interaction_at', { ascending: false });
-          if (refreshed) {
-            processAndSetContacts(refreshed);
-            fetchAutomationNames(refreshed.map(c => c.id));
-          }
-        });
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
       }
     } catch (error) {
       console.error('Error fetching contacts:', error);
@@ -223,7 +133,6 @@ export default function Contacts() {
       setLoading(false);
     }
   }
-<<<<<<< HEAD
 
   async function fetchActivitiesAndBuildNames() {
     try {
@@ -247,14 +156,6 @@ export default function Contacts() {
       .filter(c => {
         const normalized = c.username?.toLowerCase().trim();
         return !igUsernames.includes(normalized);
-=======
-  const processAndSetContacts = (data: any[]) => {
-    const validContacts = (data || [])
-      .filter(c => {
-        // Exclude connected Instagram account(s)
-        const normalized = c.username?.toLowerCase().trim();
-        return !ownUsernames.includes(normalized);
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
       })
       .map(c => {
         const hasValidUsername = c.username && c.username !== 'Unknown' && c.username !== 'UnknownError' && !c.username.includes('undefined') && !c.username.includes('null');
@@ -267,7 +168,6 @@ export default function Contacts() {
     setContacts(validContacts);
   };
 
-<<<<<<< HEAD
   async function manualSync() {
     setIsSyncing(true);
     await syncHistoricalContactsInternal(ownUsernames);
@@ -288,21 +188,6 @@ export default function Contacts() {
 
   async function syncHistoricalContactsInternal(igUsernames: string[]) {
     try {
-=======
-  async function syncHistoricalContacts() {
-    try {
-      setIsSyncing(true);
-      // Fetch automations to map IDs to names
-      const { data: automations } = await supabase
-        .from('automations')
-        .select('id, name')
-        .eq('user_id', user!.id);
-
-      const automationMap = new Map();
-      automations?.forEach(a => automationMap.set(a.id, a.name));
-
-      // Fetch unique identities from activities
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
       const { data: activities } = await supabase
         .from('automation_activities')
         .select('*')
@@ -312,10 +197,6 @@ export default function Contacts() {
 
       if (!activities || activities.length === 0) return;
 
-<<<<<<< HEAD
-=======
-      // Pass 1: Build Username -> PSID map
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
       const usernameToIdMap = new Map<string, string>();
       activities.forEach(act => {
         const psid = act.metadata?.raw_id || act.metadata?.sender_id || act.metadata?.from?.id;
@@ -326,10 +207,6 @@ export default function Contacts() {
         }
       });
 
-<<<<<<< HEAD
-=======
-      // Fetch existing contacts to preserve N8n database updates
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
       const { data: existingContacts } = await supabase
         .from('contacts')
         .select('*')
@@ -347,33 +224,17 @@ export default function Contacts() {
         let psid = act.metadata?.raw_id || act.metadata?.sender_id || act.metadata?.from?.id;
         const username = act.target_username;
 
-<<<<<<< HEAD
         const normalize = (u: string) => u?.toLowerCase().replace('@', '').trim();
         const normalizedTarget = normalize(username);
 
-=======
-        // Normalize username for matching
-        const normalize = (u: string) => u?.toLowerCase().replace('@', '').trim();
-        const normalizedTarget = normalize(username);
-
-        // Try to backfill PSID if missing
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
         if (!psid && username) {
           psid = usernameToIdMap.get(normalizedTarget);
         }
 
-<<<<<<< HEAD
-=======
-        // Build a unique key per contact per instagram account
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
         const key = `${act.instagram_account_id}-${psid || normalizedTarget}`;
         const current = uniqueContactsMap.get(key);
         const existingDbContact = dbContactsMap.get(key);
 
-<<<<<<< HEAD
-=======
-        // Preserve valid usernames fetched by N8n or existing in DB
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
         const isDbValidUser = existingDbContact?.username && existingDbContact.username !== 'Instagram User' && existingDbContact.username !== 'Unknown' && !existingDbContact.username.includes('IG:');
         const isCurrentValidUser = current?.username && current.username !== 'Instagram User' && current.username !== 'Unknown' && !current.username.includes('IG:');
         const isActValidUser = username && username !== 'Instagram User' && username !== 'Unknown' && !username.includes('IG:');
@@ -396,11 +257,7 @@ export default function Contacts() {
 
         if (!current || new Date(act.created_at) > new Date(current.last_interaction_at)) {
           uniqueContactsMap.set(key, {
-<<<<<<< HEAD
             ...existingDbContact,
-=======
-            ...existingDbContact, // Preserve DB internal fields like id, created_at if it exists
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
             ...current,
             user_id: user!.id,
             instagram_account_id: act.instagram_account_id,
@@ -424,10 +281,6 @@ export default function Contacts() {
         }
       });
 
-<<<<<<< HEAD
-=======
-
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
       const contactsToInsert = Array.from(uniqueContactsMap.values());
       if (contactsToInsert.length > 0) {
         await supabase.from('contacts').upsert(contactsToInsert, {
@@ -436,11 +289,6 @@ export default function Contacts() {
       }
     } catch (err) {
       console.error('Sync failed:', err);
-<<<<<<< HEAD
-=======
-    } finally {
-      setIsSyncing(false);
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
     }
   }
 
@@ -473,10 +321,6 @@ export default function Contacts() {
 
   return (
     <div className="flex-1 relative min-h-screen overflow-x-hidden">
-<<<<<<< HEAD
-=======
-      {/* Animated Background Blobs */}
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
       <div className="fixed inset-0 -z-10 bg-[#f8fafc]">
         <div className="absolute top-0 -left-4 w-96 h-96 bg-blue-400/10 rounded-full mix-blend-multiply filter blur-3xl animate-blob"></div>
         <div className="absolute top-0 -right-4 w-96 h-96 bg-purple-400/10 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000"></div>
@@ -497,13 +341,7 @@ export default function Contacts() {
 
           <div className="flex items-center gap-4 w-full md:w-auto">
             <button
-<<<<<<< HEAD
               onClick={manualSync}
-=======
-              onClick={() => {
-                syncHistoricalContacts().then(() => fetchContacts());
-              }}
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
               disabled={isSyncing}
               className="flex items-center gap-2 px-6 py-3.5 bg-white/60 backdrop-blur-xl border border-white/40 rounded-2xl text-sm font-bold text-gray-700 hover:bg-white hover:shadow-lg transition-all disabled:opacity-50"
             >

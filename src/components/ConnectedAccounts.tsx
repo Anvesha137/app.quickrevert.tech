@@ -34,16 +34,9 @@ export default function ConnectedAccounts() {
       const usernameText = username ? `@${username}` : 'Your Instagram account';
       setSuccessMessage(`${usernameText} connected successfully! Verifying connection...`);
 
-<<<<<<< HEAD
       setTimeout(() => {
         window.location.href = 'https://app.quickrevert.tech/automation';
       }, 2000);
-=======
-      // Redirect to home page after a short delay to show success message
-      setTimeout(() => {
-        window.location.href = 'https://app.quickrevert.tech/automation';
-      }, 2000); // 2 seconds to show the success message before redirecting
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
 
       setTimeout(async () => {
         await fetchAccounts();
@@ -65,16 +58,10 @@ export default function ConnectedAccounts() {
 
     try {
       setLoading(true);
-<<<<<<< HEAD
       // Select only the fields needed — exclude access_token and other sensitive data
       const { data, error } = await supabase
         .from('instagram_accounts')
         .select('id, instagram_user_id, username, profile_picture_url, status, connected_at, last_synced_at')
-=======
-      const { data, error } = await supabase
-        .from('instagram_accounts')
-        .select('*')
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
         .eq('user_id', user.id)
         .order('connected_at', { ascending: false });
 
@@ -113,11 +100,7 @@ export default function ConnectedAccounts() {
         toast.error(
           <div className="flex flex-col gap-1">
             <span>Deactivate automation ⏸️, refresh your token 🔄, then activate it again ✅</span>
-<<<<<<< HEAD
             <span>Quick reset and you're good to go ✨</span>
-=======
-            <span>Quick reset and you’re good to go ✨</span>
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
           </div>,
           { duration: 5000 }
         );

@@ -73,21 +73,11 @@ verify_jwt = false
 [functions."debug-db"]
 verify_jwt = false
 
-<<<<<<< HEAD
-=======
-[functions."execute-automation"]
-verify_jwt = false
-
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
 [functions."create-analytics-workflow"]
 verify_jwt = false
 [functions.create-razorpay-order]
 enabled = true
 verify_jwt = true
-<<<<<<< HEAD
-=======
-import_map = "./functions/create-razorpay-order/deno.json"
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/create-razorpay-order/index.ts"
@@ -96,11 +86,7 @@ entrypoint = "./functions/create-razorpay-order/index.ts"
 # static_files = [ "./functions/create-razorpay-order/*.html" ]
 
 [functions.verify-razorpay-payment]
-<<<<<<< HEAD
 enabled = false
-=======
-enabled = true
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
 verify_jwt = true
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
@@ -155,7 +141,6 @@ entrypoint = "./functions/sync-all-followers/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/sync-all-followers/*.html" ]
-<<<<<<< HEAD
 
 [functions.sync-neon-user-to-auth]
 enabled = true
@@ -178,5 +163,3 @@ entrypoint = "./functions/get-user-neon-plan/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/get-user-neon-plan/*.html" ]
-=======
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
