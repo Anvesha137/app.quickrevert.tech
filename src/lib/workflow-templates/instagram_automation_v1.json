@@ -1,0 +1,235 @@
+{
+  "name": "Instagram DM Automation Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "instagram-webhook-{{userId}}-{{automationId}}",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Instagram DM Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "{{webhookId}}"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "instagramMessage",
+              "value": "={{ ($requestBody || $input.first().json).message || $json.text || $json.message || '' }}"
+            },
+            {
+              "name": "instagramUserId",
+              "value": "={{ ($requestBody || $input.first().json).sender_id || $json.sender_id || $json.from.id || '' }}"
+            },
+            {
+              "name": "instagramUserName",
+              "value": "={{ ($requestBody || $input.first().json).sender_name || $json.sender_name || $json.from.username || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "extract-message-data",
+      "name": "Extract Message Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "condition-1",
+              "leftValue": "={{ $json.instagramMessage.toLowerCase() }}",
+              "rightValue": "{{triggerKeyword1}}",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {
+          "elseOutput": "noMatch"
+        }
+      },
+      "id": "check-keyword-condition",
+      "name": "Check Keyword Condition",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.instagram.com/v20.0/me/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{instagramAccessToken}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "recipient",
+              "value": "{\"id\": \"{{$json.instagramUserId}}\"}"
+            },
+            {
+              "name": "message",
+              "value": "{\"text\": \"{{replyTemplate1}}\"}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-instagram-reply",
+      "name": "Send Instagram DM Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        900,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{instagramCredentialId}}",
+          "name": "Instagram API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "logs",
+        "fieldsUi": {
+          "valuesContainer": {
+            "values": [
+              {
+                "name": "timestamp",
+                "value": "={{ new Date().toISOString() }}"
+              },
+              {
+                "name": "userId",
+                "value": "={{ $json.userId || '{{userId}}' }}"
+              },
+              {
+                "name": "automationId",
+                "value": "={{ $json.automationId || '{{automationId}}' }}"
+              },
+              {
+                "name": "message",
+                "value": "={{ $json.instagramMessage }}"
+              },
+              {
+                "name": "response",
+                "value": "{{replyTemplate1}}"
+              },
+              {
+                "name": "status",
+                "value": "sent"
+              }
+            ]
+          }
+        }
+      },
+      "id": "log-response",
+      "name": "Log Response",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        200
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "{{supabaseCredentialId}}",
+          "name": "Supabase account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Instagram DM Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Message Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Message Data": {
+      "main": [
+        [
+          {
+            "node": "Check Keyword Condition",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Keyword Condition": {
+      "main": [
+        [
+          {
+            "node": "Send Instagram DM Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Send Instagram DM Reply": {
+      "main": [
+        [
+          {
+            "node": "Log Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "saveManualExecutions": true,
+    "timeZone": "America/New_York"
+  },
+  "tags": []
+}

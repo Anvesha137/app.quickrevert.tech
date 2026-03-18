@@ -1,0 +1,71 @@
+export type TriggerType = 'post_comment' | 'story_reply' | 'user_directed_messages';
+
+export type ActionType = 'reply_to_comment' | 'ask_to_follow' | 'send_dm';
+
+export interface PostCommentTriggerConfig {
+  postsType: 'all' | 'specific';
+  specificPosts?: string[];
+  commentsType: 'all' | 'keywords';
+  keywords?: string[];
+}
+
+export interface StoryReplyTriggerConfig {
+  storiesType: 'all' | 'specific';
+  replyType: 'all' | 'keywords';
+  specificStories?: string[];
+  keywords?: string[];
+}
+
+export interface UserDirectMessageTriggerConfig {
+  messageType: 'all' | 'keywords';
+  keywords?: string[];
+  cooldownEnabled?: boolean;
+  cooldownDuration?: number; // In milliseconds
+}
+
+export type TriggerConfig =
+  | PostCommentTriggerConfig
+  | StoryReplyTriggerConfig
+  | UserDirectMessageTriggerConfig;
+
+export interface ActionButton {
+  id: string;
+  text: string;
+  url?: string;
+  buttonType?: 'web_url' | 'postback';
+}
+
+export interface ReplyToCommentAction {
+  type: 'reply_to_comment';
+  replyTemplates: string[];
+  actionButtons?: ActionButton[];
+}
+
+export interface AskToFollowAction {
+  type: 'ask_to_follow';
+  messageTemplate: string;
+  followButtonText: string;
+}
+
+export interface SendDmAction {
+  type: 'send_dm';
+  title?: string;
+  imageUrl?: string;
+  subtitle?: string; // Also keep messageTemplate for backward compatibility
+  messageTemplate?: string; // Keep for backward compatibility, but subtitle takes precedence
+  actionButtons: ActionButton[];
+  askToFollow?: boolean;
+  askToFollowMessage?: string;
+  askToFollowBtnText?: string;
+  teaserMessage?: string;
+  teaserBtnText?: string;
+}
+
+export type Action = ReplyToCommentAction | AskToFollowAction | SendDmAction;
+
+export interface AutomationFormData {
+  name: string;
+  triggerType: TriggerType | null;
+  triggerConfig: TriggerConfig | null;
+  actions: Action[];
+}
