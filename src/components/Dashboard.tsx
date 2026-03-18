@@ -15,10 +15,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
-<<<<<<< HEAD
 import { useUIStyle } from '../contexts/UIStyleContext';
-=======
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
 import { N8nWorkflowService } from '../lib/n8nService';
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabase';
@@ -40,13 +37,10 @@ interface DashboardStats {
   hasAnalyticsWorkflow: boolean;
 }
 
-<<<<<<< HEAD
 // All DM-type activity_type values for server-side filtering
 const DM_ACTIVITY_TYPES = ['dm', 'send_dm', 'incoming_message', 'incoming_event', 'interaction'];
 const COMMENT_ACTIVITY_TYPES = ['comment', 'reply', 'incoming_comment', 'comment_reply'];
 
-=======
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
 export default function Dashboard() {
   const { user } = useAuth();
   const { displayName } = useTheme();
@@ -65,10 +59,7 @@ export default function Dashboard() {
   const [isRefreshingAnalytics, _setRefreshingAnalytics] = useState(false);
   const [instagramAccount, setInstagramAccount] = useState<any>(null);
   const { isPremium } = useSubscription();
-<<<<<<< HEAD
   const { uiStyle } = useUIStyle();
-=======
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
 
   useEffect(() => {
     if (user) {
@@ -78,7 +69,6 @@ export default function Dashboard() {
 
   const fetchDashboardStats = async () => {
     try {
-<<<<<<< HEAD
       // Run all 5 queries in parallel — zero sequential waterfalls
       const [
         instagramResult,
@@ -148,76 +138,6 @@ export default function Dashboard() {
         initialFollowersCount: instaAccount?.initial_followers_count ?? null,
         followersLastUpdated: instaAccount?.followers_last_updated ?? null,
         hasAnalyticsWorkflow: !!analyticsWorkflowResult.data,
-=======
-      // 0. Check Instagram Connection
-      const { data: instagram } = await supabase
-        .from('instagram_accounts')
-        .select('*')
-        .eq('user_id', user!.id)
-        .limit(1);
-
-      const instaAccount = instagram?.[0];
-      setInstagramAccount(instaAccount);
-
-      const { data: automations, error: automationsError } = await supabase
-        .from('automations')
-        .select('id, status')
-        .eq('user_id', user!.id);
-
-      if (automationsError) throw automationsError;
-
-      // 1. Active Automations
-      const activeAutomationsCount = automations?.filter(a => a.status === 'active').length || 0;
-
-      // 2. Fetch All Activities (Source of Truth)
-      const { data: allActivities, error: activitiesError } = await supabase
-        .from('automation_activities')
-        .select('activity_type, metadata')
-        .eq('user_id', user!.id)
-        .order('created_at', { ascending: false })
-        .limit(1000);
-
-      if (activitiesError) throw activitiesError;
-
-      // 3. Categorization — count all DM activity types (sent + received)
-      // Activity types: 'dm' (inbound via webhook-meta), 'send_dm' (outbound reply),
-      //                 'incoming_message' (inbound via execute-automation), 'interaction' (postback)
-      const DM_TYPES = new Set(['dm', 'send_dm', 'incoming_message', 'incoming_event', 'interaction']);
-      const dmsCount = allActivities?.filter(a => {
-        const type = (a.activity_type || '').toLowerCase();
-        return DM_TYPES.has(type) || type.includes('dm') || type.includes('message');
-      }).length || 0;
-
-      const commentsCount = allActivities?.filter(a => {
-        const type = (a.activity_type || '').toLowerCase();
-        return type.includes('comment') || type.includes('reply');
-      }).length || 0;
-
-      // 4. Unique Users (Source of Truth: Contacts Table)
-      const { count: uniqueUsersCount } = await supabase
-        .from('contacts')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user!.id);
-
-      // Fetch whether analytics workflow exists
-      const { data: analyticsWorkflow } = await supabase
-        .from('n8n_workflows')
-        .select('n8n_workflow_id')
-        .eq('user_id', user!.id)
-        .like('n8n_workflow_name', '[Analytics]%')
-        .limit(1)
-        .maybeSingle();
-
-      setStats({
-        dmsTriggered: dmsCount,
-        activeAutomations: activeAutomationsCount,
-        commentReplies: commentsCount,
-        uniqueUsers: uniqueUsersCount || 0,
-        followersCount: instaAccount?.followers_count ?? null,
-        initialFollowersCount: instaAccount?.initial_followers_count ?? null,
-        followersLastUpdated: instaAccount?.followers_last_updated ?? null,
-        hasAnalyticsWorkflow: !!analyticsWorkflow
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
       });
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
@@ -236,14 +156,7 @@ export default function Dashboard() {
     try {
       await N8nWorkflowService.createAnalyticsWorkflow(user!.id, instagramAccount.id);
       toast.success('Advanced Analytics enabled successfully!');
-<<<<<<< HEAD
       toast.success('Analytics getting their glow-up ✨ check in an hour!');
-=======
-
-      toast.success('Analytics getting their glow-up ✨ check in an hour!');
-
-      // Fetch the updated stats to reflect across KPIs
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
       await fetchDashboardStats();
     } catch (error: any) {
       console.error('Error enabling analytics:', error);
@@ -283,12 +196,11 @@ export default function Dashboard() {
 
   const overallProgress = Math.round((setupTasks.filter(t => t.completed).length / setupTasks.length) * 100);
 
-<<<<<<< HEAD
   if (uiStyle === 'millennial') {
     return (
       <div className="flex-1 min-h-full bg-white font-outfit text-gray-800">
         <div className="flex h-full w-full max-w-[1600px] mx-auto flex-col lg:flex-row justify-between gap-8 lg:gap-14 p-6 lg:p-10">
-          
+
           {/* Main Content Area */}
           <div className="flex-1 flex flex-col gap-10">
             {/* Today's Activity List */}
@@ -297,7 +209,7 @@ export default function Dashboard() {
                 <h3 className="font-bold text-gray-800 text-lg">Today</h3>
                 <span className="text-gray-300 font-bold tracking-widest text-xl leading-none">...</span>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white p-4 rounded-[1.25rem] border border-gray-100 shadow-sm flex flex-col gap-2">
                   <div className="flex items-center gap-3">
@@ -375,10 +287,10 @@ export default function Dashboard() {
                   <div className="w-8 h-8 rounded-full bg-gray-200 border-2 border-white flex items-center justify-center overflow-hidden"><img src="https://i.pravatar.cc/100?img=3" alt="avatar" /></div>
                 </div>
               </div>
-              
+
               {/* Chart Placeholder / Simplification */}
               <div className="h-48 w-full -ml-4">
-                 <DMsChart />
+                <DMsChart />
               </div>
             </div>
           </div>
@@ -410,15 +322,13 @@ export default function Dashboard() {
                 <span className="text-lg">👏</span> Support
               </a>
             </div>
-            
+
           </div>
         </div>
       </div>
     );
   }
 
-=======
->>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
   return (
     <div className="flex-1 relative min-h-screen overflow-x-hidden bg-[#fafbff] font-outfit">
       {/* Animated Background Blobs - Refined */}
