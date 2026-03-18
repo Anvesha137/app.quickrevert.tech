@@ -193,7 +193,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
         {loadingMedia ? (
           <div className="flex justify-center p-4"><Loader2 className="w-6 h-6 animate-spin text-purple-500" /></div>
         ) : (
-          <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1">
             {posts.map((post) => {
               const isSelected = specificIds.includes(post.id);
               return (

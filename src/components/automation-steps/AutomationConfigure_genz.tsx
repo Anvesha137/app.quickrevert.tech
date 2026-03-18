@@ -279,7 +279,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
 
           {editingPosts ? (
             <div className="space-y-3 mb-2">
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <button onClick={() => setPostsType('all')} className={`flex-1 p-4 rounded-xl border-2 text-sm font-bold transition-all ${getPostsType() === 'all' ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 text-gray-500 hover:border-purple-200'}`}>
                   <Globe className="w-5 h-5 mx-auto mb-2" />
                   {triggerType === 'post_comment' ? 'All Posts & Reels' : 'All Stories'}
@@ -294,7 +294,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                   {loadingMedia ? (
                     <div className="flex justify-center p-4"><Loader2 className="w-6 h-6 animate-spin text-purple-500" /></div>
                   ) : (
-                    <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
                       {posts.map(post => {
                         const specificIds = triggerType === 'post_comment' ? (triggerConfig as PostCommentTriggerConfig)?.specificPosts || [] : (triggerConfig as StoryReplyTriggerConfig)?.specificStories || [];
                         const isSelected = specificIds.includes(post.id);
