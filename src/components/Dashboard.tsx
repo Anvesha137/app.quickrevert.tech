@@ -206,69 +206,105 @@ export default function Dashboard() {
             {/* Today's Activity List */}
             <div>
               <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
-                <h3 className="font-bold text-gray-800 text-lg">Today</h3>
+                <h3 className="font-bold text-gray-800 text-lg">Hello, {displayName?.split(' ')[0] || 'there'} 👋</h3>
                 <span className="text-gray-300 font-bold tracking-widest text-xl leading-none">...</span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white p-4 rounded-[1.25rem] border border-gray-100 shadow-sm flex flex-col gap-2">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[#3b82f6] flex items-center justify-center shadow-sm">
-                      <MessageSquare className="w-4 h-4 text-white" />
+              {/* Connection Status Banner - Black & White / Thinner for Millennial */}
+              <div className="mb-4 group">
+                {instagramAccount ? (
+                  <div className="relative overflow-hidden rounded-2xl bg-black py-3 px-4 md:py-4 md:px-6 shadow-sm transition-all duration-300 hover:shadow-md">
+                    <div className="flex items-center gap-3 relative z-10">
+                      <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
+                        {instagramAccount.profile_picture_url ? (
+                          <img
+                            src={instagramAccount.profile_picture_url}
+                            alt={instagramAccount.username}
+                            className="w-full h-full rounded-xl object-cover grayscale"
+                          />
+                        ) : (
+                          <Instagram className="w-4 h-4 md:w-5 md:h-5 text-white" />
+                        )}
+                      </div>
+                      <div>
+                        <h3 className="text-sm md:text-base font-black text-white leading-tight mb-0.5">@{instagramAccount.username}</h3>
+                        <p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest">Connected</p>
+                      </div>
                     </div>
-                    <p className="font-bold text-gray-400 text-[13px]">Total DMs</p>
                   </div>
-                  <span className="block text-2xl font-black text-[#2A2B3A] mt-1">{loading ? '-' : stats.dmsTriggered.toLocaleString()}</span>
+                ) : (
+                  <div className="relative overflow-hidden rounded-2xl bg-white border border-gray-200 py-3 px-4 md:py-4 md:px-6 flex items-center gap-3 group hover:border-black transition-colors cursor-pointer">
+                    <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-gray-50 flex items-center justify-center shrink-0 group-hover:bg-gray-100 transition-colors">
+                      <Instagram className="w-4 h-4 md:w-5 md:h-5 text-gray-400 group-hover:text-black transition-colors" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm md:text-base font-bold text-gray-700 group-hover:text-black transition-colors">Connect Instagram</h3>
+                      <p className="text-[10px] md:text-xs text-gray-400 font-medium">Link your account</p>
+                    </div>
+                    <Link to="/connect-accounts" className="absolute inset-0" />
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div className="bg-white p-2.5 md:p-4 rounded-[1.25rem] border border-gray-100 shadow-sm flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[#3b82f6] flex items-center justify-center shadow-sm flex-shrink-0">
+                      <MessageSquare className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
+                    </div>
+                    <p className="font-bold text-gray-400 text-[11px] md:text-[13px] leading-tight">Total DMs</p>
+                  </div>
+                  <span className="block text-xl md:text-2xl font-black text-[#2A2B3A]">{loading ? '-' : stats.dmsTriggered.toLocaleString()}</span>
                 </div>
 
-                <div className="bg-white p-4 rounded-[1.25rem] border border-gray-100 shadow-sm flex flex-col gap-2">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[#8b5cf6] flex items-center justify-center shadow-sm">
-                      <Zap className="w-4 h-4 text-white" />
+                <div className="bg-white p-2.5 md:p-4 rounded-[1.25rem] border border-gray-100 shadow-sm flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[#8b5cf6] flex items-center justify-center shadow-sm flex-shrink-0">
+                      <Zap className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
                     </div>
-                    <p className="font-bold text-gray-400 text-[13px]">Active Automation</p>
+                    <p className="font-bold text-gray-400 text-[11px] md:text-[13px] leading-tight">Active Auto.</p>
                   </div>
-                  <span className="block text-2xl font-black text-[#2A2B3A] mt-1">{loading ? '-' : stats.activeAutomations.toString()}</span>
+                  <span className="block text-xl md:text-2xl font-black text-[#2A2B3A]">{loading ? '-' : stats.activeAutomations.toString()}</span>
                 </div>
 
-                <div className="bg-white p-4 rounded-[1.25rem] border border-gray-100 shadow-sm flex flex-col gap-2">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[#f97316] flex items-center justify-center shadow-sm">
-                      <MessageCircle className="w-4 h-4 text-white" />
+                <div className="bg-white p-2.5 md:p-4 rounded-[1.25rem] border border-gray-100 shadow-sm flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[#f97316] flex items-center justify-center shadow-sm flex-shrink-0">
+                      <MessageCircle className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
                     </div>
-                    <p className="font-bold text-gray-400 text-[13px]">Comments</p>
+                    <p className="font-bold text-gray-400 text-[11px] md:text-[13px] leading-tight">Comments</p>
                   </div>
-                  <span className="block text-2xl font-black text-[#2A2B3A] mt-1">{loading ? '-' : stats.commentReplies.toLocaleString()}</span>
+                  <span className="block text-xl md:text-2xl font-black text-[#2A2B3A]">{loading ? '-' : stats.commentReplies.toLocaleString()}</span>
                 </div>
 
-                <div className="bg-white p-4 rounded-[1.25rem] border border-gray-100 shadow-sm flex flex-col gap-2">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[#ef4444] flex items-center justify-center shadow-sm">
-                      <Users className="w-4 h-4 text-white" />
+                <div className="bg-white p-2.5 md:p-4 rounded-[1.25rem] border border-gray-100 shadow-sm flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[#ef4444] flex items-center justify-center shadow-sm flex-shrink-0">
+                      <Users className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
                     </div>
-                    <p className="font-bold text-gray-400 text-[13px]">Total Reach</p>
+                    <p className="font-bold text-gray-400 text-[11px] md:text-[13px] leading-tight">Total Reach</p>
                   </div>
-                  <span className="block text-2xl font-black text-[#2A2B3A] mt-1">{loading ? '-' : stats.uniqueUsers.toLocaleString()}</span>
+                  <span className="block text-xl md:text-2xl font-black text-[#2A2B3A]">{loading ? '-' : stats.uniqueUsers.toLocaleString()}</span>
                 </div>
 
-                <div className="bg-white p-4 rounded-[1.25rem] border border-gray-100 shadow-sm flex flex-col gap-2">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[#10b981] flex items-center justify-center shadow-sm">
-                      <Instagram className="w-4 h-4 text-white flex-shrink-0" />
+                <div className="bg-white p-2.5 md:p-4 rounded-[1.25rem] border border-gray-100 shadow-sm flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[#10b981] flex items-center justify-center shadow-sm flex-shrink-0">
+                      <Instagram className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
                     </div>
-                    <p className="font-bold text-gray-400 text-[13px]">Followers</p>
+                    <p className="font-bold text-gray-400 text-[11px] md:text-[13px] leading-tight">Followers</p>
                   </div>
-                  <span className="block text-2xl font-black text-[#2A2B3A] mt-1">{loading ? '-' : (stats.followersCount || 0).toLocaleString()}</span>
+                  <span className="block text-xl md:text-2xl font-black text-[#2A2B3A]">{loading ? '-' : (stats.followersCount || 0).toLocaleString()}</span>
                 </div>
 
-                <div className="bg-white p-4 rounded-[1.25rem] border border-gray-100 shadow-sm flex flex-col gap-2">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[#10b981] flex items-center justify-center shadow-sm">
-                      <TrendingUp className="w-4 h-4 text-white flex-shrink-0" />
+                <div className="bg-white p-2.5 md:p-4 rounded-[1.25rem] border border-gray-100 shadow-sm flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[#10b981] flex items-center justify-center shadow-sm flex-shrink-0">
+                      <TrendingUp className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
                     </div>
-                    <p className="font-bold text-gray-400 text-[13px]">Growth</p>
+                    <p className="font-bold text-gray-400 text-[11px] md:text-[13px] leading-tight">Growth</p>
                   </div>
-                  <span className="block text-2xl font-black text-[#2A2B3A] mt-1">{loading ? '-' : Math.max(0, (stats.followersCount || 0) - (stats.initialFollowersCount || 0)).toLocaleString()}</span>
+                  <span className="block text-xl md:text-2xl font-black text-[#2A2B3A]">{loading ? '-' : Math.max(0, (stats.followersCount || 0) - (stats.initialFollowersCount || 0)).toLocaleString()}</span>
                 </div>
               </div>
             </div>
@@ -315,9 +351,11 @@ export default function Dashboard() {
 
             {/* Banners */}
             <div className="space-y-3">
-              <button className="w-full bg-black text-white hover:bg-gray-800 transition-colors py-3 rounded-lg flex items-center justify-center gap-2 font-bold text-sm">
-                <span className="text-lg">👑</span> Upgrade To Pro
-              </button>
+              {!isPremium && (
+                <button className="w-full bg-black text-white hover:bg-gray-800 transition-colors py-3 rounded-lg flex items-center justify-center gap-2 font-bold text-sm">
+                  <span className="text-lg">👑</span> Upgrade To Pro
+                </button>
+              )}
               <a href="https://quickrevert.tech/contact" target="_blank" rel="noopener noreferrer" className="w-full bg-[#1e6129] hover:bg-[#15471d] text-white transition-colors py-3 rounded-lg flex items-center justify-center gap-2 font-bold text-sm">
                 <span className="text-lg">👏</span> Support
               </a>
