@@ -76,8 +76,14 @@ const InstagramConnectModal = ({ isOpen, onClose }: Omit<InstagramConnectModalPr
     fetchOAuthUrl();
   }, [isOpen]);
 
-  const handleConnect = () => {
-    if (oauthUrl) window.location.href = oauthUrl;
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+
+  const handleConnect = (e: React.MouseEvent) => {
+    if (!oauthUrl || loading) {
+      e.preventDefault();
+      return;
+    }
+    // No window.location.href here — we use the <a> tag's default behavior with target="_blank"
   };
 
 
@@ -147,10 +153,14 @@ const InstagramConnectModal = ({ isOpen, onClose }: Omit<InstagramConnectModalPr
             </div>
           )}
 
-          <button
+          <a
+            href={oauthUrl || '#'}
+            target="_blank"
+            rel="noopener noreferrer"
             onClick={handleConnect}
-            disabled={loading || !oauthUrl}
-            className="w-full bg-gradient-to-r from-orange-500 to-purple-700 text-white font-bold py-4 rounded-2xl shadow-xl shadow-purple-500/20 hover:shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 mb-8"
+            className={`w-full bg-gradient-to-r from-orange-500 to-purple-700 text-white font-bold py-4 rounded-2xl shadow-xl shadow-purple-500/20 hover:shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 mb-4 ${
+              loading || !oauthUrl ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''
+            }`}
           >
             {loading ? (
               <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -162,7 +172,13 @@ const InstagramConnectModal = ({ isOpen, onClose }: Omit<InstagramConnectModalPr
                 <span className="text-lg">Continue to Instagram Login</span>
               </>
             )}
-          </button>
+          </a>
+
+          {isIOS && !loading && (
+            <p className="text-[10px] text-gray-400 mb-4 px-4 leading-tight italic">
+              <strong>Tip for iPhone:</strong> If it opens the Instagram app automatically, long-press the button above and select <strong>"Open in New Tab"</strong> to stay in the browser.
+            </p>
+          )}
 
           <div className="text-center w-full">
             <p className="text-xs text-gray-400 mb-4">

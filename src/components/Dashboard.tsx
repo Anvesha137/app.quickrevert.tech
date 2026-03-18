@@ -198,7 +198,7 @@ export default function Dashboard() {
 
   if (uiStyle === 'millennial') {
     return (
-      <div className="flex-1 min-h-full bg-white font-outfit text-gray-800">
+      <div className="flex-1 min-h-full bg-white font-outfit text-gray-800 pb-32 lg:pb-0">
         <div className="flex h-full w-full max-w-[1600px] mx-auto flex-col lg:flex-row justify-between gap-8 lg:gap-14 p-6 lg:p-10">
 
           {/* Main Content Area */}
@@ -207,7 +207,15 @@ export default function Dashboard() {
             <div>
               <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
                 <h3 className="font-bold text-gray-800 text-lg">Hello, {displayName?.split(' ')[0] || 'there'} 👋</h3>
-                <span className="text-gray-300 font-bold tracking-widest text-xl leading-none">...</span>
+                <a
+                  href="https://quickrevert.tech/contact"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-full transition-colors border border-gray-100"
+                >
+                  <Headset className="w-4 h-4" />
+                  <span className="text-[12px] font-bold">Support</span>
+                </a>
               </div>
 
               {/* Connection Status Banner - Black & White / Thinner for Millennial */}
