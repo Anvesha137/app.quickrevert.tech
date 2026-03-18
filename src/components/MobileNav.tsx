@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Menu, X, LogOut, ExternalLink, ArrowUpCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useUIStyle } from '../contexts/UIStyleContext';
 import { navigation } from './Sidebar';
 
 export default function MobileNav() {
@@ -10,6 +11,8 @@ export default function MobileNav() {
     const location = useLocation();
     const { user, signOut } = useAuth();
     const { displayName, colorPalette } = useTheme();
+    const { uiStyle, toggleUIStyle } = useUIStyle();
+    const isGenZ = uiStyle === 'genz';
 
     const getGradientClass = () => {
         const gradients: Record<string, string> = {
@@ -142,6 +145,54 @@ export default function MobileNav() {
                                 })}
                             </ul>
                         </nav>
+
+                        {/* Mobile Vibe Mode Toggle */}
+                        <div className="mt-6 p-4 rounded-2xl bg-gray-50 border border-gray-100 mb-6">
+                            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center mb-3">Vibe Mode</p>
+                            <div
+                                onClick={toggleUIStyle}
+                                className="relative flex items-center rounded-xl cursor-pointer select-none overflow-hidden shadow-inner h-12"
+                                style={{
+                                    background: isGenZ
+                                        ? 'linear-gradient(135deg, #0f0f1a, #1a0a2e)'
+                                        : 'linear-gradient(135deg, #e0e7ff, #f0f4ff)',
+                                    border: isGenZ ? '1.5px solid rgba(180,0,255,0.4)' : '1.5px solid rgba(99,102,241,0.25)',
+                                    transition: 'all 0.4s cubic-bezier(0.34,1.56,0.64,1)',
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        position: 'absolute',
+                                        top: '3px',
+                                        bottom: '3px',
+                                        width: 'calc(50% - 3px)',
+                                        borderRadius: '10px',
+                                        background: isGenZ
+                                            ? 'linear-gradient(135deg, #b400ff, #5500ff)'
+                                            : 'linear-gradient(135deg, #6366f1, #818cf8)',
+                                        boxShadow: isGenZ
+                                            ? '0 0 14px rgba(180,0,255,0.6)'
+                                            : '0 2px 8px rgba(99,102,241,0.45)',
+                                        transform: isGenZ ? 'translateX(calc(100% + 3px))' : 'translateX(3px)',
+                                        transition: 'all 0.4s cubic-bezier(0.34,1.56,0.64,1)',
+                                        zIndex: 0,
+                                    }}
+                                />
+                                <div className="relative z-10 flex-1 flex flex-col items-center justify-center">
+                                    <span className="text-[11px] font-bold tracking-wide uppercase flex items-center gap-1.5" style={{ color: isGenZ ? 'rgba(180,180,210,0.5)' : '#fff' }}>
+                                        <span className="text-sm">✨</span> Millennial
+                                    </span>
+                                </div>
+                                <div className="relative z-10 flex-1 flex flex-col items-center justify-center">
+                                    <span className="text-[11px] font-bold tracking-wide uppercase flex items-center gap-1.5" style={{ color: isGenZ ? '#fff' : 'rgba(99,102,241,0.5)' }}>
+                                        <span className="text-sm">⚡</span> Gen Z
+                                    </span>
+                                </div>
+                            </div>
+                            <p className="text-center mt-3 text-[11px] font-bold tracking-wide" style={{ color: isGenZ ? '#b400ff' : '#6366f1' }}>
+                                {isGenZ ? 'no cap fr fr 🔥' : 'absolutely iconic 💅'}
+                            </p>
+                        </div>
 
                         {/* Added styling for safe area padding at bottom */}
                         <div className="h-safe pb-8"></div>
