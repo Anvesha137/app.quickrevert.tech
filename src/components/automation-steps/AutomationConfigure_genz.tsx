@@ -11,6 +11,9 @@ import { supabase } from '../../lib/supabase';
 import { useSubscription } from '../../contexts/SubscriptionContext';
 import { useUpgradeModal } from '../../contexts/UpgradeModalContext';
 
+const DEFAULT_TEASER_MESSAGE = "Hey there! I'm so happy you're here... Click below and I'll send you the link in just a sec ✨";
+const DEFAULT_NOT_FOLLOWING_MESSAGE = "Oops! Looks like you haven't followed me yet 👀...";
+
 interface InstagramMedia {
   id: string;
   caption?: string;
@@ -200,13 +203,13 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
     if (readOnly) return;
     if (!canUseAskToFollow) { openModal(); return; }
     if (!hasDm) {
-      updateActions([...actions, { type: 'send_dm', title: '', imageUrl: '', subtitle: 'Powered By Quickrevert.tech', messageTemplate: '', actionButtons: [], askToFollow: true } as SendDmAction]);
+      updateActions([...actions, { type: 'send_dm', title: '', imageUrl: '', subtitle: 'Powered By Quickrevert.tech', messageTemplate: '', actionButtons: [], askToFollow: true, teaserMessage: DEFAULT_TEASER_MESSAGE, askToFollowMessage: DEFAULT_NOT_FOLLOWING_MESSAGE } as SendDmAction]);
       return;
     }
     const newActions = [...actions];
     const idx = newActions.findIndex(a => a.type === 'send_dm');
     if (idx >= 0) {
-      newActions[idx] = { ...newActions[idx], askToFollow: !hasFollowGate } as SendDmAction;
+      newActions[idx] = { ...newActions[idx], askToFollow: !hasFollowGate, teaserMessage: !hasFollowGate ? DEFAULT_TEASER_MESSAGE : '', askToFollowMessage: !hasFollowGate ? DEFAULT_NOT_FOLLOWING_MESSAGE : '' } as SendDmAction;
       updateActions(newActions);
     }
   };
@@ -417,12 +420,12 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
           </div>
 
           {/* Follow Gate — inline toggle */}
-          {triggerType === 'post_comment' && (
-            <div className="flex items-center gap-3 py-3 px-1 mb-2">
-              <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+          {triggerType !== 'user_directed_messages' && (
+            <div className="flex items-center gap-3 py-3 px-1 mb-2 cursor-pointer hover:bg-gray-50 transition-colors rounded-xl" onClick={toggleFollowGate}>
+              <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center pointer-events-none">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
               </div>
-              <div className="flex-1">
+              <div className="flex-1 pointer-events-none">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-bold text-sm text-gray-900">Follow Gate</span>
                   <span className="bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase">Recommended</span>
@@ -430,7 +433,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                 </div>
                 <p className="text-xs text-gray-400 font-medium mt-0.5">Require users to follow you before they can access your automation</p>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer" onClick={toggleFollowGate}>
+              <label className="relative inline-flex items-center cursor-pointer pointer-events-none">
                 <input type="checkbox" className="sr-only peer" checked={hasFollowGate} readOnly />
                 <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600 shadow-inner"></div>
               </label>
