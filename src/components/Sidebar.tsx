@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 import { useState, useEffect } from 'react';
+=======
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
 import {
   LayoutDashboard,
   Zap,
@@ -14,8 +17,11 @@ import UsageStats from './UsageStats';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
+<<<<<<< HEAD
 import { useUIStyle } from '../contexts/UIStyleContext';
 import { supabase } from '../lib/supabase';
+=======
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
 
 
 export const navigation = [
@@ -27,15 +33,20 @@ export const navigation = [
   { id: 'settings', name: 'Settings', icon: SettingsIcon, path: '/settings' },
 ];
 
+<<<<<<< HEAD
 interface SidebarProps {
   millennial?: boolean;
 }
 
 export default function Sidebar({ millennial = false }: SidebarProps) {
+=======
+export default function Sidebar() {
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
   const location = useLocation();
   const { user, signOut } = useAuth();
   const { displayName } = useTheme();
   const { isPremium } = useSubscription();
+<<<<<<< HEAD
   const { uiStyle, toggleUIStyle } = useUIStyle();
   const isGenZ = uiStyle === 'genz';
 
@@ -77,6 +88,8 @@ export default function Sidebar({ millennial = false }: SidebarProps) {
       setLoading(false);
     }
   };
+=======
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
 
   const getUserName = () => {
     return displayName || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
@@ -90,6 +103,7 @@ export default function Sidebar({ millennial = false }: SidebarProps) {
     }
   };
 
+<<<<<<< HEAD
   // ─── MILLENNIAL SIDEBAR (inside black card) ────────────────────────────────
   if (millennial) {
     return (
@@ -224,6 +238,8 @@ export default function Sidebar({ millennial = false }: SidebarProps) {
   }
 
   // ─── GEN Z / DEFAULT SIDEBAR ───────────────────────────────────────────────
+=======
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
   return (
     <aside className="hidden md:flex fixed left-0 top-0 h-full w-80 backdrop-blur-xl bg-white/40 border-r border-white/20 shadow-2xl flex-col z-50 p-4">
       {/* Logo Section */}
@@ -265,6 +281,7 @@ export default function Sidebar({ millennial = false }: SidebarProps) {
         })}
       </nav>
 
+<<<<<<< HEAD
       {/* Gen Z / Millennial Toggle */}
       <div className="mt-4 mx-1 p-3 rounded-2xl bg-white/30 backdrop-blur-md border border-white/40">
         <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest text-center mb-2">Vibe Mode</p>
@@ -317,6 +334,10 @@ export default function Sidebar({ millennial = false }: SidebarProps) {
 
       {/* Usage Stats Section */}
       <div className="mt-2 space-y-2 -mx-1">
+=======
+      {/* Usage Stats Section */}
+      <div className="mt-auto space-y-2 -mx-1">
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
         <UsageStats />
       </div>
 

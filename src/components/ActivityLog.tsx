@@ -1,27 +1,38 @@
 import { useEffect, useState } from 'react';
 import { Search, Zap, Activity } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+<<<<<<< HEAD
 import { useAuth } from '../contexts/AuthContext';
+=======
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
 import AutomationActivityDetail from './AutomationActivityDetail';
 
 interface Automation {
   id: string;
   name: string;
   trigger_type: string;
+<<<<<<< HEAD
   status: string;
+=======
+  is_active: boolean;
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
   activityCount: number;
   lastActivity: string | null;
   accountUsername?: string | null;
 }
 
 export default function ActivityLog() {
+<<<<<<< HEAD
   const { user } = useAuth();
+=======
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [selectedAutomation, setSelectedAutomation] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+<<<<<<< HEAD
     if (user) {
       fetchAutomations();
     }
@@ -58,6 +69,38 @@ export default function ActivityLog() {
       activitiesResult.data?.forEach((activity) => {
         if (!activity.automation_id) return;
 
+=======
+    fetchAutomations();
+  }, []);
+
+  async function fetchAutomations() {
+    try {
+      const { data: automationsData, error: automationsError } = await supabase
+        .from('automations')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (automationsError) throw automationsError;
+
+      const { data: activitiesData, error: activitiesError } = await supabase
+        .from('automation_activities')
+        .select(`
+          automation_id, 
+          created_at,
+          instagram_account:instagram_accounts(username)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(1000);
+
+      if (activitiesError) throw activitiesError;
+
+      const activityMap = new Map<string, { count: number; lastActivity: string | null; accountUsername: string | null }>();
+
+      activitiesData?.forEach((activity) => {
+        if (!activity.automation_id) return;
+
+        // Extract the joined username safely
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
         const accountUsername = activity.instagram_account && Array.isArray(activity.instagram_account)
           ? activity.instagram_account[0]?.username
           : (activity.instagram_account as any)?.username || null;
@@ -73,16 +116,27 @@ export default function ActivityLog() {
           existing.count++;
           if (!existing.lastActivity || new Date(activity.created_at) > new Date(existing.lastActivity)) {
             existing.lastActivity = activity.created_at;
+<<<<<<< HEAD
+=======
+            // Keep the most recent username for this automation if it fired across multiple
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
             if (accountUsername) existing.accountUsername = accountUsername;
           }
         }
       });
 
+<<<<<<< HEAD
       const automationsWithStats = automationsResult.data?.map((automation) => {
         const stats = activityMap.get(automation.id);
         return {
           ...automation,
           is_active: automation.status === 'active',
+=======
+      const automationsWithStats = automationsData?.map((automation) => {
+        const stats = activityMap.get(automation.id);
+        return {
+          ...automation,
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
           activityCount: stats?.count || 0,
           lastActivity: stats?.lastActivity || null,
           accountUsername: stats?.accountUsername || null,
@@ -179,15 +233,24 @@ export default function ActivityLog() {
                     : 'border-l-4 border-transparent'
                     }`}
                 >
+<<<<<<< HEAD
                   <div className={`w-14 h-14 rounded-xl ${automation.status === 'active' ? 'bg-gradient-to-br from-green-400 to-emerald-500' : 'bg-gray-200'} flex items-center justify-center flex-shrink-0 shadow-lg group-hover:shadow-xl transition-shadow`}>
                     <Zap className={`w-7 h-7 ${automation.status === 'active' ? 'text-white' : 'text-gray-500'}`} />
+=======
+                  <div className={`w-14 h-14 rounded-xl ${automation.is_active ? 'bg-gradient-to-br from-green-400 to-emerald-500' : 'bg-gray-200'} flex items-center justify-center flex-shrink-0 shadow-lg group-hover:shadow-xl transition-shadow`}>
+                    <Zap className={`w-7 h-7 ${automation.is_active ? 'text-white' : 'text-gray-500'}`} />
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <p className="text-sm font-bold text-gray-900 truncate flex-1">
                         {automation.name}
                       </p>
+<<<<<<< HEAD
                       <span className={`w-2.5 h-2.5 rounded-full ${automation.status === 'active' ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+=======
+                      <span className={`w-2.5 h-2.5 rounded-full ${automation.is_active ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
                     </div>
                     <div className="flex items-center gap-2 mb-2">
                       <p className="text-xs text-gray-600 truncate capitalize font-medium">

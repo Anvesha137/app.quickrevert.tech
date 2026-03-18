@@ -7,10 +7,18 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+<<<<<<< HEAD
 import { AutomationFormData, TriggerType, TriggerConfig, ReplyToCommentAction, SendDmAction } from '../types/automation';
 import { N8nWorkflowService } from '../lib/n8nService';
 import TriggerSelection from './automation-steps/TriggerSelection';
 import AutomationConfigureGenz from './automation-steps/AutomationConfigure_genz';
+=======
+import { AutomationFormData, TriggerType, TriggerConfig, Action, ReplyToCommentAction, SendDmAction } from '../types/automation';
+import { N8nWorkflowService } from '../lib/n8nService';
+import TriggerSelection from './automation-steps/TriggerSelection';
+import TriggerConfigStep from './automation-steps/TriggerConfig';
+import ActionConfig from './automation-steps/ActionConfig';
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
 
 // Utility for class merging
 function cn(...inputs: ClassValue[]) {
@@ -384,7 +392,11 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
                           if (triggerType === 'post_comment') {
                             defaultConfig = { postsType: 'all', commentsType: 'all' };
                           } else if (triggerType === 'story_reply') {
+<<<<<<< HEAD
                             defaultConfig = { storiesType: 'all', replyType: 'all' };
+=======
+                            defaultConfig = { storiesType: 'all' };
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
                           } else {
                             defaultConfig = { messageType: 'all' };
                           }
@@ -412,6 +424,7 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
                 )}
 
                 {currentStep === 'configuration' && formData.triggerType && (
+<<<<<<< HEAD
                   <AutomationConfigureGenz
                     formData={formData}
                     setFormData={(data) => !readOnly && setFormData(data)}
@@ -423,6 +436,34 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
                       window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
                   />
+=======
+                  <div className="space-y-0">
+                    <TriggerConfigStep
+                      triggerType={formData.triggerType}
+                      config={formData.triggerConfig}
+                      onConfigChange={(triggerConfig: TriggerConfig) => !readOnly && setFormData({ ...formData, triggerConfig })}
+                      onBack={() => {
+                        setCurrentStep('setup');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      isCondensed={true}
+                      readOnly={readOnly}
+                    />
+                    <ActionConfig
+                      triggerType={formData.triggerType}
+                      actions={formData.actions}
+                      onActionsChange={(actions: Action[]) => !readOnly && setFormData({ ...formData, actions })}
+                      onSave={executeSave}
+                      onBack={() => {
+                        setCurrentStep('setup');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      saving={saving}
+                      isCondensed={true}
+                      readOnly={readOnly}
+                    />
+                  </div>
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
                 )}
 
               </div>

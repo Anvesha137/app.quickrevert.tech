@@ -7,7 +7,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
+<<<<<<< HEAD
 const INSTAGRAM_CLIENT_ID = Deno.env.get("INSTAGRAM_CLIENT_ID");
+=======
+const INSTAGRAM_CLIENT_ID = Deno.env.get("INSTAGRAM_CLIENT_ID") || "1487967782460775";
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
 const INSTAGRAM_REDIRECT_URI = Deno.env.get("INSTAGRAM_REDIRECT_URI")!;
 
 Deno.serve(async (req: Request) => {
@@ -42,7 +46,10 @@ Deno.serve(async (req: Request) => {
       return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Invalid state parameter')}`, 302);
     }
 
+<<<<<<< HEAD
     if (!INSTAGRAM_CLIENT_ID) return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Instagram client ID not configured')}`, 302);
+=======
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
     const instagramClientSecret = Deno.env.get("INSTAGRAM_CLIENT_SECRET");
     if (!instagramClientSecret) return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Instagram client secret not configured')}`, 302);
 
@@ -71,7 +78,11 @@ Deno.serve(async (req: Request) => {
     const instagramUserId = tokenData.user_id;
 
     console.log('Short-lived token received for Instagram user_id:', instagramUserId);
+<<<<<<< HEAD
     console.log('Exchanging for long-lived token via GET query param...');
+=======
+    console.log('Exchanging for long-lived token...');
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
 
     const longLivedTokenUrl = `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${instagramClientSecret}&access_token=${shortLivedToken}`;
     const longLivedTokenRes = await fetch(longLivedTokenUrl);
@@ -92,12 +103,19 @@ Deno.serve(async (req: Request) => {
 
     // 3. Fetch Instagram profile (for username and profile picture)
     // We still need this for the UI, even if the ID is wrong for webhooks.
+<<<<<<< HEAD
     const profileUrl = `https://graph.instagram.com/me?fields=id,username,profile_picture_url`;
     console.log('Fetching Instagram profile...');
 
     const profileRes = await fetch(profileUrl, {
       headers: { "Authorization": `Bearer ${accessToken}` }
     });
+=======
+    const profileUrl = `https://graph.instagram.com/me?fields=id,username,profile_picture_url&access_token=${accessToken}`;
+    console.log('Fetching Instagram profile...');
+
+    const profileRes = await fetch(profileUrl);
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
     const profileData = await profileRes.json();
 
     console.log('Profile response status:', profileRes.status);
@@ -116,10 +134,15 @@ Deno.serve(async (req: Request) => {
     // We must find the Page that this Instagram account is connected to.
 
     console.log('Fetching Pages to find linked Instagram Business Account...');
+<<<<<<< HEAD
     const pagesUrl = `https://graph.facebook.com/v24.0/me/accounts?fields=instagram_business_account,name`;
     const pagesRes = await fetch(pagesUrl, {
       headers: { "Authorization": `Bearer ${accessToken}` }
     });
+=======
+    const pagesUrl = `https://graph.facebook.com/v19.0/me/accounts?fields=instagram_business_account,name&access_token=${accessToken}`;
+    const pagesRes = await fetch(pagesUrl);
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
     const pagesData = await pagesRes.json();
 
     let igbaId = null;
@@ -146,6 +169,13 @@ Deno.serve(async (req: Request) => {
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
+<<<<<<< HEAD
+=======
+    // Fetch user email for linking
+    const { data: { user: authUser } } = await supabase.auth.admin.getUserById(userId);
+    const userEmail = authUser?.email || '';
+
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
     const { data: existingAccount } = await supabase
       .from("instagram_accounts")
       .select("id")
@@ -154,6 +184,10 @@ Deno.serve(async (req: Request) => {
 
     const accountData = {
       user_id: userId,
+<<<<<<< HEAD
+=======
+      email: userEmail, // Link the user's email to the account
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
       instagram_user_id: instagramUserId,
       instagram_business_id: igbaId,
       username: username,
@@ -195,7 +229,11 @@ Deno.serve(async (req: Request) => {
     // ✅ CRITICAL: Subscribe webhooks using Page-scoped IGBA ID
     console.log('🔔 Subscribing webhooks for IGBA:', igbaId);
     try {
+<<<<<<< HEAD
       const webhookUrl = `https://graph.instagram.com/v24.0/${igbaId}/subscribed_apps`;
+=======
+      const webhookUrl = `https://graph.instagram.com/v21.0/${igbaId}/subscribed_apps`;
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
 
       const subscribeRes = await fetch(webhookUrl, {
         method: 'POST',
@@ -203,7 +241,11 @@ Deno.serve(async (req: Request) => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
+<<<<<<< HEAD
           subscribed_fields: 'messages,messaging_postbacks',
+=======
+          subscribed_fields: 'messages,messaging_postbacks,message_reactions',
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
           access_token: accessToken
         })
       });

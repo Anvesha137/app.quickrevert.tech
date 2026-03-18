@@ -19,8 +19,11 @@ export interface StoryReplyTriggerConfig {
 export interface UserDirectMessageTriggerConfig {
   messageType: 'all' | 'keywords';
   keywords?: string[];
+<<<<<<< HEAD
   cooldownEnabled?: boolean;
   cooldownDuration?: number; // In milliseconds
+=======
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
 }
 
 export type TriggerConfig =

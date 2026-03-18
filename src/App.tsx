@@ -2,32 +2,47 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { UpgradeModalProvider } from './contexts/UpgradeModalContext';
+<<<<<<< HEAD
 import { UIStyleProvider, useUIStyle } from './contexts/UIStyleContext';
 import AutomationCreate from './components/AutomationCreate';
 import AutomationCreateMillennial from './components/AutomationCreate_millennial';
+=======
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
 import Login from './components/Login';
 import ErrorBoundary from './components/ErrorBoundary';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
 import Dashboard from './components/Dashboard';
 import Automations from './components/Automations';
+<<<<<<< HEAD
+=======
+import AutomationCreate from './components/AutomationCreate';
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
 import ConnectedAccounts from './components/ConnectedAccounts';
 import Contacts from './components/Contacts';
 import Billing from './components/Billing';
 import Settings from './components/Settings';
 import Pricing from './components/Pricing';
+<<<<<<< HEAD
 import DeletionStatus from './components/DeletionStatus';
 import ResetPassword from './components/ResetPassword';
+=======
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
 import UpgradeModal from './components/UpgradeModal';
 import CelebrationModal from './components/CelebrationModal';
 import PlanBanner from './components/PlanBanner';
 import { SubscriptionProvider, useSubscription } from './contexts/SubscriptionContext';
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
 function AppContent() {
   const { user, loading } = useAuth();
   const { isPremium, loading: subLoading } = useSubscription();
   const location = useLocation();
 
+<<<<<<< HEAD
   // Public routes — accessible without auth (required by Meta policy)
   if (location.pathname === '/deletion-status' || location.pathname === '/reset-password') {
     return (
@@ -38,6 +53,8 @@ function AppContent() {
     );
   }
 
+=======
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
   if (loading || (user && subLoading)) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -73,6 +90,7 @@ function AppContent() {
 
 function AuthenticatedApp() {
   const { isPremium } = useSubscription();
+<<<<<<< HEAD
   const { uiStyle } = useUIStyle();
   const CreatePage = uiStyle === 'millennial' ? AutomationCreateMillennial : AutomationCreate;
   const isMillennial = uiStyle === 'millennial';
@@ -113,6 +131,9 @@ function AuthenticatedApp() {
   }
 
   // Gen Z / default layout
+=======
+
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
   return (
     <div className="min-h-screen bg-slate-50">
       <div className={`transition-all duration-300 ${!isPremium ? 'pt-6' : ''}`}>
@@ -124,9 +145,15 @@ function AuthenticatedApp() {
             <Route path="/" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><Dashboard /></div>} />
             <Route path="/dashboard" element={<Navigate to="/" replace />} />
             <Route path="/automation" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><Automations /></div>} />
+<<<<<<< HEAD
             <Route path="/automation/create" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><CreatePage /></div>} />
             <Route path="/automation/view/:id" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><CreatePage readOnly /></div>} />
             <Route path="/automation/edit/:id" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><CreatePage /></div>} />
+=======
+            <Route path="/automation/create" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><AutomationCreate /></div>} />
+            <Route path="/automation/view/:id" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><AutomationCreate readOnly /></div>} />
+            <Route path="/automation/edit/:id" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><AutomationCreate /></div>} />
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
             <Route path="/contacts" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><Contacts /></div>} />
             <Route path="/billing" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><Billing /></div>} />
             <Route path="/connect-accounts" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><ConnectedAccounts /></div>} />
@@ -175,6 +202,7 @@ function App() {
     <AuthProvider>
       <SubscriptionProvider>
         <ThemeProvider>
+<<<<<<< HEAD
           <UIStyleProvider>
             <UpgradeModalProvider>
               <BrowserRouter>
@@ -186,6 +214,16 @@ function App() {
               </BrowserRouter>
             </UpgradeModalProvider>
           </UIStyleProvider>
+=======
+          <UpgradeModalProvider>
+            <BrowserRouter>
+              <AppContent />
+              <UpgradeModal />
+              <CelebrationModal />
+              <Toaster richColors position="top-right" />
+            </BrowserRouter>
+          </UpgradeModalProvider>
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
         </ThemeProvider>
       </SubscriptionProvider>
     </AuthProvider>

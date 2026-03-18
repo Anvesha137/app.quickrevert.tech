@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+<<<<<<< HEAD
 import { supabase } from '../lib/supabase';
 import { TermsOfServiceModal, PrivacyPolicyModal } from './LegalModals';
 
@@ -15,6 +16,15 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [resetSent, setResetSent] = useState(false);
 
+=======
+import { TermsOfServiceModal, PrivacyPolicyModal } from './LegalModals';
+
+export default function Login() {
+  const { signInWithGoogle } = useAuth();
+  const [loading, setLoading] = useState<'google' | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
   // Modal States
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
@@ -30,6 +40,7 @@ export default function Login() {
     }
   };
 
+<<<<<<< HEAD
   const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
@@ -74,6 +85,8 @@ export default function Login() {
     }
   };
 
+=======
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
   const carouselImages = [
     '/1.png',
     '/2.jpeg',
@@ -143,6 +156,7 @@ export default function Login() {
                   )}
                   <span>Continue with Google</span>
                 </button>
+<<<<<<< HEAD
 
                 {!showEmailLogin ? (
                   <button
@@ -247,6 +261,8 @@ export default function Login() {
                     </button>
                   </form>
                 )}
+=======
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
               </div>
 
               {error && (

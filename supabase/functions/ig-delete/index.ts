@@ -1,5 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+<<<<<<< HEAD
 import { createClient } from "npm:@supabase/supabase-js@2";
+=======
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,6 +10,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
+<<<<<<< HEAD
 // Verify HMAC-SHA256 signature from Meta's signed_request
 async function verifySignedRequest(signedRequest: string, appSecret: string): Promise<Record<string, any> | null> {
   try {
@@ -53,10 +57,18 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({ status: "ok" }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
+=======
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 200,
+      headers: corsHeaders,
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
     });
   }
 
   try {
+<<<<<<< HEAD
     const appSecret = Deno.env.get("META_APP_SECRET");
     if (!appSecret) {
       console.error("ig-delete: META_APP_SECRET not configured");
@@ -225,5 +237,27 @@ Deno.serve(async (req: Request) => {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
+=======
+    return new Response(
+      JSON.stringify({ status: "data deletion received" }),
+      {
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      {
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
   }
 });

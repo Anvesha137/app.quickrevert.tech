@@ -54,8 +54,11 @@ Deno.serve(async (req: Request) => {
 
     // --- CREDENTIAL MANAGEMENT ---
     const ensureCredential = async () => {
+<<<<<<< HEAD
       if (instagramAccount.n8n_credential_id) return instagramAccount.n8n_credential_id;
 
+=======
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
       const credName = `Instagram - ${instagramAccount.username} (${instagramAccount.instagram_user_id})`;
       const credType = "facebookGraphApi";
       try {
@@ -65,17 +68,24 @@ Deno.serve(async (req: Request) => {
           const existing = listData.data.find((c: any) => c.name === credName);
           if (existing) {
             await fetch(`${n8nBaseUrl}/api/v1/credentials/${existing.id}`, { method: "PUT", headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey }, body: JSON.stringify({ data: { accessToken: instagramAccount.access_token } }) });
+<<<<<<< HEAD
             await supabase.from('instagram_accounts').update({ n8n_credential_id: existing.id }).eq('id', instagramAccount.id);
+=======
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
             return existing.id;
           }
         }
       } catch (e) { console.warn("Cred search failed", e); }
       const createRes = await fetch(`${n8nBaseUrl}/api/v1/credentials`, { method: "POST", headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey }, body: JSON.stringify({ name: credName, type: credType, data: { accessToken: instagramAccount.access_token } }) });
       if (!createRes.ok) throw new Error("Cred creation failed");
+<<<<<<< HEAD
       const credId = (await createRes.json()).id;
       
       await supabase.from('instagram_accounts').update({ n8n_credential_id: credId }).eq('id', instagramAccount.id);
       return credId;
+=======
+      return (await createRes.json()).id;
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
     };
     const credentialId = await ensureCredential();
 
@@ -440,9 +450,12 @@ Deno.serve(async (req: Request) => {
         (triggerType === 'user_directed_messages' && automationData?.trigger_config?.messageType === 'keywords') ||
         (triggerType === 'story_reply' && automationData?.trigger_config?.storiesType === 'keywords');
 
+<<<<<<< HEAD
       const cooldownEnabled = (triggerType === 'user_directed_messages' || triggerType === 'user_dm') && automationData?.trigger_config?.cooldownEnabled;
       const cooldownDuration = automationData?.trigger_config?.cooldownDuration || 3600000;
 
+=======
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
       if (!hasAskToFollow && isKeywordTrigger) {
         const keywords = Array.isArray(automationData?.trigger_config?.keywords)
           ? automationData.trigger_config.keywords
@@ -508,6 +521,7 @@ Deno.serve(async (req: Request) => {
           position: [nodeX, 300],
           parameters: { rules: { values: rules }, options: { ignoreCase: true } }
         });
+<<<<<<< HEAD
 
         if (cooldownEnabled) {
           nodes.push({
@@ -564,6 +578,13 @@ if (diff > COOLDOWN_MS) {
         }
 
         nodeX += 400;
+=======
+        nodeX += 400;
+
+        connections[previousNode] = {
+          main: [[{ node: "Message Switch", type: "main", index: 0 }]]
+        };
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
         previousNode = "Message Switch";
 
         if (sendDmAction) {
@@ -753,11 +774,23 @@ if (diff > COOLDOWN_MS) {
                         operator: { type: "string", operation: "notEquals" }
                       },
                       {
+<<<<<<< HEAD
                         id: "not-a-story-reply",
                         leftValue: "={{ $('Worker Webhook').item.json.body.entry[0].messaging[0].message.reply_to }}",
                         rightValue: "",
                         operator: { type: "string", operation: "notExists", singleValue: true }
                       }
+=======
+                        id: "not-a-message-edit",
+                        leftValue: "={{ $('Worker Webhook').item.json.body.entry[0].messaging[0].message_edit }}",
+                        operator: { type: "object", operation: "notExists" }
+                      },
+                      ...(triggerType === 'story_reply' ? [{
+                        id: "is-story-reply",
+                        leftValue: "={{ $('Worker Webhook').item.json.body.entry[0].messaging[0].message.reply_to.story }}",
+                        operator: { type: "object", operation: "exists" }
+                      }] : [])
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
                     ],
                     combinator: "and"
                   }
@@ -773,6 +806,7 @@ if (diff > COOLDOWN_MS) {
         };
         previousNode = "Switch";
         nodeX += 250;
+<<<<<<< HEAD
 
         const cooldownEnabled = (triggerType === 'user_directed_messages' || triggerType === 'user_dm') && automationData?.trigger_config?.cooldownEnabled;
         const cooldownDuration = automationData?.trigger_config?.cooldownDuration || 3600000;
@@ -830,6 +864,8 @@ if (diff > COOLDOWN_MS) {
           nodeX += 500;
         }
 
+=======
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
       }
 
       // 1.55 Post Filter Switch
@@ -1468,6 +1504,7 @@ return { json: { userId, username, isFollowing } };`
 
         if (wfDelError) console.error("Error cleaning up old workflow records:", wfDelError);
 
+<<<<<<< HEAD
         // 4. Request n8n to delete old workflows to keep things clean
         for (const oldId of oldWorkflowIds) {
           try {
@@ -1490,6 +1527,18 @@ return { json: { userId, username, isFollowing } };`
               payload: { oldId },
               error_message: e.message
             });
+=======
+        // 4. (Optional) Request n8n to delete old workflows to keep things clean
+        // We do this asynchronously and don't block on failures
+        for (const oldId of oldWorkflowIds) {
+          try {
+            fetch(`${n8nBaseUrl}/api/v1/workflows/${oldId}`, {
+              method: "DELETE",
+              headers: { "X-N8N-API-KEY": n8nApiKey }
+            }).catch(e => console.warn(`Failed to delete old n8n workflow ${oldId}`, e));
+          } catch (e) {
+            // Ignore
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
           }
         }
       }
@@ -1515,9 +1564,18 @@ return { json: { userId, username, isFollowing } };`
 
     // ALWAYS CREATE ROUTES (Inactive by default if autoActivate is false)
     // This ensues that toggling "Active" in UI works immediately because routes exist.
+<<<<<<< HEAD
     const userAccounts = instagramAccountId
       ? [{ id: instagramAccountId }]
       : [{ id: instagramAccount.id }];
+=======
+    // Fetch ALL active Instagram accounts for this user to ensure broad coverage
+    const { data: userAccounts } = await supabase
+      .from('instagram_accounts')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('status', 'active');
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
 
     if (userAccounts && userAccounts.length > 0) {
       const newRoutes: any[] = [];

@@ -2,11 +2,17 @@ import { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+<<<<<<< HEAD
 import { useUIStyle } from '../contexts/UIStyleContext';
 
 export default function DMsChart() {
     const { user } = useAuth();
     const { uiStyle } = useUIStyle();
+=======
+
+export default function DMsChart() {
+    const { user } = useAuth();
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -63,6 +69,7 @@ export default function DMsChart() {
         }
     };
 
+<<<<<<< HEAD
     const isMillennial = uiStyle === 'millennial';
 
     return (
@@ -80,6 +87,21 @@ export default function DMsChart() {
             )}
 
             <div className={isMillennial ? "h-full w-full" : "h-64 w-full"}>
+=======
+    return (
+        <div className="rounded-2xl backdrop-blur-xl bg-white/60 border border-white/40 p-6 shadow-xl">
+            <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
+                    <span className="text-white text-lg font-bold">📈</span>
+                </div>
+                <div>
+                    <h3 className="font-bold text-lg text-gray-800">DMs Sent per Day</h3>
+                    <p className="text-sm text-gray-600">Last 7 days activity</p>
+                </div>
+            </div>
+
+            <div className="h-64 w-full">
+>>>>>>> b3c28071684b8109b12a70315947cca5adeb3e9e
                 {loading ? (
                     <div className="h-full w-full flex items-center justify-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
