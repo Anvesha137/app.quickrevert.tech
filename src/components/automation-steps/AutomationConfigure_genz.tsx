@@ -10,6 +10,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { useSubscription } from '../../contexts/SubscriptionContext';
 import { useUpgradeModal } from '../../contexts/UpgradeModalContext';
+import { motion, AnimatePresence } from 'motion/react';
 
 const DEFAULT_TEASER_MESSAGE = "Hey there! I'm so happy you're here... Click below and I'll send you the link in just a sec ✨";
 const DEFAULT_NOT_FOLLOWING_MESSAGE = "Oops! Looks like you haven't followed me yet 👀...";
@@ -419,9 +420,14 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
             )}
           </div>
 
-          {/* Follow Gate — inline toggle */}
-          {triggerType !== 'user_directed_messages' && (
-            <div className="flex items-center gap-3 py-3 px-1 mb-2 cursor-pointer hover:bg-gray-50 transition-colors rounded-xl" onClick={toggleFollowGate}>
+        </>
+      )}
+
+      {/* Follow Gate — inline toggle */}
+      {triggerType !== 'user_directed_messages' && (
+        <>
+          <div className={`rounded-2xl border transition-all overflow-hidden mb-4 ${hasFollowGate ? 'border-purple-200 bg-purple-50/10' : 'border-gray-200 bg-white'}`}>
+            <div className="flex items-center gap-3 py-4 px-5 cursor-pointer hover:bg-gray-50 transition-colors" onClick={toggleFollowGate}>
               <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center pointer-events-none">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
               </div>
@@ -438,8 +444,37 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                 <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600 shadow-inner"></div>
               </label>
             </div>
-          )}
 
+            {/* Follow Gate Expanded config */}
+            <AnimatePresence>
+              {hasFollowGate && (
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="px-5 pb-5 pt-0">
+                  <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm space-y-4">
+                     <div className="space-y-1.5">
+                       <label className="text-xs font-semibold text-gray-600">Initial Teaser Message</label>
+                       <textarea
+                         value={dmAction?.teaserMessage || ''}
+                         onChange={(e) => updateDmAction({ teaserMessage: e.target.value })}
+                         disabled={readOnly}
+                         rows={2}
+                         className="w-full border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm bg-gray-50 focus:bg-white transition-all resize-none"
+                       />
+                     </div>
+                     <div className="space-y-1.5">
+                       <label className="text-xs font-semibold text-gray-600">Verification Failed (Not Following)</label>
+                       <textarea
+                         value={dmAction?.askToFollowMessage || ''}
+                         onChange={(e) => updateDmAction({ askToFollowMessage: e.target.value })}
+                         disabled={readOnly}
+                         rows={2}
+                         className="w-full border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm bg-gray-50 focus:bg-white transition-all resize-none"
+                       />
+                     </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
           <GradientLine />
         </>
       )}
