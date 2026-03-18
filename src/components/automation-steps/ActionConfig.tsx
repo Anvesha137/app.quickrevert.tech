@@ -16,7 +16,7 @@ interface ActionConfigProps {
 
 const DEFAULT_TEASER_MESSAGE = "Hey there! I'm so happy you're here... Click below and I'll send you the link in just a sec ✨";
 const DEFAULT_NOT_FOLLOWING_MESSAGE = "Oops! Looks like you haven't followed me yet 👀...";
-const DEFAULT_TEASER_BTN_TEXT = "Verify Follow 🔗";
+const DEFAULT_TEASER_BTN_TEXT = "Send Access";
 const DEFAULT_VERIFY_BTN_TEXT = "I've Followed! ✅";
 
 export default function ActionConfig({ triggerType, actions, onActionsChange, onSave, saving, readOnly }: ActionConfigProps) {
