@@ -290,11 +290,11 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                 </button>
               </div>
               {getPostsType() === 'specific' && (
-                <div className="border-2 border-gray-100 rounded-xl p-4 bg-gray-50/50">
+                <div className="border-2 border-gray-100 rounded-xl p-3 md:p-4 bg-gray-50/50">
                   {loadingMedia ? (
                     <div className="flex justify-center p-4"><Loader2 className="w-6 h-6 animate-spin text-purple-500" /></div>
                   ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                       {posts.map(post => {
                         const specificIds = triggerType === 'post_comment' ? (triggerConfig as PostCommentTriggerConfig)?.specificPosts || [] : (triggerConfig as StoryReplyTriggerConfig)?.specificStories || [];
                         const isSelected = specificIds.includes(post.id);

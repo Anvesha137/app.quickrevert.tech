@@ -189,11 +189,11 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
       : (currentConfig as StoryReplyTriggerConfig).specificStories || [];
 
     return (
-      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="border-t-2 border-l-2 border-r-2 border-b-2 border-gray-100 -mt-2 bg-gray-50/50 rounded-b-xl p-4">
+      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="border-2 border-gray-100 mt-2 bg-gray-50/50 rounded-xl p-3 md:p-4">
         {loadingMedia ? (
           <div className="flex justify-center p-4"><Loader2 className="w-6 h-6 animate-spin text-purple-500" /></div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
             {posts.map((post) => {
               const isSelected = specificIds.includes(post.id);
               return (
@@ -224,7 +224,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
 
   const renderKeywordInput = () => {
     return (
-      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="border-t-2 border-l-2 border-r-2 border-b-2 border-gray-100 -mt-2 bg-gray-50/50 rounded-b-xl p-4 space-y-3">
+      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="border-2 border-gray-100 mt-2 bg-gray-50/50 rounded-xl p-3 md:p-4 space-y-3">
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
