@@ -358,7 +358,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
       </div>
 
       {/* Global Action Button (Launch) for Step 2 fixed at the bottom */}
-      <div className="fixed md:absolute bottom-0 left-0 right-0 px-5 md:px-12 bg-gradient-to-t from-white via-white to-transparent pt-16 pb-6 z-10 pointer-events-none flex justify-center">
+      <div className="fixed md:absolute bottom-16 md:bottom-0 left-0 right-0 px-5 md:px-12 bg-gradient-to-t from-white via-white to-transparent pt-16 pb-6 z-10 pointer-events-none flex justify-center">
          {readOnly ? (
             <div className="pointer-events-auto w-full md:max-w-xl">
               <button disabled className="w-full py-4 md:py-5 rounded-full font-bold text-lg flex justify-center items-center gap-2 transition-all shadow-none bg-gray-100 text-gray-400">
