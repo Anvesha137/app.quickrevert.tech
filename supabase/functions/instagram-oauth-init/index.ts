@@ -69,7 +69,6 @@ Deno.serve(async (req) => {
         "instagram_business_basic",
         "instagram_business_manage_messages",
         "instagram_business_manage_comments",
-        "instagram_manage_insights",
       ].join(" ")
     );
 
