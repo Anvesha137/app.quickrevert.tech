@@ -62,11 +62,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 
   const signInWithEmail = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) throw error;
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        // If credentials are invalid, it might be a gifted user who hasn't been synced to Supabase Auth yet
+        if (error.message.includes('Invalid login credentials')) {
+          console.log('[Auth] Login failed, checking Neon for gifted credentials for:', email);
+          
+          try {
+            const { data: syncData, error: syncError } = await supabase.functions.invoke('sync-neon-user-to-auth', {
+              body: { email, password }
+            });
+
+            console.log('[Auth] Neon sync response:', { syncData, syncError });
+
+            if (!syncError && syncData?.success) {
+              console.log('[Auth] User successfully synced from Neon, retrying login...');
+              const { error: retryError } = await supabase.auth.signInWithPassword({
+                email,
+                password,
+              });
+              if (retryError) {
+                console.error('[Auth] Login retry failed after sync:', retryError);
+                throw retryError;
+              }
+              console.log('[Auth] Login successful on retry!');
+              return; 
+            } else {
+              let debugInfo = syncData?.debug;
+              if (syncError && 'context' in syncError) {
+                try {
+                   const response = (syncError as any).context as Response;
+                   response.clone().json().then(data => {
+                     console.warn('[Auth] Neon sync failed with debug info:', data);
+                   });
+                } catch (e) {
+                  console.error('[Auth] Failed to parse sync error body:', e);
+                }
+              }
+              console.warn('[Auth] Neon sync was not successful:', {
+                message: syncError?.message || syncData?.message,
+                syncError
+              });
+            }
+          } catch (syncErr) {
+            console.error('[Auth] Neon sync fallback exception:', syncErr);
+          }
+        }
+        
+        throw error;
+      }
+    } catch (err) {
+      throw err;
+    }
   };
 
   const signUpWithEmail = async (email: string, password: string, fullName: string) => {

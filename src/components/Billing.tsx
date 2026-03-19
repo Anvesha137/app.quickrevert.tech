@@ -1,84 +1,20 @@
-import { useState, useEffect } from 'react';
-import { Zap, Calendar, ChevronRight } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
+import { useState } from 'react';
+import { Zap, Calendar, ChevronRight, Crown } from 'lucide-react';
 import { useUpgradeModal } from '../contexts/UpgradeModalContext';
-
-interface SubscriptionData {
-  plan_id: string;
-  status: string;
-  current_period_end: string;
-  amount_paid?: number;
-  discount_amount?: number;
-  coupon_code?: string;
-  created_at?: string;
-}
-
-interface BillingUsage {
-  dms: number;
-  contacts: number;
-  automations: number;
-}
-
-const useSubscriptionData = () => {
-  const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
-  const [usage, setUsage] = useState<BillingUsage>({ dms: 0, contacts: 0, automations: 0 });
-
-  const fetchData = async () => {
-    if (!user) return;
-    try {
-      setLoading(true);
-      const { data: sub } = await supabase
-        .from('subscriptions')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      setSubscription(sub);
-
-      const { data: activities } = await supabase
-        .from('automation_activities')
-        .select('activity_type')
-        .eq('user_id', user.id);
-
-      const dms = activities?.filter(a => ['dm', 'dm_sent', 'send_dm', 'user_directed_messages'].includes(a.activity_type)).length || 0;
-
-      const { count: contactsCount } = await supabase
-        .from('contacts')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id);
-
-      const { count: automationsCount } = await supabase
-        .from('automations')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('status', 'active');
-
-      setUsage({
-        dms,
-        contacts: contactsCount || 0,
-        automations: automationsCount || 0
-      });
-    } catch (err) {
-      console.error('Error fetching billing data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, [user]);
-
-  return { subscription, usage, loading, refresh: fetchData };
-};
+import { useSubscription } from '../contexts/SubscriptionContext';
 
 const Billing = () => {
-  const { subscription, usage, loading } = useSubscriptionData();
+  const { 
+    subscription, 
+    usage, 
+    loading, 
+    isPremium, 
+    isGifted, 
+    giftedSettings, 
+    dmLimit, 
+    automationLimit 
+  } = useSubscription();
+
   const { openModal: openUpgradeModal } = useUpgradeModal();
   const [activeTab, setActiveTab] = useState<'overview' | 'invoices'>('overview');
 
@@ -92,14 +28,16 @@ const Billing = () => {
   };
 
   const getPlanName = (id?: string) => {
+    if (isGifted) return 'GIFTED PREMIUM';
     if (!id || id === 'basic') return 'BASIC';
     const lowerId = id.toLowerCase();
     if (lowerId.includes('enterprise')) return 'ENTERPRISE';
     if (lowerId.includes('premium') || lowerId.includes('quarterly')) return 'PREMIUM';
-    return lowerId.toUpperCase(); // Fallback for things like 'QUARTERLY'
+    return lowerId.toUpperCase();
   };
 
   const getPlanPrice = (id?: string, amount?: number) => {
+    if (isGifted) return '₹0';
     if (!id || id === 'basic') return '₹0';
     if (amount !== undefined && amount !== null) return `₹${amount}`;
     if (id.includes('annual')) return '₹7,188';
@@ -114,14 +52,10 @@ const Billing = () => {
     );
   }
 
-  const planId = (subscription?.plan_id || 'basic').toLowerCase();
-  const isPremium = planId !== 'basic' && (
-    planId.includes('premium') ||
-    planId.includes('enterprise') ||
-    planId.includes('quarterly') ||
-    planId.includes('annual')
-  );
-  const planLimit = isPremium ? 'Unlimited' : 1000;
+  const planLimit = dmLimit;
+  const autoLimit = automationLimit;
+  const expiryDate = isGifted ? giftedSettings?.expiry_date : subscription?.current_period_end;
+
 
   return (
     <div className="max-w-6xl mx-auto p-6 md:p-12 animate-in fade-in slide-in-from-bottom-4 duration-700 min-h-screen flex flex-col">
@@ -142,7 +76,12 @@ const Billing = () => {
             <div className="flex justify-between items-start mb-8">
               <div>
                 <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full text-blue-400 text-[9px] font-black uppercase tracking-widest mb-4">
-                  Active Plan
+                  {isGifted ? (
+                    <>
+                      <Crown className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500/20" />
+                      Special Assignment
+                    </>
+                  ) : 'Active Plan'}
                 </div>
                 <h3 className="text-5xl font-black text-white tracking-tighter uppercase mb-2">
                   {getPlanName(subscription?.plan_id)}
@@ -151,7 +90,11 @@ const Billing = () => {
                   <span className="text-4xl font-bold text-white tracking-tight">
                     {getPlanPrice(subscription?.plan_id, subscription?.amount_paid)}
                   </span>
-                  <span className="text-sm text-gray-500 font-medium uppercase">{subscription?.plan_id?.includes('annual') ? '/ annual' : '/ quarterly'}</span>
+                  {!isGifted && (
+                    <span className="text-sm text-gray-500 font-medium uppercase">
+                      {subscription?.plan_id?.includes('annual') ? '/ annual' : '/ quarterly'}
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="w-16 h-16 bg-white/5 rounded-2xl border border-white/10 flex items-center justify-center backdrop-blur-xl shrink-0">
@@ -161,8 +104,10 @@ const Billing = () => {
 
             <div className="grid grid-cols-2 gap-8 py-6 border-y border-white/[0.05] mb-8">
               <div className="space-y-1">
-                <p className="text-gray-600 text-[9px] font-black uppercase tracking-widest">Next Billing Date</p>
-                <p className="text-white text-lg font-bold">{formatDate(subscription?.current_period_end)}</p>
+                <p className="text-gray-600 text-[9px] font-black uppercase tracking-widest">
+                  {isGifted || isPremium ? 'Expiry Date' : 'Next Billing Date'}
+                </p>
+                <p className="text-white text-lg font-bold">{formatDate(expiryDate)}</p>
               </div>
               <div className="space-y-1 text-right">
                 <p className="text-gray-600 text-[9px] font-black uppercase tracking-widest">Status</p>
@@ -181,7 +126,9 @@ const Billing = () => {
                 </button>
               ) : (
                 <div className="flex-1 py-4 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center justify-center gap-2">
-                  <span className="text-blue-400 font-black text-xs tracking-widest uppercase">Premium Plan Active</span>
+                  <span className="text-blue-400 font-black text-xs tracking-widest uppercase">
+                    {isGifted ? 'Gifted Premium Active' : 'Premium Plan Active'}
+                  </span>
                 </div>
               )}
             </div>
@@ -203,7 +150,7 @@ const Billing = () => {
                 <div className="h-2.5 bg-white/[0.03] rounded-full overflow-hidden border border-white/5">
                   <div
                     className="h-full bg-blue-600 rounded-full transition-all duration-1000"
-                    style={{ width: planLimit === 'Unlimited' ? '100%' : `${Math.min((usage.dms / 1000) * 100, 100)}%` }}
+                    style={{ width: planLimit === 'Unlimited' ? '100%' : `${Math.min((usage.dms / (typeof planLimit === 'number' ? planLimit : 1000)) * 100, 100)}%` }}
                   ></div>
                 </div>
               </div>
@@ -217,7 +164,7 @@ const Billing = () => {
                   <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Automations</p>
                   <div className="flex items-baseline gap-1">
                     <p className="text-xl font-black text-white">{usage.automations}</p>
-                    {!isPremium && <span className="text-xs text-gray-500 font-bold">/ 3</span>}
+                    {planLimit !== 'Unlimited' && <span className="text-xs text-gray-500 font-bold">/ {autoLimit}</span>}
                   </div>
                 </div>
                 {!isPremium && (
@@ -237,13 +184,13 @@ const Billing = () => {
 
           {/* Compact Billing History Access */}
           <div
-            onClick={() => setActiveTab('invoices')}
-            className={`cursor-pointer p-6 rounded-[2rem] border transition-all ${activeTab === 'invoices' ? 'bg-white/10 border-white/20' : 'bg-white/[0.03] border-white/5 hover:bg-white/[0.05]'}`}
+            onClick={() => isGifted ? null : setActiveTab('invoices')}
+            className={`cursor-pointer p-6 rounded-[2rem] border transition-all ${activeTab === 'invoices' ? 'bg-white/10 border-white/20' : 'bg-white/[0.03] border-white/5 hover:bg-white/[0.05]'} ${isGifted ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Calendar className="w-5 h-5 text-gray-400" />
-                <span className="text-xs font-black uppercase tracking-widest text-black">Billing History</span>
+                <span className="text-xs font-black uppercase tracking-widest text-[#666]">Billing History</span>
               </div>
               <ChevronRight className="w-4 h-4 text-gray-500" />
             </div>
@@ -277,7 +224,7 @@ const Billing = () => {
                   <tr className="border-b border-white/[0.02] last:border-0">
                     <td className="py-4 font-bold flex items-center gap-2">
                       <div className="w-1.5 h-1.5 rounded-full bg-blue-600"></div>
-                      INV-{new Date(subscription.created_at || '').getFullYear()}-001
+                      INV-{new Date(subscription.created_at || new Date()).getFullYear()}-001
                     </td>
                     <td className="py-4 text-gray-500">{formatDate(subscription.created_at)}</td>
                     <td className="py-4 text-right font-black text-green-400">₹{subscription.amount_paid || 0}</td>

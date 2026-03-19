@@ -10,11 +10,16 @@ interface Subscription {
     plan_id: PlanId;
     status: 'active' | 'past_due' | 'canceled' | 'trialing';
     current_period_end: string;
+    amount_paid?: number;
+    discount_amount?: number;
+    coupon_code?: string;
+    created_at?: string;
 }
 
 interface Usage {
     dms: number;
     contacts: number;
+    automations: number;
 }
 
 interface SubscriptionContextType {
@@ -23,8 +28,11 @@ interface SubscriptionContextType {
     loading: boolean;
     isPremium: boolean;
     isGold: boolean;
+    isGifted: boolean;
+    giftedSettings: any | null;
     canUseAskToFollow: boolean;
     dmLimit: number | 'Unlimited';
+    automationLimit: number | 'Unlimited';
     refresh: () => Promise<void>;
 }
 
@@ -36,8 +44,10 @@ const DM_ACTIVITY_TYPES = ['dm', 'send_dm', 'incoming_message', 'incoming_event'
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
     const { user } = useAuth();
     const [subscription, setSubscription] = useState<Subscription | null>(null);
-    const [usage, setUsage] = useState<Usage>({ dms: 0, contacts: 0 });
+    const [usage, setUsage] = useState<Usage>({ dms: 0, contacts: 0, automations: 0 });
     const [loading, setLoading] = useState(true);
+    const [isGifted, setIsGifted] = useState(false);
+    const [giftedSettings, setGiftedSettings] = useState<any | null>(null);
 
     const fetchSubscriptionData = useCallback(async () => {
         if (!user) {
@@ -47,15 +57,17 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
         try {
             // Run all queries in parallel
-            const [subResult, dmCountResult, contactCountResult] = await Promise.all([
+            const [subResult, dmCountResult, contactCountResult, automationCountResult] = await Promise.all([
                 // 1. Fetch Subscription
                 supabase
                     .from('subscriptions')
-                    .select('id, user_id, plan_id, status, current_period_end')
+                    .select('id, user_id, plan_id, status, current_period_end, amount_paid, discount_amount, coupon_code, created_at')
                     .eq('user_id', user.id)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
                     .maybeSingle(),
 
-                // 2. Server-side DM count (no row data transferred)
+                // 2. Server-side DM count
                 supabase
                     .from('automation_activities')
                     .select('id', { count: 'exact', head: true })
@@ -67,6 +79,13 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
                     .from('contacts')
                     .select('id', { count: 'exact', head: true })
                     .eq('user_id', user.id),
+
+                // 4. Active Automations count
+                supabase
+                    .from('automations')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('user_id', user.id)
+                    .eq('status', 'active'),
             ]);
 
             if (subResult.error) throw subResult.error;
@@ -75,7 +94,30 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
             setUsage({
                 dms: dmCountResult.count || 0,
                 contacts: contactCountResult.count || 0,
+                automations: automationCountResult.count || 0,
             });
+
+            // 4. Sync with Neon and check for Gifted Premium
+            try {
+                const { data: syncData, error: syncError } = await supabase.functions.invoke('sync-user-neon', {
+                    body: { 
+                        userId: user.id, 
+                        email: user.email,
+                        fullName: user.user_metadata?.full_name 
+                    }
+                });
+
+                if (!syncError && syncData?.isGifted) {
+                    setIsGifted(true);
+                    setGiftedSettings(syncData.giftedSettings);
+                } else {
+                    setIsGifted(false);
+                    setGiftedSettings(null);
+                }
+            } catch (syncErr) {
+                console.warn('Neon sync failed:', syncErr);
+            }
+
         } catch (err) {
             console.error('Error fetching subscription data:', err);
         } finally {
@@ -92,16 +134,19 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
     const planId = (subscription?.plan_id || 'basic').toLowerCase();
 
-    const isPremium = planId !== 'basic' && (
+    const isPremium = isGifted || (planId !== 'basic' && (
         planId.includes('premium') ||
         planId.includes('enterprise') ||
         planId.includes('quarterly') ||
         planId.includes('annual')
-    );
+    ));
 
     const isGold = planId.includes('enterprise');
-    const canUseAskToFollow = isPremium;
-    const dmLimit = isPremium ? 'Unlimited' : 1000;
+    const canUseAskToFollow = isGifted ? (giftedSettings?.ask_to_follow_enabled ?? true) : isPremium;
+    
+    // Gifted settings override
+    const dmLimit = isGifted ? (giftedSettings?.dm_limit ?? 'Unlimited') : (isPremium ? 'Unlimited' : 1000);
+    const automationLimit = isGifted ? (giftedSettings?.automation_limit ?? 'Unlimited') : (isPremium ? 'Unlimited' : 3);
 
     return (
         <SubscriptionContext.Provider value={{
@@ -110,8 +155,11 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
             loading,
             isPremium,
             isGold,
+            isGifted,
+            giftedSettings,
             canUseAskToFollow,
             dmLimit,
+            automationLimit,
             refresh: fetchSubscriptionData
         }}>
             {children}

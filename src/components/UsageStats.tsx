@@ -1,10 +1,22 @@
 import { useSubscription } from '../contexts/SubscriptionContext';
 
 export default function UsageStats() {
-    const { usage, isPremium, dmLimit } = useSubscription();
+    const { usage, isPremium, dmLimit, isGifted, giftedSettings, subscription } = useSubscription();
 
     const limitValue = dmLimit;
-    const isUnlimited = isPremium;
+    const isUnlimited = dmLimit === 'Unlimited';
+    
+    const expiryDate = isGifted ? giftedSettings?.expiry_date : subscription?.current_period_end;
+    const dateLabel = isGifted || isPremium ? 'Expiry Date' : 'Next Billing';
+
+    const formatDate = (dateString?: string) => {
+        if (!dateString) return 'N/A';
+        return new Date(dateString).toLocaleDateString('en-GB', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric'
+        });
+    };
 
     return (
         <div className="px-0">
@@ -35,6 +47,15 @@ export default function UsageStats() {
                             />
                         </div>
                     </div>
+
+                    {(isGifted || isPremium) && (
+                        <div className="pt-2 border-t border-black/5">
+                            <div className="flex justify-between text-[9px]">
+                                <span className="text-black-400 uppercase tracking-widest">{dateLabel}</span>
+                                <span className="text-black-600 font-bold">{formatDate(expiryDate)}</span>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

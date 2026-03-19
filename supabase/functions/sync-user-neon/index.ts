@@ -109,7 +109,49 @@ serve(async (req) => {
     await neonClient.connect();
     console.log("[sync-user-neon] Connected to Neon DB");
 
-    // Check if user already exists in Neon and was soft-deleted
+    const cleanEmail = email.trim().toLowerCase();
+    const { rows: giftedRows } = await neonClient.queryObject(
+      `SELECT gp.dm_limit, gp.automation_limit, gp.ask_to_follow_enabled, gp.expiry_date 
+       FROM gifted_premium gp
+       JOIN users u ON u.id = gp.user_id
+       WHERE LOWER(u.email) = $1 OR LOWER(u.username) = $1 OR gp.user_id = $2`,
+      [cleanEmail, userId]
+    );
+
+    const isGifted = giftedRows.length > 0;
+    const giftedSettings = isGifted ? (giftedRows[0] as any) : null;
+    
+    console.log(`[sync-user-neon] GIFTED CHECK: email=${cleanEmail}, userId=${userId}, found=${isGifted}`);
+    if (isGifted) console.log(`[sync-user-neon] Settings:`, JSON.stringify(giftedSettings));
+
+    if (isGifted) {
+      console.log(`[sync-user-neon] User ${cleanEmail} is confirmed GIFTED PREMIUM.`);
+      status = 'active';
+      packageName = 'Gifted Premium';
+      subscriptionEnd = giftedSettings.expiry_date || null;
+
+      // Update Supabase users table status as well (proactive sync)
+      const { error: updateError } = await supabaseClient
+        .from('users')
+        .update({ status: 'active', is_gifted: true })
+        .eq('id', userId);
+        
+      if (updateError) {
+        console.error("[sync-user-neon] Supabase status update error:", updateError.message);
+      }
+    } else {
+      // Revert gifted status if they were removed from the internal dashboard
+      const { error: revertError } = await supabaseClient
+        .from('users')
+        .update({ is_gifted: false })
+        .eq('id', userId);
+        
+      if (revertError) {
+        console.error("[sync-user-neon] Supabase status revert error:", revertError.message);
+      }
+    }
+
+    // 2. Check if user already exists in Neon and was soft-deleted
     const { rows: existingNeonUsers } = await neonClient.queryObject(
       `SELECT id, deleted FROM users WHERE email = $1`,
       [email]
@@ -123,7 +165,7 @@ serve(async (req) => {
       }
     }
 
-    // Upsert user — covers all columns in the users table schema
+    // 3. Upsert user — covers all columns in the users table schema
     await neonClient.queryObject(
       `INSERT INTO users (
         id,
@@ -175,7 +217,13 @@ serve(async (req) => {
     console.log("[sync-user-neon] ✅ Neon DB Sync Successful for", email);
 
     return new Response(
-      JSON.stringify({ success: true, email }),
+      JSON.stringify({ 
+        success: true, 
+        email, 
+        isGifted, 
+        giftedSettings,
+        packageName 
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 

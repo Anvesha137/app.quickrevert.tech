@@ -35,7 +35,7 @@ export default function Sidebar({ millennial = false }: SidebarProps) {
   const location = useLocation();
   const { user, signOut } = useAuth();
   const { displayName } = useTheme();
-  const { isPremium } = useSubscription();
+  const { isPremium, dmLimit, automationLimit } = useSubscription();
   const { uiStyle, toggleUIStyle } = useUIStyle();
   const isGenZ = uiStyle === 'genz';
 
@@ -189,23 +189,25 @@ export default function Sidebar({ millennial = false }: SidebarProps) {
               <div className="flex justify-between text-xs mb-1.5">
                 <span className="text-white/70">DMs Triggered</span>
                 <span className="text-white font-medium">
-                  {loading ? '-' : stats.dmsTriggered.toLocaleString()}/unlimited
+                  {loading ? '-' : stats.dmsTriggered.toLocaleString()}/{dmLimit === 'Unlimited' ? 'unlimited' : dmLimit.toLocaleString()}
                 </span>
               </div>
               <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
                 <div className="h-full bg-[#10b981] rounded-full w-[15%]" />
               </div>
             </div>
-            
             <div>
               <div className="flex justify-between text-xs mb-1.5">
                 <span className="text-white/70">Total Contacts</span>
                 <span className="text-white font-medium">
-                  {loading ? '-' : stats.uniqueUsers.toLocaleString()}/unlimited
+                  {loading ? '-' : stats.uniqueUsers.toLocaleString()}/{dmLimit === 'Unlimited' ? 'unlimited' : dmLimit.toLocaleString()}
                 </span>
               </div>
               <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                <div className="h-full bg-[#8b5cf6] rounded-full w-[2%]" />
+                <div 
+                  className="h-full bg-[#8b5cf6] rounded-full transition-all duration-1000" 
+                  style={{ width: dmLimit === 'Unlimited' ? '100%' : `${Math.min((stats.uniqueUsers / (typeof dmLimit === 'number' ? dmLimit : 1000)) * 100, 100)}%` }}
+                />
               </div>
             </div>
           </div>
