@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 
@@ -49,6 +49,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     const [isGifted, setIsGifted] = useState(false);
     const [giftedSettings, setGiftedSettings] = useState<any | null>(null);
 
+    const [initialFetchDone, setInitialFetchDone] = useState(false);
+
     const fetchSubscriptionData = useCallback(async () => {
         if (!user) {
             setLoading(false);
@@ -56,6 +58,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         }
 
         try {
+            setLoading(true);
             // Run all queries in parallel
             const [subResult, dmCountResult, contactCountResult, automationCountResult] = await Promise.all([
                 // 1. Fetch Subscription
@@ -122,6 +125,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
             console.error('Error fetching subscription data:', err);
         } finally {
             setLoading(false);
+            if (user) setInitialFetchDone(true);
         }
     }, [user]);
 
@@ -143,10 +147,32 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
     const isGold = planId.includes('enterprise');
     const canUseAskToFollow = isGifted ? (giftedSettings?.ask_to_follow_enabled ?? true) : isPremium;
-    
-    // Gifted settings override
+
     const dmLimit = isGifted ? (giftedSettings?.dm_limit ?? 'Unlimited') : (isPremium ? 'Unlimited' : 1000);
     const automationLimit = isGifted ? (giftedSettings?.automation_limit ?? 'Unlimited') : (isPremium ? 'Unlimited' : 3);
+
+    const hasLogged = useRef(false);
+
+    useEffect(() => {
+        if (initialFetchDone && user && !hasLogged.current) {
+            hasLogged.current = true;
+            console.log(
+                '%ca cutie hie how are u 🎀✨\n%cur details are:',
+                'color: #d8b4fe; font-size: 18px; font-weight: bold; text-shadow: 1px 1px 2px #3b0764; padding: 10px 0; font-family: "Comic Sans MS", cursive, sans-serif;',
+                'color: #a78bfa; font-size: 14px; font-style: italic; font-weight: 600;',
+                {
+                    '💖 Name': user.user_metadata?.full_name || 'Gorgeous',
+                    '💌 Email': user.email,
+                    '👑 Plan': isGifted ? '🎁 Gifted Premium' : (isPremium ? '💎 Premium' : '🌱 Basic'),
+                    '📩 DM Limit': dmLimit,
+                    '⚡ Automation Limit': automationLimit,
+                    '✅ Ask To Follow': canUseAskToFollow ? 'Enabled' : 'Disabled'
+                }
+            );
+        }
+    }, [initialFetchDone, user, isGifted, isPremium, dmLimit, automationLimit, canUseAskToFollow]);
+
+
 
     return (
         <SubscriptionContext.Provider value={{
