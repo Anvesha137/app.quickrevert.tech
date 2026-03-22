@@ -45,64 +45,20 @@ export class N8nWorkflowService {
     userId: string
   ): Promise<WorkflowCreationResponse> {
     try {
-      // Get auth token - try to refresh if needed
-      let { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-      // If no session or session expired, try to refresh
-      if (!session || sessionError) {
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError || !refreshData.session) {
-          throw new Error('No authentication token available. Please log in again.');
+      const { data: result, error: invokeError } = await supabase.functions.invoke('create-workflow', {
+        body: {
+          userId,
+          template: data.template || 'instagram_automation_v1',
+          variables: data.variables || {},
+          autoActivate: data.autoActivate ?? false,
+          instagramAccountId: data.instagramAccountId,
+          workflowName: data.workflowName,
+          automationId: data.automationId,
         }
-        session = refreshData.session;
-      }
-
-      const authToken = session.access_token;
-
-      if (!authToken) {
-        throw new Error('No authentication token available');
-      }
-
-      // Prepare the request payload
-      const requestBody = {
-        userId,
-        template: data.template || 'instagram_automation_v1',
-        variables: data.variables || {},
-        autoActivate: data.autoActivate ?? false,
-        instagramAccountId: data.instagramAccountId,
-        workflowName: data.workflowName,
-        automationId: data.automationId,
-      };
-
-      console.log('Creating workflow with:', {
-        userId,
-        instagramAccountId: data.instagramAccountId,
-        hasToken: !!authToken,
-        tokenLength: authToken.length
       });
 
-      // Call the Supabase Edge Function
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-workflow`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      const result: WorkflowCreationResponse | WorkflowErrorResponse = await response.json();
-
-      if (!response.ok) {
-        const errorResult = result as WorkflowErrorResponse;
-        console.error('Workflow creation failed:', {
-          status: response.status,
-          error: errorResult.error,
-          details: (errorResult as any).details
-        });
-        throw new Error(errorResult.error || `HTTP error! status: ${response.status}`);
-      }
+      if (invokeError) throw invokeError;
+      if (result?.error) throw new Error(result.error);
 
       return result as WorkflowCreationResponse;
     } catch (error) {
@@ -113,38 +69,17 @@ export class N8nWorkflowService {
 
   static async createAnalyticsWorkflow(userId: string, instagramAccountId: string): Promise<WorkflowCreationResponse> {
     try {
-      let { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-      if (!session || sessionError) {
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError || !refreshData.session) {
-          throw new Error('No authentication token available. Please log in again.');
-        }
-        session = refreshData.session;
-      }
-
-      const authToken = session.access_token;
-
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-workflow`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({
+      const { data: result, error: invokeError } = await supabase.functions.invoke('create-workflow', {
+        body: {
           userId,
           instagramAccountId,
           triggerType: 'enable_analytics',
           autoActivate: true
-        })
+        }
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || `HTTP error! status: ${response.status}`);
-      }
+      if (invokeError) throw invokeError;
+      if (result?.error) throw new Error(result.error);
 
       return result as WorkflowCreationResponse;
     } catch (error) {
@@ -155,32 +90,12 @@ export class N8nWorkflowService {
 
   static async refreshAnalytics(): Promise<{ success: boolean; message: string; data?: any }> {
     try {
-      let { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-      if (!session || sessionError) {
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError || !refreshData.session) {
-          throw new Error('No authentication token available. Please log in again.');
-        }
-        session = refreshData.session;
-      }
-
-      const authToken = session.access_token;
-
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/refresh-analytics`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-        }
+      const { data: result, error: invokeError } = await supabase.functions.invoke('refresh-analytics', {
+        method: 'POST'
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || `HTTP error! status: ${response.status}`);
-      }
+      if (invokeError) throw invokeError;
+      if (result?.error) throw new Error(result.error);
 
       return result;
     } catch (error) {
@@ -191,37 +106,12 @@ export class N8nWorkflowService {
 
   static async activateWorkflow(workflowId: string, userId: string): Promise<{ success: boolean; message: string }> {
     try {
-      let { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-      if (!session || sessionError) {
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError || !refreshData.session) {
-          throw new Error('No authentication token available. Please log in again.');
-        }
-        session = refreshData.session;
-      }
-
-      const authToken = session.access_token;
-
-      if (!authToken) {
-        throw new Error('No authentication token available');
-      }
-
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/activate-workflow`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({ workflowId })
+      const { data: result, error: invokeError } = await supabase.functions.invoke('activate-workflow', {
+        body: { workflowId }
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || `HTTP error! status: ${response.status}`);
-      }
+      if (invokeError) throw invokeError;
+      if (result?.error) throw new Error(result.error);
 
       return result;
     } catch (error) {
@@ -232,37 +122,12 @@ export class N8nWorkflowService {
 
   static async deactivateWorkflow(workflowId: string, userId: string): Promise<{ success: boolean; message: string }> {
     try {
-      let { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-      if (!session || sessionError) {
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError || !refreshData.session) {
-          throw new Error('No authentication token available. Please log in again.');
-        }
-        session = refreshData.session;
-      }
-
-      const authToken = session.access_token;
-
-      if (!authToken) {
-        throw new Error('No authentication token available');
-      }
-
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/deactivate-workflow`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({ workflowId })
+      const { data: result, error: invokeError } = await supabase.functions.invoke('deactivate-workflow', {
+        body: { workflowId }
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || `HTTP error! status: ${response.status}`);
-      }
+      if (invokeError) throw invokeError;
+      if (result?.error) throw new Error(result.error);
 
       return result;
     } catch (error) {

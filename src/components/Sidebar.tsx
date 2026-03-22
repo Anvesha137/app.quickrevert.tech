@@ -15,6 +15,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { useUIStyle } from '../contexts/UIStyleContext';
+import { useUpgradeModal } from '../contexts/UpgradeModalContext';
 import { supabase } from '../lib/supabase';
 
 
@@ -35,48 +36,10 @@ export default function Sidebar({ millennial = false }: SidebarProps) {
   const location = useLocation();
   const { user, signOut } = useAuth();
   const { displayName } = useTheme();
-  const { isPremium, dmLimit, automationLimit } = useSubscription();
+  const { isPremium, dmLimit, automationLimit, usage, loading, isGifted } = useSubscription();
+  const { openModal } = useUpgradeModal();
   const { uiStyle, toggleUIStyle } = useUIStyle();
   const isGenZ = uiStyle === 'genz';
-
-  const [stats, setStats] = useState({
-    dmsTriggered: 0,
-    uniqueUsers: 0
-  });
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (user && millennial) {
-      fetchStats();
-    }
-  }, [user, millennial]);
-
-  const fetchStats = async () => {
-    try {
-      setLoading(true);
-      const { data: activities, error } = await supabase
-        .from('automation_activities')
-        .select('*')
-        .eq('user_id', user!.id);
-      
-      if (error) throw error;
-      
-      const uniqueUsersSet = new Set((activities || []).map(a => a.contact_id).filter(Boolean));
-      const dmActivities = (activities || []).filter(a => {
-        const type = (a.activity_type || '').toLowerCase();
-        return type.includes('dm') || type.includes('message');
-      });
-      
-      setStats({
-        dmsTriggered: dmActivities.length,
-        uniqueUsers: uniqueUsersSet.size
-      });
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const getUserName = () => {
     return displayName || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
@@ -89,6 +52,13 @@ export default function Sidebar({ millennial = false }: SidebarProps) {
       console.error('Error signing out:', error);
     }
   };
+
+  const totalDmsValue = usage?.dms || 0;
+  const totalContactsValue = usage?.contacts || 0;
+
+  const limitValueForCheck = typeof dmLimit === 'number' ? dmLimit : 1000;
+  const isAtLimit = (dmLimit !== 'Unlimited') && (totalDmsValue >= limitValueForCheck || totalContactsValue >= limitValueForCheck);
+  const customMessage = (isGifted && isAtLimit) ? "you have reached the limit - please upgrade to continue using" : undefined;
 
   // ─── MILLENNIAL SIDEBAR (inside black card) ────────────────────────────────
   if (millennial) {
@@ -182,20 +152,31 @@ export default function Sidebar({ millennial = false }: SidebarProps) {
         </div>
 
         {/* Usage Stats (Millennial) */}
-        <div className="mt-4 bg-white/5 rounded-2xl p-4 border border-white/10">
-          <h3 className="font-bold text-white text-sm mb-4">Usage Stats</h3>
+        <div 
+          className="mt-4 bg-white/5 rounded-2xl p-4 border border-white/10 cursor-pointer group hover:bg-white/10 transition-all hover:border-white/20"
+          onClick={() => openModal(undefined, customMessage)}
+        >
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-bold text-white text-sm">Usage Stats</h3>
+            {(totalDmsValue >= (typeof dmLimit === 'number' ? dmLimit : 1000) || totalContactsValue >= (typeof dmLimit === 'number' ? dmLimit : 1000)) && (
+              <span className="text-[10px] font-black text-red-500 animate-pulse tracking-tighter">UPGRADE</span>
+            )}
+          </div>
           <div className="space-y-4">
             <div>
               <div className="flex justify-between text-xs mb-1.5">
                 <span className="text-white/70">DMs Triggered</span>
                 <span className="text-white font-medium">
-                  {loading ? '-' : stats.dmsTriggered.toLocaleString()}/{dmLimit === 'Unlimited' ? 'unlimited' : dmLimit.toLocaleString()}
+                  {loading ? '-' : totalDmsValue.toLocaleString()}/{dmLimit === 'Unlimited' ? 'unlimited' : dmLimit.toLocaleString()}
                 </span>
               </div>
               <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
                 <div 
-                  className="h-full bg-[#10b981] rounded-full transition-all duration-1000" 
-                  style={{ width: dmLimit === 'Unlimited' ? '100%' : `${Math.min((stats.dmsTriggered / (typeof dmLimit === 'number' ? dmLimit : 1000)) * 100, 100)}%` }}
+                  className="h-full rounded-full transition-all duration-1000" 
+                  style={{ 
+                    width: dmLimit === 'Unlimited' ? '100%' : `${Math.min((totalDmsValue / (typeof dmLimit === 'number' ? dmLimit : 1000)) * 100, 100)}%`,
+                    background: dmLimit !== 'Unlimited' && totalDmsValue >= (typeof dmLimit === 'number' ? dmLimit : 1000) ? '#ef4444' : '#10b981'
+                  }} 
                 />
               </div>
             </div>
@@ -203,13 +184,16 @@ export default function Sidebar({ millennial = false }: SidebarProps) {
               <div className="flex justify-between text-xs mb-1.5">
                 <span className="text-white/70">Total Contacts</span>
                 <span className="text-white font-medium">
-                  {loading ? '-' : stats.uniqueUsers.toLocaleString()}/{dmLimit === 'Unlimited' ? 'unlimited' : dmLimit.toLocaleString()}
+                  {loading ? '-' : totalContactsValue.toLocaleString()}/{dmLimit === 'Unlimited' ? 'unlimited' : dmLimit.toLocaleString()}
                 </span>
               </div>
               <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
                 <div 
-                  className="h-full bg-[#8b5cf6] rounded-full transition-all duration-1000" 
-                  style={{ width: dmLimit === 'Unlimited' ? '100%' : `${Math.min((stats.uniqueUsers / (typeof dmLimit === 'number' ? dmLimit : 1000)) * 100, 100)}%` }}
+                  className="h-full rounded-full transition-all duration-1000" 
+                  style={{ 
+                    width: dmLimit === 'Unlimited' ? '100%' : `${Math.min((totalContactsValue / (typeof dmLimit === 'number' ? dmLimit : 1000)) * 100, 100)}%`,
+                    background: dmLimit !== 'Unlimited' && totalContactsValue >= (typeof dmLimit === 'number' ? dmLimit : 1000) ? '#ef4444' : '#8b5cf6'
+                  }} 
                 />
               </div>
             </div>

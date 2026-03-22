@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Client } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -12,6 +13,32 @@ serve(async (req) => {
     }
 
     try {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+        // Support both new and legacy key names
+        const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || '';
+        const supabaseSecretKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SECRET_KEY') || '';
+
+        // Verify authentication
+        const authHeader = req.headers.get('Authorization');
+        if (!authHeader) {
+            return new Response(
+                JSON.stringify({ error: "No authentication token provided" }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+            );
+        }
+
+        // Use Secret Key (if available) to initialize admin client
+        const supabaseClient = createClient(supabaseUrl, supabaseSecretKey || supabaseAnonKey);
+        const jwt = authHeader.replace('Bearer ', '');
+        const { data: { user }, error: authError } = await supabaseClient.auth.getUser(jwt);
+
+        if (authError || !user) {
+            return new Response(
+                JSON.stringify({ error: "Authentication failed: " + (authError?.message || "User not found") }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+            );
+        }
+
         // planType is 'annual' or 'quarterly' (from frontend billingCycle)
         const { couponCode, planType } = await req.json();
 

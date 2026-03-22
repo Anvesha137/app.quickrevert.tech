@@ -32,15 +32,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseSecretKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || "";
 
+    // Initialize administrative client for verification
+    const supabase = createClient(supabaseUrl, supabaseSecretKey || supabaseAnonKey);
+    // Use the jwt already declared above
     const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
 
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Authentication failed", details: authError?.message || "Invalid token" }), {
+      return new Response(JSON.stringify({ error: "Authentication failed", details: authError?.message || "Invalid or expired session" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

@@ -1,4 +1,4 @@
-﻿import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Client } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
 
@@ -13,7 +13,42 @@ serve(async (req) => {
   }
 
   try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+    // Support both new and legacy key names
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || '';
+    const supabaseSecretKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SECRET_KEY') || '';
+    
+    // Verify authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "No authentication token provided" }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      );
+    }
+
+    // Use Secret Key (if available) to initialize admin client
+    const supabaseClient = createClient(supabaseUrl, supabaseSecretKey || supabaseAnonKey);
+    const jwt = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(jwt);
+
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Authentication failed: " + (authError?.message || "User not found") }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      );
+    }
+
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, userId, planTier, planType, instagramHandle, couponCode, isFree } = await req.json()
+
+    // Security check: ensure the userId in the body matches the authenticated user
+    if (userId !== user.id) {
+       console.error(`User ID mismatch: Body=${userId}, Auth=${user.id}`);
+       return new Response(
+         JSON.stringify({ error: "Unauthorized: User ID mismatch" }),
+         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+       );
+    }
 
     // 1. Verify Payment (Signature or Free Coupon)
     if (isFree) {
@@ -114,11 +149,6 @@ serve(async (req) => {
         )
       }
     }
-
-    // 2. Initialize Supabase Client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    const supabaseClient = createClient(supabaseUrl, supabaseKey);
 
     // 3. Upsert to Supabase
     // Calculate amount paid and discount (in rupees as integer)
@@ -360,7 +390,7 @@ serve(async (req) => {
   } catch (error) {
     return new Response(
       JSON.stringify({ error: error.message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     )
   }
 })

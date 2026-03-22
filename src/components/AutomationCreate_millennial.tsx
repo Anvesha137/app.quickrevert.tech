@@ -7,6 +7,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useSubscription } from '../contexts/SubscriptionContext';
 import {
   AutomationFormData, TriggerType, TriggerConfig, Action,
   PostCommentTriggerConfig, StoryReplyTriggerConfig, UserDirectMessageTriggerConfig,
@@ -49,6 +50,7 @@ const TRIGGER_OPTIONS: {
 
 export default function AutomationCreateMillennial({ readOnly = false }: AutomationCreateMillennialProps) {
   const { user } = useAuth();
+  const { hasInstagramConnected, loading: subLoading } = useSubscription();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
 
@@ -59,36 +61,72 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
   const setStep = (newStep: WizardStep) => {
     setSearchParams({ step: newStep.toString() });
   };
+  const LOCAL_STORAGE_KEY = 'quickrevert_automation_draft';
+
   const [saving, setSaving] = useState(false);
-  const [formData, setFormData] = useState<AutomationFormData>({
-    name: '',
-    triggerType: null,
-    triggerConfig: null,
-    actions: [],
+  const [formData, setFormData] = useState<AutomationFormData>(() => {
+    if (!id && !readOnly) {
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          return parsed.formData || {
+            name: '',
+            triggerType: null,
+            triggerConfig: null,
+            actions: [],
+          };
+        }
+      } catch (e) {
+        console.error('Failed to parse saved draft:', e);
+      }
+    }
+    return {
+      name: '',
+      triggerType: null,
+      triggerConfig: null,
+      actions: [],
+    };
   });
 
   useEffect(() => {
-    checkInstagramAccount();
+    if (!id && !readOnly) {
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+      const parsed = saved ? JSON.parse(saved) : {};
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({
+        ...parsed,
+        formData,
+        step: step,
+        updatedAt: Date.now()
+      }));
+    }
+  }, [formData, step, id, readOnly]);
+
+  // Restore step on mount if not provided in URL
+  useEffect(() => {
+    if (!id && !readOnly && !searchParams.get('step')) {
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.step !== undefined && parsed.step !== 0) {
+            setStep(parsed.step as WizardStep);
+          }
+        }
+      } catch (e) { console.error('Failed to restore step:', e); }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!subLoading && !hasInstagramConnected) {
+      toast.error('Please connect an Instagram account first.');
+      navigate('/connect-accounts');
+    }
+  }, [hasInstagramConnected, subLoading, navigate]);
+
+  useEffect(() => {
     if (id) fetchAutomation(id);
   }, [user, id]);
-
-  async function checkInstagramAccount() {
-    if (!user) return;
-    try {
-      const { data } = await supabase
-        .from('instagram_accounts')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .maybeSingle();
-      if (!data) {
-        toast.error('Please connect an Instagram account first.');
-        navigate('/connect-accounts');
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  }
 
   async function fetchAutomation(automationId: string) {
     if (!user) return;
@@ -188,6 +226,9 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
         toast.warning(`Automation saved, but the workflow setup had an issue: ${n8nErr.message || 'Unknown error'}`);
       }
 
+      // Clear draft on successful save
+      if (!id) localStorage.removeItem(LOCAL_STORAGE_KEY);
+      
       toast.success('🎉 Automation saved successfully!');
       navigate('/automation');
     } catch (err: any) {

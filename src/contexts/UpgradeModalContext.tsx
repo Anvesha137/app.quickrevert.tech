@@ -4,7 +4,8 @@ import { useSubscription } from './SubscriptionContext';
 interface UpgradeModalContextType {
     isOpen: boolean;
     defaultBillingCycle: 'annual' | 'quarterly' | null;
-    openModal: (cycle?: 'annual' | 'quarterly') => void;
+    message: string | null;
+    openModal: (cycle?: 'annual' | 'quarterly', customMessage?: string) => void;
     closeModal: () => void;
     showCelebration: boolean;
     openCelebration: () => void;
@@ -16,17 +17,24 @@ const UpgradeModalContext = createContext<UpgradeModalContextType | undefined>(u
 export function UpgradeModalProvider({ children }: { children: ReactNode }) {
     const [isOpen, setIsOpen] = useState(false);
     const [defaultBillingCycle, setDefaultBillingCycle] = useState<'annual' | 'quarterly' | null>(null);
+    const [message, setMessage] = useState<string | null>(null);
+    const { isPremium, isGifted } = useSubscription();
     const [showCelebration, setShowCelebration] = useState(false);
-    const { isPremium } = useSubscription();
 
-    // Never open the upgrade modal for premium users
-    const openModal = (cycle?: 'annual' | 'quarterly') => {
-        if (isPremium) return;
+    // Allow opening the upgrade modal for non-premium users OR gifted users
+    const openModal = (cycle?: 'annual' | 'quarterly', customMessage?: string) => {
+        if (isPremium && !isGifted) return;
+        
         if (cycle) setDefaultBillingCycle(cycle);
         else setDefaultBillingCycle(null);
+        
+        setMessage(customMessage || null);
         setIsOpen(true);
     };
-    const closeModal = () => setIsOpen(false);
+    const closeModal = () => {
+        setIsOpen(false);
+        setMessage(null);
+    };
 
     const openCelebration = () => setShowCelebration(true);
     const closeCelebration = () => setShowCelebration(false);
@@ -35,6 +43,7 @@ export function UpgradeModalProvider({ children }: { children: ReactNode }) {
         <UpgradeModalContext.Provider value={{
             isOpen,
             defaultBillingCycle,
+            message,
             openModal,
             closeModal,
             showCelebration,

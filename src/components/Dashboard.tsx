@@ -25,6 +25,7 @@ import ProBanner from './ProBanner';
 import DMsChart from './DMsChart';
 import SetupProgress from './SetupProgress';
 import TopPerforming from './TopPerforming';
+import UsageStats from './UsageStats';
 
 interface DashboardStats {
   dmsTriggered: number;
@@ -58,7 +59,7 @@ export default function Dashboard() {
   const [enablingAnalytics, setEnablingAnalytics] = useState(false);
   const [isRefreshingAnalytics, _setRefreshingAnalytics] = useState(false);
   const [instagramAccount, setInstagramAccount] = useState<any>(null);
-  const { isPremium } = useSubscription();
+  const { isPremium: subIsPremium, isGifted: subIsGifted, isAtLimit: subIsAtLimit } = useSubscription();
   const { uiStyle } = useUIStyle();
 
   useEffect(() => {
@@ -317,6 +318,11 @@ export default function Dashboard() {
               </div>
             </div>
 
+            {/* Usage Stats - Mobile Only (Millennial) */}
+            <div className="block lg:hidden mt-6 mb-2">
+              <UsageStats />
+            </div>
+
             {/* DMs Sent Section */}
             <div className="mt-4 pt-8 border-t border-gray-100">
               <div className="flex justify-between items-start mb-6">
@@ -359,10 +365,8 @@ export default function Dashboard() {
 
             {/* Banners */}
             <div className="space-y-3">
-              {!isPremium && (
-                <button className="w-full bg-black text-white hover:bg-gray-800 transition-colors py-3 rounded-lg flex items-center justify-center gap-2 font-bold text-sm">
-                  <span className="text-lg">👑</span> Upgrade To Pro
-                </button>
+              {(!subIsPremium || (subIsGifted && subIsAtLimit)) && (
+                <ProBanner isCompact={true} />
               )}
               <a href="https://quickrevert.tech/contact" target="_blank" rel="noopener noreferrer" className="w-full bg-[#1e6129] hover:bg-[#15471d] text-white transition-colors py-3 rounded-lg flex items-center justify-center gap-2 font-bold text-sm">
                 <span className="text-lg">👏</span> Support
@@ -419,9 +423,11 @@ export default function Dashboard() {
         {/* Main Content Area */}
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-1000 fill-mode-both">
           {/* Pro Banner */}
-          <div className="transform transition-transform hover:scale-[1.005]">
-            <ProBanner isCompact={false} />
-          </div>
+          {(!subIsPremium || (subIsGifted && subIsAtLimit)) && (
+            <div className="transform transition-transform hover:scale-[1.005]">
+              <ProBanner isCompact={false} />
+            </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
             {/* Left Column: Metrics & Analytics */}
@@ -429,7 +435,7 @@ export default function Dashboard() {
               {/* Connection Status Banner */}
               <div className="group">
                 {instagramAccount ? (
-                  <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-r ${isPremium ? 'from-indigo-600 to-violet-700 shadow-indigo-500/30' : 'from-blue-500 to-purple-600 shadow-purple-500/30'} p-6 shadow-lg transition-all duration-300 hover:shadow-xl`}>
+                  <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-r ${subIsPremium ? 'from-indigo-600 to-violet-700 shadow-indigo-500/30' : 'from-blue-500 to-purple-600 shadow-purple-500/30'} p-6 shadow-lg transition-all duration-300 hover:shadow-xl`}>
                     <div className="flex items-center gap-4 relative z-10">
                       <div className="w-12 h-12 rounded-xl bg-white/10 border border-white/20 backdrop-blur-md flex items-center justify-center shrink-0">
                         {instagramAccount.profile_picture_url ? (
@@ -520,6 +526,11 @@ export default function Dashboard() {
                     </div>
                   </>
                 )}
+              </div>
+
+              {/* Usage Stats - Mobile Only */}
+              <div className="block md:hidden pt-4">
+                <UsageStats />
               </div>
 
               {/* Chart Section */}

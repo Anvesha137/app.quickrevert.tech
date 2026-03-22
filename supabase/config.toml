@@ -77,7 +77,7 @@ verify_jwt = false
 verify_jwt = false
 [functions.create-razorpay-order]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/create-razorpay-order/index.ts"
@@ -87,7 +87,7 @@ entrypoint = "./functions/create-razorpay-order/index.ts"
 
 [functions.verify-razorpay-payment]
 enabled = false
-verify_jwt = true
+verify_jwt = false
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/verify-razorpay-payment/index.ts"

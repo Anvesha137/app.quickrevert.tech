@@ -8,9 +8,13 @@ interface ProBannerProps {
 
 export default function ProBanner({ isCompact }: ProBannerProps) {
     const { openModal } = useUpgradeModal();
-    const { isPremium } = useSubscription();
+    const { isPremium, isExpired, isGifted, isAtLimit } = useSubscription();
 
-    if (isPremium) return null;
+    // Show banner if not premium OR if gifted and at limit
+    const shouldShow = !isPremium || (isGifted && isAtLimit);
+    if (!shouldShow) return null;
+
+    const customMessage = (isGifted && isAtLimit) ? "you have reached the limit - please upgrade to continue using" : undefined;
 
     if (isCompact) {
         return (
@@ -21,15 +25,19 @@ export default function ProBanner({ isCompact }: ProBannerProps) {
                             <Crown className="w-6 h-6 text-white" />
                         </div>
                         <div className="min-w-0">
-                            <h3 className="text-white font-bold text-base truncate">Unlock Pro</h3>
-                            <p className="text-white/80 text-xs">Advanced features</p>
+                            <h3 className="text-white font-bold text-base truncate">
+                                {isAtLimit ? 'Limit Reached' : (isExpired ? 'Plan Expired' : 'Unlock Pro')}
+                            </h3>
+                            <p className="text-white/80 text-xs text-balance">
+                                {isAtLimit ? 'Upgrade to keep usage' : (isExpired ? 'Renew to keep features' : 'Advanced features')}
+                            </p>
                         </div>
                     </div>
                     <button
-                        onClick={openModal}
+                        onClick={() => openModal(undefined, customMessage)}
                         className="px-4 py-2 bg-white text-red-600 text-xs font-bold rounded-lg shadow-md hover:shadow-lg transition-all whitespace-nowrap"
                     >
-                        Upgrade
+                        {isAtLimit ? 'Upgrade' : (isExpired ? 'Renew' : 'Upgrade')}
                     </button>
                 </div>
             </div>
@@ -49,17 +57,20 @@ export default function ProBanner({ isCompact }: ProBannerProps) {
                     </div>
                     <div>
                         <h3 className="text-white font-bold text-base flex items-center gap-2 justify-center md:justify-start">
-                            Unlock Pro Power! <Sparkles className="w-4 h-4" />
+                            {isAtLimit ? 'Usage Limit Reached!' : (isExpired ? 'Your Pro Plan Expired!' : 'Unlock Pro Power!')} <Sparkles className="w-4 h-4" />
                         </h3>
-                        <p className="text-white/90 text-xs">Get unlimited automations, contacts & advanced analytics</p>
+                        <p className="text-white/90 text-xs">
+                          {isAtLimit ? 'Please upgrade your plan to continue using QuickRevert without interruptions.' : 
+                           (isExpired ? 'Renew now to restore unlimited automations and analytics' : 'Get unlimited automations, contacts & advanced analytics')}
+                        </p>
                     </div>
                 </div>
                 <button
-                    onClick={openModal}
+                    onClick={() => openModal(undefined, customMessage)}
                     className="px-5 py-2 rounded-lg bg-white text-red-600 font-bold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 flex items-center gap-2 whitespace-nowrap text-sm"
                 >
                     <Crown className="w-4 h-4" />
-                    Upgrade to Pro
+                    {isAtLimit ? 'Upgrade Now' : (isExpired ? 'Renew Subscription' : 'Upgrade to Pro')}
                 </button>
             </div>
         </div>

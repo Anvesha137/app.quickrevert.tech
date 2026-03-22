@@ -40,26 +40,17 @@ const InstagramConnectModal = ({ isOpen, onClose }: Omit<InstagramConnectModalPr
           return;
         }
 
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/instagram-oauth-init`,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${session.access_token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
+        const { data: result, error: invokeError } = await supabase.functions.invoke('instagram-oauth-init', {
+          method: 'GET'
+        });
 
-        if (!response.ok) {
-          const result = await response.json();
-          const errorMsg = result.details
-            ? `${result.error || 'Error'}: ${result.details}`
-            : (result.error || `HTTP ${response.status}: Failed to initialize OAuth`);
-          throw new Error(errorMsg);
+        if (invokeError) {
+          throw new Error(invokeError.message || 'Failed to initialize OAuth');
         }
 
-        const result = await response.json();
+        if (result?.error) {
+          throw new Error(result.error);
+        }
 
         if (!result.authUrl) {
           throw new Error('No authorization URL received from server');

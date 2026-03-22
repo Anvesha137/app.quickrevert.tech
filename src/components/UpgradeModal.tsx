@@ -4,6 +4,7 @@ import { useUpgradeModal } from '../contexts/UpgradeModalContext';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
+import { supabase } from '../lib/supabase';
 
 declare global {
     interface Window {
@@ -22,9 +23,9 @@ interface CouponState {
 }
 
 export default function UpgradeModal() {
-    const { isOpen, closeModal, openCelebration, defaultBillingCycle } = useUpgradeModal();
-    const { user } = useAuth();
-    const { isPremium } = useSubscription();
+    const { isOpen, closeModal, openCelebration, defaultBillingCycle, message } = useUpgradeModal();
+    const { user, session } = useAuth();
+    const { isPremium, isGifted } = useSubscription();
     const [planTier] = useState<PlanTier>('premium');
     const [billingCycle, setBillingCycle] = useState<'annual' | 'quarterly'>(defaultBillingCycle || 'annual');
     const [loading, setLoading] = useState(false);
@@ -56,8 +57,8 @@ export default function UpgradeModal() {
         }
     }, [billingCycle]);
 
-    // Double safety: never render for premium users
-    if (!isOpen || isPremium) return null;
+    // Show if open AND (user is not premium OR user is gifted)
+    if (!isOpen || (isPremium && !isGifted)) return null;
 
     const premiumFeatures = [
         'Unlimited Auto DM',
@@ -92,19 +93,20 @@ export default function UpgradeModal() {
         setCoupon(prev => ({ ...prev, status: 'validating', message: '' }));
 
         try {
-            const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
-            const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
-
-            const response = await fetch(`${supabaseUrl}/functions/v1/validate-coupon`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${supabaseAnonKey}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ couponCode: code.trim(), planType: billingCycle }),
+            const { data, error } = await supabase.functions.invoke('validate-coupon', {
+                body: { couponCode: code.trim(), planType: billingCycle }
             });
 
-            const data = await response.json();
+            if (error || data?.error) {
+                setCoupon({
+                    status: 'invalid',
+                    message: error?.message || data?.error || 'Invalid coupon code.',
+                    discountAmount: 0,
+                    finalAmount: getBaseTotal(),
+                    isFree: false,
+                });
+                return;
+            }
 
             if (data.valid) {
                 setCoupon({
@@ -162,56 +164,61 @@ export default function UpgradeModal() {
         setLoading(true);
         try {
             const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
-            const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
             const razorpayKey = (import.meta.env.VITE_RAZORPAY_KEY_ID || '').trim();
 
-            if (!supabaseUrl || !supabaseAnonKey || !razorpayKey) {
+            if (!supabaseUrl || !razorpayKey) {
                 toast.error("Configuration Error: Missing Environment Variables.");
                 setLoading(false);
                 return;
             }
 
+            console.log('DEBUG: Creating Razorpay order...', { userId: user?.id, hasSession: !!session });
+            
+            if (!session) {
+                console.error('DEBUG: No active session found in UpgradeModal');
+                toast.error("Your session has expired. Please log in again.");
+                setLoading(false);
+                return;
+            }
+
             // 1. Create Order
-            const response = await fetch(`${supabaseUrl}/functions/v1/create-razorpay-order`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${supabaseAnonKey}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
+            const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
+                body: {
                     planTier: planTier,
                     planType: billingCycle,
                     instagramHandle: instagramHandle,
                     couponCode: couponCode
-                })
+                }
             });
 
-            const responseText = await response.text();
-            if (!response.ok) throw new Error(`HTTP Error ${response.status}: ${responseText}`);
-
-            const data = JSON.parse(responseText);
-            if (data?.error) throw new Error(data.error);
+            if (error) {
+                console.error('Razorpay order creation error:', error);
+                const errorMsg = error.message || 'Failed to create order. Please try again.';
+                setLoading(false);
+                toast.error(`Order Failed: ${errorMsg}`);
+                return;
+            }
+            if (data?.error) {
+                console.error('Razorpay order data error:', data.error);
+                setLoading(false);
+                toast.error(`Order Failed: ${data.error}`);
+                return;
+            }
 
             if (data?.free) {
-                const verifyResponse = await fetch(`${supabaseUrl}/functions/v1/verify-razorpay-payment-new`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${supabaseAnonKey}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
+                const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-razorpay-payment-new', {
+                    body: {
                         isFree: true,
                         userId: user?.id,
                         planTier: planTier,
                         planType: billingCycle,
                         instagramHandle: instagramHandle,
                         couponCode: couponCode
-                    })
+                    }
                 });
 
-                if (!verifyResponse.ok) {
-                    const errorText = await verifyResponse.text();
-                    toast.error(`Upgrade failed: ${errorText}`);
+                if (verifyError || verifyData?.error) {
+                    toast.error(`Upgrade failed: ${verifyError?.message || verifyData?.error}`);
                     setLoading(false);
                     return;
                 }
@@ -235,13 +242,8 @@ export default function UpgradeModal() {
                     coupon_code: couponCode
                 },
                 handler: async function (response: any) {
-                    const verifyResponse = await fetch(`${supabaseUrl}/functions/v1/verify-razorpay-payment-new`, {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${supabaseAnonKey}`,
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
+                    const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-razorpay-payment-new', {
+                        body: {
                             razorpay_order_id: response.razorpay_order_id,
                             razorpay_payment_id: response.razorpay_payment_id,
                             razorpay_signature: response.razorpay_signature,
@@ -250,12 +252,11 @@ export default function UpgradeModal() {
                             planType: billingCycle,
                             instagramHandle: instagramHandle,
                             couponCode: couponCode
-                        })
+                        }
                     });
 
-                    if (!verifyResponse.ok) {
-                        const errorText = await verifyResponse.text();
-                        toast.error(`Payment verification failed: ${errorText}`);
+                    if (verifyError || verifyData?.error) {
+                        toast.error(`Payment verification failed: ${verifyError?.message || verifyData?.error}`);
                         setLoading(false);
                         return;
                     }
@@ -291,10 +292,18 @@ export default function UpgradeModal() {
                 <div className="p-6 pb-2 relative">
                     <button
                         onClick={closeModal}
-                        className="absolute right-6 top-6 text-gray-400 hover:text-gray-600 transition-colors"
+                        className="absolute right-4 top-4 z-50 p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-full transition-all"
                     >
-                        <X size={24} />
+                        <X size={20} />
                     </button>
+
+                    {message && (
+                        <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-2xl text-red-600 text-xs font-bold animate-pulse flex items-center gap-2">
+                             <Tag className="w-4 h-4" />
+                             {message}
+                        </div>
+                    )}
+
                     <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                         Upgrade to <span className="text-blue-600">Premium</span>
                     </h2>

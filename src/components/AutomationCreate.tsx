@@ -7,6 +7,7 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useSubscription } from '../contexts/SubscriptionContext';
 import { AutomationFormData, TriggerType, TriggerConfig, ReplyToCommentAction, SendDmAction } from '../types/automation';
 import { N8nWorkflowService } from '../lib/n8nService';
 import TriggerSelection from './automation-steps/TriggerSelection';
@@ -43,6 +44,7 @@ interface AutomationCreateProps {
 
 export default function AutomationCreate({ readOnly = false }: AutomationCreateProps) {
   const { user } = useAuth();
+  const { hasInstagramConnected, loading: subLoading } = useSubscription();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   // For view mode, show configuration directly if loaded, or just stick to 'setup' -> 'configuration' flow but pre-filled?
@@ -53,16 +55,70 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
   const setCurrentStep = (newStep: Step) => {
     setSearchParams({ step: newStep });
   };
+  const LOCAL_STORAGE_KEY = 'quickrevert_automation_draft';
+
   const [saving, setSaving] = useState(false);
-  const [formData, setFormData] = useState<AutomationFormData>({
-    name: '',
-    triggerType: null,
-    triggerConfig: null,
-    actions: [],
+  const [formData, setFormData] = useState<AutomationFormData>(() => {
+    if (!id && !readOnly) {
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          return parsed.formData || {
+            name: '',
+            triggerType: null,
+            triggerConfig: null,
+            actions: [],
+          };
+        }
+      } catch (e) {
+        console.error('Failed to parse saved draft:', e);
+      }
+    }
+    return {
+      name: '',
+      triggerType: null,
+      triggerConfig: null,
+      actions: [],
+    };
   });
 
   useEffect(() => {
-    checkInstagramAccount();
+    if (!id && !readOnly) {
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+      const parsed = saved ? JSON.parse(saved) : {};
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({
+        ...parsed,
+        formData,
+        step: currentStep,
+        updatedAt: Date.now()
+      }));
+    }
+  }, [formData, currentStep, id, readOnly]);
+
+  // Restore step on mount if not provided in URL
+  useEffect(() => {
+    if (!id && !readOnly && !searchParams.get('step')) {
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.step && parsed.step !== 'setup') {
+            setSearchParams({ step: parsed.step });
+          }
+        }
+      } catch (e) { console.error('Failed to restore step:', e); }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!subLoading && !hasInstagramConnected) {
+      toast.error('Please connect an Instagram account before creating automations.');
+      navigate('/connect-accounts');
+    }
+  }, [hasInstagramConnected, subLoading, navigate]);
+
+  useEffect(() => {
     if (id) {
       fetchAutomation(id);
     }

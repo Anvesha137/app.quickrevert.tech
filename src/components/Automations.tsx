@@ -238,12 +238,24 @@ export default function Automations() {
 
       if (effectiveLimit !== null && activeCount >= effectiveLimit) {
         if (isGifted) {
-          toast.error(`You have reached your gifted premium limit of ${effectiveLimit} active automations.`);
+          toast.error("you have reached the limit - please upgrade to continue using", {
+            action: {
+              label: "Upgrade",
+              onClick: () => openModal(undefined, "you have reached the limit - please upgrade to continue using")
+            }
+          });
+          openModal(undefined, "you have reached the limit - please upgrade to continue using");
         } else if (!isPremium) {
-          toast.error(`Basic plan allows only ${effectiveLimit} active automations. Please upgrade your plan.`);
+          toast.error(`Basic plan allows only ${effectiveLimit} active automations. Please upgrade your plan.`, {
+            action: {
+              label: "Upgrade",
+              onClick: () => openModal()
+            }
+          });
           openModal();
         } else {
           toast.error(`You have reached your plan limit of ${effectiveLimit} active automations.`);
+          openModal();
         }
         return;
       }
