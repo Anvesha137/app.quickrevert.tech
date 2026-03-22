@@ -200,7 +200,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                 <div
                   key={post.id}
                   onClick={() => toggleMediaSelection(post.id)}
-                  className={`relative cursor-pointer aspect-square rounded-xl overflow-hidden border-2 transition-all
+                  className={`relative w-full h-auto aspect-square rounded-xl overflow-hidden border-2 transition-all
                     ${isSelected ? "border-purple-600" : "border-transparent hover:border-purple-200"}`}
                 >
                   {post.media_type === 'VIDEO' ? (

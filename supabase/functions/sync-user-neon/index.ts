@@ -118,8 +118,21 @@ serve(async (req) => {
       [cleanEmail, userId]
     );
 
-    const isGifted = giftedRows.length > 0;
-    const giftedSettings = isGifted ? (giftedRows[0] as any) : null;
+    let isGifted = giftedRows.length > 0;
+    let giftedSettings = isGifted ? (giftedRows[0] as any) : null;
+
+    if (isGifted && giftedSettings?.expiry_date) {
+      const expiryDate = new Date(giftedSettings.expiry_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      expiryDate.setHours(0, 0, 0, 0);
+
+      if (expiryDate < today) {
+        console.log(`[sync-user-neon] Gifted premium EXPIRED for ${cleanEmail} (expired on ${giftedSettings.expiry_date})`);
+        isGifted = false;
+        giftedSettings = null;
+      }
+    }
     
     console.log(`[sync-user-neon] GIFTED CHECK: email=${cleanEmail}, userId=${userId}, found=${isGifted}`);
     if (isGifted) console.log(`[sync-user-neon] Settings:`, JSON.stringify(giftedSettings));
