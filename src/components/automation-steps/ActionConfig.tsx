@@ -32,7 +32,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
 
   // Cleanup askToFollow if user_directed_messages
   useEffect(() => {
-    if (triggerType === 'user_directed_messages' && hasFollowGate) {
+    if (triggerType !== 'post_comment' && hasFollowGate) {
       updateDmAction({ askToFollow: false });
     }
   }, [triggerType, actions]);
@@ -201,7 +201,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
           )}
 
           {/* Follow Gate Toggle */}
-          {triggerType !== 'user_directed_messages' && (
+          {triggerType === 'post_comment' && (
             <div className={`rounded-xl md:rounded-2xl border-2 transition-all overflow-hidden ${hasFollowGate ? 'border-purple-200 bg-purple-50/30' : 'border-transparent bg-white hover:bg-gray-50'}`}>
               <div className="p-3 md:p-4 flex items-center gap-3 md:gap-4 cursor-pointer" onClick={toggleFollowGate}>
                 <div className="w-10 h-10 md:w-12 md:h-12 rounded-[14px] md:rounded-xl bg-gray-50 flex items-center justify-center shrink-0 border border-gray-100">

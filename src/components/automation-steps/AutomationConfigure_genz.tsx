@@ -228,6 +228,12 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
     updateActions(actions.filter(a => a.type !== 'send_dm'));
   };
 
+  useEffect(() => {
+    if (triggerType !== 'post_comment' && hasFollowGate) {
+      updateActions(actions.map(a => a.type === 'send_dm' ? { ...a, askToFollow: false } : a));
+    }
+  }, [triggerType, hasFollowGate]);
+
   const toggleFollowGate = () => {
     if (readOnly) return;
     if (!canUseAskToFollow) { openModal(); return; }
@@ -465,7 +471,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
       )}
 
       {/* Follow Gate — inline toggle */}
-      {triggerType !== 'user_directed_messages' && (
+      {triggerType === 'post_comment' && (
         <>
           <div className={`rounded-2xl border transition-all overflow-hidden mb-4 ${hasFollowGate ? 'border-purple-200 bg-purple-50/10' : 'border-gray-200 bg-white'}`}>
             <div className="flex items-center gap-3 py-4 px-5 cursor-pointer hover:bg-gray-50 transition-colors" onClick={toggleFollowGate}>
