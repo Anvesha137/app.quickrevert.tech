@@ -396,16 +396,28 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
         {/* Validation Error Message */}
         <AnimatePresence>
           {actions.length === 0 && (
-            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="mt-4 p-4 bg-[#fffbeb] border border-[#fef3c7] rounded-xl flex items-center gap-3">
-              <AlertCircle size={20} className="text-orange-400 shrink-0" />
-              <p className="text-orange-700 font-bold text-sm">Please turn on at least one action above to continue.</p>
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="mt-4 p-4 bg-orange-50 border border-orange-100 rounded-xl flex items-center gap-3">
+              <AlertCircle size={20} className="text-orange-500 shrink-0" />
+              <p className="text-orange-800 font-bold text-sm leading-tight">Please turn on at least one action above (Reply or DM) to continue.</p>
+            </motion.div>
+          )}
+          {hasReply && !isReplyValid && (
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="mt-4 p-4 bg-orange-50 border border-orange-100 rounded-xl flex items-center gap-3">
+              <AlertCircle size={20} className="text-orange-500 shrink-0" />
+              <p className="text-orange-800 font-bold text-sm leading-tight">Please enter at least one comment reply message.</p>
+            </motion.div>
+          )}
+          {hasDm && !isDmValid && (
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="mt-4 p-4 bg-orange-50 border border-orange-100 rounded-xl flex items-center gap-3">
+              <AlertCircle size={20} className="text-orange-500 shrink-0" />
+              <p className="text-orange-800 font-bold text-sm leading-tight">Please fill in the Direct Message content.</p>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
       {/* Global Action Button (Launch) for Step 2 fixed at the bottom */}
-      <div className="fixed md:absolute bottom-16 md:bottom-0 left-0 right-0 px-5 md:px-12 bg-gradient-to-t from-white via-white to-transparent pt-16 pb-6 z-10 pointer-events-none flex justify-center">
+      <div className="fixed md:absolute bottom-0 md:bottom-0 left-0 right-0 px-5 md:px-12 bg-gradient-to-t from-white via-white/95 to-transparent pt-16 pb-8 z-20 pointer-events-none flex justify-center">
         {readOnly ? (
           <div className="pointer-events-auto w-full md:max-w-xl">
             <button disabled className="w-full py-4 md:py-5 rounded-full font-bold text-lg flex justify-center items-center gap-2 transition-all shadow-none bg-gray-100 text-gray-400">
