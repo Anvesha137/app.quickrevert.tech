@@ -763,7 +763,7 @@ if (diff > COOLDOWN_MS) {
               values: [
                 {
                   conditions: {
-                    options: { caseSensitive: true, leftValue: "", typeValidation: "strict", version: 3 },
+                    options: { caseSensitive: true, leftValue: "", typeValidation: "loose", version: 3 },
                     conditions: [
                       {
                         id: "sender-not-bot",
@@ -772,10 +772,10 @@ if (diff > COOLDOWN_MS) {
                         operator: { type: "string", operation: "notEquals" }
                       },
                       {
-                        id: "not-a-story-reply",
+                        id: triggerType === 'story_reply' ? "is-a-story-reply" : "not-a-story-reply",
                         leftValue: "={{ $('Worker Webhook').item.json.body.entry[0].messaging[0].message.reply_to }}",
                         rightValue: "",
-                        operator: { type: "string", operation: "notExists", singleValue: true }
+                        operator: { type: "string", operation: triggerType === 'story_reply' ? "exists" : "notExists", singleValue: true }
                       }
                     ],
                     combinator: "and"
