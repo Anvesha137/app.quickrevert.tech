@@ -204,7 +204,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                     ${isSelected ? "border-purple-600" : "border-transparent hover:border-purple-200"}`}
                 >
                   {post.media_type === 'VIDEO' ? (
-                    <video src={post.media_url} poster={post.thumbnail_url} muted className="w-full h-full object-cover" />
+                    <video src={post.media_url} poster={post.thumbnail_url} autoPlay loop muted playsInline className="w-full h-full object-cover" />
                   ) : (
                     <img src={post.media_url} alt={post.caption || 'Post'} className="w-full h-full object-cover" />
                   )}

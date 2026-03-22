@@ -300,7 +300,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                         const isSelected = specificIds.includes(post.id);
                         return (
                           <div key={post.id} onClick={() => toggleMediaSelection(post.id)} className={`relative w-full h-auto cursor-pointer aspect-square rounded-xl overflow-hidden border-2 transition-all ${isSelected ? 'border-purple-600' : 'border-transparent hover:border-purple-200'}`}>
-                            {post.media_type === 'VIDEO' ? <video src={post.media_url} poster={post.thumbnail_url} muted className="w-full h-full object-cover" /> : <img src={post.media_url} alt="" className="w-full h-full object-cover" />}
+                            {post.media_type === 'VIDEO' ? <video src={post.media_url} poster={post.thumbnail_url} autoPlay loop muted playsInline className="w-full h-full object-cover" /> : <img src={post.media_url} alt="" className="w-full h-full object-cover" />}
                             {isSelected && <div className="absolute top-1 right-1 bg-purple-600 text-white p-0.5 rounded-md"><CheckCircle2 size={12} /></div>}
                           </div>
                         );

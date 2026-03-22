@@ -193,7 +193,10 @@ export default function Sidebar({ millennial = false }: SidebarProps) {
                 </span>
               </div>
               <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                <div className="h-full bg-[#10b981] rounded-full w-[15%]" />
+                <div 
+                  className="h-full bg-[#10b981] rounded-full transition-all duration-1000" 
+                  style={{ width: dmLimit === 'Unlimited' ? '100%' : `${Math.min((stats.dmsTriggered / (typeof dmLimit === 'number' ? dmLimit : 1000)) * 100, 100)}%` }}
+                />
               </div>
             </div>
             <div>
