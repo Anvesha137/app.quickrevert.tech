@@ -161,27 +161,6 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
     }
   };
 
-  const checkInstagramAccount = async () => {
-    if (!user) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('instagram_accounts')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .maybeSingle();
-
-      if (error) throw error;
-
-      if (!data) {
-        toast.error('Please connect an Instagram account before creating automations.');
-        navigate('/connect-accounts');
-      }
-    } catch (error) {
-      console.error('Error checking Instagram account:', error);
-    }
-  };
 
   const steps = [
     { id: 'setup', name: 'Step 1: Setup', completed: formData.name.trim().length > 0 && formData.triggerType !== null },
@@ -305,7 +284,6 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
 
         const dmAction = formData.actions.find(a => a.type === 'send_dm') as SendDmAction | undefined;
         const dmTitle = dmAction?.title || 'Hi there!';
-        const dmImage = dmAction?.imageUrl || '';
 
         const result = await N8nWorkflowService.createWorkflow({
           template: 'instagram_automation_v1',
@@ -316,7 +294,7 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
             brandName: 'QuickRevert',
             replyMessage: replyMessage,
             dmTitle: dmTitle,
-            dmImageUrl: dmImage,
+            dmImageUrl: (dmAction?.showImage && dmAction?.imageUrl) ? dmAction.imageUrl : '',
           },
           autoActivate: false,
         }, user.id);

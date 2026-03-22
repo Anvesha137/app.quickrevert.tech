@@ -59,6 +59,7 @@ export interface SendDmAction {
   askToFollowBtnText?: string;
   teaserMessage?: string;
   teaserBtnText?: string;
+  showImage?: boolean;
 }
 
 export type Action = ReplyToCommentAction | AskToFollowAction | SendDmAction;

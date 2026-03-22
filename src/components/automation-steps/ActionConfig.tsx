@@ -42,7 +42,16 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
     if (hasReply) {
       onActionsChange(actions.filter(a => a.type !== 'reply_to_comment'));
     } else {
-      onActionsChange([...actions, { type: 'reply_to_comment', replyTemplates: [''], actionButtons: [] } as ReplyToCommentAction]);
+      onActionsChange([...actions, { 
+        type: 'reply_to_comment', 
+        replyTemplates: [
+          'Check your DMs for the link! 👆',
+          'Done! Please check your direct messages ✨',
+          'Sent! You\'ll find the link in your DMs 📩',
+          'Just sent you a DM with all the details! 🚀'
+        ], 
+        actionButtons: [] 
+      } as ReplyToCommentAction]);
     }
   };
 
@@ -53,7 +62,14 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
       onActionsChange(actions.filter(a => a.type !== 'send_dm'));
     } else {
       onActionsChange([...actions, {
-        type: 'send_dm', title: '', imageUrl: '', subtitle: 'Powered By Quickrevert.tech', messageTemplate: '', actionButtons: [], askToFollow: false
+        type: 'send_dm', 
+        title: 'Hey! Thanks for your comment so much. Here is the link you asked for...', 
+        imageUrl: '', 
+        subtitle: 'Powered By Quickrevert.tech', 
+        messageTemplate: '', 
+        actionButtons: [], 
+        askToFollow: false, 
+        showImage: false
       } as SendDmAction]);
     }
   };
@@ -65,13 +81,22 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
       return;
     }
     if (!hasDm) {
-       // if DM is off, toggle it ON first and add follow gate
-       onActionsChange([...actions, {
-         type: 'send_dm', title: '', imageUrl: '', subtitle: 'Powered By Quickrevert.tech', messageTemplate: '', actionButtons: [], askToFollow: true,
-         teaserMessage: DEFAULT_TEASER_MESSAGE, askToFollowMessage: DEFAULT_NOT_FOLLOWING_MESSAGE,
-         teaserBtnText: DEFAULT_TEASER_BTN_TEXT, askToFollowBtnText: DEFAULT_VERIFY_BTN_TEXT
-       } as SendDmAction]);
-       return;
+      // if DM is off, toggle it ON first and add follow gate
+      onActionsChange([...actions, {
+        type: 'send_dm', 
+        title: 'Hey! Thanks for your comment so much. Here is the link you asked for...', 
+        imageUrl: '', 
+        subtitle: 'Powered By Quickrevert.tech', 
+        messageTemplate: '', 
+        actionButtons: [], 
+        askToFollow: true,
+        teaserMessage: DEFAULT_TEASER_MESSAGE, 
+        askToFollowMessage: DEFAULT_NOT_FOLLOWING_MESSAGE,
+        teaserBtnText: DEFAULT_TEASER_BTN_TEXT, 
+        askToFollowBtnText: DEFAULT_VERIFY_BTN_TEXT, 
+        showImage: false
+      } as SendDmAction]);
+      return;
     }
     updateDmAction({ askToFollow: !hasFollowGate, teaserMessage: !hasFollowGate ? DEFAULT_TEASER_MESSAGE : '', askToFollowMessage: !hasFollowGate ? DEFAULT_NOT_FOLLOWING_MESSAGE : '', teaserBtnText: !hasFollowGate ? DEFAULT_TEASER_BTN_TEXT : '', askToFollowBtnText: !hasFollowGate ? DEFAULT_VERIFY_BTN_TEXT : '' });
   };
@@ -103,7 +128,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
 
   return (
     <div className="space-y-5 md:space-y-6 pb-24 w-full">
-      
+
       {/* Header section */}
       <div>
         <div className="flex items-start gap-3 md:gap-4 mb-3 md:mb-4">
@@ -118,7 +143,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
 
         {/* Toggles Card */}
         <div className="bg-white rounded-2xl md:rounded-3xl border-2 border-purple-100 p-1.5 md:p-2 space-y-1.5 md:space-y-2">
-          
+
           {/* Reply Toggle */}
           {triggerType === 'post_comment' && (
             <div className={`rounded-xl md:rounded-2xl border-2 transition-all overflow-hidden ${hasReply ? 'border-purple-200 bg-purple-50/30' : 'border-transparent bg-white hover:bg-gray-50'}`}>
@@ -153,11 +178,11 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                               updateReplyAction({ replyTemplates: newT });
                             }}
                             disabled={readOnly}
-                            className={`w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-semibold text-base transition-all ${readOnly ? 'opacity-70 bg-gray-50 cursor-not-allowed' : ''}`}
+                            className={`w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 outline-none text-gray-900 placeholder:text-gray-300 font-semibold text-base transition-all ${readOnly ? 'opacity-70 bg-gray-50 cursor-not-allowed' : ''}`}
                             placeholder="e.g. Check your DMs for the link!"
                           />
                           {replyAction.replyTemplates.length > 1 && !readOnly && (
-                            <button onClick={() => updateReplyAction({ replyTemplates: replyAction.replyTemplates.filter((_, idx) => idx !== i) })} className="p-2 bg-gray-100 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
+                            <button onClick={() => updateReplyAction({ replyTemplates: replyAction.replyTemplates.filter((_, idx) => idx !== i) })} className="p-2 bg-gray-100 text-gray-900 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
                               <X size={16} />
                             </button>
                           )}
@@ -204,44 +229,44 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                 {hasFollowGate && (
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="px-5 pb-5 pt-0">
                     <div className="bg-white p-4 rounded-xl border border-purple-100 shadow-sm space-y-4">
-                       <div className="space-y-2">
-                         <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Initial Teaser Message</label>
-                         <textarea
-                           value={dmAction?.teaserMessage || ''}
-                           onChange={(e) => updateDmAction({ teaserMessage: e.target.value })}
-                           disabled={readOnly}
-                           rows={2}
-                           className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm transition-all resize-none"
-                         />
-                         <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide block mt-2">Teaser Button Text</label>
-                         <input
-                           type="text"
-                           value={dmAction?.teaserBtnText || ''}
-                           onChange={(e) => updateDmAction({ teaserBtnText: e.target.value })}
-                           disabled={readOnly}
-                           placeholder="e.g. Verify Follow 🔗"
-                           className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm transition-all"
-                         />
-                       </div>
-                       <div className="space-y-2">
-                         <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Verification Failed (Not Following)</label>
-                         <textarea
-                           value={dmAction?.askToFollowMessage || ''}
-                           onChange={(e) => updateDmAction({ askToFollowMessage: e.target.value })}
-                           disabled={readOnly}
-                           rows={2}
-                           className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm transition-all resize-none"
-                         />
-                         <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide block mt-2">Verification Button Text</label>
-                         <input
-                           type="text"
-                           value={dmAction?.askToFollowBtnText || ''}
-                           onChange={(e) => updateDmAction({ askToFollowBtnText: e.target.value })}
-                           disabled={readOnly}
-                           placeholder="e.g. I've Followed! ✅"
-                           className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm transition-all"
-                         />
-                       </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Initial Teaser Message</label>
+                        <textarea
+                          value={dmAction?.teaserMessage || ''}
+                          onChange={(e) => updateDmAction({ teaserMessage: e.target.value })}
+                          disabled={readOnly}
+                          rows={2}
+                          className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm transition-all resize-none"
+                        />
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide block mt-2">Teaser Button Text</label>
+                        <input
+                          type="text"
+                          value={dmAction?.teaserBtnText || ''}
+                          onChange={(e) => updateDmAction({ teaserBtnText: e.target.value })}
+                          disabled={readOnly}
+                          placeholder="e.g. Verify Follow 🔗"
+                          className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 outline-none text-gray-900 placeholder:text-gray-300 font-medium text-sm transition-all"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Verification Failed (Not Following)</label>
+                        <textarea
+                          value={dmAction?.askToFollowMessage || ''}
+                          onChange={(e) => updateDmAction({ askToFollowMessage: e.target.value })}
+                          disabled={readOnly}
+                          rows={2}
+                          className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm transition-all resize-none"
+                        />
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide block mt-2">Verification Button Text</label>
+                        <input
+                          type="text"
+                          value={dmAction?.askToFollowBtnText || ''}
+                          onChange={(e) => updateDmAction({ askToFollowBtnText: e.target.value })}
+                          disabled={readOnly}
+                          placeholder="e.g. I've Followed! ✅"
+                          className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm transition-all"
+                        />
+                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -251,7 +276,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
 
           {/* Send DM Toggle */}
           <div className={`rounded-xl md:rounded-2xl border-2 transition-all overflow-hidden ${hasDm ? 'border-purple-200 bg-purple-50/30' : 'border-transparent bg-white hover:bg-gray-50'}`}>
-              <div className="p-3 md:p-4 flex items-center gap-3 md:gap-4 cursor-pointer" onClick={toggleDm}>
+            <div className="p-3 md:p-4 flex items-center gap-3 md:gap-4 cursor-pointer" onClick={toggleDm}>
               <div className="w-10 h-10 md:w-12 md:h-12 rounded-[14px] md:rounded-xl bg-gray-50 flex items-center justify-center shrink-0 border border-gray-100">
                 <Send className="w-4 h-4 md:w-5 md:h-5 text-gray-500" />
               </div>
@@ -271,72 +296,94 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                 <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="px-5 pb-5 pt-0">
                   <div className="bg-white p-4 rounded-xl border border-purple-100 shadow-sm space-y-4">
                     <div className="space-y-2">
-                       <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Direct Message Content</label>
-                       <textarea
-                         value={dmAction?.title || ''}
-                         onChange={(e) => updateDmAction({ title: e.target.value })}
-                         disabled={readOnly}
-                         rows={4}
-                         placeholder="Hey! Thanks for your comment so much. Here is the link you asked for..."
-                         className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-base transition-all"
-                       />
-                       <p className="text-right text-[10px] text-gray-400 font-bold">{(dmAction?.title || '').length} / 640</p>
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Direct Message Content</label>
+                      <textarea
+                        value={dmAction?.title || ''}
+                        onChange={(e) => updateDmAction({ title: e.target.value })}
+                        disabled={readOnly}
+                        rows={4}
+                        placeholder="e.g. Hey! Thanks for your comment so much. Here is the link you asked for..."
+                        className="w-full border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-3 outline-none text-gray-900 placeholder:text-gray-300 font-medium text-base bg-gray-50 focus:bg-white transition-all resize-none"
+                      />
+                      <p className="text-right text-[10px] text-gray-400 font-bold">{(dmAction?.title || '').length} / 640</p>
                     </div>
 
-                    <div className="space-y-2">
-                       <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Image URL (Optional)</label>
-                       <input
-                         type="url"
-                         value={dmAction?.imageUrl || ''}
-                         onChange={(e) => updateDmAction({ imageUrl: e.target.value })}
-                         disabled={readOnly}
-                         placeholder="https://yourapp.com/image.jpg"
-                         className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-base transition-all"
-                       />
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Include Image</label>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={dmAction?.showImage || false}
+                            onChange={(e) => updateDmAction({ showImage: e.target.checked })}
+                            disabled={readOnly}
+                          />
+                          <div className="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-purple-600 shadow-inner"></div>
+                        </label>
+                      </div>
+
+                      <AnimatePresence>
+                        {(dmAction?.showImage) && (
+                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                            <div className="pt-1">
+                              <input
+                                type="url"
+                                value={dmAction?.imageUrl || ''}
+                                onChange={(e) => updateDmAction({ imageUrl: e.target.value })}
+                                disabled={readOnly}
+                                placeholder="https://yourapp.com/image.jpg"
+                                className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-base transition-all"
+                              />
+                              <p className="text-[10px] text-gray-400 mt-1 font-medium italic">Make sure the URL is public and ends in .jpg, .png, etc.</p>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
 
                     {/* Action buttons simple list */}
                     <div className="space-y-2 pt-2 border-t border-gray-100">
-                       <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Buttons (Max 3)</label>
-                       {dmAction?.actionButtons.map((btn, i) => (
-                         <div key={i} className="flex flex-col gap-2 p-3 bg-gray-50 border border-gray-200 rounded-xl">
-                            <div className="flex justify-between items-center mb-1">
-                               <span className="text-[10px] font-bold text-gray-500">Button {i + 1}</span>
-                               {!readOnly && (
-                                 <button onClick={() => updateDmAction({ actionButtons: dmAction.actionButtons.filter((_, idx) => idx !== i) })} className="text-gray-400 hover:text-red-500 transition-colors"><X size={14}/></button>
-                               )}
-                            </div>
-                            <input
-                              type="text"
-                              placeholder="Button Text"
-                              value={btn.text}
-                              onChange={(e) => {
-                                 const btns = [...dmAction.actionButtons];
-                                 btns[i].text = e.target.value;
-                                 updateDmAction({ actionButtons: btns });
-                              }}
-                              disabled={readOnly}
-                              className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-lg px-3 py-1.5 outline-none text-gray-900 font-medium text-base transition-all"
-                            />
-                            <input
-                              type="url"
-                              placeholder="URL Link"
-                              value={btn.url}
-                              onChange={(e) => {
-                                 const btns = [...dmAction.actionButtons];
-                                 btns[i].url = e.target.value;
-                                 updateDmAction({ actionButtons: btns });
-                              }}
-                              disabled={readOnly}
-                              className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-lg px-3 py-1.5 outline-none text-gray-900 font-medium text-base transition-all"
-                            />
-                         </div>
-                       ))}
-                       {!readOnly && (dmAction?.actionButtons.length || 0) < 3 && (
-                         <button onClick={() => updateDmAction({ actionButtons: [...(dmAction?.actionButtons || []), { id: Date.now().toString(), text: '', url: '', buttonType: 'web_url' }] })} className="w-full py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-purple-600 font-bold text-[13px] hover:bg-purple-50 hover:border-purple-200 transition-all">
-                            + Add Link Button
-                         </button>
-                       )}
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Buttons (Max 3)</label>
+                      {dmAction?.actionButtons.map((btn, i) => (
+                        <div key={i} className="flex flex-col gap-2 p-3 bg-gray-50 border border-gray-200 rounded-xl">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-[10px] font-bold text-gray-500">Button {i + 1}</span>
+                            {!readOnly && (
+                              <button onClick={() => updateDmAction({ actionButtons: dmAction.actionButtons.filter((_, idx) => idx !== i) })} className="text-gray-900 hover:text-red-500 transition-colors"><X size={14} /></button>
+                            )}
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="Button Text"
+                            value={btn.text}
+                            onChange={(e) => {
+                              const btns = [...dmAction.actionButtons];
+                              btns[i].text = e.target.value;
+                              updateDmAction({ actionButtons: btns });
+                            }}
+                            disabled={readOnly}
+                            className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-lg px-3 py-1.5 outline-none text-gray-900 font-medium text-base transition-all"
+                          />
+                          <input
+                            type="url"
+                            placeholder="URL Link"
+                            value={btn.url}
+                            onChange={(e) => {
+                              const btns = [...dmAction.actionButtons];
+                              btns[i].url = e.target.value;
+                              updateDmAction({ actionButtons: btns });
+                            }}
+                            disabled={readOnly}
+                            className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-lg px-3 py-1.5 outline-none text-gray-900 font-medium text-base transition-all"
+                          />
+                        </div>
+                      ))}
+                      {!readOnly && (dmAction?.actionButtons.length || 0) < 3 && (
+                        <button onClick={() => updateDmAction({ actionButtons: [...(dmAction?.actionButtons || []), { id: Date.now().toString(), text: '', url: '', buttonType: 'web_url' }] })} className="w-full py-2.5 border-2 border-dotted border-gray-400 rounded-xl text-purple-600 font-bold text-[13px] hover:bg-purple-50 hover:border-purple-200 transition-all">
+                          + Add Link Button
+                        </button>
+                      )}
                     </div>
                   </div>
                 </motion.div>
@@ -359,26 +406,26 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
 
       {/* Global Action Button (Launch) for Step 2 fixed at the bottom */}
       <div className="fixed md:absolute bottom-16 md:bottom-0 left-0 right-0 px-5 md:px-12 bg-gradient-to-t from-white via-white to-transparent pt-16 pb-6 z-10 pointer-events-none flex justify-center">
-         {readOnly ? (
-            <div className="pointer-events-auto w-full md:max-w-xl">
-              <button disabled className="w-full py-4 md:py-5 rounded-full font-bold text-lg flex justify-center items-center gap-2 transition-all shadow-none bg-gray-100 text-gray-400">
-                 View Only
-              </button>
-            </div>
-         ) : (
-            <div className="pointer-events-auto w-full md:max-w-xl">
-              <button
-                 onClick={onSave}
-                 disabled={!canSave || saving}
-                 className={`w-full py-4 md:py-5 rounded-full font-bold text-lg md:text-xl flex justify-center items-center gap-2 transition-all shadow-lg
+        {readOnly ? (
+          <div className="pointer-events-auto w-full md:max-w-xl">
+            <button disabled className="w-full py-4 md:py-5 rounded-full font-bold text-lg flex justify-center items-center gap-2 transition-all shadow-none bg-gray-100 text-gray-400">
+              View Only
+            </button>
+          </div>
+        ) : (
+          <div className="pointer-events-auto w-full md:max-w-xl">
+            <button
+              onClick={onSave}
+              disabled={!canSave || saving}
+              className={`w-full py-4 md:py-5 rounded-full font-bold text-lg md:text-xl flex justify-center items-center gap-2 transition-all shadow-lg
                   ${canSave
-                    ? 'bg-purple-600 text-white hover:bg-purple-700 shadow-purple-200 hover:shadow-xl hover:-translate-y-1'
-                    : 'bg-gray-100 text-gray-400 shadow-none'}`}
-              >
-                {saving ? 'Loading...' : 'Launch Automation'} {!saving && <Rocket className={`w-5 h-5 md:w-6 md:h-6 ${canSave ? "text-orange-400" : "text-gray-400"}`} />}
-              </button>
-            </div>
-         )}
+                  ? 'bg-purple-600 text-white hover:bg-purple-700 shadow-purple-200 hover:shadow-xl hover:-translate-y-1'
+                  : 'bg-gray-100 text-gray-400 shadow-none'}`}
+            >
+              {saving ? 'Loading...' : 'Launch Automation'} {!saving && <Rocket className={`w-5 h-5 md:w-6 md:h-6 ${canSave ? "text-orange-400" : "text-gray-400"}`} />}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

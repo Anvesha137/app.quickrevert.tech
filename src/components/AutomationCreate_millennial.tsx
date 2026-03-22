@@ -9,7 +9,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import {
-  AutomationFormData, TriggerType, TriggerConfig, Action,
+  AutomationFormData, TriggerType, TriggerConfig,
   PostCommentTriggerConfig, StoryReplyTriggerConfig, UserDirectMessageTriggerConfig,
 } from '../types/automation';
 import { N8nWorkflowService } from '../lib/n8nService';
@@ -227,7 +227,7 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
               brandName: 'QuickRevert',
               replyMessage: replyAction?.replyTemplates?.[0] || 'Thanks for your comment!',
               dmTitle: dmAction?.title || 'Hi there!',
-              dmImageUrl: dmAction?.imageUrl || '',
+              dmImageUrl: (dmAction?.showImage && dmAction?.imageUrl) ? dmAction.imageUrl : '',
             },
             autoActivate: false,
           }, user.id);

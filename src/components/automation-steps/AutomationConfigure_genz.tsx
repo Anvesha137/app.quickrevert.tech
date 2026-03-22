@@ -197,12 +197,30 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
   const toggleReply = () => {
     if (readOnly) return;
     if (hasReply) updateActions(actions.filter(a => a.type !== 'reply_to_comment'));
-    else updateActions([...actions, { type: 'reply_to_comment', replyTemplates: [''], actionButtons: [] } as ReplyToCommentAction]);
+    else updateActions([...actions, { 
+      type: 'reply_to_comment', 
+      replyTemplates: [
+        'Check your DMs for the link! 👆',
+        'Done! Please check your direct messages ✨',
+        'Sent! You\'ll find the link in your DMs 📩',
+        'Just sent you a DM with all the details! 🚀'
+      ], 
+      actionButtons: [] 
+    } as ReplyToCommentAction]);
   };
 
   const addDmFlow = () => {
     if (readOnly || hasDm) return;
-    updateActions([...actions, { type: 'send_dm', title: '', imageUrl: '', subtitle: 'Powered By Quickrevert.tech', messageTemplate: '', actionButtons: [], askToFollow: false } as SendDmAction]);
+    updateActions([...actions, { 
+      type: 'send_dm', 
+      title: 'Hey! Thanks for your comment so much. Here is the link you asked for...', 
+      imageUrl: '', 
+      subtitle: 'Powered By Quickrevert.tech', 
+      messageTemplate: '', 
+      actionButtons: [], 
+      askToFollow: false, 
+      showImage: false 
+    } as SendDmAction]);
   };
 
   const removeDmFlow = () => {
@@ -214,7 +232,20 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
     if (readOnly) return;
     if (!canUseAskToFollow) { openModal(); return; }
     if (!hasDm) {
-      updateActions([...actions, { type: 'send_dm', title: '', imageUrl: '', subtitle: 'Powered By Quickrevert.tech', messageTemplate: '', actionButtons: [], askToFollow: true, teaserMessage: DEFAULT_TEASER_MESSAGE, askToFollowMessage: DEFAULT_NOT_FOLLOWING_MESSAGE, teaserBtnText: DEFAULT_TEASER_BTN_TEXT, askToFollowBtnText: DEFAULT_VERIFY_BTN_TEXT } as SendDmAction]);
+      updateActions([...actions, { 
+        type: 'send_dm', 
+        title: 'Hey! Thanks for your comment so much. Here is the link you asked for...', 
+        imageUrl: '', 
+        subtitle: 'Powered By Quickrevert.tech', 
+        messageTemplate: '', 
+        actionButtons: [], 
+        askToFollow: true, 
+        teaserMessage: DEFAULT_TEASER_MESSAGE, 
+        askToFollowMessage: DEFAULT_NOT_FOLLOWING_MESSAGE, 
+        teaserBtnText: DEFAULT_TEASER_BTN_TEXT, 
+        askToFollowBtnText: DEFAULT_VERIFY_BTN_TEXT, 
+        showImage: false 
+      } as SendDmAction]);
       return;
     }
     const newActions = [...actions];
@@ -407,14 +438,14 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
               </div>
               <span className="font-bold text-sm text-gray-900 flex-1">Comment Reply Templates</span>
               {hasReply && !readOnly && (
-                <button onClick={toggleReply} className="text-gray-300 hover:text-red-400 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                <button onClick={toggleReply} className="text-gray-900 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
               )}
             </div>
             {hasReply && replyAction ? (
               <div className="px-5 py-4 space-y-3">
                 {replyAction.replyTemplates.map((t, i) => (
                   <div key={i} className="flex items-center gap-2">
-                    <input type="text" value={t} onChange={(e) => { const n = [...replyAction.replyTemplates]; n[i] = e.target.value; updateReplyAction({ replyTemplates: n }); }} disabled={readOnly} className="flex-1 border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-base bg-gray-50 focus:bg-white transition-all" placeholder="e.g., Check your DMs for the link! 👆" />
+                    <input type="text" value={t} onChange={(e) => { const n = [...replyAction.replyTemplates]; n[i] = e.target.value; updateReplyAction({ replyTemplates: n }); }} disabled={readOnly} className="flex-1 border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-2.5 outline-none text-gray-900 placeholder:text-gray-300 font-medium text-base bg-gray-50 focus:bg-white transition-all" placeholder="e.g., Check your DMs for the link! 👆" />
                     {replyAction.replyTemplates.length > 1 && !readOnly && <button onClick={() => updateReplyAction({ replyTemplates: replyAction.replyTemplates.filter((_, idx) => idx !== i) })} className="text-gray-300 hover:text-red-400 transition-colors"><X size={18} /></button>}
                   </div>
                 ))}
@@ -531,7 +562,14 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
             {/* DM Card — always expanded */}
             <div className="border border-gray-200 rounded-2xl overflow-hidden">
               <div className="px-5 py-5 space-y-5">
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Message</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Message</p>
+                  {!readOnly && (
+                    <button onClick={removeDmFlow} className="text-gray-900 hover:text-red-500 transition-colors">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-gray-600">Simple Text Message</label>
@@ -541,21 +579,43 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                     disabled={readOnly}
                     rows={4}
                     placeholder="Hey! Thanks for your comment so much. Here is the link you asked for..."
-                    className="w-full border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-3 outline-none text-gray-900 font-medium text-base bg-gray-50 focus:bg-white transition-all resize-none"
+                    className="w-full border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-3 outline-none text-gray-900 placeholder:text-gray-300 font-medium text-base bg-gray-50 focus:bg-white transition-all resize-none"
                   />
                   <p className="text-right text-[11px] text-gray-400 font-bold">{(dmAction?.title || '').length}/640</p>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-600">Image URL (optional)</label>
-                  <input
-                    type="url"
-                    value={dmAction?.imageUrl || ''}
-                    onChange={(e) => updateDmAction({ imageUrl: e.target.value })}
-                    disabled={readOnly}
-                    placeholder="https://example.com/promo.jpg"
-                    className="w-full border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm bg-gray-50 focus:bg-white transition-all"
-                  />
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-gray-600">Include Image</label>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only peer" 
+                        checked={dmAction?.showImage || false} 
+                        onChange={(e) => updateDmAction({ showImage: e.target.checked })}
+                        disabled={readOnly}
+                      />
+                      <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600 shadow-inner"></div>
+                    </label>
+                  </div>
+
+                  <AnimatePresence>
+                    {dmAction?.showImage && (
+                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                        <div className="pt-1">
+                          <input
+                            type="url"
+                            value={dmAction?.imageUrl || ''}
+                            onChange={(e) => updateDmAction({ imageUrl: e.target.value })}
+                            disabled={readOnly}
+                            placeholder="https://example.com/promo.jpg"
+                            className="w-full border-2 border-gray-100 focus:border-purple-400 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-medium text-sm bg-gray-50 focus:bg-white transition-all"
+                          />
+                          <p className="text-[10px] text-gray-400 mt-1 font-medium italic">Make sure the URL is public and ends in .jpg, .png, etc.</p>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
 
                 {/* Buttons */}
@@ -565,7 +625,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                       <div key={i} className="flex flex-col gap-2 p-3 bg-gray-50 border border-gray-200 rounded-xl">
                         <div className="flex justify-between items-center">
                           <span className="text-[10px] font-bold text-gray-500">Button {i + 1}</span>
-                          {!readOnly && <button onClick={() => updateDmAction({ actionButtons: dmAction.actionButtons.filter((_, idx) => idx !== i) })} className="text-gray-400 hover:text-red-500"><X size={14} /></button>}
+                          {!readOnly && <button onClick={() => updateDmAction({ actionButtons: dmAction.actionButtons.filter((_, idx) => idx !== i) })} className="text-gray-900 hover:text-red-500"><X size={14} /></button>}
                         </div>
                         <input type="text" placeholder="Button Text" value={btn.text} onChange={(e) => { const btns = [...dmAction.actionButtons]; btns[i].text = e.target.value; updateDmAction({ actionButtons: btns }); }} className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-lg px-3 py-1.5 outline-none text-gray-900 font-medium text-base" />
                         <input type="url" placeholder="URL Link" value={btn.url} onChange={(e) => { const btns = [...dmAction.actionButtons]; btns[i].url = e.target.value; updateDmAction({ actionButtons: btns }); }} className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-lg px-3 py-1.5 outline-none text-gray-900 font-medium text-base" />
@@ -575,7 +635,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                 )}
 
                 {!readOnly && (dmAction?.actionButtons.length || 0) < 3 && (
-                  <button onClick={() => updateDmAction({ actionButtons: [...(dmAction?.actionButtons || []), { id: Date.now().toString(), text: '', url: '', buttonType: 'web_url' }] })} className="w-full py-3 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 font-semibold text-sm hover:border-purple-300 hover:text-purple-500 hover:bg-purple-50/30 transition-all flex items-center justify-center gap-2">
+                  <button onClick={() => updateDmAction({ actionButtons: [...(dmAction?.actionButtons || []), { id: Date.now().toString(), text: '', url: '', buttonType: 'web_url' }] })} className="w-full py-3 border-2 border-dotted border-gray-400 rounded-xl text-gray-400 font-semibold text-sm hover:border-purple-300 hover:text-purple-500 hover:bg-purple-50/30 transition-all flex items-center justify-center gap-2">
                     <Plus className="w-4 h-4" /> Add Button (Optional)
                   </button>
                 )}
@@ -584,12 +644,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
               </div>
             </div>
 
-            {/* Remove Response Flow */}
-            {!readOnly && (
-              <button onClick={removeDmFlow} className="flex items-center gap-1.5 mt-3 text-gray-400 hover:text-red-400 font-medium text-xs transition-colors">
-                <Trash2 className="w-3.5 h-3.5" /> Remove Response Flow
-              </button>
-            )}
+            {/* Remove Response Flow placeholder or removed entirely if only in header */}
           </>
         )}
       </div>
