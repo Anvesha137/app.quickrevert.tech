@@ -110,6 +110,12 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
                     }
                 });
 
+                if (!syncError && syncData?.isBanned) {
+                    localStorage.setItem('quickrevert_banned', 'true');
+                    await supabase.auth.signOut();
+                    return;
+                }
+
                 if (!syncError && syncData?.isGifted) {
                     setIsGifted(true);
                     setGiftedSettings(syncData.giftedSettings);

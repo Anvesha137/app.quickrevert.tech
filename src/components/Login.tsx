@@ -18,6 +18,18 @@ export default function Login() {
   // Modal States
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showBannedPopup, setShowBannedPopup] = useState(false);
+
+  useEffect(() => {
+    if (localStorage.getItem('quickrevert_banned') === 'true') {
+      setShowBannedPopup(true);
+    }
+  }, []);
+
+  const handleCloseBannedPopup = () => {
+    setShowBannedPopup(false);
+    localStorage.removeItem('quickrevert_banned');
+  };
 
   const handleGoogleSignIn = async () => {
     try {
@@ -306,6 +318,29 @@ export default function Login() {
 
       <TermsOfServiceModal isOpen={showTerms} onClose={() => setShowTerms(false)} />
       <PrivacyPolicyModal isOpen={showPrivacy} onClose={() => setShowPrivacy(false)} />
+
+      {/* Banned User Popup */}
+      {showBannedPopup && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="max-w-md w-full bg-white rounded-[2.5rem] p-8 md:p-10 shadow-2xl relative animate-in zoom-in-95 duration-500 border border-slate-100">
+            <div className="w-20 h-20 mx-auto bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mb-6 shadow-inner ring-8 ring-rose-50/50">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-black text-center text-slate-900 mb-3 tracking-tight">Access Denied</h2>
+            <p className="text-center text-slate-500 font-medium leading-relaxed mb-8 text-sm">
+              Due to abnormal activities from ur end, you are banned from this site. If you think this is not correct drop a email on <br/><a href="mailto:sales@quickrevert.tech" className="text-indigo-600 font-bold hover:text-indigo-700 transition-colors mt-1 inline-block">sales@quickrevert.tech</a>
+            </p>
+            <button
+              onClick={handleCloseBannedPopup}
+              className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-bold transition-all active:scale-[0.98] shadow-lg shadow-slate-900/20"
+            >
+              I Understand
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

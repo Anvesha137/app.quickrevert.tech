@@ -110,6 +110,26 @@ serve(async (req) => {
     console.log("[sync-user-neon] Connected to Neon DB");
 
     const cleanEmail = email.trim().toLowerCase();
+
+    // Check if user is banned
+    const { rows: bannedRows } = await neonClient.queryObject(
+      `SELECT id FROM banned_users WHERE LOWER(email) = $1`,
+      [cleanEmail]
+    );
+
+    if (bannedRows.length > 0) {
+      console.log(`[sync-user-neon] User ${cleanEmail} is BANNED. Kicking out.`);
+      await neonClient.end();
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          isBanned: true,
+          email 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { rows: giftedRows } = await neonClient.queryObject(
       `SELECT gp.dm_limit, gp.automation_limit, gp.ask_to_follow_enabled, gp.expiry_date 
        FROM gifted_premium gp
