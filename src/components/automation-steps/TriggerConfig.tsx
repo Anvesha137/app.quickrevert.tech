@@ -193,14 +193,14 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
         {loadingMedia ? (
           <div className="flex justify-center p-4"><Loader2 className="w-6 h-6 animate-spin text-purple-500" /></div>
         ) : (
-          <div className="grid grid-cols-2 gap-2 max-h-[310px] overflow-y-auto pr-1">
+          <div className="grid grid-cols-2 auto-rows-max gap-2 max-h-[310px] overflow-y-auto pr-1">
             {posts.map((post) => {
               const isSelected = specificIds.includes(post.id);
               return (
                 <div
                   key={post.id}
                   onClick={() => toggleMediaSelection(post.id)}
-                  className={`relative aspect-square w-full cursor-pointer rounded-xl overflow-hidden border-2 transition-all
+                  className={`relative w-full pb-[100%] cursor-pointer rounded-xl overflow-hidden border-2 transition-all
                     ${isSelected ? "border-purple-600" : "border-transparent hover:border-purple-200"}`}
                 >
                   {post.media_type === 'VIDEO' ? (
