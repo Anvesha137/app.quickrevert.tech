@@ -44,7 +44,7 @@ interface AutomationCreateProps {
 
 export default function AutomationCreate({ readOnly = false }: AutomationCreateProps) {
   const { user } = useAuth();
-  const { hasInstagramConnected, loading: subLoading } = useSubscription();
+  const { hasInstagramConnected, loading: subLoading, initialFetchDone } = useSubscription();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   // For view mode, show configuration directly if loaded, or just stick to 'setup' -> 'configuration' flow but pre-filled?
@@ -112,11 +112,11 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
   }, []);
 
   useEffect(() => {
-    if (!subLoading && !hasInstagramConnected) {
+    if (!subLoading && initialFetchDone && !hasInstagramConnected) {
       toast.error('Please connect an Instagram account before creating automations.');
       navigate('/connect-accounts');
     }
-  }, [hasInstagramConnected, subLoading, navigate]);
+  }, [hasInstagramConnected, subLoading, initialFetchDone, navigate]);
 
   useEffect(() => {
     if (id) {

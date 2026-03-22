@@ -36,6 +36,7 @@ interface SubscriptionContextType {
     dmLimit: number | 'Unlimited';
     automationLimit: number | 'Unlimited';
     hasInstagramConnected: boolean;
+    initialFetchDone: boolean;
     refresh: () => Promise<void>;
 }
 
@@ -182,6 +183,9 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
                     body: { userId: user.id, email: user.email, fullName: user.user_metadata?.full_name }
                 });
 
+                let updatedIsGifted = false;
+                let updatedGiftedSettings = null;
+
                 if (!syncError && syncData?.isBanned) {
                     localStorage.setItem('quickrevert_banned', 'true');
                     await supabase.auth.signOut();
@@ -189,14 +193,41 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
                 }
 
                 if (!syncError && syncData?.isGifted) {
-                    setIsGifted(true);
-                    setGiftedSettings(syncData.giftedSettings);
-                } else {
-                    setIsGifted(false);
-                    setGiftedSettings(null);
+                    updatedIsGifted = true;
+                    updatedGiftedSettings = syncData.giftedSettings;
                 }
+
+                setIsGifted(updatedIsGifted);
+                setGiftedSettings(updatedGiftedSettings);
+
+                // Save to cache with LOCAL variables to avoid closure issues
+                localStorage.setItem(CACHE_KEY, JSON.stringify({
+                    subscription: subResult.data,
+                    usage: {
+                        dms: dmCountResult.count || 0,
+                        contacts: contactCountResult.count || 0,
+                        automations: automationCountResult.count || 0,
+                    },
+                    isGifted: updatedIsGifted,
+                    giftedSettings: updatedGiftedSettings,
+                    hasInstagramConnected: !!instagramAccountResult.data,
+                    timestamp: Date.now()
+                }));
             } catch (syncErr) {
                 console.warn('Neon sync failed:', syncErr);
+                // Even if sync-user-neon fails, still save the rest of the data
+                localStorage.setItem(CACHE_KEY, JSON.stringify({
+                    subscription: subResult.data,
+                    usage: {
+                        dms: dmCountResult.count || 0,
+                        contacts: contactCountResult.count || 0,
+                        automations: automationCountResult.count || 0,
+                    },
+                    isGifted, // fallback to state if sync failed
+                    giftedSettings,
+                    hasInstagramConnected: !!instagramAccountResult.data,
+                    timestamp: Date.now()
+                }));
             }
 
         } catch (err) {
@@ -205,17 +236,9 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
             setLoading(false);
             if (user) {
                 setInitialFetchDone(true);
-                localStorage.setItem(CACHE_KEY, JSON.stringify({
-                    subscription,
-                    usage,
-                    isGifted,
-                    giftedSettings,
-                    hasInstagramConnected,
-                    timestamp: Date.now()
-                }));
             }
         }
-    }, [user, subscription, initialFetchDone, isGifted, giftedSettings, hasInstagramConnected, usage.dms, usage.contacts, usage.automations]);
+    }, [user, initialFetchDone, isGifted, giftedSettings]);
 
     useEffect(() => {
         fetchSubscriptionData();
@@ -276,6 +299,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
             dmLimit,
             automationLimit,
             hasInstagramConnected,
+            initialFetchDone,
             refresh: fetchSubscriptionData
         }}>
             {children}

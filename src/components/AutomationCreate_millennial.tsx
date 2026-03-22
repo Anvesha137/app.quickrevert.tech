@@ -50,7 +50,7 @@ const TRIGGER_OPTIONS: {
 
 export default function AutomationCreateMillennial({ readOnly = false }: AutomationCreateMillennialProps) {
   const { user } = useAuth();
-  const { hasInstagramConnected, loading: subLoading } = useSubscription();
+  const { hasInstagramConnected, loading: subLoading, initialFetchDone } = useSubscription();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
 
@@ -118,11 +118,11 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
   }, []);
 
   useEffect(() => {
-    if (!subLoading && !hasInstagramConnected) {
+    if (!subLoading && initialFetchDone && !hasInstagramConnected) {
       toast.error('Please connect an Instagram account first.');
       navigate('/connect-accounts');
     }
-  }, [hasInstagramConnected, subLoading, navigate]);
+  }, [hasInstagramConnected, subLoading, initialFetchDone, navigate]);
 
   useEffect(() => {
     if (id) fetchAutomation(id);
