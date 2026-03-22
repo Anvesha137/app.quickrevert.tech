@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 import { MessageSquare, Mail, Image as ImageIcon, X, Pencil, Globe, Target, Tag, Search, Send, Loader2, CheckCircle2, Plus, Trash2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -57,8 +57,8 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
   const { isPremium, canUseAskToFollow } = useSubscription();
   const { openModal } = useUpgradeModal();
 
-  const [editingPosts, setEditingPosts] = useState(false);
-  const [editingKeywords, setEditingKeywords] = useState(false);
+  const [editingPosts, setEditingPosts] = useState(true);
+  const [editingKeywords, setEditingKeywords] = useState(true);
   const [keyword, setKeyword] = useState('');
   const [posts, setPosts] = useState<InstagramMedia[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(false);
@@ -173,6 +173,14 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
     const updated = current.includes(mediaId) ? current.filter(id => id !== mediaId) : [...current, mediaId];
     updateConfig({ [key]: updated } as any);
   };
+
+  // --- Automated media fetching ---
+  useEffect(() => {
+    const pType = getPostsType();
+    if (pType === 'specific' && (triggerType === 'post_comment' || triggerType === 'story_reply')) {
+      fetchMedia(triggerType === 'post_comment' ? 'posts' : 'stories');
+    }
+  }, [triggerType, getPostsType()]); // Dependencies: trigger type and selection mode
 
   // --- Actions ---
   const hasReply = actions.some(a => a.type === 'reply_to_comment');

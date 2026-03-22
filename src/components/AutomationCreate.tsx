@@ -50,7 +50,15 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
   // For view mode, show configuration directly if loaded, or just stick to 'setup' -> 'configuration' flow but pre-filled?
   // Better to just show steps as usual but disabled.
   const [searchParams, setSearchParams] = useSearchParams();
-  const currentStep = (searchParams.get('step') || 'setup') as Step;
+  const stepRaw = searchParams.get('step');
+  
+  // Map numeric steps from Millennial theme to Gen Z string steps
+  const getMappedStep = (raw: string | null): Step => {
+    if (raw === '1' || raw === '2' || raw === 'configuration') return 'configuration';
+    return 'setup'; // Default or '0' or 'setup'
+  };
+  
+  const currentStep = getMappedStep(stepRaw);
 
   const setCurrentStep = (newStep: Step) => {
     setSearchParams({ step: newStep });

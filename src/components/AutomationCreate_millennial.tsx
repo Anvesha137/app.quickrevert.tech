@@ -56,7 +56,17 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
 
   const [searchParams, setSearchParams] = useSearchParams();
   const stepParam = searchParams.get('step');
-  const step = (stepParam && !isNaN(parseInt(stepParam)) ? parseInt(stepParam) : 0) as WizardStep;
+  
+  // Map string steps from Gen Z theme to Millennial numeric steps
+  const getInitialStep = (): WizardStep => {
+    if (stepParam === 'setup') return 0;
+    if (stepParam === 'configuration') return 1;
+    
+    const parsed = parseInt(stepParam || '0');
+    return (isNaN(parsed) ? 0 : parsed) as WizardStep;
+  };
+  
+  const step = getInitialStep();
 
   const setStep = (newStep: WizardStep) => {
     setSearchParams({ step: newStep.toString() });
