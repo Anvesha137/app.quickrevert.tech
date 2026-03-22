@@ -41,6 +41,25 @@ Deno.serve(async (req: Request) => {
 
     if (!userId || userId !== user.id) throw new Error("User mismatch");
 
+    // 🔒 AUTOMATION LIMIT ENFORCEMENT — server-side check
+    if (autoActivate && bodyTriggerType !== 'enable_analytics') {
+      const { data: userData } = await supabase.from("user_limits").select("automation_limit, is_gifted").eq("user_id", userId).maybeSingle();
+      const effectiveLimit = userData?.automation_limit; // null = unlimited
+
+      if (effectiveLimit !== null && effectiveLimit !== undefined) {
+        const { count: activeCount } = await supabase.from("automations")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId).eq("status", "active");
+
+        if ((activeCount || 0) >= effectiveLimit) {
+          console.log(`[LIMIT] User ${userId} has ${activeCount} active automations, limit is ${effectiveLimit}. BLOCKED.`);
+          return new Response(JSON.stringify({ 
+            error: `Active automation limit reached (${effectiveLimit}). ${userData?.is_gifted ? 'Your gifted premium allows ' + effectiveLimit + ' active automations.' : 'Please upgrade your plan.'}` 
+          }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+      }
+    }
+
     let instagramAccount;
     if (instagramAccountId) {
       const { data, error } = await supabase.from("instagram_accounts").select("*").eq("id", instagramAccountId).eq("status", "active").single();

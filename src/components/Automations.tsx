@@ -82,12 +82,10 @@ const triggerLabels = {
   user_directed_messages: 'User Directed Messages'
 };
 
-const BASIC_ACTIVE_WORKFLOW_LIMIT = 3;
-
 export default function Automations() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { isPremium } = useSubscription();
+  const { isPremium, isGifted, automationLimit } = useSubscription();
   const { openModal } = useUpgradeModal();
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [filteredAutomations, setFilteredAutomations] = useState<Automation[]>([]);
@@ -231,13 +229,22 @@ export default function Automations() {
 
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
 
-    // --- PLAN LIMIT ENFORCEMENT ---
-    // Block activation if user is on Basic plan and already has 3 active workflows
-    if (newStatus === 'active' && !isPremium) {
+    // --- SECURE PLAN LIMIT ENFORCEMENT (all plan types) ---
+    if (newStatus === 'active') {
       const activeCount = automations.filter(a => a.status === 'active').length;
-      if (activeCount >= BASIC_ACTIVE_WORKFLOW_LIMIT) {
-        toast.error(`You already have ${activeCount} active workflows. Basic plan allows only ${BASIC_ACTIVE_WORKFLOW_LIMIT}. Please upgrade your plan.`);
-        openModal();
+      // automationLimit comes from SubscriptionContext:
+      //   basic = 3, gifted = from gifted_premium table, paid premium = 'Unlimited'
+      const effectiveLimit = typeof automationLimit === 'number' ? automationLimit : null;
+
+      if (effectiveLimit !== null && activeCount >= effectiveLimit) {
+        if (isGifted) {
+          toast.error(`You have reached your gifted premium limit of ${effectiveLimit} active automations.`);
+        } else if (!isPremium) {
+          toast.error(`Basic plan allows only ${effectiveLimit} active automations. Please upgrade your plan.`);
+          openModal();
+        } else {
+          toast.error(`You have reached your plan limit of ${effectiveLimit} active automations.`);
+        }
         return;
       }
     }

@@ -163,24 +163,46 @@ serve(async (req) => {
       packageName = 'Gifted Premium';
       subscriptionEnd = giftedSettings.expiry_date || null;
 
-      // Update Supabase users table status as well (proactive sync)
+      // Upsert limits into user_limits table (Supabase)
+      const giftedDmLimit = giftedSettings?.dm_limit ?? null;
+      const giftedAutoLimit = giftedSettings?.automation_limit ?? null;
+      console.log(`[sync-user-neon] Syncing gifted limits: dm_limit=${giftedDmLimit}, automation_limit=${giftedAutoLimit}`);
+
       const { error: updateError } = await supabaseClient
-        .from('users')
-        .update({ status: 'active', is_gifted: true })
-        .eq('id', userId);
+        .from('user_limits')
+        .upsert({ 
+          user_id: userId,
+          is_gifted: true,
+          dm_limit: giftedDmLimit,
+          automation_limit: giftedAutoLimit,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' });
         
       if (updateError) {
-        console.error("[sync-user-neon] Supabase status update error:", updateError.message);
+        console.error("[sync-user-neon] user_limits upsert error:", updateError.message);
       }
     } else {
-      // Revert gifted status if they were removed from the internal dashboard
+      // Determine limits based on subscription plan
+      const hasPaidPremium = subData && (subData.status === 'active' || subData.status === 'trialing') && 
+        subData.plan_id && subData.plan_id.toLowerCase() !== 'basic';
+      // Paid premium: null = unlimited. Basic/no sub: enforce defaults.
+      const syncDmLimit = hasPaidPremium ? null : 1000;
+      const syncAutoLimit = hasPaidPremium ? null : 3;
+      console.log(`[sync-user-neon] Syncing plan limits: dm_limit=${syncDmLimit}, automation_limit=${syncAutoLimit}, hasPaidPremium=${hasPaidPremium}`);
+
+      // Upsert limits into user_limits table (Supabase)
       const { error: revertError } = await supabaseClient
-        .from('users')
-        .update({ is_gifted: false })
-        .eq('id', userId);
+        .from('user_limits')
+        .upsert({ 
+          user_id: userId,
+          is_gifted: false,
+          dm_limit: syncDmLimit,
+          automation_limit: syncAutoLimit,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' });
         
       if (revertError) {
-        console.error("[sync-user-neon] Supabase status revert error:", revertError.message);
+        console.error("[sync-user-neon] user_limits upsert error:", revertError.message);
       }
     }
 

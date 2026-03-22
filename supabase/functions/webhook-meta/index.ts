@@ -348,6 +348,25 @@ async function processEvent(body: any) {
 
                 // FIX: Use the Internal UUID (accountsData[0].id) for routing, NOT the Instagram ID (entry.id)
                 if (internalAccountId) {
+                    // 🔒 DM LIMIT ENFORCEMENT — check before triggering any workflow
+                    const dmUserId = accountsData[0].user_id;
+                    const dmLimitExceeded = await checkUserDmLimit(supabaseClient, dmUserId);
+                    if (dmLimitExceeded) {
+                        console.warn(`[DM LIMIT] User ${dmUserId} has exceeded their DM limit. Skipping workflow trigger.`);
+                        // Log a limit_exceeded activity so it's visible in the dashboard
+                        await supabaseClient.from('automation_activities').insert({
+                            user_id: dmUserId,
+                            instagram_account_id: internalAccountId,
+                            automation_id: matchedAutomationId,
+                            activity_type: 'limit_exceeded',
+                            target_username: resolvedUsername || 'Instagram User',
+                            message: 'DM limit exceeded — automation skipped',
+                            status: 'blocked',
+                            metadata: { reason: 'dm_limit_exceeded', mid: msg.message?.mid }
+                        });
+                        continue;
+                    }
+
                     if (activeRoutes.routes.length > 0) {
                         const payloadData = {
                             platform: object,
@@ -454,17 +473,34 @@ async function processEvent(body: any) {
                 }
 
                 if (internalAccountId && activeRoutes.routes.length > 0) {
-                    const payloadData = {
-                        platform: object,
-                        account_id: internalAccountId,
-                        event_type: 'changes',
-                        sub_type: change.field,
-                        payload: change,
-                        entry: [legacyEntry],
-                        event_id: eventId,
-                        activity_id: primaryActivityId
-                    };
-                    await triggerWorkflows(payloadData, activeRoutes.routes, activeRoutes.workflows);
+                    // 🔒 DM LIMIT ENFORCEMENT for comment-triggered automations too
+                    const commentUserId = accountsData[0].user_id;
+                    const commentLimitExceeded = await checkUserDmLimit(supabaseClient, commentUserId);
+                    if (commentLimitExceeded) {
+                        console.warn(`[DM LIMIT] User ${commentUserId} has exceeded their DM limit. Skipping comment workflow trigger.`);
+                        await supabaseClient.from('automation_activities').insert({
+                            user_id: commentUserId,
+                            instagram_account_id: internalAccountId,
+                            automation_id: matchedAutomationId,
+                            activity_type: 'limit_exceeded',
+                            target_username: change.value?.from?.username || 'Instagram User',
+                            message: 'DM limit exceeded — comment automation skipped',
+                            status: 'blocked',
+                            metadata: { reason: 'dm_limit_exceeded', field: change.field }
+                        });
+                    } else {
+                        const payloadData = {
+                            platform: object,
+                            account_id: internalAccountId,
+                            event_type: 'changes',
+                            sub_type: change.field,
+                            payload: change,
+                            entry: [legacyEntry],
+                            event_id: eventId,
+                            activity_id: primaryActivityId
+                        };
+                        await triggerWorkflows(payloadData, activeRoutes.routes, activeRoutes.workflows);
+                    }
                 }
             }
         }
@@ -634,6 +670,56 @@ async function triggerWorkflows(normalized: any, routes: any[], workflows: any[]
         } catch (err) {
             console.error(`Failed to trigger workflow ${route.n8n_workflow_id}`, err);
         }
+    }
+}
+
+// 🔒 DM LIMIT CHECK — queries user's dm_limit from Supabase users table
+// Returns true if user has EXCEEDED their limit (should block)
+// dm_limit = null means unlimited, a number means enforce that limit
+const DM_ACTIVITY_TYPES = ['dm', 'send_dm', 'incoming_message', 'incoming_event', 'interaction'];
+
+async function checkUserDmLimit(supabaseClient: any, userId: string): Promise<boolean> {
+    try {
+        // 1. Get user's dm_limit from user_limits table (synced by sync-user-neon)
+        const { data: userData, error: userError } = await supabaseClient
+            .from('user_limits')
+            .select('dm_limit, is_gifted')
+            .eq('user_id', userId)
+            .maybeSingle();
+
+        if (userError || !userData) {
+            console.warn(`[DM LIMIT] Could not fetch user limits for ${userId}:`, userError?.message);
+            return false; // Fail open — don't block if we can't check
+        }
+
+        const dmLimit = userData.dm_limit;
+
+        // null = unlimited (paid premium plans)
+        if (dmLimit === null || dmLimit === undefined) {
+            return false;
+        }
+
+        // 2. Count existing DM activities for this user
+        const { count, error: countError } = await supabaseClient
+            .from('automation_activities')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .in('activity_type', DM_ACTIVITY_TYPES);
+
+        if (countError) {
+            console.warn(`[DM LIMIT] Could not count DMs for ${userId}:`, countError.message);
+            return false;
+        }
+
+        const currentCount = count || 0;
+        const exceeded = currentCount >= dmLimit;
+        if (exceeded) {
+            console.log(`[DM LIMIT] User ${userId} at ${currentCount}/${dmLimit} — LIMIT EXCEEDED`);
+        }
+        return exceeded;
+    } catch (e) {
+        console.error(`[DM LIMIT] Exception checking limit for ${userId}:`, e);
+        return false; // Fail open
     }
 }
 
