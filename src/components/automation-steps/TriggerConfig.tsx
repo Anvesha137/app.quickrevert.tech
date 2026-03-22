@@ -193,29 +193,37 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
         {loadingMedia ? (
           <div className="flex justify-center p-4"><Loader2 className="w-6 h-6 animate-spin text-purple-500" /></div>
         ) : (
-          <div className="grid grid-cols-2 auto-rows-max gap-2 max-h-[310px] overflow-y-auto pr-1">
-            {posts.map((post) => {
-              const isSelected = specificIds.includes(post.id);
-              return (
-                <div
-                  key={post.id}
-                  onClick={() => toggleMediaSelection(post.id)}
-                  className={`relative w-full pb-[100%] cursor-pointer rounded-xl overflow-hidden border-2 transition-all
-                    ${isSelected ? "border-purple-600" : "border-transparent hover:border-purple-200"}`}
-                >
-                  {post.media_type === 'VIDEO' ? (
-                    <video src={post.media_url} poster={post.thumbnail_url} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover" />
-                  ) : (
-                    <img src={post.media_url} alt={post.caption || 'Post'} className="absolute inset-0 w-full h-full object-cover" />
-                  )}
-                  {isSelected && (
-                    <div className="absolute top-1 right-1 bg-purple-600 text-white p-0.5 rounded-md z-10">
-                      <CheckCircle2 size={12} />
+          <div className="max-h-[310px] overflow-y-auto pr-1">
+            <div className="grid grid-cols-2 gap-2 auto-rows-[1fr]">
+              {posts.map((post) => {
+                const isSelected = specificIds.includes(post.id);
+                return (
+                  <div
+                    key={post.id}
+                    onClick={() => toggleMediaSelection(post.id)}
+                    className={`relative w-full overflow-hidden cursor-pointer rounded-xl border-2 transition-all
+                      ${isSelected ? "border-purple-600" : "border-transparent hover:border-purple-200"}`}
+                    style={{ WebkitTransform: 'translateZ(0)' }}
+                  >
+                    <div className="w-full relative">
+                      <div className="pt-[100%]" />
+                      <div className="absolute inset-0">
+                        {post.media_type === 'VIDEO' ? (
+                          <video src={post.media_url} poster={post.thumbnail_url} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                        ) : (
+                          <img src={post.media_url} alt={post.caption || 'Post'} className="w-full h-full object-cover" />
+                        )}
+                        {isSelected && (
+                          <div className="absolute top-1 right-1 bg-purple-600 text-white p-0.5 rounded-md z-10">
+                            <CheckCircle2 size={12} />
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
-              );
-            })}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </motion.div>
