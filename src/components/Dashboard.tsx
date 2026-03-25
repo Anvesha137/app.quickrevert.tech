@@ -231,7 +231,7 @@ export default function Dashboard() {
               {/* Connection Status Banner - Black & White / Thinner for Millennial */}
               <div className="mb-4 group">
                 {instagramAccount ? (
-                  <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-r ${subIsPremium ? 'from-indigo-600 to-violet-700 shadow-indigo-500/30' : 'from-blue-500 to-purple-600 shadow-purple-500/30'} py-3 px-4 md:py-4 md:px-6 shadow-sm transition-all duration-300 hover:shadow-md`}>
+                  <div className={`relative overflow-hidden rounded-2xl bg-black border border-white/10 py-3 px-4 md:py-4 md:px-6 shadow-sm transition-all duration-300 hover:shadow-md`}>
                     <div className="flex items-center gap-3 relative z-10">
                       <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
                         {instagramAccount.profile_picture_url ? (

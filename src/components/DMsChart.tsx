@@ -9,8 +9,10 @@ export default function DMsChart() {
     const { uiStyle } = useUIStyle();
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isMounted, setIsMounted] = useState(false);
 
     useEffect(() => {
+        setIsMounted(true);
         if (user) {
             fetchChartData();
         }
@@ -80,12 +82,12 @@ export default function DMsChart() {
             )}
 
             <div className={isMillennial ? "h-full w-full" : "h-64 w-full"}>
-                {loading ? (
+                {loading || !isMounted ? (
                     <div className="h-full w-full flex items-center justify-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
                     </div>
                 ) : (
-                    <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+                    <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={data}>
                             <defs>
                                 <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
