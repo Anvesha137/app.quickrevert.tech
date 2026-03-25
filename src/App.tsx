@@ -92,7 +92,7 @@ function AuthenticatedApp() {
           <div className="flex-1 flex flex-col overflow-hidden p-2 md:p-3">
             <div className="flex-1 bg-white rounded-[1.25rem] overflow-hidden shadow-xl">
               <ErrorBoundary>
-                <div className="h-full overflow-y-auto">
+                <div className="h-full overflow-y-auto pb-24 md:pb-0">
                   <Routes>
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/dashboard" element={<Navigate to="/" replace />} />

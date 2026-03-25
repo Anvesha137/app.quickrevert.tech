@@ -275,26 +275,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     const canUseAskToFollow = isGiftedActive ? (giftedSettings?.ask_to_follow_enabled ?? true) : isPremium;
     const dmLimit = isGiftedActive ? (giftedSettings?.dm_limit ?? 'Unlimited') : (isPremium ? 'Unlimited' : 1000);
     const automationLimit = isGiftedActive ? (giftedSettings?.automation_limit ?? 'Unlimited') : (isPremium ? 'Unlimited' : 3);
-    const hasLogged = useRef(false);
 
-    useEffect(() => {
-        if (initialFetchDone && user && !hasLogged.current) {
-            hasLogged.current = true;
-            console.log(
-                '%ca cutie hie how are u 🎀✨\n%cur details are:',
-                'color: #d8b4fe; font-size: 18px; font-weight: bold; text-shadow: 1px 1px 2px #3b0764; padding: 10px 0; font-family: "Comic Sans MS", cursive, sans-serif;',
-                'color: #a78bfa; font-size: 14px; font-style: italic; font-weight: 600;',
-                {
-                    '💖 Name': user.user_metadata?.full_name || 'Gorgeous',
-                    '💌 Email': user.email,
-                    '👑 Plan': isGifted ? '🎁 Gifted Premium' : (isPremium ? '💎 Premium' : '🌱 Basic'),
-                    '📩 DM Limit': dmLimit,
-                    '⚡ Automation Limit': automationLimit,
-                    '✅ Ask To Follow': canUseAskToFollow ? 'Enabled' : 'Disabled'
-                }
-            );
-        }
-    }, [initialFetchDone, user, isGifted, isPremium, dmLimit, automationLimit, canUseAskToFollow]);
 
     const isExpired = !isPremium && (isGifted || (subscription !== null && planId !== 'basic'));
     const limitValueForCheck = typeof dmLimit === 'number' ? dmLimit : 1000;
