@@ -12,7 +12,8 @@ const Billing = () => {
     isGifted, 
     giftedSettings, 
     dmLimit, 
-    automationLimit 
+    automationLimit,
+    invoices
   } = useSubscription();
 
   const { openModal: openUpgradeModal } = useUpgradeModal();
@@ -182,10 +183,9 @@ const Billing = () => {
             </div>
           </div>
 
-          {/* Compact Billing History Access */}
           <div
-            onClick={() => isGifted ? null : setActiveTab('invoices')}
-            className={`cursor-pointer p-6 rounded-[2rem] border transition-all ${activeTab === 'invoices' ? 'bg-white/10 border-white/20' : 'bg-white/[0.03] border-white/5 hover:bg-white/[0.05]'} ${isGifted ? 'opacity-50 cursor-not-allowed' : ''}`}
+            onClick={() => setActiveTab('invoices')}
+            className={`cursor-pointer p-6 rounded-[2rem] border transition-all ${activeTab === 'invoices' ? 'bg-white/10 border-white/20' : 'bg-white/[0.03] border-white/5 hover:bg-white/[0.05]'}`}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -220,20 +220,45 @@ const Billing = () => {
                 </tr>
               </thead>
               <tbody className="text-white">
-                {subscription ? (
-                  <tr className="border-b border-white/[0.02] last:border-0">
-                    <td className="py-4 font-bold flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-600"></div>
-                      INV-{new Date(subscription.created_at || new Date()).getFullYear()}-001
-                    </td>
-                    <td className="py-4 text-gray-500">{formatDate(subscription.created_at)}</td>
-                    <td className="py-4 text-right font-black text-green-400">₹{subscription.amount_paid || 0}</td>
-                  </tr>
-                ) : (
-                  <tr>
-                    <td colSpan={3} className="py-8 text-center text-gray-600 font-bold uppercase tracking-widest">No records found</td>
-                  </tr>
-                )}
+                {(() => {
+                  const allInvoices = [...(invoices || [])];
+                  if (isGifted) {
+                    allInvoices.unshift({
+                      id: 'gifted-special',
+                      plan_id: 'gifted',
+                      amount_paid: 0,
+                      created_at: new Date().toISOString(), // Current session view
+                      status: 'active'
+                    } as any);
+                  }
+
+                  if (allInvoices.length > 0) {
+                    return allInvoices.map((inv, idx) => {
+                      const isGiftedRow = inv.id === 'gifted-special';
+                      return (
+                        <tr key={inv.id} className="border-b border-white/[0.02] last:border-0 hover:bg-white/[0.02] transition-colors">
+                          <td className="py-4 font-bold flex items-center gap-2">
+                            <div className={`w-1.5 h-1.5 rounded-full ${isGiftedRow ? 'bg-yellow-500' : (idx === 0 && !isGifted ? 'bg-blue-600' : 'bg-gray-600')}`}></div>
+                            {isGiftedRow ? 'Special Assignment - GIFTED' : `INV-${new Date(inv.created_at || new Date()).getFullYear()}-${(invoices.length - (isGifted ? idx - 1 : idx)).toString().padStart(3, '0')}`}
+                          </td>
+                          <td className="py-4 text-gray-500">{isGiftedRow ? 'Current Plan' : formatDate(inv.created_at)}</td>
+                          <td className="py-4 text-right font-black text-green-400">₹{inv.amount_paid || 0}</td>
+                        </tr>
+                      );
+                    });
+                  }
+
+                  return (
+                    <tr>
+                      <td colSpan={3} className="py-12 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                          <Calendar className="w-8 h-8 text-gray-700 mx-auto" />
+                          <p className="text-gray-600 font-bold uppercase tracking-widest text-[10px]">No billing records found</p>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })()}
               </tbody>
             </table>
           </div>

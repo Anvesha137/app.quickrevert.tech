@@ -37,6 +37,7 @@ interface SubscriptionContextType {
     automationLimit: number | 'Unlimited';
     hasInstagramConnected: boolean;
     initialFetchDone: boolean;
+    invoices: Subscription[];
     refresh: () => Promise<void>;
 }
 
@@ -49,6 +50,19 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     const { user } = useAuth();
     const CACHE_KEY = 'quickrevert_subscription_cache';
     const [initialFetchDone, setInitialFetchDone] = useState(false);
+
+    const [invoices, setInvoices] = useState<Subscription[]>(() => {
+        if (typeof window === 'undefined') return [];
+        try {
+            const cached = localStorage.getItem(CACHE_KEY);
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                if (Date.now() - parsed.timestamp > 3600_000) return [];
+                return parsed.invoices || [];
+            }
+        } catch (e) { console.error('Cache read error:', e); }
+        return [];
+    });
 
     const [subscription, setSubscription] = useState<Subscription | null>(() => {
         if (typeof window === 'undefined') return null;
@@ -143,9 +157,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
                     .from('subscriptions')
                     .select('id, user_id, plan_id, status, current_period_end, amount_paid, discount_amount, coupon_code, created_at')
                     .eq('user_id', user.id)
-                    .order('created_at', { ascending: false })
-                    .limit(1)
-                    .maybeSingle(),
+                    .order('created_at', { ascending: false }),
                 supabase
                     .from('automation_activities')
                     .select('id', { count: 'exact', head: true })
@@ -169,7 +181,9 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
             ]);
 
             if (subResult.error) throw subResult.error;
-            setSubscription(subResult.data as Subscription | null);
+            const subData = subResult.data as Subscription[];
+            setInvoices(subData);
+            setSubscription(subData[0] || null);
             setHasInstagramConnected(!!instagramAccountResult.data);
 
             setUsage({
@@ -202,7 +216,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
                 // Save to cache with LOCAL variables to avoid closure issues
                 localStorage.setItem(CACHE_KEY, JSON.stringify({
-                    subscription: subResult.data,
+                    subscription: subResult.data?.[0] || null,
+                    invoices: subResult.data || [],
                     usage: {
                         dms: dmCountResult.count || 0,
                         contacts: contactCountResult.count || 0,
@@ -217,7 +232,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
                 console.warn('Neon sync failed:', syncErr);
                 // Even if sync-user-neon fails, still save the rest of the data
                 localStorage.setItem(CACHE_KEY, JSON.stringify({
-                    subscription: subResult.data,
+                    subscription: subResult.data?.[0] || null,
+                    invoices: subResult.data || [],
                     usage: {
                         dms: dmCountResult.count || 0,
                         contacts: contactCountResult.count || 0,
@@ -300,6 +316,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
             automationLimit,
             hasInstagramConnected,
             initialFetchDone,
+            invoices,
             refresh: fetchSubscriptionData
         }}>
             {children}
