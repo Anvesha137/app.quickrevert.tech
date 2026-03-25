@@ -231,14 +231,14 @@ export default function Dashboard() {
               {/* Connection Status Banner - Black & White / Thinner for Millennial */}
               <div className="mb-4 group">
                 {instagramAccount ? (
-                  <div className="relative overflow-hidden rounded-2xl bg-black py-3 px-4 md:py-4 md:px-6 shadow-sm transition-all duration-300 hover:shadow-md">
+                  <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-r ${subIsPremium ? 'from-indigo-600 to-violet-700 shadow-indigo-500/30' : 'from-blue-500 to-purple-600 shadow-purple-500/30'} py-3 px-4 md:py-4 md:px-6 shadow-sm transition-all duration-300 hover:shadow-md`}>
                     <div className="flex items-center gap-3 relative z-10">
                       <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
                         {instagramAccount.profile_picture_url ? (
                           <img
                             src={instagramAccount.profile_picture_url}
                             alt={instagramAccount.username}
-                            className="w-full h-full rounded-xl object-cover grayscale"
+                            className="w-full h-full rounded-xl object-cover"
                           />
                         ) : (
                           <Instagram className="w-4 h-4 md:w-5 md:h-5 text-white" />
@@ -420,25 +420,7 @@ export default function Dashboard() {
             </p>
           </div>
         </div>
-
-        <div className="flex items-center gap-4">
-            <Link
-              to="/settings"
-              className="w-12 h-12 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 hover:scale-110 flex items-center justify-center group"
-            >
-              <User className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
-            </Link>
-            <a
-              href="https://quickrevert.tech/contact"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-8 py-3.5 rounded-2xl bg-gray-900 text-white font-bold shadow-2xl shadow-gray-200 hover:bg-gray-800 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2 group"
-            >
-              <Headset className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-              Support
-            </a>
-          </div>
-        </div>
+      </div>
 
         {/* Main Content Area */}
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-1000 fill-mode-both">

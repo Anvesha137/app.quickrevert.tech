@@ -390,7 +390,7 @@ export default function Automations() {
           <GlassButton
             icon={Plus}
             onClick={handleCreateAutomation}
-            className="px-8 py-4 h-fit md:w-auto w-full"
+            className="px-8 py-4 h-fit md:w-auto w-full hidden md:flex"
           >
             Create Automation
           </GlassButton>
@@ -409,28 +409,52 @@ export default function Automations() {
               />
             </div>
 
-            <div className="flex flex-wrap gap-4 items-center">
-              <div className="relative">
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as '' | 'newest' | 'oldest' | 'name')}
-                  className="appearance-none w-full pl-4 pr-10 py-3.5 border border-slate-200/60 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 bg-white/50 cursor-pointer font-bold text-slate-700 shadow-sm hover:bg-white/80 transition-all min-w-[160px] text-sm"
-                >
-                  <option value="" disabled>Sort by</option>
-                  <option value="newest">Newest First</option>
-                  <option value="oldest">Oldest First</option>
-                  <option value="name">Name</option>
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+            <GlassButton
+              icon={Plus}
+              onClick={handleCreateAutomation}
+              className="md:hidden w-full flex py-4 h-fit"
+            >
+              Create Automation
+            </GlassButton>
+
+            <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center w-full lg:w-auto flex-1">
+              <div className="flex flex-row gap-4 w-full lg:w-auto order-1 lg:order-2">
+                <div className="flex-1 relative group">
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as '' | 'newest' | 'oldest' | 'name')}
+                    className="appearance-none w-full pl-4 pr-10 py-3.5 border border-slate-200/60 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 bg-white/50 cursor-pointer font-bold text-slate-700 shadow-sm hover:bg-white/80 transition-all text-sm"
+                  >
+                    <option value="" disabled>Sort by</option>
+                    <option value="newest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                    <option value="name">Name</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                </div>
+
+                <div className="flex-1 relative h-full group">
+                  <select
+                    value={triggerFilter}
+                    onChange={(e) => setTriggerFilter(e.target.value as typeof triggerFilter)}
+                    className="appearance-none w-full pl-4 pr-10 py-3.5 border border-slate-200/60 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 bg-white/50 cursor-pointer font-bold text-slate-700 shadow-sm hover:bg-white/80 transition-all text-sm"
+                  >
+                    <option value="all">All Triggers</option>
+                    <option value="post_comment">Post Comments</option>
+                    <option value="story_reply">Story Replies</option>
+                    <option value="user_directed_messages">DMs</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                </div>
               </div>
 
-              <div className="flex gap-1.5 p-1.5 bg-slate-100/50 backdrop-blur-sm rounded-2xl border border-slate-200/50 shadow-inner">
+              <div className="flex w-full lg:w-auto gap-1.5 p-1.5 bg-slate-100/50 backdrop-blur-sm rounded-2xl border border-slate-200/50 shadow-inner order-2 lg:order-1">
                 {['all', 'active', 'inactive'].map((status) => (
                   <button
                     key={status}
                     onClick={() => setStatusFilter(status as any)}
                     className={cn(
-                      "px-5 py-2 rounded-xl text-sm font-bold transition-all",
+                      "flex-1 lg:px-5 py-2 rounded-xl text-sm font-bold transition-all",
                       statusFilter === status
                         ? "bg-white text-blue-600 shadow-md ring-1 ring-slate-200"
                         : "text-slate-500 hover:text-slate-800 hover:bg-white/50"
@@ -439,20 +463,6 @@ export default function Automations() {
                     {status.charAt(0).toUpperCase() + status.slice(1)}
                   </button>
                 ))}
-              </div>
-
-              <div className="relative h-full">
-                <select
-                  value={triggerFilter}
-                  onChange={(e) => setTriggerFilter(e.target.value as typeof triggerFilter)}
-                  className="appearance-none pl-4 pr-10 py-3.5 border border-slate-200/60 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 bg-white/50 cursor-pointer font-bold text-slate-700 shadow-sm hover:bg-white/80 transition-all min-w-[180px] text-sm"
-                >
-                  <option value="all">All Triggers</option>
-                  <option value="post_comment">Post Comments</option>
-                  <option value="story_reply">Story Replies</option>
-                  <option value="user_directed_messages">DMs</option>
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
               </div>
             </div>
           </div>

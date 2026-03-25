@@ -45,32 +45,32 @@ export default function ProBanner({ isCompact }: ProBannerProps) {
     }
 
     return (
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-orange-600 p-4 shadow-2xl shadow-red-500/50 group">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-orange-600 p-3 md:p-5 shadow-2xl shadow-red-500/50 group">
             <div className="absolute inset-0 opacity-30 group-hover:opacity-40 transition-opacity" style={{
                 backgroundImage: `url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iZ3JpZCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBwYXR0ZXJuVW5pdHM9InVzZXJTcGFjZU9uVXNlIj48cGF0aCBkPSJNIDQwIDAgTCAwIDAgMCA0MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLW9wYWNpdHk9IjAuMSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+")`
             }}></div>
-
-            <div className="relative flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
-                <div className="flex flex-col md:flex-row items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30 shrink-0">
-                        <Crown className="w-5 h-5 text-white" />
+            
+            <div className="relative flex flex-row items-center justify-between gap-3 text-left">
+                <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30 shrink-0">
+                        <Crown className="w-4 h-4 md:w-5 md:h-5 text-white" />
                     </div>
-                    <div>
-                        <h3 className="text-white font-bold text-base flex items-center gap-2 justify-center md:justify-start">
-                            {isAtLimit ? 'Usage Limit Reached!' : (isExpired ? 'Your Pro Plan Expired!' : 'Unlock Pro Power!')} <Sparkles className="w-4 h-4" />
+                    <div className="min-w-0">
+                        <h3 className="text-white font-bold text-sm md:text-base flex items-center gap-2 truncate">
+                            {isAtLimit ? 'Limit Reached!' : (isExpired ? 'Plan Expired!' : 'Unlock Pro!')} <Sparkles className="hidden md:block w-4 h-4" />
                         </h3>
-                        <p className="text-white/90 text-xs">
-                          {isAtLimit ? 'Please upgrade your plan to continue using QuickRevert without interruptions.' : 
-                           (isExpired ? 'Renew now to restore unlimited automations and analytics' : 'Get unlimited automations, contacts & advanced analytics')}
+                        <p className="text-white/90 text-[10px] md:text-xs truncate">
+                          {isAtLimit ? 'Please upgrade to continue using.' : 
+                           (isExpired ? 'Renew now to restore features' : 'Get unlimited automations')}
                         </p>
                     </div>
                 </div>
                 <button
                     onClick={() => openModal(undefined, customMessage)}
-                    className="px-5 py-2 rounded-lg bg-white text-red-600 font-bold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 flex items-center gap-2 whitespace-nowrap text-sm"
+                    className="px-3 py-1.5 md:px-5 md:py-2 rounded-lg bg-white text-red-600 font-bold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 flex items-center gap-2 whitespace-nowrap text-xs md:text-sm shrink-0"
                 >
-                    <Crown className="w-4 h-4" />
-                    {isAtLimit ? 'Upgrade Now' : (isExpired ? 'Renew Subscription' : 'Upgrade to Pro')}
+                    <Crown className="hidden md:block w-4 h-4" />
+                    {isAtLimit ? 'Upgrade' : (isExpired ? 'Renew' : 'Upgrade')}
                 </button>
             </div>
         </div>
