@@ -206,6 +206,15 @@ export default function Dashboard() {
           <div className="flex-1 flex flex-col gap-10">
             {/* Today's Activity List */}
             <div>
+              <div className="md:hidden mb-6 p-3 rounded-2xl bg-gradient-to-br from-blue-500/10 to-purple-500/10 backdrop-blur-md border border-white/20">
+                <div className="flex items-center gap-0 justify-center mb-1">
+                  <img src="/Logo_optimized.png" alt="QuickRevert Logo" className="w-12 h-12 object-contain -mr-1" />
+                  <h1 className="font-bold text-gray-800 text-2xl tracking-tighter -mt-1">QuickRevert</h1>
+                </div>
+                <p className="text-[9px] text-gray-500 tracking-tight text-center leading-none">
+                  Intelligent Responses | Zero Wait Time | 24x7
+                </p>
+              </div>
               <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
                 <h3 className="font-bold text-gray-800 text-lg">Hello, {displayName?.split(' ')[0] || 'there'} 👋</h3>
                 <a
@@ -391,8 +400,18 @@ export default function Dashboard() {
       <div className="max-w-7xl mx-auto p-6 md:p-10 space-y-10">
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 animate-in fade-in slide-in-from-top-4 duration-700">
-          <div className="space-y-2">
-            <h2 className="text-4xl md:text-4xl font-black text-gray-900 tracking-tight leading-tight flex items-center gap-4">
+          <div className="space-y-4">
+            <div className="md:hidden mb-6 p-3 rounded-2xl bg-gradient-to-br from-blue-500/10 to-purple-500/10 backdrop-blur-md border border-white/20">
+              <div className="flex items-center gap-0 justify-center mb-1">
+                <img src="/Logo_optimized.png" alt="QuickRevert Logo" className="w-12 h-12 object-contain -mr-1" />
+                <h1 className="font-bold text-gray-800 text-2xl tracking-tighter -mt-1">QuickRevert</h1>
+              </div>
+              <p className="text-[9px] text-gray-500 tracking-tight text-center leading-none">
+                Intelligent Responses | Zero Wait Time | 24x7
+              </p>
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-4xl md:text-4xl font-black text-gray-900 tracking-tight leading-tight flex items-center gap-4">
               Hello, {displayName?.split(' ')[0] || 'Creator'}
               <Hand className="w-10 h-10 text-amber-400 fill-amber-400/20 animate-jump" />
             </h2>
@@ -400,8 +419,9 @@ export default function Dashboard() {
               Here's what's happening with your Instagram today.
             </p>
           </div>
+        </div>
 
-          <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4">
             <Link
               to="/settings"
               className="w-12 h-12 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 hover:scale-110 flex items-center justify-center group"

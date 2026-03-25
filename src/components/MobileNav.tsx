@@ -49,25 +49,25 @@ export default function MobileNav() {
         <>
             {/* Bottom Navigation Bar */}
             <div className="md:hidden fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 z-50 pb-safe">
-                <div className="grid grid-cols-3 h-16">
+                <div className="grid grid-cols-3 h-20">
                     {/* Upgrade Button */}
                     <Link
                         to="/billing"
-                        className="flex flex-col items-center justify-center gap-1 text-gray-600 hover:text-blue-600 active:bg-gray-50"
+                        className="flex flex-col items-center justify-center gap-1.5 text-gray-600 hover:text-blue-600 active:bg-gray-50"
                     >
-                        <ArrowUpCircle className="w-6 h-6" />
-                        <span className="text-xs font-medium">Upgrade</span>
+                        <ArrowUpCircle className="w-7 h-7" />
+                        <span className="text-sm font-semibold">Upgrade</span>
                     </Link>
 
                     {/* Menu Button */}
                     <button
                         onClick={() => setIsOpen(true)}
-                        className="flex flex-col items-center justify-center gap-1 text-gray-600 hover:text-blue-600 active:bg-gray-50 relative"
+                        className="flex flex-col items-center justify-center gap-1.5 text-gray-600 hover:text-blue-600 active:bg-gray-50 relative"
                     >
-                        <div className={`absolute -top-6 w-12 h-12 bg-gradient-to-br ${getGradientClass()} rounded-full flex items-center justify-center shadow-lg border-4 border-gray-50`}>
-                            <Menu className="w-6 h-6 text-white" />
+                        <div className={`absolute -top-8 w-16 h-16 bg-gradient-to-br ${getGradientClass()} rounded-full flex items-center justify-center shadow-lg border-4 border-gray-50`}>
+                            <Menu className="w-8 h-8 text-white" />
                         </div>
-                        <span className="text-xs font-medium mt-6">Menu</span>
+                        <span className="text-sm font-semibold mt-10">Menu</span>
                     </button>
 
                     {/* Support Button */}
@@ -75,10 +75,10 @@ export default function MobileNav() {
                         href="https://quickrevert.tech/contact"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex flex-col items-center justify-center gap-1 text-gray-600 hover:text-blue-600 active:bg-gray-50"
+                        className="flex flex-col items-center justify-center gap-1.5 text-gray-600 hover:text-blue-600 active:bg-gray-50"
                     >
-                        <ExternalLink className="w-6 h-6" />
-                        <span className="text-xs font-medium">Support</span>
+                        <ExternalLink className="w-7 h-7" />
+                        <span className="text-sm font-semibold">Support</span>
                     </a>
                 </div>
             </div>
