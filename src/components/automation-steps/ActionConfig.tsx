@@ -398,7 +398,11 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
           {actions.length === 0 && (
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="mt-4 p-4 bg-orange-50 border border-orange-100 rounded-xl flex items-center gap-3">
               <AlertCircle size={20} className="text-orange-500 shrink-0" />
-              <p className="text-orange-800 font-bold text-sm leading-tight">Please turn on at least one action above (Reply or DM) to continue.</p>
+              <p className="text-orange-800 font-bold text-sm leading-tight">
+                {triggerType === 'post_comment'
+                  ? "Please turn on at least one action above (Reply or DM) to continue."
+                  : "Please turn on action above to continue."}
+              </p>
             </motion.div>
           )}
           {hasReply && !isReplyValid && (

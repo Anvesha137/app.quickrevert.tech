@@ -284,8 +284,8 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
               />
               <OptionCard
                 icon={Target}
-                title="Just specific posts"
-                description="Pick exactly which posts you want this to work on."
+                title={triggerType === 'post_comment' ? "Just specific posts" : "Just specific story"}
+                description={triggerType === 'post_comment' ? "Pick exactly which posts you want this to work on." : "Pick exactly which story you want this to work on."}
                 selected={(triggerType === 'post_comment' ? (currentConfig as PostCommentTriggerConfig).postsType : (currentConfig as StoryReplyTriggerConfig).storiesType) === 'specific'}
                 onClick={() => handlePostsTypeChange('specific')}
                 disabled={readOnly}
