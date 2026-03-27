@@ -776,7 +776,13 @@ if (diff > COOLDOWN_MS) {
                         leftValue: "={{ $('Worker Webhook').item.json.body.entry[0].messaging[0].message.reply_to }}",
                         rightValue: "",
                         operator: { type: "string", operation: triggerType === 'story_reply' ? "exists" : "notExists", singleValue: true }
-                      }
+                      },
+                      ...(triggerType === 'user_directed_messages' || triggerType === 'user_dm' ? [{
+                        id: "not-a-postback",
+                        leftValue: "={{ $('Worker Webhook').item.json.body.sub_type }}",
+                        rightValue: "postback",
+                        operator: { type: "string", operation: "notEquals" }
+                      }] : [])
                     ],
                     combinator: "and"
                   }

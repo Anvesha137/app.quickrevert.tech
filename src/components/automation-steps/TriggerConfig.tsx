@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Grid, Globe, Target, Tag, Search, X, Loader2, CheckCircle2, Clock } from 'lucide-react';
+import { Grid, Globe, Target, Tag, Search, X, Loader2, CheckCircle2, Clock, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from "motion/react";
 import { TriggerType, TriggerConfig, PostCommentTriggerConfig, StoryReplyTriggerConfig, UserDirectMessageTriggerConfig } from '../../types/automation';
 import { supabase } from '../../lib/supabase';
@@ -380,22 +380,25 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="px-5 pb-5 pt-0">
                       <div className="bg-white p-4 rounded-xl border border-purple-100 shadow-sm space-y-3">
                         <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Select Cooldown Duration</label>
-                        <select
-                          value={(currentConfig as UserDirectMessageTriggerConfig).cooldownDuration || 3600000}
-                          onChange={(e) => handleCooldownDurationChange(Number(e.target.value))}
-                          disabled={readOnly}
-                          className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 outline-none text-gray-900 font-semibold text-sm transition-all appearance-none bg-white cursor-pointer"
-                        >
-                          <option value={60000}>1 min</option>
-                          <option value={300000}>5 min</option>
-                          <option value={900000}>15 min</option>
-                          <option value={1800000}>30 min</option>
-                          <option value={3600000}>1 hr</option>
-                          <option value={18000000}>5 hr</option>
-                          <option value={36000000}>10 hr</option>
-                          <option value={86400000}>1 day</option>
-                          <option value={604800000}>7 days</option>
-                        </select>
+                        <div className="relative">
+                          <select
+                            value={(currentConfig as UserDirectMessageTriggerConfig).cooldownDuration || 3600000}
+                            onChange={(e) => handleCooldownDurationChange(Number(e.target.value))}
+                            disabled={readOnly}
+                            className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 pr-10 outline-none text-gray-900 font-semibold text-sm transition-all appearance-none bg-white cursor-pointer"
+                          >
+                            <option value={60000}>1 min</option>
+                            <option value={300000}>5 min</option>
+                            <option value={900000}>15 min</option>
+                            <option value={1800000}>30 min</option>
+                            <option value={3600000}>1 hr</option>
+                            <option value={18000000}>5 hr</option>
+                            <option value={36000000}>10 hr</option>
+                            <option value={86400000}>1 day</option>
+                            <option value={604800000}>7 days</option>
+                          </select>
+                          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                        </div>
                       </div>
                     </motion.div>
                   )}
