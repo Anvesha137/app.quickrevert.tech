@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Grid, Globe, Target, Tag, Search, X, Loader2, CheckCircle2, Clock, ChevronDown } from 'lucide-react';
+import { Grid, Globe, Target, Tag, Search, X, Loader2, CheckCircle2, Clock, ChevronDown, Info } from 'lucide-react';
 import { motion, AnimatePresence } from "motion/react";
 import { TriggerType, TriggerConfig, PostCommentTriggerConfig, StoryReplyTriggerConfig, UserDirectMessageTriggerConfig } from '../../types/automation';
 import { supabase } from '../../lib/supabase';
@@ -38,7 +38,7 @@ function OptionCard({ icon: Icon, title, description, selected, onClick, disable
       </div>
       <div className="flex-1">
         <h3 className={`font-bold text-[13px] md:text-[15px] mb-0.5 transition-colors ${selected ? 'text-purple-900 font-extrabold' : 'text-gray-900 group-hover:text-purple-900'}`}>{title}</h3>
-        <p className={`text-[11px] md:text-[13px] font-medium leading-snug transition-colors ${selected ? 'text-purple-700/80': 'text-gray-400 group-hover:text-gray-500'}`}>{description}</p>
+        <p className={`text-[11px] md:text-[13px] font-medium leading-snug transition-colors ${selected ? 'text-purple-700/80' : 'text-gray-400 group-hover:text-gray-500'}`}>{description}</p>
       </div>
       <div className={`shrink-0 w-5 h-5 md:w-6 md:h-6 rounded-full border-2 flex items-center justify-center transition-all
         ${selected ? 'border-purple-600 bg-purple-50 shadow-inner scale-110' : 'border-gray-200 group-hover:border-purple-300'}`}>
@@ -58,7 +58,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
     if (config) return config;
     if (triggerType === 'post_comment') return { postsType: 'all', commentsType: 'all' } as PostCommentTriggerConfig;
     if (triggerType === 'story_reply') return { storiesType: 'all', replyType: 'all' } as StoryReplyTriggerConfig;
-    return { messageType: 'all' } as UserDirectMessageTriggerConfig;
+    return { messageType: 'all', cooldownEnabled: true, cooldownDuration: 3600000 } as UserDirectMessageTriggerConfig;
   };
 
   const currentConfig = getConfig();
@@ -144,20 +144,10 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
     return [];
   };
 
-  const handleCooldownToggle = () => {
-    if (readOnly || triggerType !== 'user_directed_messages') return;
-    const dmConfig = currentConfig as UserDirectMessageTriggerConfig;
-    onConfigChange({ 
-      ...dmConfig, 
-      cooldownEnabled: !dmConfig.cooldownEnabled,
-      cooldownDuration: dmConfig.cooldownEnabled ? undefined : (dmConfig.cooldownDuration || 3600000) // Default 1 hour
-    } as UserDirectMessageTriggerConfig);
-  };
-
   const handleCooldownDurationChange = (duration: number) => {
     if (readOnly || triggerType !== 'user_directed_messages') return;
-    onConfigChange({ 
-      ...currentConfig, 
+    onConfigChange({
+      ...currentConfig,
       cooldownDuration: duration
     } as UserDirectMessageTriggerConfig);
   };
@@ -268,7 +258,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
 
   return (
     <div className="space-y-10 md:space-y-14 pb-8">
-      
+
       {/* Scope Section */}
       {(triggerType === 'post_comment' || triggerType === 'story_reply') && (
         <div className="w-full">
@@ -301,7 +291,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                 disabled={readOnly}
               />
               <AnimatePresence>
-                {((triggerType === 'post_comment' && (currentConfig as PostCommentTriggerConfig).postsType === 'specific') || 
+                {((triggerType === 'post_comment' && (currentConfig as PostCommentTriggerConfig).postsType === 'specific') ||
                   (triggerType === 'story_reply' && (currentConfig as StoryReplyTriggerConfig).storiesType === 'specific')) && renderMediaSelector()}
               </AnimatePresence>
             </div>
@@ -340,7 +330,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
               disabled={readOnly}
             />
             <AnimatePresence>
-              {((triggerType === 'post_comment' && (currentConfig as PostCommentTriggerConfig).commentsType === 'keywords') || 
+              {((triggerType === 'post_comment' && (currentConfig as PostCommentTriggerConfig).commentsType === 'keywords') ||
                 (triggerType === 'story_reply' && (currentConfig as StoryReplyTriggerConfig).replyType === 'keywords') ||
                 (triggerType === 'user_directed_messages' && (currentConfig as UserDirectMessageTriggerConfig).messageType === 'keywords')) && renderKeywordInput()}
             </AnimatePresence>
@@ -356,53 +346,54 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
               <Clock className="w-5 h-5 md:w-6 md:h-6 fill-purple-200 text-purple-200" />
             </div>
             <div className="pt-0.5 md:pt-1">
-              <h2 className="text-lg md:text-xl font-bold text-gray-900 leading-tight">Cooldown Period?</h2>
+              <h2 className="text-lg md:text-xl font-bold text-gray-900 leading-tight flex items-center gap-2">
+                Cooldown Period
+                <div className="relative group">
+                  <Info className="w-4 h-4 text-gray-400 cursor-pointer hover:text-purple-500 transition-colors" />
+                  <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 bg-gray-900 text-white text-xs font-medium rounded-xl px-3 py-2 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 leading-relaxed">
+                    To avoid repeated DMs and reduce spam, this feature enables you to re-send this msg again after the mentioned time.
+                    <div className="absolute left-1/2 -translate-x-1/2 top-full w-2 h-2 bg-gray-900 rotate-45 -mt-1" />
+                  </div>
+                </div>
+              </h2>
               <p className="text-xs md:text-sm text-gray-400 font-medium leading-relaxed mt-0.5">Prevent sending multiple DMs to the same user consecutively.</p>
             </div>
           </div>
 
           <div className="pl-0">
             <div className="px-4 md:px-5 py-3 md:py-4 border-2 border-purple-100 rounded-2xl md:rounded-[1.5rem] bg-white space-y-2.5">
-              <div className={`rounded-xl md:rounded-2xl border-2 transition-all overflow-hidden ${(currentConfig as UserDirectMessageTriggerConfig).cooldownEnabled ? 'border-purple-200 bg-purple-50/30' : 'border-transparent bg-white hover:bg-gray-50'}`}>
-                <div className="p-3 md:p-4 flex items-center gap-3 md:gap-4 cursor-pointer" onClick={handleCooldownToggle}>
+              <div className={`rounded-xl md:rounded-2xl border-2 transition-all overflow-hidden border-purple-200 bg-purple-50/30`}>
+                <div className="p-3 md:p-4 flex items-center gap-3 md:gap-4">
                   <div className="flex-1">
                     <h3 className="font-bold text-gray-900 text-[14px] md:text-[15px] mb-0.5 md:mb-1">Enable Cooldown</h3>
                     <p className="text-[11px] md:text-xs text-gray-400 font-medium">Wait before replying to the same user again</p>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer pointer-events-none">
-                    <input type="checkbox" className="sr-only peer" checked={(currentConfig as UserDirectMessageTriggerConfig).cooldownEnabled || false} readOnly />
+                  <label className="relative inline-flex items-center cursor-not-allowed pointer-events-none">
+                    <input type="checkbox" className="sr-only peer" checked={true} readOnly />
                     <div className="w-10 h-6 md:w-12 md:h-7 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 md:after:h-6 md:after:w-6 after:transition-all peer-checked:bg-purple-600 shadow-inner"></div>
                   </label>
                 </div>
 
-                <AnimatePresence>
-                  {(currentConfig as UserDirectMessageTriggerConfig).cooldownEnabled && (
-                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="px-5 pb-5 pt-0">
-                      <div className="bg-white p-4 rounded-xl border border-purple-100 shadow-sm space-y-3">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Select Cooldown Duration</label>
-                        <div className="relative">
-                          <select
-                            value={(currentConfig as UserDirectMessageTriggerConfig).cooldownDuration || 3600000}
-                            onChange={(e) => handleCooldownDurationChange(Number(e.target.value))}
-                            disabled={readOnly}
-                            className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 pr-10 outline-none text-gray-900 font-semibold text-sm transition-all appearance-none bg-white cursor-pointer"
-                          >
-                            <option value={60000}>1 min</option>
-                            <option value={300000}>5 min</option>
-                            <option value={900000}>15 min</option>
-                            <option value={1800000}>30 min</option>
-                            <option value={3600000}>1 hr</option>
-                            <option value={18000000}>5 hr</option>
-                            <option value={36000000}>10 hr</option>
-                            <option value={86400000}>1 day</option>
-                            <option value={604800000}>7 days</option>
-                          </select>
-                          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                <div className="px-5 pb-5 pt-0">
+                  <div className="bg-white p-4 rounded-xl border border-purple-100 shadow-sm space-y-3">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Select Cooldown Duration</label>
+                    <div className="relative">
+                      <select
+                        value={(currentConfig as UserDirectMessageTriggerConfig).cooldownDuration || 3600000}
+                        onChange={(e) => handleCooldownDurationChange(Number(e.target.value))}
+                        disabled={readOnly}
+                        className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 pr-10 outline-none text-gray-900 font-semibold text-sm transition-all appearance-none bg-white cursor-pointer"
+                      >
+                        <option value={60000}>1 min</option>
+                        <option value={300000}>5 min</option>
+                        <option value={3600000}>1 hr</option>
+                        <option value={21600000}>6 hr</option>
+                        <option value={86400000}>24 hr</option>
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
