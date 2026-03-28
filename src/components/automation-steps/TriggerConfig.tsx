@@ -183,29 +183,31 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
         {loadingMedia ? (
           <div className="flex justify-center p-4"><Loader2 className="w-6 h-6 animate-spin text-purple-500" /></div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-            {posts.map((post) => {
-              const isSelected = specificIds.includes(post.id);
-              return (
-                <div
-                  key={post.id}
-                  onClick={() => toggleMediaSelection(post.id)}
-                  className={`relative aspect-square min-w-0 min-h-0 w-full cursor-pointer rounded-xl overflow-hidden border-2 transition-all
-                    ${isSelected ? "border-purple-600" : "border-transparent hover:border-purple-200"}`}
-                >
-                  {post.media_type === 'VIDEO' ? (
-                    <video src={post.media_url} poster={post.thumbnail_url} autoPlay loop muted playsInline className="w-full h-full object-cover" />
-                  ) : (
-                    <img src={post.media_url} alt={post.caption || 'Post'} className="w-full h-full object-cover" />
-                  )}
-                  {isSelected && (
-                    <div className="absolute top-1 right-1 bg-purple-600 text-white p-0.5 rounded-md">
-                      <CheckCircle2 size={12} />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+          <div className="max-h-[320px] overflow-y-auto pr-2 custom-scrollbar">
+            <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
+              {posts.map((post) => {
+                const isSelected = specificIds.includes(post.id);
+                return (
+                  <div
+                    key={post.id}
+                    onClick={() => toggleMediaSelection(post.id)}
+                    className={`relative aspect-square min-w-0 min-h-0 w-full cursor-pointer rounded-xl overflow-hidden border-2 transition-all
+                      ${isSelected ? "border-purple-600" : "border-transparent hover:border-purple-200"}`}
+                  >
+                    {post.media_type === 'VIDEO' ? (
+                      <video src={post.media_url} poster={post.thumbnail_url} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                    ) : (
+                      <img src={post.media_url} alt={post.caption || 'Post'} className="w-full h-full object-cover" />
+                    )}
+                    {isSelected && (
+                      <div className="absolute top-1 right-1 bg-purple-600 text-white p-0.5 rounded-md shadow-sm">
+                        <CheckCircle2 size={10} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </motion.div>
