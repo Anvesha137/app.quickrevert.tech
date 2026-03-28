@@ -3,6 +3,7 @@ import { Zap, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { Skeleton } from './ui/skeleton';
 
 interface Automation {
   id: string;
@@ -82,11 +83,11 @@ export default function TopAutomations() {
         <p className="text-sm text-gray-600 mb-4">Your best performing workflows</p>
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="animate-pulse flex gap-3">
-              <div className="w-10 h-10 bg-gray-200 rounded-lg" />
+            <div key={i} className="flex gap-3">
+              <Skeleton className="w-10 h-10 rounded-lg shrink-0" />
               <div className="flex-1 space-y-2">
-                <div className="h-4 bg-gray-200 rounded w-3/4" />
-                <div className="h-3 bg-gray-200 rounded w-1/2" />
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-1/2" />
               </div>
             </div>
           ))}

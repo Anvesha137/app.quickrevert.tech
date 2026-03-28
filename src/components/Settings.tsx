@@ -7,7 +7,6 @@ import {
   MapPin,
   Phone,
   Briefcase,
-  Loader2,
   ChevronDown,
   Save,
   Shield,
@@ -19,6 +18,7 @@ import { twMerge } from "tailwind-merge";
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
+import { Skeleton } from "./ui/skeleton";
 
 // Utility for class merging
 function cn(...inputs: ClassValue[]) {
@@ -121,7 +121,7 @@ const GlassButton = ({ children, variant = "primary", className, icon: Icon, onC
         className
       )}
     >
-      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : Icon && <Icon className="h-4 w-4" />}
+      {loading ? <Skeleton className="h-4 w-4 rounded-full bg-white/20 animate-shimmer" /> : Icon && <Icon className="h-4 w-4" />}
       {children}
     </motion.button>
   );
@@ -143,6 +143,7 @@ export default function Settings() {
   });
 
   const [loading, setLoading] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -173,6 +174,8 @@ export default function Settings() {
       }
     } catch (error: any) {
       console.error('Error loading profile:', error);
+    } finally {
+      setProfileLoading(false);
     }
   }
 
@@ -318,73 +321,84 @@ export default function Settings() {
             <h3 className="text-lg font-bold text-slate-800">Personal & Business Details</h3>
           </div>
 
-          <GlassInput
-            label="First Name"
-            placeholder="Jane"
-            value={formData.firstName}
-            onChange={(e: any) => setFormData({ ...formData, firstName: e.target.value })}
-          />
-          <GlassInput
-            label="Last Name"
-            placeholder="Doe"
-            value={formData.lastName}
-            onChange={(e: any) => setFormData({ ...formData, lastName: e.target.value })}
-          />
+          {profileLoading ? (
+            <>
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-12 w-full rounded-xl" />
+                </div>
+              ))}
+            </>
+          ) : (
+            <>
+              <GlassInput
+                label="First Name"
+                placeholder="Jane"
+                value={formData.firstName}
+                onChange={(e: any) => setFormData({ ...formData, firstName: e.target.value })}
+              />
+              <GlassInput
+                label="Last Name"
+                placeholder="Doe"
+                value={formData.lastName}
+                onChange={(e: any) => setFormData({ ...formData, lastName: e.target.value })}
+              />
 
-          <div className="col-span-2 md:col-span-1">
-            <GlassInput
-              label="Username"
-              icon={User}
-              placeholder="username"
-              value={formData.username}
-              subLabel="Must be unique"
-              onChange={(e: any) => setFormData({ ...formData, username: e.target.value })}
-            />
-          </div>
+              <div className="col-span-2 md:col-span-1">
+                <GlassInput
+                  label="Username"
+                  icon={User}
+                  placeholder="username"
+                  value={formData.username}
+                  subLabel="Must be unique"
+                  onChange={(e: any) => setFormData({ ...formData, username: e.target.value })}
+                />
+              </div>
 
-          <div className="col-span-2 md:col-span-1">
-            <GlassInput
-              label="Phone Number"
-              icon={Phone}
-              type="tel"
-              placeholder="+1 (555) 000-0000"
-              value={formData.phone}
-              onChange={(e: any) => setFormData({ ...formData, phone: e.target.value })}
-            />
-          </div>
+              <div className="col-span-2 md:col-span-1">
+                <GlassInput
+                  label="Phone Number"
+                  icon={Phone}
+                  type="tel"
+                  placeholder="+1 (555) 000-0000"
+                  value={formData.phone}
+                  onChange={(e: any) => setFormData({ ...formData, phone: e.target.value })}
+                />
+              </div>
 
+              <div className="col-span-2 md:col-span-1">
+                <GlassSelect
+                  label="Business Category"
+                  icon={Briefcase}
+                  value={formData.category}
+                  options={categories}
+                  placeholder="Select a category"
+                  onChange={(e: any) => setFormData({ ...formData, category: e.target.value })}
+                />
+              </div>
 
+              <div className="col-span-2 md:col-span-1">
+                <GlassInput
+                  label="Location"
+                  icon={MapPin}
+                  placeholder="City, Country"
+                  value={formData.location}
+                  onChange={(e: any) => setFormData({ ...formData, location: e.target.value })}
+                />
+              </div>
 
-          <div className="col-span-2 md:col-span-1">
-            <GlassSelect
-              label="Business Category"
-              icon={Briefcase}
-              value={formData.category}
-              options={categories}
-              placeholder="Select a category"
-              onChange={(e: any) => setFormData({ ...formData, category: e.target.value })}
-            />
-          </div>
-
-          <div className="col-span-2 md:col-span-1">
-            <GlassInput
-              label="Location"
-              icon={MapPin}
-              placeholder="City, Country"
-              value={formData.location}
-              onChange={(e: any) => setFormData({ ...formData, location: e.target.value })}
-            />
-          </div>
-
-          <div className="col-span-2 md:col-span-1 opacity-60">
-            <GlassInput
-              label="Account Email"
-              icon={Mail}
-              value={user?.email || ''}
-              disabled
-              subLabel="Primary identification email"
-            />
-          </div>
+              <div className="col-span-2 md:col-span-1 opacity-60">
+                <GlassInput
+                  label="Account Email"
+                  icon={Mail}
+                  value={user?.email || ''}
+                  disabled
+                  subLabel="Primary identification email"
+                />
+              </div>
+            </>
+          )}
         </GlassCard>
 
         {/* Action Buttons */}

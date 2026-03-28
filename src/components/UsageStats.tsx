@@ -1,8 +1,9 @@
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { useUpgradeModal } from '../contexts/UpgradeModalContext';
+import { Skeleton } from './ui/skeleton';
 
 export default function UsageStats() {
-    const { usage, isPremium, dmLimit, isGifted, giftedSettings, subscription } = useSubscription();
+    const { usage, isPremium, dmLimit, isGifted, giftedSettings, subscription, loading } = useSubscription();
     const { openModal } = useUpgradeModal();
 
     const limitValue = dmLimit;
@@ -34,10 +35,11 @@ export default function UsageStats() {
                         <div className="flex justify-between text-[9px]">
                             <span className="text-black-500 uppercase tracking-widest text-shadow-sm">DMs Triggered</span>
                             <div className="flex items-center gap-1">
-                                {!isUnlimited && usage.dms >= (typeof limitValue === 'number' ? limitValue : 0) && (
-                                    <span className="text-[8px] font-bold text-red-500 animate-pulse">UPGRADE</span>
+                                {loading ? (
+                                    <Skeleton className="h-3 w-16" />
+                                ) : (
+                                    <span className="text-black-900">{usage.dms.toLocaleString()}/{isUnlimited ? 'unlimited' : limitValue}</span>
                                 )}
-                                <span className="text-black-900">{usage.dms.toLocaleString()}/{isUnlimited ? 'unlimited' : limitValue}</span>
                             </div>
                         </div>
                         <div className="h-1 w-full bg-slate-200/40 rounded-full overflow-hidden">
@@ -55,10 +57,11 @@ export default function UsageStats() {
                         <div className="flex justify-between text-[9px]">
                             <span className="text-black-500 uppercase tracking-widest text-shadow-sm">Total Contacts</span>
                             <div className="flex items-center gap-1">
-                                {!isUnlimited && usage.contacts >= (typeof limitValue === 'number' ? limitValue : 0) && (
-                                    <span className="text-[8px] font-bold text-red-500 animate-pulse">UPGRADE</span>
+                                {loading ? (
+                                    <Skeleton className="h-3 w-16" />
+                                ) : (
+                                    <span className="text-black-900">{usage.contacts.toLocaleString()}/{isUnlimited ? 'unlimited' : limitValue}</span>
                                 )}
-                                <span className="text-black-900">{usage.contacts.toLocaleString()}/{isUnlimited ? 'unlimited' : limitValue}</span>
                             </div>
                         </div>
                         <div className="h-1 w-full bg-slate-200/40 rounded-full overflow-hidden">

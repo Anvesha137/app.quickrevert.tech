@@ -10,7 +10,9 @@ import {
   User,
   Headset,
   Instagram,
-  RefreshCw
+  RefreshCw,
+  Check,
+  AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -26,6 +28,7 @@ import DMsChart from './DMsChart';
 import SetupProgress from './SetupProgress';
 import TopPerforming from './TopPerforming';
 import UsageStats from './UsageStats';
+import { Skeleton } from './ui/skeleton';
 
 interface DashboardStats {
   dmsTriggered: number;
@@ -272,7 +275,9 @@ export default function Dashboard() {
                     </div>
                     <p className="font-bold text-gray-400 text-[11px] md:text-[13px] leading-tight">Total DMs</p>
                   </div>
-                  <span className="block text-xl md:text-2xl font-black text-[#2A2B3A]">{loading ? '-' : stats.dmsTriggered.toLocaleString()}</span>
+                  <span className="block text-xl md:text-2xl font-black text-[#2A2B3A]">
+                    {loading ? <Skeleton className="h-7 w-16" /> : stats.dmsTriggered.toLocaleString()}
+                  </span>
                 </div>
 
                 <div className="bg-white p-2.5 md:p-4 rounded-[1.25rem] border border-gray-100 shadow-sm flex flex-col gap-1.5">
@@ -282,7 +287,9 @@ export default function Dashboard() {
                     </div>
                     <p className="font-bold text-gray-400 text-[11px] md:text-[13px] leading-tight">Active Auto.</p>
                   </div>
-                  <span className="block text-xl md:text-2xl font-black text-[#2A2B3A]">{loading ? '-' : stats.activeAutomations.toString()}</span>
+                  <span className="block text-xl md:text-2xl font-black text-[#2A2B3A]">
+                    {loading ? <Skeleton className="h-7 w-10" /> : stats.activeAutomations.toString()}
+                  </span>
                 </div>
 
                 <div className="bg-white p-2.5 md:p-4 rounded-[1.25rem] border border-gray-100 shadow-sm flex flex-col gap-1.5">
@@ -292,7 +299,9 @@ export default function Dashboard() {
                     </div>
                     <p className="font-bold text-gray-400 text-[11px] md:text-[13px] leading-tight">Comments</p>
                   </div>
-                  <span className="block text-xl md:text-2xl font-black text-[#2A2B3A]">{loading ? '-' : stats.commentReplies.toLocaleString()}</span>
+                  <span className="block text-xl md:text-2xl font-black text-[#2A2B3A]">
+                    {loading ? <Skeleton className="h-7 w-16" /> : stats.commentReplies.toLocaleString()}
+                  </span>
                 </div>
 
                 <div className="bg-white p-2.5 md:p-4 rounded-[1.25rem] border border-gray-100 shadow-sm flex flex-col gap-1.5">
@@ -302,7 +311,9 @@ export default function Dashboard() {
                     </div>
                     <p className="font-bold text-gray-400 text-[11px] md:text-[13px] leading-tight">Total Reach</p>
                   </div>
-                  <span className="block text-xl md:text-2xl font-black text-[#2A2B3A]">{loading ? '-' : stats.uniqueUsers.toLocaleString()}</span>
+                  <span className="block text-xl md:text-2xl font-black text-[#2A2B3A]">
+                    {loading ? <Skeleton className="h-7 w-16" /> : stats.uniqueUsers.toLocaleString()}
+                  </span>
                 </div>
 
                 <div className="bg-white p-2.5 md:p-4 rounded-[1.25rem] border border-gray-100 shadow-sm flex flex-col gap-1.5">
@@ -312,7 +323,9 @@ export default function Dashboard() {
                     </div>
                     <p className="font-bold text-gray-400 text-[11px] md:text-[13px] leading-tight">Followers</p>
                   </div>
-                  <span className="block text-xl md:text-2xl font-black text-[#2A2B3A]">{loading ? '-' : (stats.followersCount || 0).toLocaleString()}</span>
+                  <span className="block text-xl md:text-2xl font-black text-[#2A2B3A]">
+                    {loading ? <Skeleton className="h-7 w-16" /> : (stats.followersCount || 0).toLocaleString()}
+                  </span>
                 </div>
 
                 <div className="bg-white p-2.5 md:p-4 rounded-[1.25rem] border border-gray-100 shadow-sm flex flex-col gap-1.5">
@@ -322,7 +335,9 @@ export default function Dashboard() {
                     </div>
                     <p className="font-bold text-gray-400 text-[11px] md:text-[13px] leading-tight">Growth</p>
                   </div>
-                  <span className="block text-xl md:text-2xl font-black text-[#2A2B3A]">{loading ? '-' : Math.max(0, (stats.followersCount || 0) - (stats.initialFollowersCount || 0)).toLocaleString()}</span>
+                  <span className="block text-xl md:text-2xl font-black text-[#2A2B3A]">
+                    {loading ? <Skeleton className="h-7 w-16" /> : Math.max(0, (stats.followersCount || 0) - (stats.initialFollowersCount || 0)).toLocaleString()}
+                  </span>
                 </div>
               </div>
             </div>
@@ -357,16 +372,65 @@ export default function Dashboard() {
           {/* Right Sidebar */}
           <div className="w-full lg:w-80 flex-shrink-0 flex flex-col gap-10">
             {/* Setup Progress */}
-            <div className="bg-white border border-gray-100 rounded-[1.25rem] p-6 shadow-sm">
+            <div className="bg-white border border-gray-100 rounded-[1.25rem] p-6 shadow-sm group/setup transition-all duration-300 hover:shadow-md">
               <h3 className="text-[#2A2B3A] font-bold mb-4">Your Setup Progress</h3>
-              <div className="h-2 w-full bg-gray-100 rounded-full mb-2 overflow-hidden">
-                <div className="h-full bg-emerald-400 rounded-full w-1/4" />
+              <div className="relative h-2 w-full bg-gray-100 rounded-full mb-2 group/progress">
+                <div 
+                  className="h-full bg-emerald-400 rounded-full transition-all duration-500 ease-out" 
+                  style={{ width: `${overallProgress}%` }}
+                />
+                
+                {/* Hover zones for tooltips */}
+                <div className="absolute inset-0 flex">
+                  {[
+                    "Connect Instagram",
+                    "Create Automation",
+                    "Test Automation",
+                    "Unlock Advance Analytics"
+                  ].map((tooltip, i) => (
+                    <div key={i} className="flex-1 group/zone relative h-full">
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-3 py-1.5 bg-gray-900/95 backdrop-blur-sm text-white text-[10px] rounded-xl opacity-0 group-hover/zone:opacity-100 pointer-events-none whitespace-nowrap transition-all duration-300 font-bold shadow-xl border border-white/10 z-50 transform translate-y-1 group-hover/zone:translate-y-0 text-center min-w-[120px]">
+                        {tooltip}
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-x-[5px] border-x-transparent border-t-[5px] border-t-gray-900/95"></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="flex justify-between text-[10px] font-bold text-gray-400 px-1">
+              <div className="flex justify-between text-[10px] font-bold text-gray-400 px-1 pt-1">
+                <span>0%</span>
                 <span>25%</span>
                 <span>50%</span>
                 <span>75%</span>
-                <span>100%</span>
+                <span className="text-emerald-500">100%</span>
+              </div>
+
+              {/* Revealable Task List on Hover */}
+              <div className="max-h-0 opacity-0 overflow-hidden transition-all duration-500 ease-in-out group-hover/setup:max-h-[200px] group-hover/setup:opacity-100 group-hover/setup:mt-6">
+                <div className="space-y-4 pt-2 border-t border-gray-50">
+                  {setupTasks.map((task, index) => (
+                    <div key={index} className="flex items-center justify-between group/item">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${task.completed ? 'bg-emerald-100 text-emerald-600' : 'bg-orange-100 text-orange-600'}`}>
+                          {task.completed ? <Check size={12} strokeWidth={3} /> : <AlertCircle size={12} strokeWidth={3} />}
+                        </div>
+                        <span className={`text-[11px] font-bold ${task.completed ? 'text-gray-400' : 'text-gray-700'}`}>
+                          {task.label}
+                        </span>
+                      </div>
+                      
+                      {!task.completed && task.action && (
+                        <button
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); task.action && task.action(); }}
+                          disabled={task.loading || task.disabled}
+                          className="opacity-0 group-hover/item:opacity-100 transition-opacity px-3 py-1 bg-black text-white text-[9px] font-black uppercase rounded-lg hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          {task.loading ? '...' : (task.actionLabel || 'Enable')}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -474,21 +538,21 @@ export default function Dashboard() {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-5">
                 <KPICard
                   title="Total DMs"
-                  value={loading ? '-' : stats.dmsTriggered.toLocaleString()}
+                  value={loading ? <Skeleton className="h-8 w-20" /> : stats.dmsTriggered.toLocaleString()}
                   icon={MessageSquare}
                   iconColor="text-blue-600"
                   iconBgColor="bg-blue-50"
                 />
                 <KPICard
                   title="Active Automations"
-                  value={loading ? '-' : stats.activeAutomations.toString()}
+                  value={loading ? <Skeleton className="h-8 w-12" /> : stats.activeAutomations.toString()}
                   icon={Zap}
                   iconColor="text-purple-600"
                   iconBgColor="bg-purple-50"
                 />
                 <KPICard
                   title="Comments"
-                  value={loading ? '-' : stats.commentReplies.toLocaleString()}
+                  value={loading ? <Skeleton className="h-8 w-20" /> : stats.commentReplies.toLocaleString()}
                   icon={MessageCircle}
                   iconColor="text-pink-600"
                   iconBgColor="bg-pink-50"
@@ -497,14 +561,14 @@ export default function Dashboard() {
                   <>
                     <KPICard
                       title="Total Reach"
-                      value={loading ? '-' : stats.uniqueUsers.toLocaleString()}
+                      value={loading ? <Skeleton className="h-8 w-20" /> : stats.uniqueUsers.toLocaleString()}
                       icon={Users}
                       iconColor="text-indigo-600"
                       iconBgColor="bg-indigo-50"
                     />
                     <KPICard
                       title="Followers"
-                      value={loading ? '-' : (stats.followersCount || 0).toLocaleString()}
+                      value={loading ? <Skeleton className="h-8 w-20" /> : (stats.followersCount || 0).toLocaleString()}
                       icon={Instagram}
                       iconColor="text-rose-600"
                       iconBgColor="bg-rose-50"
@@ -512,7 +576,7 @@ export default function Dashboard() {
                     <div className="relative group/refresh">
                       <KPICard
                         title="Growth"
-                        value={loading ? '-' : Math.max(0, (stats.followersCount || 0) - (stats.initialFollowersCount || 0)).toLocaleString()}
+                        value={loading ? <Skeleton className="h-8 w-16" /> : Math.max(0, (stats.followersCount || 0) - (stats.initialFollowersCount || 0)).toLocaleString()}
                         icon={TrendingUp}
                         iconColor="text-emerald-600"
                         iconBgColor="bg-emerald-50"

@@ -3,6 +3,7 @@ import { MessageSquare, Reply, UserPlus, Mail, Send, CheckCircle2, XCircle, Aler
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { N8nWorkflowService } from '../lib/n8nService';
+import { Skeleton } from './ui/skeleton';
 
 interface Activity {
   id: string;
@@ -130,11 +131,11 @@ export default function RecentActivity() {
         </div>
         <div className="space-y-4">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="animate-pulse flex gap-4">
-              <div className="w-12 h-12 bg-gray-200/50 rounded-2xl" />
+            <div key={i} className="flex gap-4">
+              <Skeleton className="w-12 h-12 rounded-2xl shrink-0" />
               <div className="flex-1 space-y-2 py-1">
-                <div className="h-4 bg-gray-200/50 rounded w-3/4" />
-                <div className="h-3 bg-gray-200/50 rounded w-1/2" />
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-1/2" />
               </div>
             </div>
           ))}

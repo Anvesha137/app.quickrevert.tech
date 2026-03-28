@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Grid, Globe, Target, Tag, Search, X, Loader2, CheckCircle2, Clock, ChevronDown, Info } from 'lucide-react';
+import { Grid, Globe, Target, Tag, Search, X, CheckCircle2, Clock, ChevronDown, Info } from 'lucide-react';
 import { motion, AnimatePresence } from "motion/react";
 import { TriggerType, TriggerConfig, PostCommentTriggerConfig, StoryReplyTriggerConfig, UserDirectMessageTriggerConfig } from '../../types/automation';
 import { supabase } from '../../lib/supabase';
 import { useSubscription } from '../../contexts/SubscriptionContext';
+import { Skeleton } from '../ui/skeleton';
 
 interface InstagramMedia {
   id: string;
@@ -181,7 +182,11 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
     return (
       <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="border-2 border-gray-100 mt-2 bg-gray-50/50 rounded-xl p-3 md:p-4">
         {loadingMedia ? (
-          <div className="flex justify-center p-4"><Loader2 className="w-6 h-6 animate-spin text-purple-500" /></div>
+          <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
+            {[...Array(8)].map((_, i) => (
+              <Skeleton key={i} className="aspect-square w-full rounded-xl" />
+            ))}
+          </div>
         ) : (
           <div className="max-h-[320px] overflow-y-auto pr-2 custom-scrollbar">
             <div className="grid grid-cols-3 md:grid-cols-4 gap-2">

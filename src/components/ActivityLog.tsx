@@ -3,6 +3,7 @@ import { Search, Zap, Activity } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import AutomationActivityDetail from './AutomationActivityDetail';
+import { Skeleton } from './ui/skeleton';
 
 interface Automation {
   id: string;
@@ -121,20 +122,28 @@ export default function ActivityLog() {
     return (
       <div className="fixed top-0 bottom-0 left-64 right-0 flex bg-gray-50">
         <div className="w-96 border-r border-gray-200 bg-white p-4">
-          <div className="animate-pulse space-y-4">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gray-200 rounded-lg" />
+          <div className="space-y-4">
+            {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+              <div key={i} className="flex items-center gap-3 p-2">
+                <Skeleton className="w-14 h-14 rounded-xl" />
                 <div className="flex-1 space-y-2">
-                  <div className="h-4 bg-gray-200 rounded w-3/4" />
-                  <div className="h-3 bg-gray-200 rounded w-1/2" />
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-1/2" />
                 </div>
               </div>
             ))}
           </div>
         </div>
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-gray-500">Loading...</p>
+        <div className="flex-1 flex flex-col p-12 space-y-8">
+           <div className="space-y-4">
+             <Skeleton className="h-10 w-64" />
+             <Skeleton className="h-4 w-96" />
+           </div>
+           <div className="grid grid-cols-2 gap-6">
+             <Skeleton className="h-32 w-full rounded-2xl" />
+             <Skeleton className="h-32 w-full rounded-2xl" />
+           </div>
+           <Skeleton className="h-64 w-full rounded-2xl" />
         </div>
       </div>
     );

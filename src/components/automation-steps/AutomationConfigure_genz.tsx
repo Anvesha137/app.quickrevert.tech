@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-import { MessageSquare, Mail, Image as ImageIcon, X, Pencil, Globe, Target, Tag, Search, Send, Loader2, CheckCircle2, Plus, Trash2, AlertCircle } from 'lucide-react';
+import { MessageSquare, Mail, Image as ImageIcon, X, Pencil, Tag, Search, Send, CheckCircle2, Plus, Trash2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AutomationFormData, TriggerConfig,
@@ -11,6 +11,7 @@ import { supabase } from '../../lib/supabase';
 import { useSubscription } from '../../contexts/SubscriptionContext';
 import { useUpgradeModal } from '../../contexts/UpgradeModalContext';
 import { motion, AnimatePresence } from 'motion/react';
+import { Skeleton } from '../ui/skeleton';
 
 const DEFAULT_TEASER_MESSAGE = "Hey there! I'm so happy you're here... Click below and I'll send you the link in just a sec ✨";
 const DEFAULT_NOT_FOLLOWING_MESSAGE = "Oops! Looks like you haven't followed me yet 👀...";
@@ -326,32 +327,36 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
             <div className="space-y-3 mb-2">
               <div className="flex flex-col sm:flex-row gap-3">
                 <button onClick={() => setPostsType('all')} className={`flex-1 p-4 rounded-xl border-2 text-sm font-bold transition-all ${getPostsType() === 'all' ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 text-gray-500 hover:border-purple-200'}`}>
-                  <Globe className="w-5 h-5 mx-auto mb-2" />
                   {triggerType === 'post_comment' ? 'All Posts & Reels' : 'All Stories'}
                 </button>
                 <button onClick={() => { setPostsType('specific'); fetchMedia(triggerType === 'post_comment' ? 'posts' : 'stories'); }} className={`flex-1 p-4 rounded-xl border-2 text-sm font-bold transition-all ${getPostsType() === 'specific' ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 text-gray-500 hover:border-purple-200'}`}>
-                  <Target className="w-5 h-5 mx-auto mb-2" />
                   Specific Posts
                 </button>
               </div>
               {getPostsType() === 'specific' && (
                 <div className="border-2 border-gray-100 rounded-xl p-3 md:p-4 bg-gray-50/50">
-                  {loadingMedia ? (
-                    <div className="flex justify-center p-4"><Loader2 className="w-6 h-6 animate-spin text-purple-500" /></div>
-                  ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                      {posts.map(post => {
-                        const specificIds = triggerType === 'post_comment' ? (triggerConfig as PostCommentTriggerConfig)?.specificPosts || [] : (triggerConfig as StoryReplyTriggerConfig)?.specificStories || [];
-                        const isSelected = specificIds.includes(post.id);
-                        return (
-                          <div key={post.id} onClick={() => toggleMediaSelection(post.id)} className={`relative aspect-square min-w-0 min-h-0 w-full cursor-pointer rounded-xl overflow-hidden border-2 transition-all ${isSelected ? 'border-purple-600' : 'border-transparent hover:border-purple-200'}`}>
-                            {post.media_type === 'VIDEO' ? <video src={post.media_url} poster={post.thumbnail_url} autoPlay loop muted playsInline className="w-full h-full object-cover" /> : <img src={post.media_url} alt="" className="w-full h-full object-cover" />}
-                            {isSelected && <div className="absolute top-1 right-1 bg-purple-600 text-white p-0.5 rounded-md"><CheckCircle2 size={12} /></div>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                  <div className="max-h-[320px] overflow-y-auto custom-scrollbar pr-1 -mr-1">
+                    {loadingMedia ? (
+                      <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
+                        {[...Array(8)].map((_, i) => (
+                          <Skeleton key={i} className="aspect-square w-full rounded-xl animate-shimmer" />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
+                        {posts.map(post => {
+                          const specificIds = triggerType === 'post_comment' ? (triggerConfig as PostCommentTriggerConfig)?.specificPosts || [] : (triggerConfig as StoryReplyTriggerConfig)?.specificStories || [];
+                          const isSelected = specificIds.includes(post.id);
+                          return (
+                            <div key={post.id} onClick={() => toggleMediaSelection(post.id)} className={`relative aspect-square min-w-0 min-h-0 w-full cursor-pointer rounded-xl overflow-hidden border-2 transition-all ${isSelected ? 'border-purple-600 ring-2 ring-purple-600/20' : 'border-transparent hover:border-purple-200'}`}>
+                              {post.media_type === 'VIDEO' ? <video src={post.media_url} poster={post.thumbnail_url} autoPlay loop muted playsInline className="w-full h-full object-cover" /> : <img src={post.media_url} alt="" className="w-full h-full object-cover" />}
+                              {isSelected && <div className="absolute top-1 right-1 bg-purple-600 text-white p-0.5 rounded-md shadow-sm border border-white/20"><CheckCircle2 size={12} strokeWidth={3} /></div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

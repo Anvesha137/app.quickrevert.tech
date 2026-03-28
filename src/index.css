@@ -58,4 +58,20 @@
     .custom-scrollbar:hover::-webkit-scrollbar-thumb {
         background: #CBD5E1;
     }
+
+    @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+    }
+
+    .animate-shimmer {
+        background: linear-gradient(
+            90deg, 
+            #F1F5F9 25%, 
+            #F8FAFC 50%, 
+            #F1F5F9 75%
+        );
+        background-size: 200% 100%;
+        animation: shimmer 2s infinite linear;
+    }
 }

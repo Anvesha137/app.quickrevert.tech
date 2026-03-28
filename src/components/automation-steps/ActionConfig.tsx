@@ -42,15 +42,15 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
     if (hasReply) {
       onActionsChange(actions.filter(a => a.type !== 'reply_to_comment'));
     } else {
-      onActionsChange([...actions, { 
-        type: 'reply_to_comment', 
+      onActionsChange([...actions, {
+        type: 'reply_to_comment',
         replyTemplates: [
           'Check your DMs for the link! 👆',
           'Done! Please check your direct messages ✨',
           'Sent! You\'ll find the link in your DMs 📩',
           'Just sent you a DM with all the details! 🚀'
-        ], 
-        actionButtons: [] 
+        ],
+        actionButtons: []
       } as ReplyToCommentAction]);
     }
   };
@@ -62,13 +62,13 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
       onActionsChange(actions.filter(a => a.type !== 'send_dm'));
     } else {
       onActionsChange([...actions, {
-        type: 'send_dm', 
-        title: 'Hey! Thanks for your comment so much. Here is the link you asked for...', 
-        imageUrl: '', 
-        subtitle: 'Powered By Quickrevert.tech', 
-        messageTemplate: '', 
-        actionButtons: [], 
-        askToFollow: false, 
+        type: 'send_dm',
+        title: 'Hey! Thanks for your comment so much. Here is the link you asked for...',
+        imageUrl: '',
+        subtitle: 'Powered By Quickrevert.tech',
+        messageTemplate: '',
+        actionButtons: [],
+        askToFollow: false,
         showImage: false
       } as SendDmAction]);
     }
@@ -83,17 +83,17 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
     if (!hasDm) {
       // if DM is off, toggle it ON first and add follow gate
       onActionsChange([...actions, {
-        type: 'send_dm', 
-        title: 'Hey! Thanks for your comment so much. Here is the link you asked for...', 
-        imageUrl: '', 
-        subtitle: 'Powered By Quickrevert.tech', 
-        messageTemplate: '', 
-        actionButtons: [], 
+        type: 'send_dm',
+        title: 'Hey! Thanks for your comment so much. Here is the link you asked for...',
+        imageUrl: '',
+        subtitle: 'Powered By Quickrevert.tech',
+        messageTemplate: '',
+        actionButtons: [],
         askToFollow: true,
-        teaserMessage: DEFAULT_TEASER_MESSAGE, 
+        teaserMessage: DEFAULT_TEASER_MESSAGE,
         askToFollowMessage: DEFAULT_NOT_FOLLOWING_MESSAGE,
-        teaserBtnText: DEFAULT_TEASER_BTN_TEXT, 
-        askToFollowBtnText: DEFAULT_VERIFY_BTN_TEXT, 
+        teaserBtnText: DEFAULT_TEASER_BTN_TEXT,
+        askToFollowBtnText: DEFAULT_VERIFY_BTN_TEXT,
         showImage: false
       } as SendDmAction]);
       return;
@@ -216,7 +216,7 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                     )}
                   </div>
                   <p className="text-[11px] md:text-xs text-gray-400 font-medium">Ask them to follow you before they receive the DM</p>
-                  {!hasDm && <p className="text-[10px] md:text-[11px] text-orange-500 italic mt-1 font-semibold">Enable "Send them a DM" below to activate the Follow Gate.</p>}
+                  {/* {!hasDm && <p className="text-[10px] md:text-[11px] text-orange-500 italic mt-1 font-semibold">Enable "Send them a DM" below to activate the Follow Gate.</p>} */}
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer pointer-events-none">
                   <input type="checkbox" className="sr-only peer" checked={hasFollowGate} readOnly />

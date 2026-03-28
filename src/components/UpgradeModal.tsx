@@ -1,10 +1,11 @@
-import { X, CheckCircle2, Tag, Loader2 } from 'lucide-react';
+import { X, CheckCircle2, Tag } from 'lucide-react';
 import { toast } from 'sonner';
 import { useUpgradeModal } from '../contexts/UpgradeModalContext';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { supabase } from '../lib/supabase';
+import { Skeleton } from './ui/skeleton';
 
 declare global {
     interface Window {
@@ -427,7 +428,7 @@ export default function UpgradeModal() {
                                             className="px-4 py-3 rounded-xl bg-gray-900 text-white text-sm font-bold hover:bg-gray-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 shrink-0"
                                         >
                                             {coupon.status === 'validating'
-                                                ? <Loader2 className="w-4 h-4 animate-spin" />
+                                                ? <Skeleton className="w-4 h-4 rounded-full bg-white/20 animate-shimmer" />
                                                 : 'Apply'
                                             }
                                         </button>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Search, Plus, ChevronDown, Trash2, Eye, Loader2, Sparkles } from 'lucide-react';
+import { Search, Plus, ChevronDown, Trash2, Eye, Sparkles } from 'lucide-react';
 import { motion } from "motion/react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -11,6 +11,7 @@ import { useSubscription } from '../contexts/SubscriptionContext';
 import { useUpgradeModal } from '../contexts/UpgradeModalContext';
 import { N8nWorkflowService } from '../lib/n8nService';
 import ConfirmationModal from './ui/ConfirmationModal';
+import { Skeleton } from './ui/skeleton';
 
 // Utility for class merging
 function cn(...inputs: ClassValue[]) {
@@ -57,7 +58,7 @@ const GlassButton = ({ children, variant = "primary", className, icon: Icon, onC
         className
       )}
     >
-      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : Icon && <Icon className="h-4 w-4" />}
+      {loading ? <Skeleton className="h-4 w-4 rounded-full bg-white/20 animate-shimmer" /> : Icon && <Icon className="h-4 w-4" />}
       {children}
     </motion.button>
   );
@@ -469,9 +470,35 @@ export default function Automations() {
         </GlassCard>
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-32 space-y-4">
-            <Loader2 className="h-12 w-12 text-blue-500 animate-spin" />
-            <p className="text-slate-400 font-medium animate-pulse">Loading your automations...</p>
+          <div className="grid grid-cols-1 gap-6">
+            {[...Array(3)].map((_, i) => (
+              <GlassCard key={i} className="!p-0 overflow-hidden animate-shimmer">
+                <div className="flex h-32 md:h-40">
+                  <div className="w-1 md:w-2 bg-slate-200 shrink-0" />
+                  <div className="flex-1 p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div className="flex-1 space-y-4">
+                      <div className="flex items-center gap-3">
+                        <Skeleton className="h-10 w-10 rounded-xl" />
+                        <div className="space-y-2">
+                          <Skeleton className="h-6 w-48" />
+                          <Skeleton className="h-3 w-32" />
+                        </div>
+                      </div>
+                      <Skeleton className="h-4 w-full max-w-xl" />
+                      <div className="flex gap-3">
+                        <Skeleton className="h-8 w-24 rounded-xl" />
+                        <Skeleton className="h-8 w-40 rounded-xl" />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="h-10 w-10 rounded-xl" />
+                      <Skeleton className="h-10 w-24 rounded-xl" />
+                      <Skeleton className="h-10 w-10 rounded-xl" />
+                    </div>
+                  </div>
+                </div>
+              </GlassCard>
+            ))}
           </div>
         ) : filteredAutomations.length > 0 ? (
           <div className="grid grid-cols-1 gap-6">
