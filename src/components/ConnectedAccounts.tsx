@@ -62,7 +62,7 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
       return;
     }
 
-    setSuccessMessage(`${usernameText} connected successfully! Redirecting you to automations page in ${countdown} seconds...`);
+    setSuccessMessage(`🎉 Yay! ${usernameText} is now connected! Head over to the Automations page from the menu to set up your first automation. Redirecting in ${countdown} seconds...`);
     
     const timer = setTimeout(() => {
       setCountdown(prev => (prev !== null ? prev - 1 : null));
