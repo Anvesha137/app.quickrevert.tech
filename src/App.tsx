@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import { UpgradeModalProvider } from './contexts/UpgradeModalContext';
@@ -67,6 +67,13 @@ function AppContent() {
   return <AuthenticatedApp />;
 }
 
+// Preserves query params (like ?instagram_connected=true) when redirecting
+function RedirectWithParams({ to }: { to: string }) {
+  const [searchParams] = useSearchParams();
+  const search = searchParams.toString();
+  return <Navigate to={`${to}${search ? '?' + search : ''}`} replace />;
+}
+
 function AuthenticatedApp() {
   const { isPremium } = useSubscription();
   const { uiStyle } = useUIStyle();
@@ -99,7 +106,7 @@ function AuthenticatedApp() {
                     <Route path="/billing" element={<Billing />} />
                     <Route path="/account" element={<MyAccount />} />
                     <Route path="/settings" element={<Navigate to="/account" replace />} />
-                    <Route path="/connect-accounts" element={<Navigate to="/account" replace />} />
+                    <Route path="/connect-accounts" element={<RedirectWithParams to="/account" />} />
                   </Routes>
                 </div>
               </ErrorBoundary>
@@ -129,7 +136,7 @@ function AuthenticatedApp() {
             <Route path="/billing" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1 transition-colors duration-500"><Billing /></div>} />
             <Route path="/account" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1 transition-colors duration-500"><MyAccount /></div>} />
             <Route path="/settings" element={<Navigate to="/account" replace />} />
-            <Route path="/connect-accounts" element={<Navigate to="/account" replace />} />
+            <Route path="/connect-accounts" element={<RedirectWithParams to="/account" />} />
           </Routes>
         </ErrorBoundary>
       </div>

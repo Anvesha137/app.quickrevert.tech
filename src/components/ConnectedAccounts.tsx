@@ -34,7 +34,18 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('instagram_connected') === 'true') {
+      const username = params.get('username');
+      const usernameText = username ? `@${username}` : 'Your Instagram';
+      
+      toast.success(
+        `🎉 Yay! ${usernameText} is connected! Check the Automations page from the menu to create your first automation.`,
+        { duration: 8000 }
+      );
+      
       setCountdown(10);
+      
+      // Clean up URL params
+      window.history.replaceState({}, '', '/account');
       
       setTimeout(async () => {
         await fetchAccounts();
@@ -44,7 +55,7 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
     const errorParam = params.get('error');
     if (errorParam) {
       setError(decodeURIComponent(errorParam));
-      window.history.replaceState({}, '', '/connect-accounts');
+      window.history.replaceState({}, '', '/account');
     }
 
     fetchAccounts();
