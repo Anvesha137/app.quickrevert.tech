@@ -91,40 +91,15 @@ export default function UpgradeModal() {
             return;
         }
 
-        setCoupon(prev => ({ ...prev, status: 'validating', message: '' }));
-
         try {
-            // Use the session from useAuth and add safety check
-            if (!session?.access_token) {
-                setCoupon({
-                    status: 'invalid',
-                    message: 'Please log in to validate coupons.',
-                    discountAmount: 0,
-                    finalAmount: getBaseTotal(),
-                    isFree: false,
-                });
-                return;
-            }
-
-            const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
-            const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
-
-            const response = await fetch(`${supabaseUrl}/functions/v1/validate-coupon`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.access_token}`,
-                    'apikey': supabaseAnonKey
-                },
-                body: JSON.stringify({ couponCode: code.trim(), planType: billingCycle })
+            const { data, error } = await supabase.functions.invoke('validate-coupon', {
+                body: { couponCode: code.trim(), planType: billingCycle }
             });
 
-            const data = await response.json();
-
-            if (!response.ok || data.error) {
-                setCoupon({
+            if (error || !data.valid) {
+                 setCoupon({
                     status: 'invalid',
-                    message: data.error || data.message || 'Invalid coupon code.',
+                    message: error?.message || data?.message || 'Invalid coupon code.',
                     discountAmount: 0,
                     finalAmount: getBaseTotal(),
                     isFree: false,
@@ -132,23 +107,13 @@ export default function UpgradeModal() {
                 return;
             }
 
-            if (data.valid) {
-                setCoupon({
-                    status: 'valid',
-                    message: data.message,
-                    discountAmount: data.discountAmount,
-                    finalAmount: data.finalAmount,
-                    isFree: data.isFree,
-                });
-            } else {
-                setCoupon({
-                    status: 'invalid',
-                    message: data.message || 'Invalid coupon code.',
-                    discountAmount: 0,
-                    finalAmount: getBaseTotal(),
-                    isFree: false,
-                });
-            }
+            setCoupon({
+                status: 'valid',
+                message: data.message,
+                discountAmount: data.discountAmount,
+                finalAmount: data.finalAmount,
+                isFree: data.isFree,
+            });
         } catch (err) {
             setCoupon({
                 status: 'invalid',
