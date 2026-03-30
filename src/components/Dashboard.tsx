@@ -2,18 +2,19 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   MessageSquare,
-  Zap,
+  Bot,
   MessageCircle,
   Users,
   TrendingUp,
   Hand,
-  User,
   Headset,
   Instagram,
   RefreshCw,
   Check,
   AlertCircle
 } from 'lucide-react';
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
@@ -29,6 +30,7 @@ import SetupProgress from './SetupProgress';
 import TopPerforming from './TopPerforming';
 import UsageStats from './UsageStats';
 import { Skeleton } from './ui/skeleton';
+import DayNightToggle from './ui/DayNightToggle';
 
 interface DashboardStats {
   dmsTriggered: number;
@@ -41,13 +43,18 @@ interface DashboardStats {
   hasAnalyticsWorkflow: boolean;
 }
 
+// Utility for class merging
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
 // All DM-type activity_type values for server-side filtering
 const DM_ACTIVITY_TYPES = ['dm', 'send_dm', 'incoming_message', 'incoming_event', 'interaction'];
 const COMMENT_ACTIVITY_TYPES = ['comment', 'reply', 'incoming_comment', 'comment_reply'];
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { displayName } = useTheme();
+  const { displayName, darkMode } = useTheme();
   const [stats, setStats] = useState<DashboardStats>({
     dmsTriggered: 0,
     activeAutomations: 0,
@@ -62,10 +69,12 @@ export default function Dashboard() {
   const [enablingAnalytics, setEnablingAnalytics] = useState(false);
   const [isRefreshingAnalytics, _setRefreshingAnalytics] = useState(false);
   const [instagramAccount, setInstagramAccount] = useState<any>(null);
+  const [isMounted, setIsMounted] = useState(false);
   const { isPremium: subIsPremium, isGifted: subIsGifted, isAtLimit: subIsAtLimit } = useSubscription();
   const { uiStyle } = useUIStyle();
 
   useEffect(() => {
+    setIsMounted(true);
     if (user) {
       fetchDashboardStats();
     }
@@ -202,41 +211,47 @@ export default function Dashboard() {
 
   if (uiStyle === 'millennial') {
     return (
-      <div className="flex-1 min-h-full bg-white font-outfit text-gray-800 pb-32 lg:pb-0">
-        <div className="flex h-full w-full max-w-[1600px] mx-auto flex-col lg:flex-row justify-between gap-8 lg:gap-14 p-6 lg:p-10">
+      <div className={`flex-1 min-h-full font-outfit pb-32 lg:pb-0 transition-colors duration-500 ${darkMode ? 'bg-transparent text-white' : 'bg-white text-gray-800'}`}>
+        <div className="flex h-full w-full max-w-[1600px] mx-auto flex-col lg:flex-row justify-between gap-6 lg:gap-8 p-4 lg:p-6">
 
           {/* Main Content Area */}
-          <div className="flex-1 flex flex-col gap-10">
+          <div className="flex-1 flex flex-col gap-8">
             {/* Today's Activity List */}
             <div>
               <div className="md:hidden mb-6 p-3 rounded-2xl bg-gradient-to-br from-blue-500/10 to-purple-500/10 backdrop-blur-md border border-white/20">
-                <div className="flex items-center gap-0 justify-center mb-1">
-                  <img src="/Logo_optimized.png" alt="QuickRevert Logo" className="w-12 h-12 object-contain -mr-1" />
-                  <h1 className="font-bold text-gray-800 text-2xl tracking-tighter -mt-1">QuickRevert</h1>
+                <div className="flex items-center gap-1 justify-center mb-1">
+                  <img src="/Logo_optimized.png" alt="QuickRevert Logo" className="w-12 h-12 object-contain" />
+                  <h1 className={`font-bold text-2xl tracking-tighter -mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>QuickRevert</h1>
                 </div>
-                <p className="text-[9px] text-gray-500 tracking-tight text-center leading-none">
+                <p className={`text-[10px] font-bold tracking-tight text-center leading-none ${darkMode ? 'text-white' : 'text-gray-600'}`}>
                   Intelligent Responses | Zero Wait Time | 24x7
                 </p>
               </div>
-              <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
-                <h3 className="font-bold text-gray-800 text-lg">Hello, {displayName?.split(' ')[0] || 'there'} 👋</h3>
-                <a
-                  href="https://quickrevert.tech/contact"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-full transition-colors border border-gray-100"
-                >
-                  <Headset className="w-4 h-4" />
-                  <span className="text-[12px] font-bold">Support</span>
-                </a>
+              <div className={`flex justify-between items-center mb-4 border-b pb-2 transition-colors duration-500 ${darkMode ? 'border-white/10' : 'border-gray-100'}`}>
+                <h3 className={`font-bold text-xl transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                  Hello, {isMounted ? (displayName?.split(' ')[0] || 'there') : '...'} 👋
+                </h3>
+                <div className="flex items-center gap-4">
+                  <DayNightToggle />
+                  <a
+                    href="https://quickrevert.tech/contact"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors border ${darkMode ? 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10' : 'bg-gray-50 border-gray-100 text-gray-600 hover:bg-gray-100'}`}
+                  >
+                    <Headset className="w-4 h-4" />
+                    <span className="text-[12px] font-bold">Support</span>
+                  </a>
+                </div>
               </div>
 
               {/* Connection Status Banner - Black & White / Thinner for Millennial */}
               <div className="mb-4 group">
                 {instagramAccount ? (
-                  <div className={`relative overflow-hidden rounded-2xl bg-black border border-white/10 py-3 px-4 md:py-4 md:px-6 shadow-sm transition-all duration-300 hover:shadow-md`}>
-                    <div className="flex items-center gap-3 relative z-10">
-                      <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
+                  <div className={`relative overflow-hidden rounded-2xl py-3 px-4 md:py-4 md:px-6 shadow-xl transition-all duration-300 hover:shadow-2xl border-none bg-gradient-to-r from-orange-500 to-purple-700 text-white`}>
+
+                    <div className="flex items-center gap-2 relative z-10">
+                      <div className={`w-8 h-8 md:w-9 md:h-9 rounded-xl border flex items-center justify-center shrink-0 bg-white/20 border-white/30 backdrop-blur-md`}>
                         {instagramAccount.profile_picture_url ? (
                           <img
                             src={instagramAccount.profile_picture_url}
@@ -244,98 +259,107 @@ export default function Dashboard() {
                             className="w-full h-full rounded-xl object-cover"
                           />
                         ) : (
-                          <Instagram className="w-4 h-4 md:w-5 md:h-5 text-white" />
+                          <Instagram className={`w-4 h-4 md:w-5 md:h-5 text-white`} />
                         )}
                       </div>
                       <div>
-                        <h3 className="text-sm md:text-base font-black text-white leading-tight mb-0.5">@{instagramAccount.username}</h3>
-                        <p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest">Connected</p>
+                        <h3 className={`text-xs md:text-sm font-black leading-tight mb-0.5 text-white`}>@{instagramAccount.username}</h3>
+                        <p className={`text-[8px] md:text-[9px] font-extrabold uppercase tracking-widest text-orange-100`}>Connected</p>
                       </div>
+
                     </div>
                   </div>
                 ) : (
-                  <div className="relative overflow-hidden rounded-2xl bg-white border border-gray-200 py-3 px-4 md:py-4 md:px-6 flex items-center gap-3 group hover:border-black transition-colors cursor-pointer">
-                    <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-gray-50 flex items-center justify-center shrink-0 group-hover:bg-gray-100 transition-colors">
-                      <Instagram className="w-4 h-4 md:w-5 md:h-5 text-gray-400 group-hover:text-black transition-colors" />
+                  <div 
+                    className={`relative overflow-hidden rounded-2xl border py-3 px-4 md:py-4 md:px-6 flex items-center gap-3 group transition-all cursor-pointer ${
+                      darkMode 
+                        ? 'bg-gradient-to-r from-orange-500/5 to-purple-700/5 border-white/10 hover:border-white/20' 
+                        : 'bg-gradient-to-r from-orange-500/10 via-pink-500/10 to-purple-700/10 border-orange-100 hover:border-orange-200 shadow-sm shadow-orange-500/5'
+                    }`}
+                    onClick={() => window.location.href = '/connect-accounts'}
+                  >
+                    <div className={`w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center shrink-0 transition-all ${
+                      darkMode ? 'bg-white/10 group-hover:bg-white/20' : 'bg-white/80 group-hover:bg-white shadow-sm'
+                    }`}>
+                      <Instagram className={`w-4 h-4 md:w-5 md:h-5 transition-colors ${darkMode ? 'text-white/60 group-hover:text-white' : 'text-orange-600 group-hover:text-purple-600'}`} />
                     </div>
                     <div>
-                      <h3 className="text-sm md:text-base font-bold text-gray-700 group-hover:text-black transition-colors">Connect Instagram</h3>
-                      <p className="text-[10px] md:text-xs text-gray-400 font-medium">Link your account</p>
+                      <h3 className={`text-sm md:text-base font-bold transition-colors ${darkMode ? 'text-white' : 'text-gray-800 group-hover:text-black'}`}>Connect Instagram</h3>
+                      <p className={`text-[10px] md:text-xs font-medium ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Link your account</p>
                     </div>
-                    <Link to="/connect-accounts" className="absolute inset-0" />
                   </div>
                 )}
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                <div className="bg-white p-2.5 md:p-4 rounded-[1.25rem] border border-gray-100 shadow-sm flex flex-col gap-1.5">
+                <div className={`p-2 md:p-3 rounded-[1.25rem] border shadow-sm flex flex-col gap-1 transition-all duration-500 ${darkMode ? 'bg-[#1A1C23] border-[#2E323D]' : 'bg-white border-gray-100'}`}>
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[#3b82f6] flex items-center justify-center shadow-sm flex-shrink-0">
                       <MessageSquare className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
                     </div>
-                    <p className="font-bold text-gray-400 text-[11px] md:text-[13px] leading-tight">Total DMs</p>
+                    <p className={`font-bold text-[11px] md:text-[13px] leading-tight ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Total DMs</p>
                   </div>
-                  <span className="block text-xl md:text-2xl font-black text-[#2A2B3A]">
+                  <span className={`block text-xl md:text-2xl font-black transition-colors duration-500 ${darkMode ? 'text-white' : 'text-[#2A2B3A]'}`}>
                     {loading ? <Skeleton className="h-7 w-16" /> : stats.dmsTriggered.toLocaleString()}
                   </span>
                 </div>
 
-                <div className="bg-white p-2.5 md:p-4 rounded-[1.25rem] border border-gray-100 shadow-sm flex flex-col gap-1.5">
+                <div className={`p-2.5 md:p-4 rounded-[1.25rem] border shadow-sm flex flex-col gap-1.5 transition-colors duration-500 ${darkMode ? 'bg-[#1A1C23] border-[#2E323D]' : 'bg-white border-gray-100'}`}>
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[#8b5cf6] flex items-center justify-center shadow-sm flex-shrink-0">
-                      <Zap className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
+                      <Bot className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
                     </div>
-                    <p className="font-bold text-gray-400 text-[11px] md:text-[13px] leading-tight">Active Auto.</p>
+                    <p className={`font-bold text-[11px] md:text-[13px] leading-tight ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Active Auto.</p>
                   </div>
-                  <span className="block text-xl md:text-2xl font-black text-[#2A2B3A]">
+                  <span className={`block text-xl md:text-2xl font-black transition-colors duration-500 ${darkMode ? 'text-white' : 'text-[#2A2B3A]'}`}>
                     {loading ? <Skeleton className="h-7 w-10" /> : stats.activeAutomations.toString()}
                   </span>
                 </div>
 
-                <div className="bg-white p-2.5 md:p-4 rounded-[1.25rem] border border-gray-100 shadow-sm flex flex-col gap-1.5">
+                <div className={`p-2.5 md:p-4 rounded-[1.25rem] border shadow-sm flex flex-col gap-1.5 transition-colors duration-500 ${darkMode ? 'bg-[#1A1C23] border-[#2E323D]' : 'bg-white border-gray-100'}`}>
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[#f97316] flex items-center justify-center shadow-sm flex-shrink-0">
                       <MessageCircle className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
                     </div>
-                    <p className="font-bold text-gray-400 text-[11px] md:text-[13px] leading-tight">Comments</p>
+                    <p className={`font-bold text-[11px] md:text-[13px] leading-tight ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Comments</p>
                   </div>
-                  <span className="block text-xl md:text-2xl font-black text-[#2A2B3A]">
+                  <span className={`block text-xl md:text-2xl font-black transition-colors duration-500 ${darkMode ? 'text-white' : 'text-[#2A2B3A]'}`}>
                     {loading ? <Skeleton className="h-7 w-16" /> : stats.commentReplies.toLocaleString()}
                   </span>
                 </div>
 
-                <div className="bg-white p-2.5 md:p-4 rounded-[1.25rem] border border-gray-100 shadow-sm flex flex-col gap-1.5">
+                <div className={`p-2.5 md:p-4 rounded-[1.25rem] border shadow-sm flex flex-col gap-1.5 transition-colors duration-500 ${darkMode ? 'bg-[#1A1C23] border-[#2E323D]' : 'bg-white border-gray-100'}`}>
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[#ef4444] flex items-center justify-center shadow-sm flex-shrink-0">
                       <Users className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
                     </div>
-                    <p className="font-bold text-gray-400 text-[11px] md:text-[13px] leading-tight">Total Reach</p>
+                    <p className={`font-bold text-[11px] md:text-[13px] leading-tight ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Total Reach</p>
                   </div>
-                  <span className="block text-xl md:text-2xl font-black text-[#2A2B3A]">
+                  <span className={`block text-xl md:text-2xl font-black transition-colors duration-500 ${darkMode ? 'text-white' : 'text-[#2A2B3A]'}`}>
                     {loading ? <Skeleton className="h-7 w-16" /> : stats.uniqueUsers.toLocaleString()}
                   </span>
                 </div>
 
-                <div className="bg-white p-2.5 md:p-4 rounded-[1.25rem] border border-gray-100 shadow-sm flex flex-col gap-1.5">
+                <div className={`p-2.5 md:p-4 rounded-[1.25rem] border shadow-sm flex flex-col gap-1.5 transition-colors duration-500 ${darkMode ? 'bg-[#1A1C23] border-[#2E323D]' : 'bg-white border-gray-100'}`}>
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[#10b981] flex items-center justify-center shadow-sm flex-shrink-0">
                       <Instagram className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
                     </div>
-                    <p className="font-bold text-gray-400 text-[11px] md:text-[13px] leading-tight">Followers</p>
+                    <p className={`font-bold text-[11px] md:text-[13px] leading-tight ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Followers</p>
                   </div>
-                  <span className="block text-xl md:text-2xl font-black text-[#2A2B3A]">
+                  <span className={`block text-xl md:text-2xl font-black transition-colors duration-500 ${darkMode ? 'text-white' : 'text-[#2A2B3A]'}`}>
                     {loading ? <Skeleton className="h-7 w-16" /> : (stats.followersCount || 0).toLocaleString()}
                   </span>
                 </div>
 
-                <div className="bg-white p-2.5 md:p-4 rounded-[1.25rem] border border-gray-100 shadow-sm flex flex-col gap-1.5">
+                <div className={`p-2.5 md:p-4 rounded-[1.25rem] border shadow-sm flex flex-col gap-1.5 transition-colors duration-500 ${darkMode ? 'bg-[#1A1C23] border-[#2E323D]' : 'bg-white border-gray-100'}`}>
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[#10b981] flex items-center justify-center shadow-sm flex-shrink-0">
                       <TrendingUp className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
                     </div>
-                    <p className="font-bold text-gray-400 text-[11px] md:text-[13px] leading-tight">Growth</p>
+                    <p className={`font-bold text-[11px] md:text-[13px] leading-tight ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Growth</p>
                   </div>
-                  <span className="block text-xl md:text-2xl font-black text-[#2A2B3A]">
+                  <span className={`block text-xl md:text-2xl font-black transition-colors duration-500 ${darkMode ? 'text-white' : 'text-[#2A2B3A]'}`}>
                     {loading ? <Skeleton className="h-7 w-16" /> : Math.max(0, (stats.followersCount || 0) - (stats.initialFollowersCount || 0)).toLocaleString()}
                   </span>
                 </div>
@@ -348,54 +372,32 @@ export default function Dashboard() {
             </div>
 
             {/* DMs Sent Section */}
-            <div className="mt-4 pt-8 border-t border-gray-100">
-              <div className="flex justify-between items-start mb-6">
+            <div className={`mt-4 pt-6 border-t transition-colors duration-500 ${darkMode ? 'border-white/10' : 'border-gray-100'}`}>
+              <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h2 className="text-3xl font-black text-[#2A2B3A] mb-1">DMs Sent</h2>
+                  <h2 className={`text-3xl font-black mb-1 transition-colors duration-500 ${darkMode ? 'text-white' : 'text-[#2A2B3A]'}`}>DMs Sent</h2>
                   <p className="text-sm text-gray-400 font-medium">Last 7 day activity</p>
                 </div>
-                {/* Dummy avatars for visual match */}
-                <div className="flex -space-x-2">
-                  <div className="w-8 h-8 rounded-full bg-pink-200 border-2 border-white flex items-center justify-center overflow-hidden"><img src="https://i.pravatar.cc/100?img=1" alt="avatar" /></div>
-                  <div className="w-8 h-8 rounded-full bg-blue-200 border-2 border-white flex items-center justify-center overflow-hidden"><img src="https://i.pravatar.cc/100?img=2" alt="avatar" /></div>
-                  <div className="w-8 h-8 rounded-full bg-gray-200 border-2 border-white flex items-center justify-center overflow-hidden"><img src="https://i.pravatar.cc/100?img=3" alt="avatar" /></div>
-                </div>
+                {/* Icons removed per user request */}
               </div>
 
               {/* Chart Placeholder / Simplification */}
-              <div className="h-48 w-full -ml-4">
+              <div className="h-56 w-full -ml-4">
                 <DMsChart />
               </div>
             </div>
           </div>
 
           {/* Right Sidebar */}
-          <div className="w-full lg:w-80 flex-shrink-0 flex flex-col gap-10">
+          <div className="w-full lg:w-80 flex-shrink-0 flex flex-col gap-6">
             {/* Setup Progress */}
-            <div className="bg-white border border-gray-100 rounded-[1.25rem] p-6 shadow-sm group/setup transition-all duration-300 hover:shadow-md">
-              <h3 className="text-[#2A2B3A] font-bold mb-4">Your Setup Progress</h3>
-              <div className="relative h-2 w-full bg-gray-100 rounded-full mb-2 group/progress">
+            <div className={`rounded-[1.25rem] p-4 shadow-sm border group/setup transition-all duration-300 hover:shadow-md ${darkMode ? 'bg-[#1A1C23] border-[#2E323D]' : 'bg-white border-gray-100'}`}>
+              <h3 className={`font-bold mb-2 text-sm transition-colors duration-500 ${darkMode ? 'text-white' : 'text-[#2A2B3A]'}`}>Your Setup Progress</h3>
+              <div className={`relative h-1.5 w-full rounded-full mb-1.5 group/progress transition-colors duration-500 ${darkMode ? 'bg-white/10' : 'bg-gray-100'}`}>
                 <div 
                   className="h-full bg-emerald-400 rounded-full transition-all duration-500 ease-out" 
                   style={{ width: `${overallProgress}%` }}
                 />
-                
-                {/* Hover zones for tooltips */}
-                <div className="absolute inset-0 flex">
-                  {[
-                    "Connect Instagram",
-                    "Create Automation",
-                    "Test Automation",
-                    "Unlock Advance Analytics"
-                  ].map((tooltip, i) => (
-                    <div key={i} className="flex-1 group/zone relative h-full">
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-3 py-1.5 bg-gray-900/95 backdrop-blur-sm text-white text-[10px] rounded-xl opacity-0 group-hover/zone:opacity-100 pointer-events-none whitespace-nowrap transition-all duration-300 font-bold shadow-xl border border-white/10 z-50 transform translate-y-1 group-hover/zone:translate-y-0 text-center min-w-[120px]">
-                        {tooltip}
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-x-[5px] border-x-transparent border-t-[5px] border-t-gray-900/95"></div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
               </div>
               <div className="flex justify-between text-[10px] font-bold text-gray-400 px-1 pt-1">
                 <span>0%</span>
@@ -406,15 +408,15 @@ export default function Dashboard() {
               </div>
 
               {/* Revealable Task List on Hover */}
-              <div className="max-h-0 opacity-0 overflow-hidden transition-all duration-500 ease-in-out group-hover/setup:max-h-[200px] group-hover/setup:opacity-100 group-hover/setup:mt-6">
-                <div className="space-y-4 pt-2 border-t border-gray-50">
+              <div className="max-h-0 opacity-0 overflow-hidden transition-all duration-500 ease-in-out group-hover/setup:max-h-[160px] group-hover/setup:opacity-100 group-hover/setup:mt-4">
+                <div className={`space-y-3 pt-2 border-t transition-colors duration-500 ${darkMode ? 'border-white/5' : 'border-gray-50'}`}>
                   {setupTasks.map((task, index) => (
                     <div key={index} className="flex items-center justify-between group/item">
                       <div className="flex items-center gap-3">
-                        <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${task.completed ? 'bg-emerald-100 text-emerald-600' : 'bg-orange-100 text-orange-600'}`}>
-                          {task.completed ? <Check size={12} strokeWidth={3} /> : <AlertCircle size={12} strokeWidth={3} />}
+                        <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 transition-colors ${task.completed ? (darkMode ? 'bg-emerald-500 text-black' : 'bg-emerald-100 text-emerald-600') : (darkMode ? 'bg-orange-500 text-black' : 'bg-orange-100 text-orange-600')}`}>
+                          {task.completed ? <Check size={12} strokeWidth={4} /> : <AlertCircle size={12} strokeWidth={4} />}
                         </div>
-                        <span className={`text-[11px] font-bold ${task.completed ? 'text-gray-400' : 'text-gray-700'}`}>
+                        <span className={`text-[11px] font-bold transition-colors ${task.completed ? (darkMode ? 'text-gray-600' : 'text-gray-400') : (darkMode ? 'text-gray-400' : 'text-gray-700')}`}>
                           {task.label}
                         </span>
                       </div>
@@ -423,7 +425,12 @@ export default function Dashboard() {
                         <button
                           onClick={(e) => { e.preventDefault(); e.stopPropagation(); task.action && task.action(); }}
                           disabled={task.loading || task.disabled}
-                          className="opacity-0 group-hover/item:opacity-100 transition-opacity px-3 py-1 bg-black text-white text-[9px] font-black uppercase rounded-lg hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed"
+                          className={cn(
+                            "opacity-0 group-hover/item:opacity-100 transition-opacity px-3 py-1 text-[9px] font-black uppercase rounded-lg disabled:opacity-30 disabled:cursor-not-allowed",
+                            darkMode
+                              ? `bg-gradient-to-r ${subIsPremium ? 'from-indigo-600 to-violet-700' : 'from-blue-500 to-purple-600'} text-white hover:brightness-110`
+                              : "bg-black text-white hover:bg-gray-800"
+                          )}
                         >
                           {task.loading ? '...' : (task.actionLabel || 'Enable')}
                         </button>
@@ -441,7 +448,12 @@ export default function Dashboard() {
               {(!subIsPremium || (subIsGifted && subIsAtLimit)) && (
                 <ProBanner isCompact={true} />
               )}
-              <a href="https://quickrevert.tech/contact" target="_blank" rel="noopener noreferrer" className="w-full bg-[#1e6129] hover:bg-[#15471d] text-white transition-colors py-3 rounded-lg flex items-center justify-center gap-2 font-bold text-sm">
+              <a 
+                href="https://quickrevert.tech/contact" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className={`w-full transition-colors py-3 rounded-lg flex items-center justify-center gap-2 font-bold text-sm ${darkMode ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-[#1e6129] hover:bg-[#15471d] text-white'}`}
+              >
                 <span className="text-lg">👏</span> Support
               </a>
             </div>
@@ -453,38 +465,51 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex-1 relative min-h-screen overflow-x-hidden bg-[#fafbff] font-outfit">
+    <div className={`flex-1 relative min-h-screen overflow-x-hidden font-outfit transition-colors duration-500 ${darkMode ? 'bg-black' : 'bg-[#fafbff]'}`}>
       {/* Animated Background Blobs - Refined */}
-      <div className="fixed inset-0 -z-10 bg-slate-50/50">
-        <div className="absolute top-0 -left-10 w-[500px] h-[500px] bg-blue-100/30 rounded-full mix-blend-multiply filter blur-3xl animate-blob"></div>
-        <div className="absolute top-0 -right-10 w-[500px] h-[500px] bg-purple-100/30 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000"></div>
-        <div className="absolute bottom-20 left-1/4 w-[600px] h-[600px] bg-indigo-100/20 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000"></div>
-      </div>
+      {!darkMode && (
+        <div className="fixed inset-0 -z-10 bg-slate-50/50">
+          <div className="absolute top-0 -left-10 w-[500px] h-[500px] bg-blue-100/30 rounded-full mix-blend-multiply filter blur-3xl animate-blob"></div>
+          <div className="absolute top-0 -right-10 w-[500px] h-[500px] bg-purple-100/30 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000"></div>
+          <div className="absolute bottom-20 left-1/4 w-[600px] h-[600px] bg-indigo-100/20 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000"></div>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto p-6 md:p-10 space-y-10">
         {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 animate-in fade-in slide-in-from-top-4 duration-700">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 animate-in fade-in slide-in-from-top-4 duration-700">
           <div className="space-y-4">
-            <div className="md:hidden mb-6 p-3 rounded-2xl bg-gradient-to-br from-blue-500/10 to-purple-500/10 backdrop-blur-md border border-white/20">
-              <div className="flex items-center gap-0 justify-center mb-1">
-                <img src="/Logo_optimized.png" alt="QuickRevert Logo" className="w-12 h-12 object-contain -mr-1" />
-                <h1 className="font-bold text-gray-800 text-2xl tracking-tighter -mt-1">QuickRevert</h1>
+            <div className={`md:hidden mb-6 p-4 transition-colors ${darkMode ? 'bg-transparent border-none' : 'bg-slate-50 border border-gray-100 rounded-3xl'}`}>
+              <div className="flex items-center gap-1 justify-center mb-1">
+                <img src="/Logo_optimized.png" alt="QuickRevert Logo" className="w-12 h-12 object-contain" />
+                <h1 className={`font-bold text-2xl tracking-tighter -mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>QuickRevert</h1>
               </div>
-              <p className="text-[9px] text-gray-500 tracking-tight text-center leading-none">
+              <p className={`text-[10px] font-bold tracking-tight text-center leading-none ${darkMode ? 'text-white' : 'text-gray-600'}`}>
                 Intelligent Responses | Zero Wait Time | 24x7
               </p>
             </div>
             <div className="space-y-2">
-              <h2 className="text-4xl md:text-4xl font-black text-gray-900 tracking-tight leading-tight flex items-center gap-4">
-              Hello, {displayName?.split(' ')[0] || 'Creator'}
-              <Hand className="w-10 h-10 text-amber-400 fill-amber-400/20 animate-jump" />
-            </h2>
-            <p className="text-lg text-gray-500 font-medium">
-              Here's what's happening with your Instagram today.
-            </p>
+              <h2 className={`text-5xl md:text-5xl font-black tracking-tight leading-tight flex items-center gap-4 transition-colors ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                Hello, {isMounted ? (displayName?.split(' ')[0] || 'Creator') : '...'}
+                <Hand className="w-10 h-10 text-amber-400 fill-amber-400/20 animate-jump" />
+              </h2>
+              <p className={`text-sm font-medium transition-colors ${darkMode ? 'text-white/60' : 'text-gray-600'}`}>Everything is looking fire right now ⚡</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-6">
+            <DayNightToggle />
+            <a
+              href="https://quickrevert.tech/contact"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl transition-all border shadow-lg ${darkMode ? 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10' : 'bg-white border-gray-100 text-gray-700 hover:bg-gray-50'}`}
+            >
+              <Headset className="w-5 h-5 text-blue-500" />
+              <span className="text-sm font-bold">Support</span>
+            </a>
           </div>
         </div>
-      </div>
 
         {/* Main Content Area */}
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-1000 fill-mode-both">
@@ -498,12 +523,12 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
             {/* Left Column: Metrics & Analytics */}
             <div className="lg:col-span-2 space-y-8">
-              {/* Connection Status Banner */}
               <div className="group">
                 {instagramAccount ? (
-                  <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-r ${subIsPremium ? 'from-indigo-600 to-violet-700 shadow-indigo-500/30' : 'from-blue-500 to-purple-600 shadow-purple-500/30'} p-6 shadow-lg transition-all duration-300 hover:shadow-xl`}>
+                  <div className={`relative overflow-hidden rounded-2xl p-6 transition-all duration-300 shadow-xl bg-gradient-to-r from-orange-500 to-purple-700 text-white shadow-purple-500/30`}>
+
                     <div className="flex items-center gap-4 relative z-10">
-                      <div className="w-12 h-12 rounded-xl bg-white/10 border border-white/20 backdrop-blur-md flex items-center justify-center shrink-0">
+                      <div className="w-12 h-12 rounded-xl border flex items-center justify-center shrink-0 bg-white/10 border-white/20 backdrop-blur-md">
                         {instagramAccount.profile_picture_url ? (
                           <img
                             src={instagramAccount.profile_picture_url}
@@ -515,19 +540,26 @@ export default function Dashboard() {
                         )}
                       </div>
                       <div>
-                        <h3 className="text-lg font-black text-white leading-tight mb-0.5">@{instagramAccount.username}</h3>
-                        <p className="text-[11px] font-bold text-blue-100 uppercase tracking-wider">Instagram Connected</p>
+                        <h3 className="text-lg font-black leading-tight mb-0.5 text-white">@{instagramAccount.username}</h3>
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-orange-100">Instagram Connected</p>
+
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="relative overflow-hidden rounded-2xl bg-white border-2 border-dashed border-slate-200 p-6 flex items-center gap-4 group hover:border-blue-300 transition-colors cursor-pointer">
-                    <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 group-hover:bg-blue-50 transition-colors">
-                      <Instagram className="w-6 h-6 text-slate-300 group-hover:text-blue-500 transition-colors" />
+                  <div className={`relative overflow-hidden rounded-2xl border-2 border-dashed p-6 flex items-center gap-4 group transition-all cursor-pointer ${
+                    darkMode 
+                      ? 'bg-gradient-to-br from-orange-500/5 to-purple-700/5 border-white/10 hover:border-white/20' 
+                      : 'bg-gradient-to-br from-orange-500/10 via-pink-500/10 to-purple-700/10 border-orange-200/50 hover:border-orange-300 shadow-sm shadow-orange-500/5'
+                  }`}>
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-all ${
+                      darkMode ? 'bg-white/10 group-hover:bg-white/20' : 'bg-white/80 group-hover:bg-white shadow-sm'
+                    }`}>
+                      <Instagram className={`w-6 h-6 transition-colors ${darkMode ? 'text-white/60 group-hover:text-white' : 'text-orange-500 group-hover:text-purple-600'}`} />
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-slate-700 group-hover:text-blue-600 transition-colors">Connect Instagram</h3>
-                      <p className="text-sm text-slate-400 font-medium">Link your account to start</p>
+                      <h3 className={`text-lg font-bold transition-colors ${darkMode ? 'text-white' : 'text-slate-700 group-hover:text-black'}`}>Connect Instagram</h3>
+                      <p className={`text-sm font-medium ${darkMode ? 'text-gray-500' : 'text-slate-400'}`}>Link your account to start</p>
                     </div>
                     <Link to="/connect-accounts" className="absolute inset-0" />
                   </div>
@@ -546,7 +578,7 @@ export default function Dashboard() {
                 <KPICard
                   title="Active Automations"
                   value={loading ? <Skeleton className="h-8 w-12" /> : stats.activeAutomations.toString()}
-                  icon={Zap}
+                  icon={Bot}
                   iconColor="text-purple-600"
                   iconBgColor="bg-purple-50"
                 />

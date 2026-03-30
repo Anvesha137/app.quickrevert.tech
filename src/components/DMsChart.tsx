@@ -3,10 +3,12 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useUIStyle } from '../contexts/UIStyleContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function DMsChart() {
     const { user } = useAuth();
     const { uiStyle } = useUIStyle();
+    const { darkMode } = useTheme();
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [isMounted, setIsMounted] = useState(false);
@@ -68,15 +70,18 @@ export default function DMsChart() {
     const isMillennial = uiStyle === 'millennial';
 
     return (
-        <div className={isMillennial ? "w-full h-full" : "rounded-2xl backdrop-blur-xl bg-white/60 border border-white/40 p-6 shadow-xl"}>
+        <div className={isMillennial 
+            ? "w-full h-full" 
+            : `transition-colors duration-500 p-6 ${darkMode ? 'bg-transparent border-none shadow-none' : 'rounded-2xl border bg-white border-gray-100 shadow-xl'}`
+        }>
             {!isMillennial && (
                 <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg ${darkMode ? 'bg-indigo-600/20 border border-indigo-500/30' : 'bg-gradient-to-br from-blue-500 to-purple-600'}`}>
                         <span className="text-white text-lg font-bold">📈</span>
                     </div>
                     <div>
-                        <h3 className="font-bold text-lg text-gray-800">DMs Sent per Day</h3>
-                        <p className="text-sm text-gray-600">Last 7 days activity</p>
+                        <h3 className={`font-bold text-lg transition-colors ${darkMode ? 'text-white' : 'text-gray-800'}`}>DMs Sent per Day</h3>
+                        <p className={`text-sm transition-colors ${darkMode ? 'text-gray-500' : 'text-gray-600'}`}>Last 7 days activity</p>
                     </div>
                 </div>
             )}
@@ -95,18 +100,18 @@ export default function DMsChart() {
                                     <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
                                 </linearGradient>
                             </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                            <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? 'rgba(255,255,255,0.05)' : '#e5e7eb'} vertical={false} />
                             <XAxis
                                 dataKey="name"
-                                stroke="#9ca3af"
-                                tick={{ fontSize: 12, fontWeight: 500 }}
+                                stroke={darkMode ? '#4B5563' : '#9ca3af'}
+                                tick={{ fontSize: 12, fontWeight: 500, fill: darkMode ? '#9ca3af' : '#6b7280' }}
                                 axisLine={false}
                                 tickLine={false}
                                 dy={10}
                             />
                             <YAxis
-                                stroke="#9ca3af"
-                                tick={{ fontSize: 12, fontWeight: 500 }}
+                                stroke={darkMode ? '#4B5563' : '#9ca3af'}
+                                tick={{ fontSize: 12, fontWeight: 500, fill: darkMode ? '#9ca3af' : '#6b7280' }}
                                 axisLine={false}
                                 tickLine={false}
                                 dx={-10}
@@ -114,12 +119,13 @@ export default function DMsChart() {
                             />
                             <Tooltip
                                 contentStyle={{
-                                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                                    backdropFilter: 'blur(10px)',
-                                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                                    backgroundColor: darkMode ? '#000' : 'rgba(255, 255, 255, 0.9)',
+                                    border: darkMode ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(255, 255, 255, 0.3)',
                                     borderRadius: '12px',
-                                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+                                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+                                    color: darkMode ? '#fff' : '#000'
                                 }}
+                                itemStyle={{ color: darkMode ? '#fff' : '#000' }}
                             />
                             <Area
                                 type="monotone"

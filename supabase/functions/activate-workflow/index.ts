@@ -142,31 +142,43 @@ Deno.serve(async (req: Request) => {
     }
 
     // 3. N8N ACTIVATION
-    if (n8nBaseUrl && n8nApiKey) {
-      const action = shouldActivate ? 'activate' : 'deactivate';
-      try {
-        await fetch(`${n8nBaseUrl}/api/v1/workflows/${workflowId}/${action}`, {
-          method: "POST",
-          headers: { "X-N8N-API-KEY": n8nApiKey }
-        });
-      } catch (e) {
-        console.error(`n8n ${action} failed`, e);
-        // Don't fail the request if n8n is down, routing is what matters
-      }
+    if (!n8nBaseUrl || !n8nApiKey) {
+      throw new Error("N8N Configuration (URL/API Key) is missing in Edge Function secrets.");
     }
 
-    // 4. CRITICAL: Update is_active in n8n_workflows table
-    // This ensures execute-automation and other systems see the workflow as active
+    const action = shouldActivate ? 'activate' : 'deactivate';
+    
+    // Sanitize URL (ensure no trailing slash)
+    const baseUrl = n8nBaseUrl.endsWith('/') ? n8nBaseUrl.slice(0, -1) : n8nBaseUrl;
+    const finalUrl = `${baseUrl}/api/v1/workflows/${workflowId}/${action}`;
+    
+    console.log(`Sending ${action} request to n8n: ${finalUrl}`);
+    
+    const n8nRes = await fetch(finalUrl, {
+      method: "POST",
+      headers: { "X-N8N-API-KEY": n8nApiKey }
+    });
+
+    if (!n8nRes.ok) {
+      const errorText = await n8nRes.text();
+      console.error(`n8n ${action} failed with status ${n8nRes.status}:`, errorText);
+      throw new Error(`n8n ${action} failed: ${errorText || n8nRes.statusText}`);
+    }
+
+    console.log(`✅ n8n ${action} successful for ${workflowId}`);
+
+    // 4. Update is_active in n8n_workflows table ONLY on success
     const { error: updateError } = await supabase
       .from('n8n_workflows')
       .update({ is_active: shouldActivate })
       .eq('n8n_workflow_id', workflowId);
 
     if (updateError) {
-      console.error('Failed to update workflow is_active status:', updateError);
-    } else {
-      console.log(`✅ Workflow ${workflowId} is_active set to ${shouldActivate}`);
+      console.error('Failed to update database status:', updateError);
+      throw new Error(`Database Update Failed: ${updateError.message}`);
     }
+    
+    console.log(`✅ Database status updated to ${shouldActivate}`);
 
     return new Response(JSON.stringify({ success: true, active: shouldActivate }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" }

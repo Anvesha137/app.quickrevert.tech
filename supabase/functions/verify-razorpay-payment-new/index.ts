@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Client } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
+import Razorpay from "npm:razorpay@2.8.4";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -150,13 +151,28 @@ serve(async (req) => {
       }
     }
 
-    // 3. Upsert to Supabase
-    // Calculate amount paid and discount (in rupees as integer)
-    let amountPaidRs = 0;
-    let discountRs = 0;
+    // 3. Fetch canonical amount from Razorpay to prevent price manipulation
+    const razorpay = new Razorpay({ 
+      key_id: Deno.env.get('RAZORPAY_KEY_ID') || '', 
+      key_secret: Deno.env.get('RAZORPAY_KEY_SECRET') || ''
+    });
 
-    // Fetch coupon details from Neon DB if any to calculate discount
-    let couponData = null;
+    let rzpOrder;
+    if (!isFree) {
+      try {
+        rzpOrder = await razorpay.orders.fetch(razorpay_order_id);
+      } catch (err) {
+        console.error(`[SECURITY] Razorpay order fetch failed for ID: ${razorpay_order_id}`, err);
+        throw new Error("Payment record not found on processor. Possible forged request.");
+      }
+    }
+
+    // Default base price before discount (in Paise for consistency with Razorpay)
+    const baseAmountPaise = planType === 'annual' ? (599 * 12 * 100) : (899 * 3 * 100);
+    let expectedPaise = baseAmountPaise;
+    let serverCalculatedDiscountPaise = 0;
+
+    // Fetch and calculate discount strictly on server
     if (couponCode) {
       const neonDbUrl2 = Deno.env.get('NEON_DB_URL');
       if (neonDbUrl2) {
@@ -164,36 +180,37 @@ serve(async (req) => {
         try {
           await couponClient.connect();
           const couponResult = await couponClient.queryObject(`
-            SELECT id, discount_percentage, max_usage, total_usage_tilldate
-            FROM promo_codes
-            WHERE LOWER(promo_code) = LOWER($1)
+            SELECT discount_percentage FROM promo_codes
+            WHERE LOWER(promo_code) = LOWER($1) AND (expiry_date >= NOW()) AND (total_usage_tilldate < max_usage)
             LIMIT 1
           `, [couponCode.trim()]);
+          
           if (couponResult.rows.length > 0) {
-            couponData = couponResult.rows[0];
+            const pct = (couponResult.rows[0] as any).discount_percentage || 0;
+            serverCalculatedDiscountPaise = Math.floor(baseAmountPaise * (pct / 100));
+            expectedPaise = Math.max(0, baseAmountPaise - serverCalculatedDiscountPaise);
           }
-        } catch (e) {
-          console.error('Error fetching coupon from Neon:', e);
         } finally {
           await couponClient.end();
         }
       }
     }
 
-    // Default price before discount
-    const baseAmountRs = planType === 'annual' ? (599 * 12) : (899 * 3);
+    let amountPaidRs = 0;
+    let discountRs = 0;
 
-    if (isFree) {
-      amountPaidRs = 0;
-      discountRs = baseAmountRs;
-    } else {
-      if (couponData) {
-        // Neon promo_codes only has discount_percentage
-        const discountPct = (couponData as any).discount_percentage || 0;
-        discountRs = Math.floor(baseAmountRs * (discountPct / 100));
+    // 🔒 THE CRITICAL CHECK: Does what they paid match what the plan costs?
+    if (!isFree) {
+      const actualPaisePaid = rzpOrder.amount;
+      if (actualPaisePaid < expectedPaise) {
+          console.error(`[SECURITY] Amount Mismatch: Paid ${actualPaisePaid} paise, Expected ${expectedPaise} paise. User: ${userId}`);
+          throw new Error("Payment amount mismatch. Integrity check failed.");
       }
-      // Allow 0 Rs if coupon covers 100%
-      amountPaidRs = Math.max(0, baseAmountRs - discountRs);
+      amountPaidRs = Math.floor(actualPaisePaid / 100);
+      discountRs = Math.floor(serverCalculatedDiscountPaise / 100);
+    } else {
+      amountPaidRs = 0;
+      discountRs = Math.floor(baseAmountPaise / 100);
     }
 
     // 3. Update Supabase Subscription Status
@@ -303,14 +320,14 @@ serve(async (req) => {
         const subscriptionEnd = expiryDate.toISOString();
 
         // 1. Upsert User Profile
-        await neonClient.queryObject`
+        await neonClient.queryObject(`
           INSERT INTO users (
             id, username, email, status, joining_date, last_active,
             instagram_handle, connected_instagram_handle, no_of_automations, deleted, promo_code
           ) VALUES (
-            ${userId}, ${instagramHandle || email}, ${email}, 'active',
+            $1, $2, $3, 'active',
             NOW() + INTERVAL '5 hours 30 minutes', NOW() + INTERVAL '5 hours 30 minutes',
-            ${instagramHandle}, ${connectedHandle}, ${activeAutomationsCount}, FALSE, ${couponCode || null}
+            $4, $5, $6, FALSE, $7
           )
           ON CONFLICT (email) DO UPDATE SET
             username = COALESCE(EXCLUDED.username, users.username),
@@ -321,44 +338,53 @@ serve(async (req) => {
             no_of_automations = EXCLUDED.no_of_automations,
             promo_code = EXCLUDED.promo_code,
             deleted = FALSE;
-        `;
+        `, [
+          userId,
+          instagramHandle || email,
+          email,
+          instagramHandle,
+          connectedHandle,
+          activeAutomationsCount,
+          couponCode || null
+        ]);
 
         // 2. Fetch or Create Plan
         let packageName = 'Premium';
         if (planType === 'quarterly') packageName = 'Premium Quarterly';
         if (planType === 'annual') packageName = 'Premium Annual';
 
-        const planResult = await neonClient.queryObject`
+        const baseAmountRsCalculated = planType === 'annual' ? (599 * 12) : (899 * 3);
+        const planResult = await neonClient.queryObject(`
           INSERT INTO plans (name, billing_cycle, price, is_active)
-          VALUES (${packageName}, ${planType}, ${baseAmountRs}, true)
+          VALUES ($1, $2, $3, true)
           ON CONFLICT (name) DO UPDATE SET is_active = true
           RETURNING id;
-        `;
+        `, [packageName, planType, baseAmountRsCalculated]);
         const planId = (planResult.rows[0] as any).id;
 
         // 3. Update or Insert Subscription
-        const subResult = await neonClient.queryObject`
+        const subResult = await neonClient.queryObject(`
           UPDATE subscriptions
-          SET plan_id = ${planId},
-              subscription_end = ${subscriptionEnd},
+          SET plan_id = $1,
+              subscription_end = $2,
               status = 'active'
-          WHERE user_id = ${userId} AND status = 'active'
+          WHERE user_id = $3 AND status = 'active'
           RETURNING id;
-        `;
+        `, [planId, subscriptionEnd, userId]);
 
         if (subResult.rows.length === 0) {
-          await neonClient.queryObject`
+          await neonClient.queryObject(`
             INSERT INTO subscriptions (user_id, plan_id, subscription_start, subscription_end, status)
-            VALUES (${userId}, ${planId}, NOW() + INTERVAL '5 hours 30 minutes', ${subscriptionEnd}, 'active');
-          `;
+            VALUES ($1, $2, NOW() + INTERVAL '5 hours 30 minutes', $3, 'active');
+          `, [userId, planId, subscriptionEnd]);
         }
 
         // 4. Insert Payment Record
         const paymentStatus = isFree ? 'free' : 'paid';
-        await neonClient.queryObject`
+        await neonClient.queryObject(`
           INSERT INTO payments (user_id, amount, discount_amount, promo_code, payment_status, paid_at)
-          VALUES (${userId}, ${amountPaidRs}, ${discountRs}, ${couponCode || null}, ${paymentStatus}, NOW() + INTERVAL '5 hours 30 minutes');
-        `;
+          VALUES ($1, $2, $3, $4, $5, NOW() + INTERVAL '5 hours 30 minutes');
+        `, [userId, amountPaidRs, discountRs, couponCode || null, paymentStatus]);
 
 
         // Increment Coupon Usage in Neon DB (for paid transactions)

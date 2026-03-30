@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, Check, Zap, MessageSquare, Image as ImageIcon, Mail, Pencil
+  ArrowLeft, Check, Bot, MessageSquare, Image as ImageIcon, Mail, Pencil
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../lib/supabase';
@@ -12,6 +12,7 @@ import {
   AutomationFormData, TriggerType, TriggerConfig,
   PostCommentTriggerConfig, StoryReplyTriggerConfig, UserDirectMessageTriggerConfig,
 } from '../types/automation';
+import { useTheme } from '../contexts/ThemeContext';
 import { N8nWorkflowService } from '../lib/n8nService';
 import TriggerConfigStep from './automation-steps/TriggerConfig';
 import ActionConfig from './automation-steps/ActionConfig';
@@ -50,6 +51,7 @@ const TRIGGER_OPTIONS: {
 
 export default function AutomationCreateMillennial({ readOnly = false }: AutomationCreateMillennialProps) {
   const { user } = useAuth();
+  const { darkMode } = useTheme();
   const { hasInstagramConnected, loading: subLoading, initialFetchDone } = useSubscription();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -138,6 +140,8 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
     if (id) fetchAutomation(id);
   }, [user, id]);
 
+  const topRef = useRef<HTMLDivElement>(null);
+
   async function fetchAutomation(automationId: string) {
     if (!user) return;
     try {
@@ -149,6 +153,16 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
         .single();
       if (error) throw error;
       if (data) {
+        // Safety: Prevent editing if active
+        if (data.status === 'active' && !readOnly) {
+          toast.error('This automation is active. Please deactivate it first to make changes.', {
+            description: 'Redirecting to view mode...',
+            duration: 5000,
+          });
+          navigate(`/automation/view/${automationId}`, { replace: true });
+          return;
+        }
+
         setFormData({
           name: data.name,
           triggerType: data.trigger_type,
@@ -163,11 +177,50 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
     }
   }
 
+  const validateTriggerConfig = (type: TriggerType, config: TriggerConfig): { message: string, sectionId: string } | null => {
+    if (type === 'post_comment') {
+      const c = config as PostCommentTriggerConfig;
+      if (c.postsType === 'specific' && (!c.specificPosts || c.specificPosts.length === 0)) {
+        return { message: "Please select at least one post.", sectionId: 'post-selection-section' };
+      }
+      if (c.commentsType === 'keywords' && (!c.keywords || c.keywords.length === 0)) {
+        return { message: "Please add at least one keyword.", sectionId: 'keyword-selection-section' };
+      }
+    } else if (type === 'story_reply') {
+      const c = config as StoryReplyTriggerConfig;
+      if (c.storiesType === 'specific' && (!c.specificStories || c.specificStories.length === 0)) {
+        return { message: "Please select at least one story.", sectionId: 'post-selection-section' };
+      }
+      if (c.replyType === 'keywords' && (!c.keywords || c.keywords.length === 0)) {
+        return { message: "Please add at least one keyword.", sectionId: 'keyword-selection-section' };
+      }
+    } else if (type === 'user_directed_messages') {
+      const c = config as UserDirectMessageTriggerConfig;
+      if (c.messageType === 'keywords' && (!c.keywords || c.keywords.length === 0)) {
+        return { message: "Please add at least one keyword.", sectionId: 'keyword-selection-section' };
+      }
+    }
+    return null;
+  };
+
   async function handleSave() {
     if (!user) return;
     if (!formData.name.trim()) { toast.error('Please give your automation a name.'); return; }
     if (!formData.triggerType) { toast.error('Please choose what triggers this automation.'); return; }
     if (!formData.triggerConfig) { toast.error('Please finish setting up the trigger.'); return; }
+
+    const configError = validateTriggerConfig(formData.triggerType, formData.triggerConfig);
+    if (configError) {
+      toast.error(configError.message);
+      setStep(1);
+      setTimeout(() => {
+        const el = document.getElementById(configError.sectionId);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        else topRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+      return;
+    }
+
     if (formData.actions.length === 0) { toast.error('Please add at least one action.'); return; }
 
     setSaving(true);
@@ -262,21 +315,40 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
     // Initialize default trigger config if not set
     if (!formData.triggerConfig) {
        let defaultConfig: TriggerConfig;
-       if (formData.triggerType === 'post_comment') defaultConfig = { postsType: 'all', commentsType: 'all' } as PostCommentTriggerConfig;
-       else if (formData.triggerType === 'story_reply') defaultConfig = { storiesType: 'all', replyType: 'all' } as StoryReplyTriggerConfig;
-       else defaultConfig = { messageType: 'all' } as UserDirectMessageTriggerConfig;
-       setFormData({ ...formData, triggerConfig: defaultConfig });
+       let defaultActions = formData.actions;
+       if (formData.triggerType === 'post_comment') {
+          defaultConfig = { postsType: 'all', commentsType: 'all' } as PostCommentTriggerConfig;
+          if (defaultActions.length === 0) {
+              defaultActions = [{
+                type: 'reply_to_comment',
+                replyTemplates: [
+                  'Ayyy check your DMs 👀✨',
+                  'Just dropped you a message 💌🔥',
+                  'Doneee, sent you the details 🫶📩',
+                  'You got a lil surprise in your inbox 😌💫'
+                ],
+                actionButtons: []
+              } as any];
+          }
+       }
+       else if (formData.triggerType === 'story_reply') {
+          defaultConfig = { storiesType: 'all', replyType: 'all' } as StoryReplyTriggerConfig;
+       }
+       else {
+          defaultConfig = { messageType: 'all' } as UserDirectMessageTriggerConfig;
+       }
+       setFormData({ ...formData, triggerConfig: defaultConfig, actions: defaultActions });
     }
     setStep(1);
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col font-sans pb-20 md:pb-0 w-full relative">
+    <div className={`min-h-screen ${darkMode ? 'bg-black' : 'bg-white'} flex flex-col font-sans pb-20 md:pb-0 w-full relative transition-colors duration-500`}>
       <div className="w-full min-h-screen relative flex flex-col pt-safe overflow-x-hidden">
         
         {/* Fixed Header */}
-        <div className="flex items-center gap-2 p-4 md:px-8 md:py-6 bg-white/90 backdrop-blur-xl sticky top-0 z-20 border-b border-gray-100 w-full">
-          <button onClick={() => { if (step > 0) navigate(-1); else navigate('/automation'); }} className="p-2 md:p-3 bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-900 rounded-2xl transition-all">
+        <div className={`flex items-center gap-2 p-4 md:px-8 md:py-6 ${darkMode ? 'bg-black' : 'bg-white/90 border-gray-100 border-b'} backdrop-blur-xl sticky top-0 z-20 w-full transition-colors duration-500`}>
+          <button onClick={() => { if (step > 0) navigate(-1); else navigate('/automation'); }} className={`p-2 md:p-3 ${darkMode ? 'bg-transparent border border-white/10 text-white/60 hover:border-white/20 hover:text-white' : 'bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-900'} rounded-full transition-all`}>
             <ArrowLeft className="w-5 h-5 md:w-6 md:h-6" strokeWidth={2.5} />
           </button>
           
@@ -286,14 +358,14 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
               
               if (i === step) {
                 return (
-                  <motion.div layoutId="pill" key={i} className="flex items-center px-4 md:px-6 py-2 md:py-2.5 bg-purple-50 border border-purple-100 rounded-full shadow-sm cursor-default">
-                    <span className="text-purple-700 font-bold text-sm md:text-base">{labels[i]}</span>
+                  <motion.div layoutId="pill" key={i} className={`flex items-center px-4 md:px-6 py-2 md:py-2.5 ${darkMode ? 'bg-transparent border-purple-500' : 'bg-purple-50 border-purple-100 shadow-sm'} border rounded-full cursor-default`}>
+                    <span className={`${darkMode ? 'text-white' : 'text-purple-700'} font-bold text-sm md:text-base`}>{labels[i]}</span>
                   </motion.div>
                 );
               } else if (i < step) {
                 // Completed step - completely clickable to go back
                 return (
-                  <button key={i} onClick={() => setStep(i as WizardStep)} className="w-8 h-8 md:h-10 md:px-4 md:w-auto rounded-full bg-emerald-50 text-emerald-600 border-2 border-emerald-100 flex items-center justify-center transition-all hover:bg-emerald-100 hover:scale-105 active:scale-95 group shadow-sm">
+                  <button key={i} onClick={() => setStep(i as WizardStep)} className={`w-8 h-8 md:h-10 md:px-4 md:w-auto rounded-full ${darkMode ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20' : 'bg-emerald-50 text-emerald-600 border-2 border-emerald-100'} flex items-center justify-center transition-all hover:scale-105 active:scale-95 group shadow-sm`}>
                     <Check size={16} strokeWidth={3} className="md:mr-2" />
                     <span className="hidden md:inline font-bold text-sm">{labels[i]}</span>
                   </button>
@@ -310,10 +382,10 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
                     }}
                     disabled={!isClickable}
                     className={`h-8 w-8 md:h-10 md:px-4 md:w-auto rounded-full border-2 flex items-center justify-center transition-all 
-                        ${isClickable ? 'border-gray-200 bg-white hover:border-purple-300 hover:bg-purple-50 cursor-pointer shadow-sm group' : 'border-gray-100 bg-gray-50/50 cursor-not-allowed opacity-50'}`}
+                        ${isClickable ? (darkMode ? 'border-white/10 bg-transparent hover:border-white/20' : 'border-gray-200 bg-white hover:border-purple-300 hover:bg-purple-50 cursor-pointer shadow-sm group') : (darkMode ? 'border-white/5 bg-transparent opacity-30 cursor-not-allowed' : 'border-gray-100 bg-gray-50/50 cursor-not-allowed opacity-50')}`}
                   >
-                    <div className="w-2 h-2 md:hidden bg-gray-300 rounded-full"></div>
-                    <span className={`hidden md:inline font-bold text-sm ${isClickable ? 'text-gray-500 group-hover:text-purple-600' : 'text-gray-400'}`}>{labels[i]}</span>
+                    <div className={`w-2 h-2 md:hidden ${darkMode ? 'bg-white/20' : 'bg-gray-300'} rounded-full`}></div>
+                    <span className={`hidden md:inline font-bold text-sm ${isClickable ? (darkMode ? 'text-white/40 group-hover:text-white' : 'text-gray-500 group-hover:text-purple-600') : (darkMode ? 'text-white/20' : 'text-gray-400')}`}>{labels[i]}</span>
                   </button>
                 );
               }
@@ -324,6 +396,7 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
 
         {/* Content Area */}
         <div className="flex-1 w-full mx-auto max-w-7xl overflow-y-auto px-5 md:px-8 py-4 md:py-8 pb-12">
+          <div ref={topRef} className="h-0 w-0 opacity-0 pointer-events-none" />
           <AnimatePresence mode="wait">
             
             {/* STEP 0: Selection */}
@@ -333,12 +406,12 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
                 {/* Name Card */}
                 <div>
                   <div className="flex items-start gap-4 md:gap-5 mb-4 md:mb-5">
-                    <div className="w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-[16px] md:rounded-2xl bg-[#1e293b] flex items-center justify-center text-white shadow-lg">
+                    <div className={`w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-[16px] md:rounded-2xl flex items-center justify-center text-white ${darkMode ? 'bg-white/10' : 'bg-[#1e293b] shadow-lg shadow-gray-200'}`}>
                       <Pencil className="w-5 h-5 md:w-6 md:h-6 text-orange-400 fill-orange-400" />
                     </div>
                     <div className="pt-0.5 md:pt-1">
-                      <h2 className="text-lg md:text-2xl font-bold text-gray-900 tracking-tight leading-tight">Give your automation a name</h2>
-                      <p className="text-xs md:text-sm text-gray-400 font-medium mt-0.5 md:mt-1">You need a name before you can continue.</p>
+                      <h2 className={`text-lg md:text-2xl font-bold tracking-tight leading-tight ${darkMode ? 'text-white' : 'text-gray-900'}`}>Give your automation a name</h2>
+                      <p className={`text-xs md:text-sm font-medium mt-0.5 md:mt-1 ${darkMode ? 'text-white/40' : 'text-gray-400'}`}>You need a name before you can continue.</p>
                     </div>
                   </div>
                   <div className="ml-14 md:ml-17">
@@ -347,7 +420,8 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       disabled={readOnly}
-                      className="w-full border-2 border-emerald-200 focus:border-emerald-500 bg-emerald-50/10 focus:bg-white rounded-xl md:rounded-2xl px-4 md:px-5 py-3 md:py-3.5 outline-none text-gray-900 font-bold md:text-lg placeholder-gray-300 transition-all shadow-sm hover:border-emerald-300"
+                      className={`w-full border-2 rounded-2xl px-4 md:px-5 py-3 md:py-3.5 outline-none font-bold md:text-lg transition-all 
+                        ${darkMode ? 'bg-transparent border-white/10 focus:border-purple-500/50 text-white placeholder-white/20' : 'border-emerald-200 focus:border-emerald-500 bg-emerald-50/10 focus:bg-white text-gray-900 placeholder-gray-300 shadow-sm'}`}
                       placeholder="e.g. Story link auto-reply"
                     />
                   </div>
@@ -356,19 +430,19 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
                 {/* Trigger Card */}
                 <div className={`transition-opacity duration-300 ${formData.name.trim().length === 0 ? 'opacity-40 grayscale-[0.2]' : 'opacity-100'}`}>
                   <div className="flex items-start gap-4 md:gap-5 mb-4 md:mb-5">
-                    <div className="w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-[16px] md:rounded-2xl bg-purple-600 flex items-center justify-center text-white shadow-lg shadow-purple-200">
-                      <Zap className="w-5 h-5 md:w-6 md:h-6 fill-purple-200 text-purple-200" />
+                    <div className={`w-12 h-12 md:w-14 md:h-14 shrink-0 rounded-2xl flex items-center justify-center ${darkMode ? 'bg-purple-600 text-white' : 'bg-purple-600 text-white shadow-lg shadow-purple-100'}`}>
+                      <Bot className="w-6 h-6 md:w-7 md:h-7 text-white" />
                     </div>
                     <div className="pt-0.5 md:pt-1">
-                      <h2 className="text-lg md:text-2xl font-bold text-gray-900 tracking-tight leading-tight flex items-center gap-3">
+                      <h2 className={`text-lg md:text-2xl font-bold tracking-tight leading-tight flex items-center gap-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                         What will start it?
                         {formData.name.trim().length === 0 && (
-                          <span className="text-[9px] md:text-[11px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 md:px-2 md:py-1 rounded-md border border-amber-200 shadow-sm whitespace-nowrap hidden sm:inline-block">Name required ↑</span>
+                          <span className={`${darkMode ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-amber-100 text-amber-700 border-amber-200'} text-[9px] md:text-[11px] font-bold px-2 py-0.5 md:px-2 md:py-1 rounded-md border shadow-sm whitespace-nowrap hidden sm:inline-block`}>Name required ↑</span>
                         )}
                       </h2>
-                      <p className="text-xs md:text-sm text-gray-400 font-medium mt-0.5 md:mt-1">Pick one below — you can always change it later.</p>
+                      <p className={`text-xs md:text-sm font-medium mt-0.5 md:mt-1 ${darkMode ? 'text-white/40' : 'text-gray-400'}`}>Pick one below — you can always change it later.</p>
                       {formData.name.trim().length === 0 && (
-                        <p className="text-[10px] md:text-xs font-bold text-amber-600 mt-1.5 sm:hidden">↑ Automation name is required first</p>
+                        <p className={`text-[10px] md:text-xs font-bold mt-1.5 sm:hidden ${darkMode ? 'text-amber-500' : 'text-amber-600'}`}>↑ Automation name is required first</p>
                       )}
                     </div>
                   </div>
@@ -385,36 +459,52 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
                           onClick={() => {
                             if (isDisabled) return;
                             
-                            // Auto-set the trigger immediately
                             setFormData(prev => {
-                               const newFormData = { ...prev, triggerType: opt.type };
-                               if (!newFormData.triggerConfig || prev.triggerType !== opt.type) {
-                                  let defaultConfig: TriggerConfig;
-                                  if (opt.type === 'post_comment') defaultConfig = { postsType: 'all', commentsType: 'all' } as PostCommentTriggerConfig;
-                                  else if (opt.type === 'story_reply') defaultConfig = { storiesType: 'all', replyType: 'all' } as StoryReplyTriggerConfig;
-                                  else defaultConfig = { messageType: 'all' } as UserDirectMessageTriggerConfig;
-                                  newFormData.triggerConfig = defaultConfig;
-                               }
-                               return newFormData;
+                              const newFormData = { ...prev, triggerType: opt.type };
+                              
+                              let defaultConfig: TriggerConfig | null = null;
+                              if (opt.type === 'post_comment') {
+                                defaultConfig = { postsType: 'specific', commentsType: 'all', keywords: [] } as PostCommentTriggerConfig;
+                                // Add default reply action if missing
+                                if (!newFormData.actions.some(a => a.type === 'reply_to_comment')) {
+                                  newFormData.actions = [{
+                                    type: 'reply_to_comment',
+                                    replyTemplates: [
+                                      'Ayyy check your DMs 👀✨',
+                                      'Just dropped you a message 💌🔥',
+                                      'Doneee, sent you the details 🫶📩',
+                                      'You got a lil surprise in your inbox 😌💫'
+                                    ],
+                                    actionButtons: []
+                                  } as any, ...newFormData.actions];
+                                }
+                              } else if (opt.type === 'story_reply') {
+                                defaultConfig = { storiesType: 'specific', replyType: 'all', keywords: [] } as StoryReplyTriggerConfig;
+                              } else if (opt.type === 'user_directed_messages') {
+                                defaultConfig = { messageType: 'all', keywords: [], cooldownEnabled: true, cooldownDuration: 3600000 } as UserDirectMessageTriggerConfig;
+                              }
+                              
+                              newFormData.triggerConfig = defaultConfig;
+                              return newFormData;
                             });
                             
                             // Auto-advance
                             setTimeout(() => setStep(1), 150);
                           }}
-                          className={`w-full text-left p-3.5 md:p-4 rounded-[1.25rem] md:rounded-[1.25rem] border-2 transition-all flex items-center gap-4 md:gap-5 group
-                            ${isDisabled ? 'cursor-not-allowed border-gray-100 bg-gray-50' : selected ? 'border-purple-500 bg-purple-50/30 shadow-sm ring-2 ring-purple-50 scale-[1.01]' : 'border-gray-100 bg-white hover:border-purple-200 hover:bg-purple-50/10 hover:shadow-sm hover:-translate-y-0.5'}`}
+                          className={`w-full text-left p-3.5 md:p-4 rounded-2xl border-2 transition-all flex items-center gap-4 md:gap-5 group
+                            ${isDisabled ? (darkMode ? 'border-white/5 opacity-40 cursor-not-allowed' : 'cursor-not-allowed border-gray-100 bg-gray-50') : selected ? (darkMode ? 'border-purple-500 bg-transparent shadow-none scale-[1.01]' : 'border-purple-500 bg-purple-50/30 shadow-sm ring-2 ring-purple-50 scale-[1.01]') : (darkMode ? 'border-white/10 bg-transparent hover:border-white/20' : 'border-gray-100 bg-white hover:border-purple-200 hover:bg-purple-50/10 hover:shadow-sm hover:-translate-y-0.5')}`}
                         >
                           <div className={`w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-[14px] md:rounded-xl flex items-center justify-center text-white transition-all duration-300
-                            ${isDisabled ? 'bg-gray-200' : selected ? 'bg-purple-600 scale-105' : 'bg-purple-100 group-hover:bg-purple-200 group-hover:scale-110'}`}>
-                            <Icon className={`w-5 h-5 md:w-6 md:h-6 ${isDisabled ? 'text-gray-400' : selected ? 'text-white' : 'text-purple-600'}`} />
+                            ${isDisabled ? 'bg-gray-200' : selected ? 'bg-purple-600 scale-105' : (darkMode ? 'bg-white/10 group-hover:bg-white/20' : 'bg-purple-100 group-hover:bg-purple-200 group-hover:scale-110')}`}>
+                            <Icon className={`w-5 h-5 md:w-6 md:h-6 ${isDisabled ? 'text-gray-400' : (selected || !darkMode) ? (selected ? 'text-white' : 'text-purple-600') : 'text-white/60 group-hover:text-white'}`} />
                           </div>
                           <div className="flex-1 mt-0.5">
-                            <h3 className={`font-bold text-[14px] md:text-base mb-0.5 transition-colors ${isDisabled ? 'text-gray-400' : selected ? 'text-purple-900 font-extrabold' : 'text-gray-900 group-hover:text-purple-900'}`}>{opt.title}</h3>
-                            <p className={`text-[12px] md:text-[13px] leading-snug font-medium line-clamp-2 md:line-clamp-none transition-colors ${isDisabled ? 'text-gray-300' : 'text-gray-400 group-hover:text-gray-500'}`}>{opt.description}</p>
+                            <h3 className={`font-bold text-[14px] md:text-base mb-0.5 transition-colors ${isDisabled ? 'text-gray-400' : selected ? (darkMode ? 'text-white font-black' : 'text-purple-900 font-extrabold') : (darkMode ? 'text-white/80 group-hover:text-white' : 'text-gray-900 group-hover:text-purple-900')}`}>{opt.title}</h3>
+                            <p className={`text-[12px] md:text-[13px] leading-snug font-medium line-clamp-2 md:line-clamp-none transition-colors ${isDisabled ? 'text-gray-300' : (darkMode ? 'text-white/40 group-hover:text-white/60' : 'text-gray-400 group-hover:text-gray-500')}`}>{opt.description}</p>
                           </div>
                           <div className={`shrink-0 w-5 h-5 md:w-6 md:h-6 rounded-full border-2 flex items-center justify-center transition-all duration-300
-                            ${isDisabled ? 'border-gray-200' : selected ? 'border-purple-600 bg-purple-50 scale-110 shadow-inner' : 'border-gray-200 bg-gray-50 group-hover:border-purple-300'}`}>
-                            {selected && <div className="w-2.5 h-2.5 md:w-3 md:h-3 bg-purple-600 rounded-full shadow-sm" />}
+                            ${isDisabled ? 'border-gray-200' : selected ? (darkMode ? 'border-purple-400 bg-white/10 shadow-inner' : 'border-purple-600 bg-purple-50 scale-110 shadow-inner') : (darkMode ? 'border-white/20 bg-white/5 group-hover:border-white/40' : 'border-gray-200 bg-gray-50 group-hover:border-purple-300')}`}>
+                            {selected && <div className={`w-2.5 h-2.5 md:w-3 md:h-3 ${darkMode ? 'bg-purple-400' : 'bg-purple-600'} rounded-full shadow-sm`} />}
                           </div>
                         </button>
                       );
@@ -435,7 +525,17 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
                 />
                 <div className="mt-8 flex justify-center pb-8 md:pb-0">
                   <button
-                     onClick={() => setStep(2)}
+                     onClick={() => {
+                        const error = validateTriggerConfig(formData.triggerType!, formData.triggerConfig!);
+                        if (error) {
+                          toast.error(error.message);
+                          const el = document.getElementById(error.sectionId);
+                          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          else topRef.current?.scrollIntoView({ behavior: 'smooth' });
+                          return;
+                        }
+                        setStep(2);
+                     }}
                      className="w-full max-w-xl py-4 rounded-full font-bold text-lg flex justify-center items-center gap-2 transition-all shadow-lg hover:-translate-y-1 bg-purple-600 text-white hover:bg-purple-700 shadow-purple-200"
                   >
                     Continue to Final Step <ArrowLeft className="rotate-180 w-5 h-5" />

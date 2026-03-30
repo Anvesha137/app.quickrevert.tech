@@ -67,6 +67,15 @@ export class N8nWorkflowService {
     }
   }
 
+  static async updateWorkflow(
+    data: Omit<WorkflowCreationData, 'userId'>,
+    userId: string
+  ): Promise<WorkflowCreationResponse> {
+    // The backend 'create-workflow' function now handles updates automatically
+    // when an existing 'automationId' is provided.
+    return this.createWorkflow(data, userId);
+  }
+
   static async createAnalyticsWorkflow(userId: string, instagramAccountId: string): Promise<WorkflowCreationResponse> {
     try {
       const { data: result, error: invokeError } = await supabase.functions.invoke('create-workflow', {

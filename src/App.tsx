@@ -1,10 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { ThemeProvider } from './contexts/ThemeContext';
+import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import { UpgradeModalProvider } from './contexts/UpgradeModalContext';
 import { UIStyleProvider, useUIStyle } from './contexts/UIStyleContext';
 import AutomationCreate from './components/AutomationCreate';
 import AutomationCreateMillennial from './components/AutomationCreate_millennial';
+import { TooltipProvider } from './components/ui/tooltip';
 import Login from './components/Login';
 import ErrorBoundary from './components/ErrorBoundary';
 import Sidebar from './components/Sidebar';
@@ -12,10 +13,9 @@ import MobileNav from './components/MobileNav';
 import Dashboard from './components/Dashboard';
 import Automations from './components/Automations';
 
-import ConnectedAccounts from './components/ConnectedAccounts';
+import MyAccount from './components/MyAccount';
 import Contacts from './components/Contacts';
 import Billing from './components/Billing';
-import Settings from './components/Settings';
 import Pricing from './components/Pricing';
 import DeletionStatus from './components/DeletionStatus';
 import ResetPassword from './components/ResetPassword';
@@ -70,23 +70,24 @@ function AppContent() {
 function AuthenticatedApp() {
   const { isPremium } = useSubscription();
   const { uiStyle } = useUIStyle();
+  const { darkMode } = useTheme();
   const CreatePage = uiStyle === 'millennial' ? AutomationCreateMillennial : AutomationCreate;
   const isMillennial = uiStyle === 'millennial';
 
   if (isMillennial) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-2 md:p-3">
-        {/* Outer black rounded card */}
-        <div className="w-full max-w-[1600px] h-[calc(100vh-1rem)] md:h-[calc(100vh-1.5rem)] bg-[#0A0A0A] rounded-3xl shadow-2xl flex overflow-hidden relative border-[4px] border-white ring-1 ring-gray-100">
-          {/* Left Sidebar — dark content on black card */}
+      <div className={`min-h-screen flex items-center justify-center p-2 md:p-3 transition-colors duration-500 ${darkMode ? 'bg-[#0A0A0A]' : 'bg-white'}`}>
+        {/* Outer rounded card container */}
+        <div className={`w-full max-w-[1600px] h-[calc(100vh-1rem)] md:h-[calc(100vh-1.5rem)] rounded-3xl shadow-2xl flex overflow-hidden relative border-[4px] ring-1 transition-all duration-500 ${darkMode ? 'bg-white border-white/5 ring-white/5' : 'bg-[#0F1117] border-white ring-gray-100'}`}>
+          {/* Left Sidebar */}
           <Sidebar millennial />
           <MobileNav />
 
-          {/* Right: white rounded content card sitting on top of the black card */}
+          {/* Right Content Area */}
           <div className="flex-1 flex flex-col overflow-hidden p-2 md:p-3">
-            <div className="flex-1 bg-white rounded-[1.25rem] overflow-hidden shadow-xl">
+            <div className={`flex-1 rounded-[1.25rem] overflow-hidden shadow-xl transition-all duration-500 border ${darkMode ? 'bg-black border-white/5' : 'bg-white border-transparent'}`}>
               <ErrorBoundary>
-                <div className="h-full overflow-y-auto pb-24 md:pb-0">
+                <div className={`h-full overflow-y-auto pb-24 md:pb-0 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                   <Routes>
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/dashboard" element={<Navigate to="/" replace />} />
@@ -96,8 +97,9 @@ function AuthenticatedApp() {
                     <Route path="/automation/edit/:id" element={<CreatePage />} />
                     <Route path="/contacts" element={<Contacts />} />
                     <Route path="/billing" element={<Billing />} />
-                    <Route path="/connect-accounts" element={<ConnectedAccounts />} />
-                    <Route path="/settings" element={<Settings />} />
+                    <Route path="/account" element={<MyAccount />} />
+                    <Route path="/settings" element={<Navigate to="/account" replace />} />
+                    <Route path="/connect-accounts" element={<Navigate to="/account" replace />} />
                   </Routes>
                 </div>
               </ErrorBoundary>
@@ -110,23 +112,24 @@ function AuthenticatedApp() {
 
   // Gen Z / default layout
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className={`transition-all duration-300 ${!isPremium ? 'pt-6' : ''}`}>
+    <div className={`min-h-screen transition-colors duration-500 ${darkMode ? 'bg-black' : 'bg-slate-50'}`}>
+      <div className={`${!isPremium ? 'pt-6' : ''}`}>
         <PlanBanner />
         <Sidebar />
         <MobileNav />
         <ErrorBoundary>
           <Routes>
-            <Route path="/" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><Dashboard /></div>} />
+            <Route path="/" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1 transition-colors duration-500"><Dashboard /></div>} />
             <Route path="/dashboard" element={<Navigate to="/" replace />} />
-            <Route path="/automation" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><Automations /></div>} />
-            <Route path="/automation/create" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><CreatePage /></div>} />
-            <Route path="/automation/view/:id" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><CreatePage readOnly /></div>} />
-            <Route path="/automation/edit/:id" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><CreatePage /></div>} />
-            <Route path="/contacts" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><Contacts /></div>} />
-            <Route path="/billing" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><Billing /></div>} />
-            <Route path="/connect-accounts" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><ConnectedAccounts /></div>} />
-            <Route path="/settings" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1"><Settings /></div>} />
+            <Route path="/automation" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1 transition-colors duration-500"><Automations /></div>} />
+            <Route path="/automation/create" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1 transition-colors duration-500"><CreatePage /></div>} />
+            <Route path="/automation/view/:id" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1 transition-colors duration-500"><CreatePage readOnly /></div>} />
+            <Route path="/automation/edit/:id" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1 transition-colors duration-500"><CreatePage /></div>} />
+            <Route path="/contacts" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1 transition-colors duration-500"><Contacts /></div>} />
+            <Route path="/billing" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1 transition-colors duration-500"><Billing /></div>} />
+            <Route path="/account" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1 transition-colors duration-500"><MyAccount /></div>} />
+            <Route path="/settings" element={<Navigate to="/account" replace />} />
+            <Route path="/connect-accounts" element={<Navigate to="/account" replace />} />
           </Routes>
         </ErrorBoundary>
       </div>
@@ -174,11 +177,13 @@ function App() {
           <UIStyleProvider>
             <UpgradeModalProvider>
               <BrowserRouter>
-                <AppContent />
+                <TooltipProvider>
+                  <AppContent />
 
-                <UpgradeModal />
-                <CelebrationModal />
-                <Toaster richColors position="top-right" />
+                  <UpgradeModal />
+                  <CelebrationModal />
+                  <Toaster richColors position="top-right" />
+                </TooltipProvider>
               </BrowserRouter>
             </UpgradeModalProvider>
           </UIStyleProvider>

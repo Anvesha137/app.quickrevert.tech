@@ -1,13 +1,17 @@
+import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Search, Plus, ChevronDown, Trash2, Eye, Sparkles } from 'lucide-react';
+import { Search, Plus, ChevronDown, Trash2, Eye, MessageSquare, Image as ImageIcon, Mail, Bot, Pencil } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { motion } from "motion/react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
+import { useUIStyle } from '../contexts/UIStyleContext';
 import { useUpgradeModal } from '../contexts/UpgradeModalContext';
 import { N8nWorkflowService } from '../lib/n8nService';
 import ConfirmationModal from './ui/ConfirmationModal';
@@ -20,30 +24,51 @@ function cn(...inputs: ClassValue[]) {
 
 // --- Reusable Glass Components ---
 
-const GlassCard = ({ children, className, delay = 0, noPadding = false }: any) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.5, delay: delay, ease: "easeOut" }}
-    className={cn(
-      "relative rounded-3xl border border-white/60 bg-white/40 shadow-xl backdrop-blur-2xl transition-all hover:border-white/80 hover:shadow-2xl hover:shadow-blue-500/5 group",
-      !noPadding && "p-8",
-      className
-    )}
-  >
-    <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-white/10 to-transparent pointer-events-none opacity-50 group-hover:opacity-70 transition-opacity" />
-    <div className="relative z-10 h-full">{children}</div>
-  </motion.div>
-);
+const GlassCard = ({ children, className, delay = 0, noPadding = false }: any) => {
+  const { darkMode } = useTheme();
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: delay, ease: "easeOut" }}
+      className={cn(
+        "relative rounded-3xl transition-all duration-500",
+        darkMode 
+          ? "bg-transparent border-none shadow-none" 
+          : "border border-white/60 bg-white/40 shadow-xl backdrop-blur-2xl hover:border-white/80 hover:shadow-2xl hover:shadow-blue-500/5 group",
+        !noPadding && "p-8",
+        className
+      )}
+    >
+      {!darkMode && <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-white/10 to-transparent pointer-events-none opacity-50 group-hover:opacity-70 transition-opacity" />}
+      <div className="relative z-10 h-full">{children}</div>
+    </motion.div>
+  );
+};
 
-const GlassButton = ({ children, variant = "primary", className, icon: Icon, onClick, loading = false, type = "button", disabled = false }: any) => {
+const GlassButton = React.forwardRef(({ children, variant = "primary", className, icon: Icon, onClick, loading = false, type = "button", disabled = false, ...props }: any, ref: any) => {
+  const { darkMode } = useTheme();
+  const { uiStyle } = useUIStyle();
+  const { isPremium } = useSubscription();
+
+  const activeGradient = isPremium
+    ? "from-indigo-600 to-violet-700 shadow-indigo-500/50"
+    : "from-blue-500 to-purple-600 shadow-purple-500/50";
+
+
   const variants = {
-    primary: "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:brightness-110 border-transparent",
-    secondary: "bg-white/60 text-slate-700 hover:bg-white/90 border-slate-200/50 shadow-sm hover:shadow-md",
-    danger: "bg-red-50 text-red-600 border-red-100 hover:bg-red-100 hover:text-red-700 hover:border-red-200 shadow-sm",
+    primary: darkMode 
+      ? (uiStyle === 'genz' ? `bg-gradient-to-r ${activeGradient} text-white shadow-lg border-transparent hover:brightness-110` : "bg-white text-black shadow-lg shadow-white/10 hover:bg-gray-100 hover:shadow-white/20 border-transparent")
+      : "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:brightness-110 border-transparent",
+    secondary: darkMode
+      ? "bg-white/5 text-white/60 hover:bg-white/10 border-white/5"
+      : "bg-white/60 text-slate-700 hover:bg-white/90 border-slate-200/50 shadow-sm hover:shadow-md",
+    danger: darkMode
+      ? "bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20"
+      : "bg-red-50 text-red-600 border-red-100 hover:bg-red-100 hover:text-red-700 hover:border-red-200 shadow-sm",
     ghost: "bg-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100/50"
   };
-
+ 
   return (
     <motion.button
       whileHover={!disabled ? { scale: 1.02 } : {}}
@@ -57,12 +82,14 @@ const GlassButton = ({ children, variant = "primary", className, icon: Icon, onC
         (loading || disabled) && "opacity-50 cursor-not-allowed",
         className
       )}
+      ref={ref}
+      {...props}
     >
       {loading ? <Skeleton className="h-4 w-4 rounded-full bg-white/20 animate-shimmer" /> : Icon && <Icon className="h-4 w-4" />}
       {children}
     </motion.button>
   );
-};
+});
 
 interface Automation {
   id: string;
@@ -85,6 +112,7 @@ const triggerLabels = {
 
 export default function Automations() {
   const { user } = useAuth();
+  const { darkMode } = useTheme();
   const navigate = useNavigate();
   const { isPremium, isGifted, automationLimit } = useSubscription();
   const { openModal } = useUpgradeModal();
@@ -92,7 +120,7 @@ export default function Automations() {
   const [filteredAutomations, setFilteredAutomations] = useState<Automation[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'' | 'newest' | 'oldest' | 'name'>('');
+  const [sortBy, setSortBy] = useState<'' | 'newest' | 'oldest' | 'name'>('newest');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [triggerFilter, setTriggerFilter] = useState<'all' | 'post_comment' | 'story_reply' | 'user_directed_messages'>('all');
   const [hasInstagramAccount, setHasInstagramAccount] = useState(false);
@@ -366,17 +394,20 @@ export default function Automations() {
   };
 
   return (
-    <div className="flex-1 relative min-h-screen overflow-x-hidden p-4 md:p-8">
+    <TooltipProvider delayDuration={0}>
+    <div className={cn("flex-1 relative min-h-screen overflow-x-hidden p-4 md:p-8 transition-colors duration-500", darkMode ? "bg-black" : "bg-[#f8fafc]")}>
       {/* Animated Background Blobs */}
-      <div className="fixed inset-0 -z-10 bg-[#f8fafc]">
-        <div className="absolute top-0 -left-4 w-96 h-96 bg-slate-200/30 rounded-full mix-blend-multiply filter blur-3xl animate-blob"></div>
-        <div className="absolute top-1/4 -right-4 w-96 h-96 bg-blue-100/20 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-8 left-20 w-96 h-96 bg-indigo-100/30 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000"></div>
-        <div className="absolute inset-0 opacity-10" style={{
-          backgroundImage: `url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS1vcGFjaXR5PSIwLjA1IiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=")`
-        }}></div>
-      </div>
-
+      {!darkMode && (
+        <div className="fixed inset-0 -z-10 bg-[#f8fafc]">
+          <div className="absolute top-0 -left-4 w-96 h-96 bg-slate-200/30 rounded-full mix-blend-multiply filter blur-3xl animate-blob"></div>
+          <div className="absolute top-1/4 -right-4 w-96 h-96 bg-blue-100/20 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000"></div>
+          <div className="absolute -bottom-8 left-20 w-96 h-96 bg-indigo-100/30 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000"></div>
+          <div className="absolute inset-0 opacity-10" style={{
+            backgroundImage: `url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS1vcGFjaXR5PSIwLjA1IiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=")`
+          }}></div>
+        </div>
+      )}
+ 
       <div className="max-w-7xl mx-auto space-y-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <motion.div
@@ -384,8 +415,8 @@ export default function Automations() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <h1 className="text-4xl font-bold text-slate-800 tracking-tight">Automations</h1>
-            <p className="text-slate-500 font-medium">Create and manage your Instagram automations</p>
+            <h1 className={cn("text-4xl font-bold tracking-tight transition-colors", darkMode ? "text-white" : "text-slate-800")}>Automations</h1>
+            <p className={cn("font-medium transition-colors", darkMode ? "text-white/40" : "text-slate-500")}>Create and manage your Instagram automations</p>
           </motion.div>
 
           <GlassButton
@@ -400,13 +431,18 @@ export default function Automations() {
         <GlassCard delay={0.1} className="py-4 px-6">
           <div className="flex flex-col lg:flex-row gap-6">
             <div className="flex-1 relative group">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={20} />
+              <Search className={cn("absolute left-4 top-1/2 transform -translate-y-1/2 transition-colors", darkMode ? "text-white/20" : "text-slate-400 group-focus-within:text-blue-500")} size={20} />
               <input
                 type="text"
                 placeholder="Search automations..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-12 pr-4 py-3.5 border border-slate-200/60 bg-white/50 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 shadow-sm hover:bg-white/80 transition-all font-medium text-slate-700 placeholder-slate-400"
+                className={cn(
+                  "w-full pl-12 pr-4 py-3.5 rounded-2xl transition-all font-medium",
+                  darkMode 
+                    ? "bg-white/5 border border-white/5 text-white placeholder-white/20 focus:border-white/20 focus:bg-white/[0.08] focus:outline-none"
+                    : "border border-slate-200/60 bg-white/50 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 shadow-sm hover:bg-white/80 text-slate-700 placeholder-slate-400"
+                )}
               />
             </div>
 
@@ -424,32 +460,45 @@ export default function Automations() {
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value as '' | 'newest' | 'oldest' | 'name')}
-                    className="appearance-none w-full pl-4 pr-10 py-3.5 border border-slate-200/60 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 bg-white/50 cursor-pointer font-bold text-slate-700 shadow-sm hover:bg-white/80 transition-all text-sm"
+                    className={cn(
+                      "appearance-none w-full pl-4 pr-10 py-3.5 rounded-2xl cursor-pointer font-bold shadow-sm transition-all text-sm",
+                      darkMode
+                        ? "bg-white/5 border border-white/5 text-white focus:border-white/20 focus:bg-white/[0.08]"
+                        : "border border-slate-200/60 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 bg-white/50 text-slate-700 hover:bg-white/80"
+                    )}
                   >
-                    <option value="" disabled>Sort by</option>
-                    <option value="newest">Newest First</option>
-                    <option value="oldest">Oldest First</option>
-                    <option value="name">Name</option>
+                    <option value="" disabled className={darkMode ? "bg-black" : ""}>Sort by</option>
+                    <option value="newest" className={darkMode ? "bg-black" : ""}>Newest First</option>
+                    <option value="oldest" className={darkMode ? "bg-black" : ""}>Oldest First</option>
+                    <option value="name" className={darkMode ? "bg-black" : ""}>Name</option>
                   </select>
-                  <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                  <ChevronDown className={cn("absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none", darkMode ? "text-white/20" : "text-slate-400")} size={18} />
                 </div>
 
                 <div className="flex-1 relative h-full group">
                   <select
                     value={triggerFilter}
                     onChange={(e) => setTriggerFilter(e.target.value as typeof triggerFilter)}
-                    className="appearance-none w-full pl-4 pr-10 py-3.5 border border-slate-200/60 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 bg-white/50 cursor-pointer font-bold text-slate-700 shadow-sm hover:bg-white/80 transition-all text-sm"
+                    className={cn(
+                      "appearance-none w-full pl-4 pr-10 py-3.5 rounded-2xl cursor-pointer font-bold shadow-sm transition-all text-sm",
+                      darkMode
+                        ? "bg-white/5 border border-white/5 text-white focus:border-white/20 focus:bg-white/[0.08]"
+                        : "border border-slate-200/60 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 bg-white/50 text-slate-700 hover:bg-white/80"
+                    )}
                   >
-                    <option value="all">All Triggers</option>
-                    <option value="post_comment">Post Comments</option>
-                    <option value="story_reply">Story Replies</option>
-                    <option value="user_directed_messages">DMs</option>
+                    <option value="all" className={darkMode ? "bg-black" : ""}>All Triggers</option>
+                    <option value="post_comment" className={darkMode ? "bg-black" : ""}>Post Comments</option>
+                    <option value="story_reply" className={darkMode ? "bg-black" : ""}>Story Replies</option>
+                    <option value="user_directed_messages" className={darkMode ? "bg-black" : ""}>DMs</option>
                   </select>
-                  <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                  <ChevronDown className={cn("absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none", darkMode ? "text-white/20" : "text-slate-400")} size={18} />
                 </div>
               </div>
 
-              <div className="flex w-full lg:w-auto gap-1.5 p-1.5 bg-slate-100/50 backdrop-blur-sm rounded-2xl border border-slate-200/50 shadow-inner order-2 lg:order-1">
+              <div className={cn(
+                "flex w-full lg:w-auto gap-1.5 p-1.5 backdrop-blur-sm rounded-2xl shadow-inner order-2 lg:order-1 transition-colors", 
+                darkMode ? "bg-white/5 border border-white/5" : "bg-slate-100/50 border border-slate-200/50"
+              )}>
                 {['all', 'active', 'inactive'].map((status) => (
                   <button
                     key={status}
@@ -457,8 +506,8 @@ export default function Automations() {
                     className={cn(
                       "flex-1 lg:px-5 py-2 rounded-xl text-sm font-bold transition-all",
                       statusFilter === status
-                        ? "bg-white text-blue-600 shadow-md ring-1 ring-slate-200"
-                        : "text-slate-500 hover:text-slate-800 hover:bg-white/50"
+                        ? (darkMode ? "bg-white text-black shadow-lg" : "bg-white text-blue-600 shadow-md ring-1 ring-slate-200")
+                        : (darkMode ? "text-white/40 hover:text-white" : "text-slate-500 hover:text-slate-800 hover:bg-white/50")
                     )}
                   >
                     {status.charAt(0).toUpperCase() + status.slice(1)}
@@ -524,23 +573,30 @@ export default function Automations() {
                           "p-2.5 rounded-xl transition-colors shadow-sm",
                           automation.status === 'active' ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"
                         )}>
-                          <Sparkles className="h-5 w-5" />
+                          {(() => {
+                            switch (automation.trigger_type) {
+                              case 'post_comment': return <MessageSquare className="h-5 w-5" />;
+                              case 'story_reply': return <ImageIcon className="h-5 w-5" />;
+                              case 'user_directed_messages': return <Mail className="h-5 w-5" />;
+                              default: return <Bot className="h-5 w-5" />;
+                            }
+                          })()}
                         </div>
                         <div>
-                          <h3 className="text-xl font-bold text-slate-800 group-hover/card:text-blue-600 transition-colors">
+                          <h3 className={cn("text-xl font-bold transition-colors", darkMode ? "text-white group-hover/card:text-blue-400" : "text-slate-800 group-hover/card:text-blue-600")}>
                             {automation.name}
                           </h3>
                           <div className="flex items-center gap-2 mt-1">
                             <span className={cn(
                               "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md",
                               automation.status === 'active'
-                                ? "bg-emerald-100 text-emerald-700"
-                                : "bg-slate-100 text-slate-500"
+                                ? (darkMode ? "bg-blue-600 text-white" : "bg-emerald-100 text-emerald-700")
+                                : (darkMode ? "bg-white/5 text-white/40" : "bg-slate-100 text-slate-500")
                             )}>
                               {automation.status}
                             </span>
-                            <span className="text-slate-300">•</span>
-                            <span className="text-xs text-slate-400 font-medium">
+                            <span className={cn("transition-colors", darkMode ? "text-white/10" : "text-slate-300")}>•</span>
+                            <span className={cn("text-xs font-medium transition-colors", darkMode ? "text-white/20" : "text-slate-400")}>
                               Created {new Date(automation.created_at).toLocaleDateString()}
                             </span>
                           </div>
@@ -548,38 +604,56 @@ export default function Automations() {
                       </div>
 
                       {automation.description && (
-                        <p className="text-slate-500 leading-relaxed max-w-2xl font-medium">
+                        <p className={cn("leading-relaxed max-w-2xl font-medium transition-colors", darkMode ? "text-white/40" : "text-slate-500")}>
                           {automation.description}
                         </p>
                       )}
-
                       <div className="flex flex-wrap items-center gap-3">
-                        <div className="flex items-center gap-2 bg-blue-50/50 border border-blue-100 px-3 py-1.5 rounded-xl">
-                          <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Trigger</span>
-                          <span className="text-sm font-bold text-blue-700">{triggerLabels[automation.trigger_type as keyof typeof triggerLabels]}</span>
+                        <div className={cn("flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-colors", darkMode ? "bg-white/5 border-white/5" : "bg-blue-50/50 border-blue-100")}>
+                          <span className={cn("text-[10px] font-bold uppercase tracking-wider transition-colors", darkMode ? "text-blue-400" : "text-blue-400")}>Trigger</span>
+                          <span className={cn("text-sm font-bold transition-colors", darkMode ? "text-white" : "text-blue-700")}>{triggerLabels[automation.trigger_type as keyof typeof triggerLabels]}</span>
                         </div>
-
+ 
                         {automation.webhook_url && (
-                          <div className="flex items-center gap-2 bg-indigo-50/50 border border-indigo-100 px-3 py-1.5 rounded-xl max-w-xs md:max-w-md">
-                            <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Webhook</span>
-                            <span className="text-xs font-mono text-indigo-600 truncate">{automation.webhook_url}</span>
+                          <div className={cn("flex items-center gap-2 px-3 py-1.5 rounded-xl max-w-xs md:max-w-md border transition-colors", darkMode ? "bg-white/5 border-white/5" : "bg-indigo-50/50 border-indigo-100")}>
+                            <span className={cn("text-[10px] font-bold uppercase tracking-wider transition-colors", darkMode ? "text-indigo-400" : "text-indigo-400")}>Webhook</span>
+                            <span className={cn("text-xs font-mono truncate transition-colors", darkMode ? "text-white/40" : "text-indigo-600")}>{automation.webhook_url}</span>
                           </div>
                         )}
                       </div>
                     </div>
 
                     <div className="flex items-center gap-3 self-end md:self-center shrink-0">
-                      <GlassButton
-                        variant="secondary"
-                        icon={Eye}
-                        onClick={() => navigate(`/automation/view/${automation.id}`)}
-                        className="!p-3 rounded-xl"
-                      />
-
-                      <div className="flex items-center gap-3 px-4 py-2 bg-white/50 backdrop-blur-sm rounded-2xl border border-slate-200/50 shadow-sm">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <GlassButton
+                            variant="secondary"
+                            icon={Eye}
+                            onClick={() => navigate(`/automation/view/${automation.id}`)}
+                            className="!p-3 rounded-xl"
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent>View</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <GlassButton
+                            variant="secondary"
+                            icon={Pencil}
+                            disabled={automation.status === 'active'}
+                            onClick={() => automation.status !== 'active' && navigate(`/automation/edit/${automation.id}`)}
+                            className={cn(
+                              "!p-3 rounded-xl",
+                              automation.status === 'active' && "opacity-40 grayscale-[0.5] cursor-not-allowed"
+                            )}
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent>{automation.status === 'active' ? "Deactivate to edit" : "Edit"}</TooltipContent>
+                      </Tooltip>
+                      <div className={cn("flex items-center gap-3 px-4 py-2 rounded-2xl border shadow-sm transition-colors", darkMode ? "bg-slate-900 border-slate-800" : "bg-white/50 border-slate-200/50 backdrop-blur-sm")}>
                         <span className={cn(
                           "text-xs font-bold transition-colors",
-                          automation.status === 'active' ? "text-emerald-600" : "text-slate-400"
+                          automation.status === 'active' ? (darkMode ? "text-blue-400" : "text-emerald-600") : (darkMode ? "text-white/20" : "text-slate-400")
                         )}>
                           {automation.status === 'active' ? 'ON' : 'OFF'}
                         </span>
@@ -593,19 +667,27 @@ export default function Automations() {
                           />
                           <div className={cn(
                             "w-11 h-6 rounded-full transition-all duration-300 peer",
-                            "bg-slate-200 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all after:shadow-sm",
-                            "peer-checked:bg-gradient-to-r peer-checked:from-emerald-500 peer-checked:to-teal-500 peer-checked:after:translate-x-full peer-checked:after:rotate-180",
+                            darkMode ? "bg-white/10" : "bg-slate-200",
+                            "after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all after:shadow-sm",
+                            darkMode 
+                              ? "peer-checked:bg-blue-600 peer-checked:after:translate-x-full" 
+                              : "peer-checked:bg-gradient-to-r peer-checked:from-emerald-500 peer-checked:to-teal-500 peer-checked:after:translate-x-full peer-checked:after:rotate-180",
                             togglingId === automation.id && "opacity-50 cursor-wait"
                           )}></div>
                         </label>
                       </div>
 
-                      <GlassButton
-                        variant="danger"
-                        icon={Trash2}
-                        onClick={() => handleDelete(automation.id, automation.name, automation.status)}
-                        className="!p-3 rounded-xl"
-                      />
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <GlassButton
+                            variant="danger"
+                            icon={Trash2}
+                            onClick={() => handleDelete(automation.id, automation.name, automation.status)}
+                            className="!p-3 rounded-xl"
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent>Delete</TooltipContent>
+                      </Tooltip>
                     </div>
                   </div>
                 </div>
@@ -613,18 +695,18 @@ export default function Automations() {
             ))}
           </div>
         ) : (
-          <GlassCard className="!p-16 text-center">
+          <GlassCard className={cn("!p-16 text-center transition-all", darkMode ? "bg-white/5 border border-white/10 shadow-2xl shadow-black/50" : "!p-16 text-center")}>
             <div className="max-w-md mx-auto space-y-6">
-              <div className="w-20 h-20 bg-blue-50 text-blue-500 rounded-3xl flex items-center justify-center mx-auto shadow-inner rotate-12 transition-transform hover:rotate-0">
-                <Sparkles size={40} className="animate-pulse" />
+              <div className={cn("w-20 h-20 rounded-3xl flex items-center justify-center mx-auto shadow-inner rotate-12 transition-transform hover:rotate-0", darkMode ? "bg-white/10 text-blue-400" : "bg-blue-50 text-blue-500")}>
+                <Bot size={40} className="animate-pulse" />
               </div>
               <div className="space-y-2">
-                <h3 className="text-2xl font-bold text-slate-800">
+                <h3 className={cn("text-2xl font-bold transition-colors", darkMode ? "text-white" : "text-slate-800")}>
                   {searchQuery || statusFilter !== 'all' || triggerFilter !== 'all'
                     ? 'No matches found'
                     : 'Start Automating'}
                 </h3>
-                <p className="text-slate-500 font-medium leading-relaxed">
+                <p className={cn("font-medium leading-relaxed transition-colors", darkMode ? "text-white/60" : "text-slate-500")}>
                   {searchQuery || statusFilter !== 'all' || triggerFilter !== 'all'
                     ? 'Try adjusting your filters or search query to find what you are looking for.'
                     : 'Connect your Instagram account and build your first intelligent automation journey today.'}
@@ -653,5 +735,6 @@ export default function Automations() {
         loading={isDeleting}
       />
     </div>
+    </TooltipProvider>
   );
 }

@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Search, Zap, Activity } from 'lucide-react';
+import { Search, Bot, Activity } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+ 
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
 import AutomationActivityDetail from './AutomationActivityDetail';
 import { Skeleton } from './ui/skeleton';
 
@@ -17,6 +24,7 @@ interface Automation {
 
 export default function ActivityLog() {
   const { user } = useAuth();
+  const { darkMode } = useTheme();
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [selectedAutomation, setSelectedAutomation] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -120,8 +128,8 @@ export default function ActivityLog() {
 
   if (loading) {
     return (
-      <div className="fixed top-0 bottom-0 left-64 right-0 flex bg-gray-50">
-        <div className="w-96 border-r border-gray-200 bg-white p-4">
+      <div className={cn("fixed top-0 bottom-0 left-64 right-0 flex transition-colors duration-500", darkMode ? "bg-black" : "bg-gray-50")}>
+        <div className={cn("w-96 border-r p-4 transition-colors", darkMode ? "bg-black border-white/5" : "bg-white border-gray-200")}>
           <div className="space-y-4">
             {[1, 2, 3, 4, 5, 6, 7].map((i) => (
               <div key={i} className="flex items-center gap-3 p-2">
@@ -134,26 +142,32 @@ export default function ActivityLog() {
             ))}
           </div>
         </div>
-        <div className="flex-1 flex flex-col p-12 space-y-8">
-           <div className="space-y-4">
-             <Skeleton className="h-10 w-64" />
-             <Skeleton className="h-4 w-96" />
-           </div>
-           <div className="grid grid-cols-2 gap-6">
-             <Skeleton className="h-32 w-full rounded-2xl" />
-             <Skeleton className="h-32 w-full rounded-2xl" />
-           </div>
-           <Skeleton className="h-64 w-full rounded-2xl" />
+         <div className="flex-1 flex flex-col p-12 space-y-8">
+            <div className="space-y-4">
+              <Skeleton className={cn("h-10 w-64 rounded-xl", darkMode ? "bg-white/5" : "bg-gray-200")} />
+              <Skeleton className={cn("h-4 w-96 rounded-lg", darkMode ? "bg-white/5" : "bg-gray-200")} />
+            </div>
+            <div className="grid grid-cols-2 gap-6">
+              <Skeleton className={cn("h-32 w-full rounded-2xl", darkMode ? "bg-white/5" : "bg-gray-200")} />
+              <Skeleton className={cn("h-32 w-full rounded-2xl", darkMode ? "bg-white/5" : "bg-gray-200")} />
+            </div>
+            <Skeleton className={cn("h-64 w-full rounded-2xl", darkMode ? "bg-white/5" : "bg-gray-200")} />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="fixed top-0 bottom-0 left-64 right-0 flex bg-gradient-to-br from-gray-50 to-green-50/20">
-      <div className="w-96 border-r border-gray-200 bg-white/80 backdrop-blur-sm flex flex-col h-full shadow-lg">
-        <div className="p-6 border-b border-gray-200 bg-gradient-to-br from-white to-green-50/30">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4 tracking-tight">Activity Log</h1>
+    <div className={cn("fixed top-0 bottom-0 left-64 right-0 flex transition-colors duration-500", darkMode ? "bg-black" : "bg-gradient-to-br from-gray-50 to-green-50/20")}>
+      <div className={cn(
+        "w-96 border-r flex flex-col h-full transition-all duration-300",
+        darkMode ? "bg-black border-white/5 shadow-none" : "bg-white/80 backdrop-blur-sm border-gray-200 shadow-lg"
+      )}>
+        <div className={cn(
+          "p-6 border-b transition-colors duration-300",
+          darkMode ? "bg-transparent border-white/5" : "border-gray-200 bg-gradient-to-br from-white to-green-50/30"
+        )}>
+          <h1 className={cn("text-3xl font-bold mb-4 tracking-tight", darkMode ? "text-white" : "text-gray-900")}>Activity Log</h1>
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
@@ -161,7 +175,12 @@ export default function ActivityLog() {
               placeholder="Search automations..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm shadow-sm hover:border-gray-300 transition-all"
+              className={cn(
+                "w-full pl-12 pr-4 py-3.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm transition-all",
+                darkMode 
+                  ? "bg-white/5 border-2 border-white/10 text-white placeholder-white/20" 
+                  : "bg-white border-2 border-gray-200 text-gray-900 shadow-sm hover:border-gray-300"
+              )}
             />
           </div>
         </div>
@@ -169,11 +188,11 @@ export default function ActivityLog() {
         <div className="flex-1 overflow-y-auto">
           {filteredAutomations.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center p-8">
-              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+              <div className={cn("w-20 h-20 rounded-full flex items-center justify-center mb-4 transition-colors", darkMode ? "bg-white/5" : "bg-gray-100")}>
                 <Activity className="w-10 h-10 text-gray-400" />
               </div>
-              <p className="text-gray-700 font-medium text-lg mb-2">No automations found</p>
-              <p className="text-sm text-gray-500">
+              <p className={cn("font-medium text-lg mb-2", darkMode ? "text-white" : "text-gray-700")}>No automations found</p>
+              <p className={cn("text-sm", darkMode ? "text-white/40" : "text-gray-500")}>
                 Create automations to see their activity logs here
               </p>
             </div>
@@ -183,39 +202,50 @@ export default function ActivityLog() {
                 <button
                   key={automation.id}
                   onClick={() => setSelectedAutomation(automation.id)}
-                  className={`w-full p-4 flex items-center gap-4 hover:bg-gradient-to-r hover:from-green-50 hover:to-transparent transition-all text-left group ${selectedAutomation === automation.id
-                    ? 'bg-gradient-to-r from-green-50 via-emerald-50 to-transparent border-l-4 border-green-600 shadow-sm'
-                    : 'border-l-4 border-transparent'
-                    }`}
+                  className={cn(
+                    "w-full p-4 flex items-center gap-4 transition-all text-left group border-l-4",
+                    selectedAutomation === automation.id
+                      ? (darkMode ? "bg-white/[0.03] border-blue-500" : "bg-gradient-to-r from-green-50 via-emerald-50 to-transparent border-green-600 shadow-sm")
+                      : (darkMode ? "border-transparent hover:bg-white/[0.02]" : "border-transparent hover:bg-gradient-to-r hover:from-green-50 hover:to-transparent")
+                  )}
                 >
                   <div className={`w-14 h-14 rounded-xl ${automation.status === 'active' ? 'bg-gradient-to-br from-green-400 to-emerald-500' : 'bg-gray-200'} flex items-center justify-center flex-shrink-0 shadow-lg group-hover:shadow-xl transition-shadow`}>
-                    <Zap className={`w-7 h-7 ${automation.status === 'active' ? 'text-white' : 'text-gray-500'}`} />
+                    <Bot className={`w-7 h-7 ${automation.status === 'active' ? 'text-white' : 'text-gray-500'}`} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="text-sm font-bold text-gray-900 truncate flex-1">
+                      <p className={cn("text-sm font-bold truncate flex-1", darkMode ? "text-white" : "text-gray-900")}>
                         {automation.name}
                       </p>
                       <span className={`w-2.5 h-2.5 rounded-full ${automation.status === 'active' ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
                     </div>
                     <div className="flex items-center gap-2 mb-2">
-                      <p className="text-xs text-gray-600 truncate capitalize font-medium">
+                      <p className={cn("text-xs truncate capitalize font-medium", darkMode ? "text-white/40" : "text-gray-600")}>
                         {automation.trigger_type.replace('_', ' ')}
                       </p>
                       {automation.accountUsername && (
-                        <span className="text-[10px] font-semibold px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-full truncate">
+                        <span className={cn(
+                          "text-[10px] font-semibold px-2 py-0.5 border rounded-full truncate",
+                          darkMode ? "bg-blue-400/10 text-blue-400 border-blue-400/20" : "bg-purple-50 text-purple-700 border-purple-200"
+                        )}>
                           @{automation.accountUsername}
                         </span>
                       )}
                     </div>
                     <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-1.5 bg-blue-50 px-2 py-1 rounded-md">
+                      <div className={cn(
+                        "flex items-center gap-1.5 px-2 py-1 rounded-md",
+                        darkMode ? "bg-white/5" : "bg-blue-50"
+                      )}>
                         <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
-                        <span className="text-blue-700 font-semibold">
+                        <span className={cn("font-semibold", darkMode ? "text-blue-400" : "text-blue-700")}>
                           {automation.activityCount} execution{automation.activityCount !== 1 ? 's' : ''}
                         </span>
                       </div>
-                      <span className="text-gray-500 font-semibold px-2 py-0.5 bg-gray-100 rounded-full">{formatTimeAgo(automation.lastActivity)}</span>
+                      <span className={cn(
+                        "font-semibold px-2 py-0.5 rounded-full transition-colors",
+                        darkMode ? "text-white/40 bg-white/5" : "text-gray-500 bg-gray-100"
+                      )}>{formatTimeAgo(automation.lastActivity)}</span>
                     </div>
                   </div>
                 </button>
@@ -229,13 +259,16 @@ export default function ActivityLog() {
         {selectedAutomation ? (
           <AutomationActivityDetail automationId={selectedAutomation} />
         ) : (
-          <div className="h-full flex items-center justify-center bg-gradient-to-br from-white via-green-50/30 to-emerald-50/20">
+          <div className={cn("h-full flex items-center justify-center transition-colors", darkMode ? "bg-black" : "bg-gradient-to-br from-white via-green-50/30 to-emerald-50/20")}>
             <div className="text-center">
-              <div className="w-28 h-28 bg-gradient-to-br from-green-100 to-emerald-100 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl">
+              <div className={cn(
+                "w-28 h-28 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl transition-all",
+                darkMode ? "bg-white/5 shadow-none" : "bg-gradient-to-br from-green-100 to-emerald-100 shadow-xl"
+              )}>
                 <Activity className="w-14 h-14 text-green-600" />
               </div>
-              <p className="text-gray-900 font-bold text-2xl mb-2">Select an automation</p>
-              <p className="text-base text-gray-600">Choose an automation from the list to view its activity</p>
+              <p className={cn("font-bold text-2xl mb-2", darkMode ? "text-white" : "text-gray-900")}>Select an automation</p>
+              <p className={cn("text-base", darkMode ? "text-white/40" : "text-gray-600")}>Choose an automation from the list to view its activity</p>
             </div>
           </div>
         )}

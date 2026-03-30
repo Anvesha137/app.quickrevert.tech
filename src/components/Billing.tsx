@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Zap, Calendar, ChevronRight, Crown } from 'lucide-react';
+import { Bot, Calendar, ChevronRight, Crown } from 'lucide-react';
 import { useUpgradeModal } from '../contexts/UpgradeModalContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 
@@ -99,7 +99,7 @@ const Billing = () => {
                 </div>
               </div>
               <div className="w-16 h-16 bg-white/5 rounded-2xl border border-white/10 flex items-center justify-center backdrop-blur-xl shrink-0">
-                <Zap className="w-8 h-8 text-blue-500 fill-blue-500/20" />
+                <Bot className="w-8 h-8 text-blue-500" />
               </div>
             </div>
 

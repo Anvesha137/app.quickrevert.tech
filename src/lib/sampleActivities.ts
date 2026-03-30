@@ -1,20 +1,20 @@
 import { logComment, logReply, logFollowRequest, logDM, logDMSent } from './activityLogger';
 
 export async function createSampleActivities() {
-  await logComment('khushirohatgi_', 'Hey');
+  await logComment('creative_user', 'Hey');
 
-  await logReply('s.tella.ai', 'Just sent you a message 📩');
+  await logReply('quickrevert_bot', 'Just sent you a message 📩');
 
   await logFollowRequest(
-    's.tella.ai',
+    'quickrevert_bot',
     'Follow me for exciting offers and exclusive content! 🚀',
     true
   );
 
-  await logDM('khushirohatgi_', true, true);
+  await logDM('creative_user', true, true);
 
   await logDMSent(
-    's.tella.ai',
+    'quickrevert_bot',
     'Hey 👋 glad you reached out! Check this out',
     true
   );

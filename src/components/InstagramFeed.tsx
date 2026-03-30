@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ExternalLink, Users, Image as ImageIcon } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface InstagramProfile {
   id: string;
@@ -26,6 +27,7 @@ interface InstagramMedia {
 
 export default function InstagramFeed() {
   const { user } = useAuth();
+  const { darkMode } = useTheme();
   const [profile, setProfile] = useState<InstagramProfile | null>(null);
   const [media, setMedia] = useState<InstagramMedia[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,9 +52,9 @@ export default function InstagramFeed() {
 
   if (loading) {
     return (
-      <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border-2 border-gray-200 p-8">
+      <div className={`rounded-2xl border-2 p-8 transition-colors ${darkMode ? 'bg-white/5 border-white/10' : 'bg-white/80 backdrop-blur-sm border-gray-200 shadow-xl'}`}>
         <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-600"></div>
+          <div className={`animate-spin rounded-full h-8 w-8 border-b-2 ${darkMode ? 'border-white' : 'border-pink-600'}`}></div>
         </div>
       </div>
     );
@@ -73,60 +75,60 @@ export default function InstagramFeed() {
   }
 
   return (
-    <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border-2 border-gray-200 p-8">
+    <div className={`transition-colors p-8 ${darkMode ? 'bg-transparent border-none shadow-none' : 'bg-white/80 backdrop-blur-sm border-2 border-gray-200 rounded-2xl shadow-xl'}`}>
       <div className="flex items-center justify-between mb-8">
-        <h2 className="text-2xl font-bold text-gray-900">Instagram Feed</h2>
+        <h2 className={`text-2xl font-bold transition-colors ${darkMode ? 'text-white' : 'text-gray-900'}`}>Instagram Feed</h2>
         <a
           href={`https://instagram.com/${profile.username}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-pink-600 hover:text-pink-700 transition-colors"
+          className={`transition-colors ${darkMode ? 'text-white hover:text-gray-300' : 'text-pink-600 hover:text-pink-700'}`}
         >
           <ExternalLink size={20} />
         </a>
       </div>
 
-      <div className="mb-8 p-6 bg-gradient-to-br from-pink-50 via-rose-50 to-orange-50 rounded-2xl border-2 border-pink-200">
+      <div className={`mb-8 p-6 transition-colors ${darkMode ? 'bg-transparent border-none' : 'bg-gradient-to-br from-pink-50 via-rose-50 to-orange-50 border-2 border-pink-200 rounded-2xl'}`}>
         <div className="flex items-center gap-4 mb-6">
           <img
             src={profile.profile_picture_url}
             alt={profile.username}
-            className="w-20 h-20 rounded-full ring-4 ring-pink-200 shadow-lg"
+            className={`w-20 h-20 rounded-full shadow-lg ring-4 transition-all ${darkMode ? 'ring-white/20' : 'ring-pink-200'}`}
           />
           <div>
-            <h3 className="text-xl font-bold text-gray-900 mb-1">@{profile.username}</h3>
-            {profile.name && <p className="text-gray-600 font-medium">{profile.name}</p>}
+            <h3 className={`text-xl font-bold mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>@{profile.username}</h3>
+            {profile.name && <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'} font-medium`}>{profile.name}</p>}
           </div>
         </div>
 
         <div className="grid grid-cols-3 gap-4">
-          <div className="text-center p-4 bg-white rounded-xl shadow-sm">
+           <div className={`text-center p-4 transition-colors ${darkMode ? 'bg-transparent' : 'bg-white rounded-xl shadow-sm'}`}>
             <div className="flex items-center justify-center gap-2 mb-2">
-              <ImageIcon size={20} className="text-pink-600" />
-              <p className="text-2xl font-bold text-gray-900">{(profile.media_count || 0).toLocaleString()}</p>
+              <ImageIcon size={20} className={`${darkMode ? 'text-white' : 'text-pink-600'}`} />
+              <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{(profile.media_count || 0).toLocaleString()}</p>
             </div>
-            <p className="text-sm text-gray-600 font-medium">Posts</p>
+            <p className={`text-sm font-medium ${darkMode ? 'text-white/70' : 'text-gray-600'}`}>Posts</p>
           </div>
-          <div className="text-center p-4 bg-white rounded-xl shadow-sm">
+          <div className={`text-center p-4 transition-colors ${darkMode ? 'bg-transparent' : 'bg-white rounded-xl shadow-sm'}`}>
             <div className="flex items-center justify-center gap-2 mb-2">
-              <Users size={20} className="text-rose-600" />
-              <p className="text-2xl font-bold text-gray-900">{(profile.followers_count || 0).toLocaleString()}</p>
+              <Users size={20} className={darkMode ? 'text-white' : 'text-rose-600'} />
+              <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{(profile.followers_count || 0).toLocaleString()}</p>
             </div>
-            <p className="text-sm text-gray-600 font-medium">Followers</p>
+            <p className={`text-sm font-medium ${darkMode ? 'text-white/70' : 'text-gray-600'}`}>Followers</p>
           </div>
-          <div className="text-center p-4 bg-white rounded-xl shadow-sm">
+          <div className={`text-center p-4 transition-colors ${darkMode ? 'bg-transparent' : 'bg-white rounded-xl shadow-sm'}`}>
             <div className="flex items-center justify-center gap-2 mb-2">
-              <Users size={20} className="text-orange-600" />
-              <p className="text-2xl font-bold text-gray-900">{(profile.follows_count || 0).toLocaleString()}</p>
+              <Users size={20} className={darkMode ? 'text-white' : 'text-orange-600'} />
+              <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{(profile.follows_count || 0).toLocaleString()}</p>
             </div>
-            <p className="text-sm text-gray-600 font-medium">Following</p>
+            <p className={`text-sm font-medium ${darkMode ? 'text-white/70' : 'text-gray-600'}`}>Following</p>
           </div>
         </div>
       </div>
 
       {media.length > 0 ? (
         <>
-          <h3 className="text-lg font-bold text-gray-900 mb-4">Recent Posts</h3>
+          <h3 className={`text-lg font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Recent Posts</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {media.map((item) => (
               <a
@@ -134,7 +136,7 @@ export default function InstagramFeed() {
                 href={item.permalink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group relative aspect-square overflow-hidden rounded-xl border-2 border-gray-200 hover:border-pink-300 transition-all shadow-md hover:shadow-xl"
+                className={`group relative aspect-square overflow-hidden rounded-xl border-2 transition-all ${darkMode ? 'border-white/10 hover:border-white shadow-none' : 'border-gray-200 hover:border-pink-300 shadow-md hover:shadow-xl'}`}
               >
                 <img
                   src={item.media_type === 'VIDEO' ? item.thumbnail_url : item.media_url}

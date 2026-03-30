@@ -7,8 +7,13 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
-import { AutomationFormData, TriggerType, TriggerConfig, ReplyToCommentAction, SendDmAction } from '../types/automation';
+import {
+  AutomationFormData, TriggerType, TriggerConfig,
+  PostCommentTriggerConfig, StoryReplyTriggerConfig, UserDirectMessageTriggerConfig,
+  ReplyToCommentAction, SendDmAction
+} from '../types/automation';
 import { N8nWorkflowService } from '../lib/n8nService';
 import TriggerSelection from './automation-steps/TriggerSelection';
 import AutomationConfigureGenz from './automation-steps/AutomationConfigure_genz';
@@ -20,21 +25,27 @@ function cn(...inputs: ClassValue[]) {
 
 // --- Reusable Glass Components ---
 
-const GlassCard = ({ children, className, delay = 0, noPadding = false }: any) => (
-  <motion.div
-    initial={{ opacity: 0, scale: 0.95 }}
-    animate={{ opacity: 1, scale: 1 }}
-    transition={{ duration: 0.4, delay: delay, ease: "easeOut" }}
-    className={cn(
-      "relative rounded-3xl border border-white/60 bg-white/40 shadow-xl backdrop-blur-2xl transition-all hover:border-white/80 group overflow-hidden",
-      !noPadding && "p-8",
-      className
-    )}
-  >
-    <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-white/5 to-transparent pointer-events-none opacity-50 group-hover:opacity-70 transition-opacity" />
-    <div className="relative z-10">{children}</div>
-  </motion.div>
-);
+const GlassCard = ({ children, className, delay = 0, noPadding = false }: any) => {
+  const { darkMode } = useTheme();
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.4, delay: delay, ease: "easeOut" }}
+      className={cn(
+        "relative rounded-3xl transition-all duration-500 overflow-hidden",
+        darkMode 
+          ? "bg-transparent border-none shadow-none" 
+          : "border border-white/60 bg-white/40 shadow-xl backdrop-blur-2xl hover:border-white/80 group",
+        !noPadding && "p-8",
+        className
+      )}
+    >
+      {!darkMode && <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-white/5 to-transparent pointer-events-none opacity-50 group-hover:opacity-70 transition-opacity" />}
+      <div className="relative z-10">{children}</div>
+    </motion.div>
+  );
+};
 
 type Step = 'setup' | 'configuration';
 
@@ -44,7 +55,8 @@ interface AutomationCreateProps {
 
 export default function AutomationCreate({ readOnly = false }: AutomationCreateProps) {
   const { user } = useAuth();
-  const { hasInstagramConnected, loading: subLoading, initialFetchDone } = useSubscription();
+  const { darkMode } = useTheme();
+  const { isPremium: subIsPremium, hasInstagramConnected, loading: subLoading, initialFetchDone } = useSubscription();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   // For view mode, show configuration directly if loaded, or just stick to 'setup' -> 'configuration' flow but pre-filled?
@@ -144,6 +156,16 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
 
       if (error) throw error;
       if (data) {
+        // Safety: Prevent editing if active
+        if (data.status === 'active' && !readOnly) {
+          toast.error('This automation is active. Please deactivate it first to make changes.', {
+            description: 'Redirecting to view mode...',
+            duration: 5000,
+          });
+          navigate(`/automation/view/${automationId}`, { replace: true });
+          return;
+        }
+
         setFormData({
           name: data.name,
           triggerType: data.trigger_type,
@@ -171,6 +193,32 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
 
 
 
+  const validateTriggerConfig = (type: TriggerType, config: TriggerConfig): { message: string, sectionId: string } | null => {
+    if (type === 'post_comment') {
+      const c = config as PostCommentTriggerConfig;
+      if (c.postsType === 'specific' && (!c.specificPosts || c.specificPosts.length === 0)) {
+        return { message: "Please select at least one post.", sectionId: 'genz-post-selection' };
+      }
+      if (c.commentsType === 'keywords' && (!c.keywords || c.keywords.length === 0)) {
+        return { message: "Please add at least one keyword.", sectionId: 'genz-keyword-selection' };
+      }
+    } else if (type === 'story_reply') {
+      const c = config as StoryReplyTriggerConfig;
+      if (c.storiesType === 'specific' && (!c.specificStories || c.specificStories.length === 0)) {
+        return { message: "Please select at least one story.", sectionId: 'genz-post-selection' };
+      }
+      if (c.replyType === 'keywords' && (!c.keywords || c.keywords.length === 0)) {
+        return { message: "Please add at least one keyword.", sectionId: 'genz-keyword-selection' };
+      }
+    } else if (type === 'user_directed_messages') {
+      const c = config as UserDirectMessageTriggerConfig;
+      if (c.messageType === 'keywords' && (!c.keywords || c.keywords.length === 0)) {
+        return { message: "Please add at least one keyword.", sectionId: 'genz-keyword-selection' };
+      }
+    }
+    return null;
+  };
+
   // Re-implementing handleSave just to be safe with the replace block
   const executeSave = async () => {
     if (!user) {
@@ -194,6 +242,15 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
     if (!formData.triggerConfig) {
       console.error('Trigger configuration is required');
       toast.error('Please configure your trigger');
+      return;
+    }
+
+    const configError = validateTriggerConfig(formData.triggerType, formData.triggerConfig);
+    if (configError) {
+      toast.error(configError.message);
+      const el = document.getElementById(configError.sectionId);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      else window.scrollTo({ top: 300, behavior: 'smooth' });
       return;
     }
 
@@ -320,29 +377,36 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
   };
 
   return (
-    <div className="flex-1 relative min-h-screen overflow-x-hidden p-4 md:p-8">
+    <div className={cn("flex-1 relative min-h-screen overflow-x-hidden p-4 md:p-8 transition-colors duration-500", darkMode ? "bg-black" : "bg-[#f8fafc]")}>
       {/* Animated Background Blobs */}
-      <div className="fixed inset-0 -z-10 bg-[#f8fafc]">
-        <div className="absolute top-0 -left-4 w-[500px] h-[500px] bg-blue-100/30 rounded-full mix-blend-multiply filter blur-3xl animate-blob opacity-70"></div>
-        <div className="absolute top-1/4 -right-4 w-[500px] h-[500px] bg-indigo-100/20 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000 opacity-60"></div>
-        <div className="absolute -bottom-20 left-1/4 w-[600px] h-[600px] bg-slate-200/30 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000 opacity-50"></div>
-      </div>
+      {!darkMode && (
+        <div className="fixed inset-0 -z-10 bg-[#f8fafc]">
+          <div className="absolute top-0 -left-4 w-[500px] h-[500px] bg-blue-100/30 rounded-full mix-blend-multiply filter blur-3xl animate-blob opacity-70"></div>
+          <div className="absolute top-1/4 -right-4 w-[500px] h-[500px] bg-indigo-100/20 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000 opacity-60"></div>
+          <div className="absolute -bottom-20 left-1/4 w-[600px] h-[600px] bg-slate-200/30 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000 opacity-50"></div>
+        </div>
+      )}
 
       <div className="max-w-6xl mx-auto space-y-8">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white/60 backdrop-blur-xl p-4 md:p-6 rounded-3xl border border-white/80 shadow-sm"
+          className={cn(
+            "flex flex-col md:flex-row md:items-center justify-between gap-6 p-4 md:p-6 rounded-3xl transition-all duration-300",
+            darkMode 
+              ? "bg-transparent border-none" 
+              : "bg-white/60 backdrop-blur-xl border border-white/80 shadow-sm"
+          )}
         >
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate('/automation')}
-              className="text-slate-500 hover:text-purple-600 transition-colors"
+              className={cn("transition-colors font-bold text-base", darkMode ? "text-white/60 hover:text-white" : "text-slate-500 hover:text-purple-600")}
             >
-              <span className="font-semibold text-sm">Automation</span>
+              Automation
             </button>
-            <span className="text-slate-300">/</span>
-
+            <span className={cn("transition-colors text-lg", darkMode ? "text-white/20" : "text-slate-300")}>/</span>
+ 
             <div className="flex items-center group relative">
               <input
                 type="text"
@@ -350,18 +414,27 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
                 onChange={(e) => !readOnly && setFormData({ ...formData, name: e.target.value })}
                 placeholder="Untitled*"
                 disabled={readOnly}
-                className="bg-transparent border-none outline-none text-xl font-bold text-slate-800 placeholder-slate-400 focus:ring-0 p-0 w-[200px]"
+                className={cn(
+                  "bg-transparent border-none outline-none text-2xl md:text-3xl font-black placeholder-white/20 focus:ring-0 p-0 w-[300px] transition-all",
+                  darkMode ? "text-white" : "text-slate-800 placeholder-slate-400"
+                )}
               />
-              {!readOnly && <Pencil size={16} className="text-slate-400 ml-2" />}
+              {!readOnly && <Pencil size={20} className={cn("ml-3 transition-colors", darkMode ? "text-white/40" : "text-slate-400")} />}
             </div>
           </div>
-
+ 
           <div className="flex items-center gap-4">
             <button
               onClick={executeSave}
               disabled={saving || readOnly}
-              className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-semibold text-sm transition-all shadow-md shadow-purple-500/20 flex items-center gap-2"
+              className={cn(
+                "px-6 py-3 rounded-xl font-semibold text-sm transition-all flex items-center gap-2",
+                darkMode 
+                  ? `bg-gradient-to-r ${subIsPremium ? 'from-indigo-600 to-violet-700 shadow-indigo-500/50' : 'from-blue-500 to-purple-600 shadow-purple-500/50'} text-white hover:brightness-110 border-transparent`
+                  : "bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-md shadow-purple-500/20"
+              )}
             >
+              <Check size={18} className="stroke-[3]" />
               {saving ? 'Saving...' : 'Save Automation'}
             </button>
           </div>
@@ -427,18 +500,33 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
                         selectedTrigger={formData.triggerType}
                         onTriggerSelect={(triggerType: TriggerType) => {
                           if (readOnly) return;
-                          let defaultConfig: TriggerConfig;
+                          let defaultConfig: TriggerConfig | null = null;
                           if (triggerType === 'post_comment') {
-                            defaultConfig = { postsType: 'all', commentsType: 'all' };
+                            defaultConfig = { postsType: 'specific', commentsType: 'all', keywords: [] } as PostCommentTriggerConfig;
                           } else if (triggerType === 'story_reply') {
-                            defaultConfig = { storiesType: 'all', replyType: 'all' };
-                          } else {
-                            defaultConfig = { messageType: 'all' };
+                            defaultConfig = { storiesType: 'specific', replyType: 'all', keywords: [] } as StoryReplyTriggerConfig;
+                          } else if (triggerType === 'user_directed_messages') {
+                            defaultConfig = { messageType: 'all', keywords: [], cooldownEnabled: true, cooldownDuration: 3600000 } as UserDirectMessageTriggerConfig;
                           }
+                          let defaultActions: any[] = [];
+                          if (triggerType === 'post_comment') {
+                            defaultActions = [{
+                              type: 'reply_to_comment',
+                              replyTemplates: [
+                                'Ayyy check your DMs 👀✨',
+                                'Just dropped you a message 💌🔥',
+                                'Doneee, sent you the details 🫶📩',
+                                'You got a lil surprise in your inbox 😌💫'
+                              ],
+                              actionButtons: []
+                            }];
+                          }
+
                           setFormData({
                             ...formData,
                             triggerType,
-                            triggerConfig: defaultConfig
+                            triggerConfig: defaultConfig,
+                            actions: defaultActions
                           });
                         }}
                         onNext={(triggerContextType?: TriggerType) => {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Sparkles, Zap } from 'lucide-react';
+import { Check, Sparkles, Bot } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useUpgradeModal } from '../contexts/UpgradeModalContext';
@@ -43,7 +43,7 @@ export default function Pricing() {
                         <img src="/Logo_optimized.png" alt="QuickRevert Logo" className="w-12 h-12 object-contain" />
                     </div>
                     <h1 className="text-4xl font-black tracking-tighter text-gray-900">QuickRevert</h1>
-                    <p className="text-sm text-gray-500 font-medium tracking-wide max-w-[200px] leading-relaxed">
+                    <p className="text-sm text-gray-600 font-black tracking-wide max-w-[200px] leading-relaxed">
                         Intelligent Responses | Zero Wait Time | 24x7
                     </p>
                     <div className="mt-12 space-y-4">
@@ -52,7 +52,7 @@ export default function Pricing() {
                             className="text-gray-400 hover:text-gray-900 transition-colors text-sm font-bold underline-offset-4 hover:underline flex items-center justify-center gap-2 mx-auto"
                         >
                             <span>Start with free plan</span>
-                            <Zap className="w-3 h-3 fill-current" />
+                            <Bot className="w-3 h-3 text-current" />
                         </button>
 
                     </div>

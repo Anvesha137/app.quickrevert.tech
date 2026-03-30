@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Search, User, CheckCircle2, XCircle, MessageSquare, Clock, Users as UsersIcon, ExternalLink } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -23,6 +24,7 @@ interface Contact {
 
 export default function Contacts() {
   const { user } = useAuth();
+  const { darkMode } = useTheme();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -326,30 +328,37 @@ export default function Contacts() {
   }
 
   return (
-    <div className="flex-1 relative min-h-screen overflow-x-hidden">
-      <div className="fixed inset-0 -z-10 bg-[#f8fafc]">
-        <div className="absolute top-0 -left-4 w-96 h-96 bg-blue-400/10 rounded-full mix-blend-multiply filter blur-3xl animate-blob"></div>
-        <div className="absolute top-0 -right-4 w-96 h-96 bg-purple-400/10 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000"></div>
-        <div className="absolute inset-0 opacity-5" style={{
-          backgroundImage: `url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS1vcGFjaXR5PSIwLjA1IiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=")`
-        }}></div>
-      </div>
+    <div className={cn("flex-1 relative min-h-screen overflow-x-hidden transition-colors duration-500", darkMode ? "bg-black" : "bg-[#f8fafc]")}>
+      {!darkMode && (
+        <div className="fixed inset-0 -z-10">
+          <div className="absolute top-0 -left-4 w-96 h-96 bg-blue-400/10 rounded-full mix-blend-multiply filter blur-3xl animate-blob"></div>
+          <div className="absolute top-0 -right-4 w-96 h-96 bg-purple-400/10 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000"></div>
+          <div className="absolute inset-0 opacity-5" style={{
+            backgroundImage: `url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS1vcGFjaXR5PSIwLjA1IiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=")`
+          }}></div>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-800 tracking-tight flex items-center gap-3">
+            <h1 className={cn("text-3xl font-bold tracking-tight flex items-center gap-3", darkMode ? "text-white" : "text-gray-800")}>
               <UsersIcon className="w-8 h-8 text-blue-600" />
               Contacts
             </h1>
-            <p className="text-gray-600 mt-1">Track and manage your automated audience interactions</p>
+            <p className={cn("mt-1", darkMode ? "text-white/60" : "text-gray-600")}>Track and manage your automated audience interactions</p>
           </div>
 
           <div className="flex items-center gap-4 w-full md:w-auto">
             <button
               onClick={manualSync}
               disabled={isSyncing}
-              className="flex items-center gap-2 px-6 py-3.5 bg-white/60 backdrop-blur-xl border border-white/40 rounded-2xl text-sm font-bold text-gray-700 hover:bg-white hover:shadow-lg transition-all disabled:opacity-50"
+              className={cn(
+                "flex items-center gap-2 px-6 py-3.5 rounded-2xl text-sm font-bold transition-all disabled:opacity-50",
+                darkMode 
+                  ? "bg-white/5 border border-white/10 text-white hover:bg-white/10" 
+                  : "bg-white/60 backdrop-blur-xl border border-white/40 text-gray-700 hover:bg-white hover:shadow-lg"
+              )}
             >
               <Clock className={cn("w-4 h-4 text-blue-500", isSyncing && "animate-spin")} />
               {isSyncing ? 'Syncing...' : 'Sync History'}
@@ -362,33 +371,38 @@ export default function Contacts() {
                 placeholder="Search by username or name..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-12 pr-4 py-3.5 backdrop-blur-xl bg-white/60 border border-white/40 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-lg transition-all"
+                className={cn(
+                  "w-full pl-12 pr-4 py-3.5 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all",
+                  darkMode
+                    ? "bg-white/5 border border-white/10 text-white placeholder-white/30"
+                    : "backdrop-blur-xl bg-white/60 border border-white/40 text-gray-900 placeholder-gray-400 shadow-lg"
+                )}
               />
             </div>
           </div>
         </div>
 
-        <div className="backdrop-blur-xl bg-white/60 border border-white/40 rounded-3xl shadow-2xl overflow-hidden">
+        <div className={cn("rounded-3xl overflow-hidden transition-all", darkMode ? "bg-transparent border-none shadow-none" : "backdrop-blur-xl bg-white/60 border border-white/40 shadow-2xl")}>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-white/40 border-b border-white/20">
-                  <th className="px-6 py-5 text-xs font-bold text-gray-500 uppercase tracking-widest">User Details</th>
-                  <th className="px-6 py-5 text-xs font-bold text-gray-500 uppercase tracking-widest">Automations</th>
-                  <th className="px-6 py-5 text-xs font-bold text-gray-500 uppercase tracking-widest text-center">Interactions</th>
-                  <th className="px-6 py-5 text-xs font-bold text-gray-500 uppercase tracking-widest">Last Active</th>
+                <tr className={cn("border-b transition-colors", darkMode ? "bg-transparent border-white/5" : "bg-white/40 border-white/20")}>
+                  <th className={cn("px-6 py-5 text-xs font-bold uppercase tracking-widest", darkMode ? "text-white/40" : "text-gray-500")}>User Details</th>
+                  <th className={cn("px-6 py-5 text-xs font-bold uppercase tracking-widest", darkMode ? "text-white/40" : "text-gray-500")}>Automations</th>
+                  <th className={cn("px-6 py-5 text-xs font-bold uppercase tracking-widest text-center", darkMode ? "text-white/40" : "text-gray-500")}>Interactions</th>
+                  <th className={cn("px-6 py-5 text-xs font-bold uppercase tracking-widest", darkMode ? "text-white/40" : "text-gray-500")}>Last Active</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/20">
+              <tbody className={cn("divide-y transition-colors", darkMode ? "divide-white/5" : "divide-white/20")}>
                 {filteredContacts.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-6 py-20 text-center">
                       <div className="flex flex-col items-center justify-center">
-                        <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mb-4 shadow-inner">
+                        <div className={cn("w-16 h-16 rounded-full flex items-center justify-center mb-4 shadow-inner", darkMode ? "bg-white/5 text-white/40" : "bg-blue-100 text-blue-600")}>
                           <User className="w-8 h-8" />
                         </div>
-                        <p className="text-gray-800 font-bold text-lg">No contacts yet</p>
-                        <p className="text-gray-500 text-sm max-w-xs mx-auto">Connect your Instagram and start your first automation to see your audience here.</p>
+                        <p className={cn("font-bold text-lg", darkMode ? "text-white" : "text-gray-800")}>No contacts yet</p>
+                        <p className={cn("text-sm max-w-xs mx-auto", darkMode ? "text-white/40" : "text-gray-500")}>Connect your Instagram and start your first automation to see your audience here.</p>
                       </div>
                     </td>
                   </tr>
@@ -414,27 +428,27 @@ export default function Contacts() {
                               if (isGeneratedId) {
                                 return (
                                   <div className="flex flex-col">
-                                    <span className="text-sm font-bold text-gray-900">
+                                    <span className={cn("text-sm font-bold", darkMode ? "text-white" : "text-gray-900")}>
                                       {hasRealName ? contact.full_name : 'Instagram User'}
                                     </span>
                                   </div>
                                 );
                               }
-
+ 
                               return (
                                 <>
                                   <div className="flex items-center gap-2">
-                                    <span className="text-sm font-bold text-gray-900">@{contact.username}</span>
+                                    <span className={cn("text-sm font-bold", darkMode ? "text-white" : "text-gray-900")}>@{contact.username}</span>
                                     <a
                                       href={`https://instagram.com/${contact.username}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="text-gray-400 hover:text-blue-500 transition-colors"
+                                      className={cn("transition-colors", darkMode ? "text-white/40 hover:text-blue-400" : "text-gray-400 hover:text-blue-500")}
                                     >
                                       <ExternalLink className="w-3 h-3" />
                                     </a>
                                   </div>
-                                  <div className="text-xs text-gray-500 font-medium">{contact.full_name || 'Instagram User'}</div>
+                                  <div className={cn("text-xs font-medium", darkMode ? "text-white/40" : "text-gray-500")}>{contact.full_name || 'Instagram User'}</div>
                                 </>
                               );
                             })()}
@@ -448,23 +462,33 @@ export default function Contacts() {
                           const autos = (psid && automationNames[psid]) || automationNames[normalized] || contact.interacted_automations;
 
                           return autos?.length > 0 ? (
-                            <div className="text-xs font-bold text-blue-600 bg-blue-50/50 px-3 py-1.5 rounded-xl border border-blue-100 inline-block max-w-[200px] truncate" title={autos.join(', ')}>
+                            <div className={cn(
+                              "text-xs font-bold px-3 py-1.5 rounded-xl border inline-block max-w-[200px] truncate",
+                              darkMode 
+                                ? "text-blue-400 bg-blue-400/10 border-blue-400/20" 
+                                : "text-blue-600 bg-blue-50/50 border-blue-100"
+                            )} title={autos.join(', ')}>
                               {autos.join(', ')}
                             </div>
                           ) : (
-                            <span className="text-gray-400 text-[10px] font-medium italic">No triggers yet</span>
+                            <span className={cn("text-[10px] font-medium italic", darkMode ? "text-white/20" : "text-gray-400")}>No triggers yet</span>
                           );
                         })()}
                       </td>
                       <td className="px-6 py-5 text-center">
-                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/60 rounded-xl text-gray-800 font-bold text-sm shadow-sm border border-white/50">
+                        <div className={cn(
+                          "inline-flex items-center gap-2 px-4 py-1.5 rounded-xl font-bold text-sm shadow-sm border transition-colors",
+                          darkMode 
+                            ? "bg-white/5 text-white border-white/10" 
+                            : "bg-white/60 text-gray-800 border-white/50"
+                        )}>
                           <MessageSquare className="w-3.5 h-3.5 text-blue-500" />
                           {contact.interaction_count}
                         </div>
                       </td>
                       <td className="px-6 py-5">
-                        <div className="flex items-center gap-2.5 text-xs font-medium text-gray-600">
-                          <Clock className="w-4 h-4 text-gray-400" />
+                        <div className={cn("flex items-center gap-2.5 text-xs font-medium transition-colors", darkMode ? "text-white/40" : "text-gray-600")}>
+                          <Clock className={cn("w-4 h-4", darkMode ? "text-white/20" : "text-gray-400")} />
                           {formatRelativeTime(contact.last_interaction_at)}
                         </div>
                       </td>

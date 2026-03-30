@@ -51,14 +51,34 @@ Deno.serve(async (req: Request) => {
       headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey },
     });
 
-    if (!deactResp.ok) console.warn(`N8N Deactivation Warning: ${await deactResp.text()}`);
+    if (!deactResp.ok) {
+      const errorText = await deactResp.text();
+      console.error(`n8n deactivation failed with status ${deactResp.status}:`, errorText);
+      throw new Error(`n8n deactivation failed: ${errorText || deactResp.statusText}`);
+    }
 
     // 3. Update automation_routes (Stop Routing)
-    // Validate User ID again in the update query for double safety
-    await supabase.from('automation_routes')
+    // Only update if N8N successfully deactivated to keep state in sync
+    const { error: routeError } = await supabase.from('automation_routes')
       .update({ is_active: false })
       .eq('n8n_workflow_id', workflowId)
       .eq('user_id', user.id);
+
+    if (routeError) {
+      console.error("Failed to deactivate database routes:", routeError);
+      throw new Error(`Database Deactivation Failed: ${routeError.message}`);
+    }
+
+    // 4. Update n8n_workflows table status
+    const { error: wfUpdateError } = await supabase.from('n8n_workflows')
+      .update({ is_active: false })
+      .eq('n8n_workflow_id', workflowId)
+      .eq('user_id', user.id);
+
+    if (wfUpdateError) {
+      console.error("Failed to update n8n_workflow status:", wfUpdateError);
+      throw new Error(`Workflow Table Update Failed: ${wfUpdateError.message}`);
+    }
 
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" }

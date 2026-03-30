@@ -42,6 +42,33 @@ serve(async (req) => {
         // planType is 'annual' or 'quarterly' (from frontend billingCycle)
         const { couponCode, planType } = await req.json();
 
+        // 🔒 RATE LIMITING: Prevent brute-forcing coupon codes
+        const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString();
+        const { count: attemptCount } = await supabaseClient
+            .from('automation_activities')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', user.id)
+            .eq('activity_type', 'coupon_check')
+            .gte('executed_at', oneMinuteAgo);
+
+        if ((attemptCount || 0) > 10) {
+            console.warn(`[SECURITY] Rate limit exceeded for coupon validation: User ${user.id}`);
+            return new Response(
+                JSON.stringify({ valid: false, message: 'Too many attempts. Please try again in a minute.' }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 429 }
+            );
+        }
+
+        // Log this attempt (for rate-limiting and audit)
+        await supabaseClient.from('automation_activities').insert({
+            user_id: user.id,
+            automation_id: '00000000-0000-0000-0000-000000000000', // Dummy UUID for non-automation activity
+            activity_type: 'coupon_check',
+            status: 'success',
+            message: `Validated coupon: ${couponCode}`,
+            metadata: { coupon: couponCode, plan: planType }
+        });
+
         if (!couponCode || !couponCode.trim()) {
             return new Response(
                 JSON.stringify({ valid: false, message: 'Please enter a coupon code.' }),

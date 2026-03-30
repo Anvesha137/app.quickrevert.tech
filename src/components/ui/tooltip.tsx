@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import * as TooltipPrimitive from "@radix-ui/react-tooltip@1.1.8";
+import * as TooltipPrimitive from "@radix-ui/react-tooltip";
+import { useTheme } from "../../contexts/ThemeContext";
 
 import { cn } from "./utils";
 
@@ -36,23 +37,27 @@ function TooltipTrigger({
 
 function TooltipContent({
   className,
-  sideOffset = 0,
+  sideOffset = 4,
   children,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Content>) {
+  const { darkMode } = useTheme();
+
   return (
     <TooltipPrimitive.Portal>
       <TooltipPrimitive.Content
         data-slot="tooltip-content"
         sideOffset={sideOffset}
         className={cn(
-          "bg-primary text-primary-foreground animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 w-fit origin-(--radix-tooltip-content-transform-origin) rounded-md px-3 py-1.5 text-xs text-balance",
+          "z-50 w-fit origin-(--radix-tooltip-content-transform-origin) rounded-xl px-3 py-1.5 text-[11px] font-bold shadow-xl animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 transition-all duration-300",
+          darkMode ? "bg-white text-black border-white shadow-white/10" : "bg-blue-600 text-white border-blue-500/50 shadow-blue-500/10",
+          "border shadow-2xl backdrop-blur-sm",
           className,
         )}
         {...props}
       >
         {children}
-        <TooltipPrimitive.Arrow className="bg-primary fill-primary z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px]" />
+        <TooltipPrimitive.Arrow className={cn("z-50 size-2.5 transition-colors duration-300", darkMode ? "fill-white" : "fill-blue-600")} />
       </TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>
   );

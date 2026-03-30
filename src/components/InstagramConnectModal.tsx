@@ -69,7 +69,6 @@ const InstagramConnectModal = ({ isOpen, onClose }: Omit<InstagramConnectModalPr
     fetchOAuthUrl();
   }, [isOpen]);
 
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
 
   const handleConnect = (e: React.MouseEvent) => {
     if (loading || (!oauthUrl && !directRedirectUrl)) {
@@ -103,14 +102,14 @@ const InstagramConnectModal = ({ isOpen, onClose }: Omit<InstagramConnectModalPr
           <X size={20} />
         </button>
 
-        <div className="p-8 pt-10 flex flex-col items-center">
+        <div className="p-6 pt-8 flex flex-col items-center">
           {/* Logo Branding */}
-          <div className="flex items-center gap-1 justify-center mb-8">
+          <div className="flex items-center gap-1 justify-center mb-6">
             <img src="/Logo_optimized.png" alt="QuickRevert Logo" className="w-12 h-12 object-contain" />
             <h1 className="font-bold text-gray-800 text-3xl tracking-tighter">QuickRevert</h1>
           </div>
 
-          <div className="text-center mb-8">
+          <div className="text-center mb-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-2 flex items-center justify-center gap-2">
               Connect Instagram Account ✨
             </h2>
@@ -119,29 +118,24 @@ const InstagramConnectModal = ({ isOpen, onClose }: Omit<InstagramConnectModalPr
 
 
 
-          {/* Info Block */}
-          <div className="w-full p-6 rounded-2xl bg-[#FDF4FF] border border-purple-100 mb-8 text-left">
-            <div className="flex items-center gap-2 mb-2">
-              <Infinity className="w-5 h-5 text-purple-600" />
-              <h3 className="font-bold text-purple-600 text-lg">Official Meta API Integration</h3>
+          {/* Balanced Meta API Info Block */}
+          <div className="w-full p-3 rounded-xl bg-[#FDF4FF] border border-purple-100 mb-6 text-left">
+            <div className="flex items-center gap-2 mb-1">
+              <Infinity className="w-4 h-4 text-purple-600" />
+              <h3 className="font-bold text-purple-600 text-sm italic">Official Meta API Integration</h3>
             </div>
-            <p className="text-gray-600 text-sm leading-relaxed">
-              We only use official Instagram APIs and processes. Your Instagram account is secure.
+            <p className="text-gray-600 text-[11px] leading-snug mb-2 opacity-90">
+              We only use official Instagram APIs and processes. Your account is secure.
             </p>
-          </div>
-
-          <div className="w-full space-y-4 mb-8 pl-2">
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                <CheckCircle className="w-4 h-4 text-emerald-500" />
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-purple-100/30">
+              <div className="flex items-center gap-1.5">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                <span className="text-[10px] font-bold text-gray-700">Official Meta OAuth</span>
               </div>
-              <span className="text-base font-medium text-gray-700">Official Meta OAuth login</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                <CheckCircle className="w-4 h-4 text-emerald-500" />
+              <div className="flex items-center gap-1.5">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                <span className="text-[10px] font-bold text-gray-700">Safe and Secure</span>
               </div>
-              <span className="text-base font-medium text-gray-700">Safe and Secure</span>
             </div>
           </div>
 
@@ -170,10 +164,13 @@ const InstagramConnectModal = ({ isOpen, onClose }: Omit<InstagramConnectModalPr
             )}
           </a>
 
-          {isIOS && !loading && (
-            <p className="text-[10px] text-gray-400 mb-4 px-4 leading-tight italic">
-              <strong>Tip for iPhone:</strong> If it opens the Instagram app automatically, long-press the button above and select <strong>"Open in New Tab"</strong> to stay in the browser.
-            </p>
+          {!loading && (
+            <div className="w-full p-4 rounded-xl bg-blue-50 border border-blue-100 mb-4 flex gap-3 text-left">
+              <span className="text-xl">💡</span>
+              <p className="text-[11px] text-blue-800 leading-relaxed">
+                <strong>iPhone Users:</strong> If clicking "Login" opens the Instagram app automatically, please <strong>long-press</strong> the button above and select <strong>"Open in New Tab"</strong> to successfully connect.
+              </p>
+            </div>
           )}
 
           <div className="text-center w-full">
@@ -184,9 +181,9 @@ const InstagramConnectModal = ({ isOpen, onClose }: Omit<InstagramConnectModalPr
               <button onClick={() => setShowPrivacy(true)} className="font-medium text-blue-500 hover:underline">Privacy Policy</button>
             </p>
 
-            <div className="mt-6 p-4 bg-orange-50 border border-orange-100 rounded-2xl">
-              <p className="text-xs text-orange-800 font-medium leading-relaxed">
-                <strong>Note:</strong> Please ensure you are connecting a <strong>Creator</strong> or <strong>Business</strong> Instagram account.
+            <div className="mt-4 p-3 bg-orange-50 border border-orange-100 rounded-xl">
+              <p className="text-[10px] text-orange-800 font-medium leading-tight text-center">
+                <strong>Note:</strong> Connecting a <strong>Creator</strong> or <strong>Business</strong> account is required.
               </p>
             </div>
           </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Zap, Clock } from 'lucide-react';
+import { Bot, Clock, MessageSquare, Image as ImageIcon, Mail } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -124,8 +124,15 @@ export default function TopAutomations() {
               onClick={() => navigate('/automation')}
               className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all group cursor-pointer"
             >
-              <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-2 rounded-lg">
-                <Zap className="w-4 h-4 text-white" />
+              <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-2 rounded-lg shrink-0">
+                {(() => {
+                  switch (automation.trigger_type) {
+                    case 'post_comment': return <MessageSquare className="w-4 h-4 text-white" />;
+                    case 'story_reply': return <ImageIcon className="w-4 h-4 text-white" />;
+                    case 'user_directed_messages': return <Mail className="w-4 h-4 text-white" />;
+                    default: return <Bot className="w-4 h-4 text-white" />;
+                  }
+                })()}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900 group-hover:text-blue-600 transition-colors truncate">

@@ -40,12 +40,11 @@ serve(async (req) => {
                 return new Response("Config Error", { status: 500 });
             }
 
-            // BYPASS SIGNATURE CHECK FOR DEBUGGING
-            // if (!await verifySignature(signature, body, META_APP_SECRET)) {
-            //    console.error("Invalid Signature");
-            //    return new Response("Unauthorized", { status: 403 });
-            // }
-            console.log("Signature Check Bypassed");
+            if (!await verifySignature(signature, body, META_APP_SECRET)) {
+               console.error("Invalid Signature");
+               return new Response("Unauthorized", { status: 403 });
+            }
+            console.log("Signature Verified Successfully");
 
             const json = JSON.parse(body);
 
@@ -187,7 +186,7 @@ async function processEvent(body: any) {
             }
         }
 
-        console.log(`[QUERY RESULT] Data:`, JSON.stringify(accountsData));
+        console.log(`[QUERY RESULT] Found ${accountsData?.length || 0} potential accounts`);
 
         if (!accountsData || accountsData.length === 0) {
             console.error(`❌ Final Account Lookup Failed for ${account_id} (even after self-healing)`);

@@ -1,11 +1,20 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Grid, Globe, Target, Tag, Search, X, CheckCircle2, Clock, ChevronDown, Info } from 'lucide-react';
+import { Grid, Globe, Target, Tag, Search, X, CheckCircle2, Clock, ChevronDown, Info, Image as ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from "motion/react";
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
 import { TriggerType, TriggerConfig, PostCommentTriggerConfig, StoryReplyTriggerConfig, UserDirectMessageTriggerConfig } from '../../types/automation';
 import { supabase } from '../../lib/supabase';
 import { useSubscription } from '../../contexts/SubscriptionContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { Skeleton } from '../ui/skeleton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
+
+// Utility for class merging
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
 
 interface InstagramMedia {
   id: string;
@@ -25,40 +34,46 @@ interface TriggerConfigProps {
 }
 
 function OptionCard({ icon: Icon, title, description, selected, onClick, disabled }: any) {
+  const { darkMode } = useTheme();
   return (
     <button
       disabled={disabled}
       onClick={onClick}
-      className={`w-full text-left p-3.5 md:p-4 rounded-xl md:rounded-2xl border-2 transition-all flex items-center gap-3 md:gap-4 mb-2.5 group
-        ${selected ? 'border-purple-500 bg-purple-50/30 shadow-sm ring-2 ring-purple-50 scale-[1.01]' : 'border-gray-100 bg-white hover:border-purple-200 hover:bg-purple-50/10'}
+      className={`w-full text-left p-3.5 md:p-4 rounded-2xl border-2 transition-all flex items-center gap-3 md:gap-4 mb-2.5 group
+        ${selected
+          ? (darkMode ? 'border-purple-500 bg-transparent shadow-none scale-[1.01]' : 'border-purple-500 bg-purple-50/30 shadow-sm ring-2 ring-purple-50 scale-[1.01]')
+          : (darkMode ? 'border-white/10 bg-transparent hover:border-white/20' : 'border-gray-100 bg-white hover:border-purple-200 hover:bg-purple-50/10')}
         ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
     >
       <div className={`w-9 h-9 md:w-11 md:h-11 shrink-0 rounded-full flex items-center justify-center text-white transition-all
-        ${selected ? 'bg-purple-600 scale-105' : 'bg-gray-100 group-hover:bg-purple-100'}`}>
-        <Icon className={`w-4 h-4 md:w-5 md:h-5 ${selected ? 'text-white' : 'text-gray-400 group-hover:text-purple-500'}`} />
+        ${selected ? 'bg-purple-600 scale-105' : (darkMode ? 'bg-white/10 group-hover:bg-white/15' : 'bg-gray-100 group-hover:bg-purple-100')}`}>
+        <Icon className={`w-4 h-4 md:w-5 md:h-5 ${selected ? 'text-white' : (darkMode ? 'text-white/40 group-hover:text-white/80' : 'text-gray-400 group-hover:text-purple-500')}`} />
       </div>
       <div className="flex-1">
-        <h3 className={`font-bold text-[13px] md:text-[15px] mb-0.5 transition-colors ${selected ? 'text-purple-900 font-extrabold' : 'text-gray-900 group-hover:text-purple-900'}`}>{title}</h3>
-        <p className={`text-[11px] md:text-[13px] font-medium leading-snug transition-colors ${selected ? 'text-purple-700/80' : 'text-gray-400 group-hover:text-gray-500'}`}>{description}</p>
+        <h3 className={`font-bold text-[13px] md:text-[15px] mb-0.5 transition-colors ${selected ? (darkMode ? 'text-white font-black' : 'text-purple-900 font-extrabold') : (darkMode ? 'text-white/80 group-hover:text-white' : 'text-gray-900 group-hover:text-purple-900')}`}>{title}</h3>
+        <p className={`text-[11px] md:text-[13px] font-medium leading-snug transition-colors ${selected ? (darkMode ? 'text-white/60' : 'text-purple-700/80') : (darkMode ? 'text-white/40 group-hover:text-white/50' : 'text-gray-400 group-hover:text-gray-500')}`}>{description}</p>
       </div>
       <div className={`shrink-0 w-5 h-5 md:w-6 md:h-6 rounded-full border-2 flex items-center justify-center transition-all
-        ${selected ? 'border-purple-600 bg-purple-50 shadow-inner scale-110' : 'border-gray-200 group-hover:border-purple-300'}`}>
-        {selected && <div className="w-2 h-2 md:w-2.5 md:h-2.5 bg-purple-600 rounded-full shadow-sm" />}
+        ${selected ? (darkMode ? 'border-purple-400 bg-transparent' : 'border-purple-600 bg-purple-50 shadow-inner scale-110') : (darkMode ? 'border-white/20 group-hover:border-white/40' : 'border-gray-200 group-hover:border-purple-300')}`}>
+        {selected && <div className={`w-2 h-2 md:w-2.5 md:h-2.5 ${darkMode ? 'bg-purple-400' : 'bg-purple-600'} rounded-full shadow-sm`} />}
       </div>
     </button>
   );
 }
 
 export default function TriggerConfigStep({ triggerType, config, onConfigChange, readOnly }: TriggerConfigProps) {
+  const { darkMode } = useTheme();
   const { isPremium } = useSubscription();
   const [keyword, setKeyword] = useState('');
   const [posts, setPosts] = useState<InstagramMedia[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(false);
+  const [pendingMediaId, setPendingMediaId] = useState<string | null>(null);
+  const [isSelectingMedia, setIsSelectingMedia] = useState<boolean>(true);
 
   const getConfig = (): TriggerConfig => {
     if (config) return config;
-    if (triggerType === 'post_comment') return { postsType: 'all', commentsType: 'all' } as PostCommentTriggerConfig;
-    if (triggerType === 'story_reply') return { storiesType: 'all', replyType: 'all' } as StoryReplyTriggerConfig;
+    if (triggerType === 'post_comment') return { postsType: 'specific', commentsType: 'all' } as PostCommentTriggerConfig;
+    if (triggerType === 'story_reply') return { storiesType: 'specific', replyType: 'all' } as StoryReplyTriggerConfig;
     return { messageType: 'all', cooldownEnabled: true, cooldownDuration: 3600000 } as UserDirectMessageTriggerConfig;
   };
 
@@ -67,8 +82,24 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
   useEffect(() => {
     if (triggerType === 'post_comment' && (currentConfig as PostCommentTriggerConfig).postsType === 'specific') {
       fetchMedia('posts');
+      const savedIds = (currentConfig as PostCommentTriggerConfig).specificPosts || [];
+      if (savedIds.length > 0) {
+        setPendingMediaId(savedIds[0]);
+        setIsSelectingMedia(false);
+      } else {
+        setPendingMediaId(null);
+        setIsSelectingMedia(true);
+      }
     } else if (triggerType === 'story_reply' && (currentConfig as StoryReplyTriggerConfig).storiesType === 'specific') {
       fetchMedia('stories');
+      const savedIds = (currentConfig as StoryReplyTriggerConfig).specificStories || [];
+      if (savedIds.length > 0) {
+        setPendingMediaId(savedIds[0]);
+        setIsSelectingMedia(false);
+      } else {
+        setPendingMediaId(null);
+        setIsSelectingMedia(true);
+      }
     }
   }, [triggerType, (currentConfig as PostCommentTriggerConfig).postsType, (currentConfig as StoryReplyTriggerConfig).storiesType]);
 
@@ -92,20 +123,18 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
 
   const toggleMediaSelection = (mediaId: string) => {
     if (readOnly) return;
+    setPendingMediaId(prev => prev === mediaId ? null : mediaId);
+  };
+
+  const confirmMediaSelection = () => {
+    if (!pendingMediaId) return;
     const isPostComment = triggerType === 'post_comment';
-    const currentSpecific = isPostComment
-      ? (currentConfig as PostCommentTriggerConfig).specificPosts || []
-      : (currentConfig as StoryReplyTriggerConfig).specificStories || [];
-
-    const newSelection = currentSpecific.includes(mediaId)
-      ? currentSpecific.filter(id => id !== mediaId)
-      : [...currentSpecific, mediaId];
-
     if (isPostComment) {
-      onConfigChange({ ...currentConfig, specificPosts: newSelection } as PostCommentTriggerConfig);
+      onConfigChange({ ...currentConfig, specificPosts: [pendingMediaId] } as PostCommentTriggerConfig);
     } else {
-      onConfigChange({ ...currentConfig, specificStories: newSelection } as StoryReplyTriggerConfig);
+      onConfigChange({ ...currentConfig, specificStories: [pendingMediaId] } as StoryReplyTriggerConfig);
     }
+    setIsSelectingMedia(false);
   };
 
   const addKeyword = () => {
@@ -175,44 +204,79 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
   };
 
   const renderMediaSelector = () => {
-    const specificIds = triggerType === 'post_comment'
-      ? (currentConfig as PostCommentTriggerConfig).specificPosts || []
-      : (currentConfig as StoryReplyTriggerConfig).specificStories || [];
-
     return (
-      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="border-2 border-gray-100 mt-2 bg-gray-50/50 rounded-xl p-3 md:p-4">
-        {loadingMedia ? (
-          <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
-            {[...Array(8)].map((_, i) => (
-              <Skeleton key={i} className="aspect-square w-full rounded-xl" />
-            ))}
-          </div>
-        ) : (
-          <div className="max-h-[320px] overflow-y-auto pr-2 custom-scrollbar">
-            <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
-              {posts.map((post) => {
-                const isSelected = specificIds.includes(post.id);
+      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className={`border-2 mt-2 rounded-xl overflow-hidden ${darkMode ? 'border-white/5 bg-white/[0.02]' : 'border-gray-100 bg-gray-50/50'}`}>
+        {!isSelectingMedia && pendingMediaId ? (
+          <div className="p-3 md:p-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              {(() => {
+                const p = posts.find(p => p.id === pendingMediaId);
+                if (!p && loadingMedia) return <div className={`w-12 h-12 rounded-lg animate-pulse ${darkMode ? 'bg-white/10' : 'bg-gray-200'}`} />;
+                if (!p) return <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${darkMode ? 'bg-white/5' : 'bg-gray-100'}`}><ImageIcon className="w-5 h-5 opacity-50" /></div>;
                 return (
-                  <div
-                    key={post.id}
-                    onClick={() => toggleMediaSelection(post.id)}
-                    className={`relative aspect-square min-w-0 min-h-0 w-full cursor-pointer rounded-xl overflow-hidden border-2 transition-all
-                      ${isSelected ? "border-purple-600" : "border-transparent hover:border-purple-200"}`}
-                  >
-                    {post.media_type === 'VIDEO' ? (
-                      <video src={post.media_url} poster={post.thumbnail_url} autoPlay loop muted playsInline className="w-full h-full object-cover" />
-                    ) : (
-                      <img src={post.media_url} alt={post.caption || 'Post'} className="w-full h-full object-cover" />
-                    )}
-                    {isSelected && (
-                      <div className="absolute top-1 right-1 bg-purple-600 text-white p-0.5 rounded-md shadow-sm">
-                        <CheckCircle2 size={10} />
-                      </div>
-                    )}
+                  <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 border border-white/10">
+                    <img src={p.media_type === 'VIDEO' ? p.thumbnail_url : p.media_url} className="w-full h-full object-cover" />
                   </div>
                 );
-              })}
+              })()}
+              <div>
+                <span className="text-[11px] md:text-xs font-bold text-emerald-500 uppercase tracking-widest flex items-center gap-1 mb-0.5"><CheckCircle2 size={12} strokeWidth={3} /> Confirmed</span>
+                <p className={`text-[13px] md:text-sm font-medium line-clamp-1 ${darkMode ? 'text-white/60' : 'text-gray-500'}`}>Tied to a specific post</p>
+              </div>
             </div>
+            <button onClick={() => setIsSelectingMedia(true)} disabled={readOnly} className={`px-3 py-1.5 md:px-4 md:py-2 shrink-0 rounded-lg text-[11px] md:text-xs font-bold transition-all ${darkMode ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-white border text-gray-700 hover:bg-gray-50'}`}>
+              Change Post
+            </button>
+          </div>
+        ) : (
+          <div className="p-3 md:p-4">
+            {loadingMedia ? (
+              <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
+                {[...Array(8)].map((_, i) => (
+                  <Skeleton key={i} className="aspect-square w-full rounded-xl" />
+                ))}
+              </div>
+            ) : (
+              <>
+                {/* Action Bar */}
+                {pendingMediaId && !loadingMedia && (
+                  <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className={`mb-4 pb-4 border-b flex flex-col md:flex-row items-center justify-between gap-3 ${darkMode ? 'border-white/10' : 'border-purple-100'}`}>
+                    <p className={`text-[11px] md:text-sm font-bold ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>1 Post selected</p>
+                    <button onClick={confirmMediaSelection} disabled={readOnly} className={`w-full md:w-auto px-6 py-2.5 rounded-xl font-bold text-[13px] md:text-sm text-white shadow-lg transition-all flex justify-center items-center gap-2 ${darkMode ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:brightness-110 shadow-purple-500/20' : 'bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 shadow-purple-200 hover:shadow-xl hover:-translate-y-0.5'}`}>
+                      Confirm Selection <CheckCircle2 size={16} />
+                    </button>
+                  </motion.div>
+                )}
+              <div className="max-h-[320px] overflow-y-auto pr-2 custom-scrollbar">
+                <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
+                  {posts.map((post) => {
+                    const isSelected = post.id === pendingMediaId;
+                    return (
+                      <div
+                        key={post.id}
+                        onClick={() => toggleMediaSelection(post.id)}
+                        className={`relative aspect-square min-w-0 min-h-0 w-full cursor-pointer rounded-xl overflow-hidden border-2 transition-all
+                          ${isSelected ? "border-purple-600 shadow-[0_0_15px_rgba(147,51,234,0.3)] ring-2 ring-purple-600/50 scale-[0.98]" : "border-transparent hover:border-purple-200"}`}
+                      >
+                        {post.media_type === 'VIDEO' ? (
+                          <video src={post.media_url} poster={post.thumbnail_url} autoPlay loop muted playsInline className={`w-full h-full object-cover transition-transform ${isSelected ? 'scale-110' : ''}`} />
+                        ) : (
+                          <img src={post.media_url} alt={post.caption || 'Post'} className={`w-full h-full object-cover transition-transform ${isSelected ? 'scale-110' : ''}`} />
+                        )}
+                        {isSelected && (
+                          <div className="absolute inset-0 bg-purple-600/20 backdrop-blur-[1px] flex items-center justify-center transition-all">
+                            <div className="bg-purple-600 text-white p-1.5 rounded-full shadow-lg scale-110">
+                              <CheckCircle2 size={16} strokeWidth={3} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+            )}
           </div>
         )}
       </motion.div>
@@ -221,42 +285,42 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
 
   const renderKeywordInput = () => {
     return (
-      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="border-2 border-gray-100 mt-2 bg-gray-50/50 rounded-xl p-3 md:p-4 space-y-3">
+      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className={`border-2 mt-2 rounded-xl p-3 md:p-4 space-y-3 ${darkMode ? 'border-white/5 bg-white/[0.02]' : 'border-gray-100 bg-gray-50/50'}`}>
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 ${darkMode ? 'text-white/40' : 'text-gray-400'}`} />
             <input
               type="text"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addKeyword(); } }}
-              placeholder="Add a keyword (e.g. LINK)"
+              placeholder="Type a keyword (e.g. LINK) and press Enter ↵"
               disabled={readOnly}
-              className="w-full pl-10 pr-3 py-2.5 rounded-xl border-2 border-gray-200 bg-white focus:border-purple-500 text-base text-gray-800 transition-all placeholder:text-gray-400 outline-none font-medium"
+              className={`w-full pl-10 pr-3 py-2.5 rounded-xl border-2 transition-all outline-none font-medium text-base ${darkMode ? 'border-white/10 bg-transparent focus:border-purple-500/50 text-white placeholder:text-white/20' : 'border-gray-200 bg-white focus:border-purple-500 text-gray-800 placeholder:text-gray-400'}`}
             />
           </div>
           <button
             type="button"
             onClick={addKeyword}
             disabled={readOnly}
-            className="px-4 py-2.5 bg-purple-600 text-white rounded-xl font-bold text-sm shadow-md shadow-purple-200"
+            className={`px-4 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all ${darkMode ? 'bg-purple-600 text-white hover:bg-purple-500 shadow-purple-500/10' : 'bg-purple-600 text-white hover:bg-purple-700 shadow-purple-200'}`}
           >
             Add
           </button>
         </div>
         <div className="flex flex-wrap gap-2">
           {getKeywords().map((kw, index) => (
-            <span key={index} className="flex items-center gap-1.5 pl-3 pr-1.5 py-1 bg-purple-100 border border-purple-200 rounded-full text-xs font-bold text-purple-700">
+            <span key={index} className={`flex items-center gap-1.5 pl-3 pr-1.5 py-1 border rounded-full text-xs font-bold ${darkMode ? 'bg-purple-500/10 border-purple-500/20 text-purple-400' : 'bg-purple-100 border-purple-200 text-purple-700'}`}>
               {kw}
               {!readOnly && (
-                <button onClick={() => removeKeyword(index)} className="p-0.5 rounded-full text-purple-400 hover:text-red-500 hover:bg-red-50 transition-all">
+                <button onClick={() => removeKeyword(index)} className={`p-0.5 rounded-full transition-all ${darkMode ? 'text-purple-400 hover:text-red-400 hover:bg-red-500/10' : 'text-purple-400 hover:text-red-500 hover:bg-red-50'}`}>
                   <X size={12} strokeWidth={3} />
                 </button>
               )}
             </span>
           ))}
           {getKeywords().length === 0 && (
-            <span className="text-xs text-gray-400 italic font-medium">No keywords added yet</span>
+            <span className={`text-xs italic font-medium ${darkMode ? 'text-white/20' : 'text-gray-400'}`}>No keywords added yet</span>
           )}
         </div>
       </motion.div>
@@ -268,19 +332,20 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
 
       {/* Scope Section */}
       {(triggerType === 'post_comment' || triggerType === 'story_reply') && (
-        <div className="w-full">
+        <div id="post-selection-section" className="w-full">
           <div className="flex items-start gap-3 md:gap-4 mb-3 md:mb-4">
-            <div className="w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-[16px] md:rounded-2xl bg-purple-600 flex items-center justify-center text-white shadow-lg shadow-purple-200">
-              <Grid className="w-5 h-5 md:w-6 md:h-6 fill-purple-200 text-purple-200" />
+            <div className={`w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-[16px] md:rounded-2xl flex items-center justify-center text-white shadow-lg ${darkMode ? 'bg-purple-600/20' : 'bg-purple-600 shadow-purple-200'}`}>
+              <Grid className={`w-5 h-5 md:w-6 md:h-6 ${darkMode ? 'text-purple-400 fill-purple-400' : 'fill-purple-200 text-purple-200'}`} />
             </div>
             <div className="pt-0.5 md:pt-1">
-              <h2 className="text-lg md:text-xl font-bold text-gray-900 leading-tight">Which posts should trigger this?</h2>
-              <p className="text-xs md:text-sm text-gray-400 font-medium mt-0.5">Apply to all posts, or pick specific ones.</p>
+              <h2 className={`text-lg md:text-xl font-bold leading-tight ${darkMode ? 'text-white' : 'text-gray-900'}`}>Which posts should trigger this?</h2>
+              <p className={`text-xs md:text-sm font-medium mt-0.5 ${darkMode ? 'text-white/40' : 'text-gray-400'}`}>Apply to all posts, or pick specific ones.</p>
             </div>
           </div>
 
           <div className="pl-0">
-            <div className="px-4 md:px-5 py-3 md:py-4 border-2 border-purple-100 rounded-2xl md:rounded-[1.5rem] bg-white space-y-2.5">
+            <div className={`px-4 md:px-5 py-3 md:py-4 space-y-2.5 transition-colors duration-300 ${darkMode ? '' : 'bg-white border-2 border-purple-100 rounded-2xl md:rounded-[1.5rem]'}`}>
+              {/* OptionCard for All Posts & Reels commented out per user request FOR NOW
               <OptionCard
                 icon={Globe}
                 title={triggerType === 'post_comment' ? "All my posts & reels" : "All my stories"}
@@ -289,9 +354,10 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                 onClick={() => handlePostsTypeChange('all')}
                 disabled={readOnly}
               />
+              */}
               <OptionCard
                 icon={Target}
-                title={triggerType === 'post_comment' ? "Just specific posts" : "Just specific story"}
+                title={triggerType === 'post_comment' ? "Select your post or reel" : "Select your story"}
                 description={triggerType === 'post_comment' ? "Pick exactly which posts you want this to work on." : "Pick exactly which story you want this to work on."}
                 selected={(triggerType === 'post_comment' ? (currentConfig as PostCommentTriggerConfig).postsType : (currentConfig as StoryReplyTriggerConfig).storiesType) === 'specific'}
                 onClick={() => handlePostsTypeChange('specific')}
@@ -307,19 +373,19 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
       )}
 
       {/* Keywords Section */}
-      <div className="w-full">
+      <div id="keyword-selection-section" className="w-full">
         <div className="flex items-start gap-3 md:gap-4 mb-3 md:mb-4">
-          <div className="w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-[16px] md:rounded-2xl bg-purple-600 flex items-center justify-center text-white shadow-lg shadow-purple-200">
-            <Tag className="w-5 h-5 md:w-6 md:h-6 fill-purple-200 text-purple-200" />
+          <div className={`w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-[16px] md:rounded-2xl flex items-center justify-center text-white shadow-lg ${darkMode ? 'bg-purple-600/20' : 'bg-purple-600 shadow-purple-200'}`}>
+            <Tag className={`w-5 h-5 md:w-6 md:h-6 ${darkMode ? 'text-purple-400 fill-purple-400' : 'fill-purple-200 text-purple-200'}`} />
           </div>
           <div className="pt-0.5 md:pt-1">
-            <h2 className="text-lg md:text-xl font-bold text-gray-900 leading-tight">Should only certain keywords trigger this?</h2>
-            <p className="text-xs md:text-sm text-gray-400 font-medium leading-relaxed mt-0.5">e.g. only when someone says "LINK" or "INFO" - or leave as any message.</p>
+            <h2 className={`text-lg md:text-xl font-bold leading-tight ${darkMode ? 'text-white' : 'text-gray-900'}`}>Should only certain keywords trigger this?</h2>
+            <p className={`text-xs md:text-sm font-medium leading-relaxed mt-0.5 ${darkMode ? 'text-white/40' : 'text-gray-400'}`}>e.g. only when someone says "LINK" or "INFO" - or leave as any message.</p>
           </div>
         </div>
 
         <div className="pl-0">
-          <div className="px-4 md:px-5 py-3 md:py-4 border-2 border-purple-100 rounded-2xl md:rounded-[1.5rem] bg-white space-y-2.5">
+          <div className={`px-4 md:px-5 py-3 md:py-4 space-y-2.5 transition-colors duration-300 ${darkMode ? '' : 'bg-white border-2 border-purple-100 rounded-2xl md:rounded-[1.5rem]'}`}>
             <OptionCard
               icon={Globe}
               title="Any message works"
@@ -349,53 +415,54 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
       {triggerType === 'user_directed_messages' && (
         <div className="w-full">
           <div className="flex items-start gap-3 md:gap-4 mb-3 md:mb-4">
-            <div className="w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-[16px] md:rounded-2xl bg-purple-600 flex items-center justify-center text-white shadow-lg shadow-purple-200">
-              <Clock className="w-5 h-5 md:w-6 md:h-6 fill-purple-200 text-purple-200" />
+            <div className={`w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-[16px] md:rounded-2xl flex items-center justify-center text-white shadow-lg ${darkMode ? 'bg-purple-600/20' : 'bg-purple-600 shadow-purple-200'}`}>
+              <Clock className={`w-5 h-5 md:w-6 md:h-6 ${darkMode ? 'text-purple-400 fill-purple-400' : 'fill-purple-200 text-purple-200'}`} />
             </div>
             <div className="pt-0.5 md:pt-1">
-              <h2 className="text-lg md:text-xl font-bold text-gray-900 leading-tight flex items-center gap-2">
+              <h2 className={`text-lg md:text-xl font-bold leading-tight flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                 Cooldown Period
-                <div className="relative group">
-                  <Info className="w-4 h-4 text-gray-400 cursor-pointer hover:text-purple-500 transition-colors" />
-                  <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 bg-gray-900 text-white text-xs font-medium rounded-xl px-3 py-2 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 leading-relaxed">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className={cn("w-4 h-4 cursor-help transition-colors", darkMode ? "text-white/40 hover:text-white/60" : "text-slate-400 hover:text-slate-600")} />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-[260px] text-center">
                     To avoid repeated DMs and reduce spam, this feature enables you to re-send this msg again after the mentioned time.
-                    <div className="absolute left-1/2 -translate-x-1/2 top-full w-2 h-2 bg-gray-900 rotate-45 -mt-1" />
-                  </div>
-                </div>
+                  </TooltipContent>
+                </Tooltip>
               </h2>
-              <p className="text-xs md:text-sm text-gray-400 font-medium leading-relaxed mt-0.5">Prevent sending multiple DMs to the same user consecutively.</p>
+              <p className={`text-xs md:text-sm font-medium leading-relaxed mt-0.5 ${darkMode ? 'text-white/40' : 'text-gray-400'}`}>Prevent sending multiple DMs to the same user consecutively.</p>
             </div>
           </div>
 
           <div className="pl-0">
-            <div className="px-4 md:px-5 py-3 md:py-4 border-2 border-purple-100 rounded-2xl md:rounded-[1.5rem] bg-white space-y-2.5">
-              <div className={`rounded-xl md:rounded-2xl border-2 transition-all overflow-hidden border-purple-200 bg-purple-50/30`}>
+            <div className={`px-4 md:px-5 py-3 md:py-4 space-y-2.5 transition-colors duration-300 ${darkMode ? '' : 'bg-white border-2 border-purple-100 rounded-2xl md:rounded-[1.5rem]'}`}>
+              <div className={`rounded-xl md:rounded-2xl border-2 transition-all overflow-hidden ${darkMode ? 'border-purple-500/20 bg-transparent' : 'border-purple-200 bg-purple-50/30'}`}>
                 <div className="p-3 md:p-4 flex items-center gap-3 md:gap-4">
                   <div className="flex-1">
-                    <h3 className="font-bold text-gray-900 text-[14px] md:text-[15px] mb-0.5 md:mb-1">Enable Cooldown</h3>
-                    <p className="text-[11px] md:text-xs text-gray-400 font-medium">Wait before replying to the same user again</p>
+                    <h3 className={`font-bold text-[14px] md:text-[15px] mb-0.5 md:mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Enable Cooldown</h3>
+                    <p className={`text-[11px] md:text-xs font-medium ${darkMode ? 'text-white/40' : 'text-gray-400'}`}>Wait before replying to the same user again</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-not-allowed pointer-events-none">
                     <input type="checkbox" className="sr-only peer" checked={true} readOnly />
-                    <div className="w-10 h-6 md:w-12 md:h-7 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 md:after:h-6 md:after:w-6 after:transition-all peer-checked:bg-purple-600 shadow-inner"></div>
+                    <div className={`w-10 h-6 md:w-12 md:h-7 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 md:after:h-6 md:after:w-6 after:transition-all peer-checked:bg-purple-600 shadow-inner ${darkMode ? 'bg-white/10' : ''}`}></div>
                   </label>
                 </div>
 
                 <div className="px-5 pb-5 pt-0">
-                  <div className="bg-white p-4 rounded-xl border border-purple-100 shadow-sm space-y-3">
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Select Cooldown Duration</label>
+                  <div className={`p-4 rounded-xl border shadow-sm space-y-3 ${darkMode ? 'bg-white/5 border-white/5' : 'bg-white border-purple-100'}`}>
+                    <label className={`text-xs font-bold uppercase tracking-wide ${darkMode ? 'text-white/40' : 'text-gray-500'}`}>Select Cooldown Duration</label>
                     <div className="relative">
                       <select
                         value={(currentConfig as UserDirectMessageTriggerConfig).cooldownDuration || 3600000}
                         onChange={(e) => handleCooldownDurationChange(Number(e.target.value))}
                         disabled={readOnly}
-                        className="w-full border-2 border-gray-200 focus:border-purple-500 rounded-xl px-4 py-2.5 pr-10 outline-none text-gray-900 font-semibold text-sm transition-all appearance-none bg-white cursor-pointer"
+                        className={`w-full border-2 rounded-xl px-4 py-2.5 pr-10 outline-none font-semibold text-sm transition-all appearance-none cursor-pointer ${darkMode ? 'border-white/10 bg-white/5 text-white focus:border-white/20' : 'border-gray-200 bg-white text-gray-900 focus:border-purple-500'}`}
                       >
-                        <option value={60000}>1 min</option>
-                        <option value={300000}>5 min</option>
-                        <option value={3600000}>1 hr</option>
-                        <option value={21600000}>6 hr</option>
-                        <option value={86400000}>24 hr</option>
+                        <option value={60000} className={darkMode ? 'bg-gray-900' : ''}>1 min</option>
+                        <option value={300000} className={darkMode ? 'bg-gray-900' : ''}>5 min</option>
+                        <option value={3600000} className={darkMode ? 'bg-gray-900' : ''}>1 hr</option>
+                        <option value={21600000} className={darkMode ? 'bg-gray-900' : ''}>6 hr</option>
+                        <option value={86400000} className={darkMode ? 'bg-gray-900' : ''}>24 hr</option>
                       </select>
                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                     </div>

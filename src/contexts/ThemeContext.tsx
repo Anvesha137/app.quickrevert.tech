@@ -8,6 +8,8 @@ interface ThemeContextType {
   setColorPalette: (palette: string) => void;
   setDisplayName: (name: string) => void;
   refreshUserProfile: () => Promise<void>;
+  darkMode: boolean;
+  toggleDarkMode: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -23,8 +25,21 @@ const colorPalettes: Record<string, { primary: string; secondary: string; gradie
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const [colorPalette, setColorPaletteState] = useState('default');
+   const [colorPalette, setColorPaletteState] = useState('default');
   const [displayName, setDisplayNameState] = useState('');
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem('qr_dark_mode');
+    return saved ? JSON.parse(saved) : false;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('qr_dark_mode', JSON.stringify(darkMode));
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
 
   useEffect(() => {
     if (user) {
@@ -80,12 +95,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   return (
     <ThemeContext.Provider
-      value={{
+       value={{
         colorPalette,
         displayName,
         setColorPalette,
         setDisplayName,
         refreshUserProfile,
+        darkMode,
+        toggleDarkMode: () => setDarkMode(!darkMode),
       }}
     >
       {children}

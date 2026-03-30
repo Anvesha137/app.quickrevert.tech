@@ -53,8 +53,8 @@ Deno.serve(async (req: Request) => {
 
         if ((activeCount || 0) >= effectiveLimit) {
           console.log(`[LIMIT] User ${userId} has ${activeCount} active automations, limit is ${effectiveLimit}. BLOCKED.`);
-          return new Response(JSON.stringify({ 
-            error: `Active automation limit reached (${effectiveLimit}). ${userData?.is_gifted ? 'Your gifted premium allows ' + effectiveLimit + ' active automations.' : 'Please upgrade your plan.'}` 
+          return new Response(JSON.stringify({
+            error: `Active automation limit reached (${effectiveLimit}). ${userData?.is_gifted ? 'Your gifted premium allows ' + effectiveLimit + ' active automations.' : 'Please upgrade your plan.'}`
           }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
       }
@@ -64,6 +64,13 @@ Deno.serve(async (req: Request) => {
     if (instagramAccountId) {
       const { data, error } = await supabase.from("instagram_accounts").select("*").eq("id", instagramAccountId).eq("status", "active").single();
       if (error || !data) throw new Error("Account not found");
+      
+      // 🔒 OWNERSHIP VERIFICATION
+      if (data.user_id !== user.id) {
+        console.error(`[SECURITY] User ${user.id} tried to access account ${instagramAccountId} owned by ${data.user_id}`);
+        throw new Error("Unauthorized: You do not own this account");
+      }
+      
       instagramAccount = data;
     } else {
       const { data, error } = await supabase.from("instagram_accounts").select("*").eq("user_id", userId).eq("status", "active").order("connected_at", { ascending: false }).limit(1).maybeSingle();
@@ -92,7 +99,7 @@ Deno.serve(async (req: Request) => {
       const createRes = await fetch(`${n8nBaseUrl}/api/v1/credentials`, { method: "POST", headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey }, body: JSON.stringify({ name: credName, type: credType, data: { accessToken: instagramAccount.access_token } }) });
       if (!createRes.ok) throw new Error("Cred creation failed");
       const credId = (await createRes.json()).id;
-      
+
       await supabase.from('instagram_accounts').update({ n8n_credential_id: credId }).eq('id', instagramAccount.id);
       return credId;
     };
@@ -459,7 +466,7 @@ Deno.serve(async (req: Request) => {
         (triggerType === 'user_directed_messages' && automationData?.trigger_config?.messageType === 'keywords') ||
         (triggerType === 'story_reply' && automationData?.trigger_config?.storiesType === 'keywords');
 
-      const cooldownEnabled = (triggerType === 'user_directed_messages' || triggerType === 'user_dm') && automationData?.trigger_config?.cooldownEnabled;
+      const cooldownEnabled = (triggerType === 'user_directed_messages' || triggerType === 'user_dm');
       const cooldownDuration = automationData?.trigger_config?.cooldownDuration || 3600000;
 
       if (!hasAskToFollow && isKeywordTrigger) {
@@ -799,7 +806,7 @@ if (diff > COOLDOWN_MS) {
         previousNode = "Switch";
         nodeX += 250;
 
-        const cooldownEnabled = (triggerType === 'user_directed_messages' || triggerType === 'user_dm') && automationData?.trigger_config?.cooldownEnabled;
+        const cooldownEnabled = (triggerType === 'user_directed_messages' || triggerType === 'user_dm');
         const cooldownDuration = automationData?.trigger_config?.cooldownDuration || 3600000;
 
         if (cooldownEnabled) {
@@ -1359,19 +1366,41 @@ return { json: { userId, username, isFollowing } };`
           const rewardButtons: any[] = [];
           if (action.actionButtons && action.actionButtons.length > 0) {
             action.actionButtons.slice(0, 3).forEach((b: any) => {
-              rewardButtons.push({
-                type: "web_url",
-                url: (b.url || "https://quickrevert.tech").replace(/"/g, '\\"'),
-                title: (b.text || "link").replace(/"/g, '\\"').substring(0, 20)
-              });
-            });
-          } else {
-            rewardButtons.push({
-              type: "web_url",
-              url: "https://quickrevert.tech",
-              title: "link"
+              if (b.url) {
+                rewardButtons.push({
+                  type: "web_url",
+                  url: b.url,
+                  title: (b.text || "link").substring(0, 20)
+                });
+              } else {
+                rewardButtons.push({
+                  type: "postback",
+                  title: (b.text || "Click").substring(0, 20),
+                  payload: `${b.text || "Click"}_${uniqueId}`
+                });
+              }
             });
           }
+
+          const rewardElement: any = {
+            title: action.title || "hey, heres your link",
+            subtitle: action.subtitle || "Powered By Quickrevert.tech"
+          };
+          if (action.imageUrl) rewardElement.image_url = action.imageUrl;
+          if (rewardButtons.length > 0) rewardElement.buttons = rewardButtons;
+
+          const rewardPayload = {
+            recipient: { id: "{{ $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id }}" },
+            message: {
+              attachment: {
+                type: "template",
+                payload: {
+                  template_type: "generic",
+                  elements: [rewardElement]
+                }
+              }
+            }
+          };
 
           const rewardName = `Send Reward 2`; // Match user JSON naming
           nodes.push({
@@ -1384,7 +1413,7 @@ return { json: { userId, username, isFollowing } };`
               nodeCredentialType: "facebookGraphApi",
               sendBody: true,
               specifyBody: "json",
-              jsonBody: `={\n  \"recipient\": {\n    \"id\": \"{{ $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id }}\"\n  },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [\n          {\n            \"title\": \"${(action.title || "hey, heres your link").replace(/"/g, '\\"').replace(/\n/g, '\\n')}\",\n            \"image_url\": \"${(action.imageUrl || "").replace(/"/g, '\\"')}\",\n            \"subtitle\": \"${(action.subtitle || "Powered By Quickrevert.tech").replace(/"/g, '\\"').replace(/\n/g, '\\n')}\",\n            \"default_action\": {\n              \"type\": \"web_url\",\n              \"url\": \"${(action.actionButtons?.[0]?.url || "quickrevert.tech").replace(/"/g, '\\"')}\"\n            },\n            \"buttons\": ${JSON.stringify(rewardButtons, null, 2)}\n          }\n        ]\n      }\n    }\n  }\n}`,
+              jsonBody: `=${JSON.stringify(rewardPayload, null, 2)}`,
               options: {}
             },
             credentials: { facebookGraphApi: { id: credentialId } }
@@ -1455,27 +1484,68 @@ return { json: { userId, username, isFollowing } };`
     };
 
     const n8nWorkflowJSON = buildWorkflow();
+    let n8nResult;
 
-    // Create & Activate
-    const createRes = await fetch(`${n8nBaseUrl}/api/v1/workflows`, { method: "POST", headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey }, body: JSON.stringify(n8nWorkflowJSON) });
-    if (!createRes.ok) throw new Error("n8n Create Failed");
-    const n8nResult = await createRes.json();
+    if (existingWorkflowId) {
+      // 🔄 UPDATE IN-PLACE
+      console.log(`[UPDATE] Updating existing n8n workflow: ${existingWorkflowId}`);
+      const baseUrl = n8nBaseUrl.endsWith('/') ? n8nBaseUrl.slice(0, -1) : n8nBaseUrl;
+      const updateRes = await fetch(`${baseUrl}/api/v1/workflows/${existingWorkflowId}`, { 
+        method: "PUT", 
+        headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey }, 
+        body: JSON.stringify(n8nWorkflowJSON) 
+      });
+      if (!updateRes.ok) throw new Error(`n8n Update Failed: ${updateRes.statusText}`);
+      n8nResult = await updateRes.json();
+    } else {
+      // 🆕 CREATE NEW
+      console.log(`[CREATE] Creating new n8n workflow`);
+      const baseUrl = n8nBaseUrl.endsWith('/') ? n8nBaseUrl.slice(0, -1) : n8nBaseUrl;
+      const createRes = await fetch(`${baseUrl}/api/v1/workflows`, { 
+        method: "POST", 
+        headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey }, 
+        body: JSON.stringify(n8nWorkflowJSON) 
+      });
+      if (!createRes.ok) throw new Error(`n8n Create Failed: ${createRes.statusText}`);
+      n8nResult = await createRes.json();
+    }
 
-    if (autoActivate) await fetch(`${n8nBaseUrl}/api/v1/workflows/${n8nResult.id}/activate`, { method: "POST", headers: { "X-N8N-API-KEY": n8nApiKey } });
+    const action = autoActivate ? 'activate' : 'deactivate';
+    
+    // Sanitize URL (ensure no trailing slash)
+    const baseUrl = n8nBaseUrl.endsWith('/') ? n8nBaseUrl.slice(0, -1) : n8nBaseUrl;
+    const finalUrl = `${baseUrl}/api/v1/workflows/${n8nResult.id}/${action}`;
+    
+    console.log(`Sending ${action} request to n8n during creation: ${finalUrl}`);
+    
+    const n8nActRes = await fetch(finalUrl, {
+      method: "POST",
+      headers: { "X-N8N-API-KEY": n8nApiKey }
+    });
+
+    if (!n8nActRes.ok) {
+      console.error(`n8n ${action} failed:`, await n8nActRes.text());
+      // For initial creation, if activation fails, we still have the workflow, but we should inform the user.
+      // However, to keep it strict, we'll throw here so the user knows why it didn't 'go live'.
+      throw new Error(`n8n ${action} failed: ${n8nActRes.statusText}`);
+    }
 
     // ATOMIC DATABASE REGISTRATION & CLEANUP
     if (automationId) {
-      console.log(`Checking for existing workflows for Automation ID: ${automationId}`);
+      console.log(`Checking for additional workflows for Automation ID: ${automationId}`);
 
-      // 1. Find existing workflows for this automation
-      const { data: existingWorkflows } = await supabase
+      // Find OTHER existing workflows for this automation to cleanup (excluding the one we just updated)
+      const { data: otherWorkflows } = await supabase
         .from('n8n_workflows')
         .select('n8n_workflow_id')
-        .eq('automation_id', automationId);
+        .eq('automation_id', automationId)
+        .neq('n8n_workflow_id', n8nResult.id); // Protect the current workflow
 
-      if (existingWorkflows && existingWorkflows.length > 0) {
-        const oldWorkflowIds = existingWorkflows.map((w: any) => w.n8n_workflow_id);
-        console.log(`Found ${oldWorkflowIds.length} old workflows to cleanup:`, oldWorkflowIds);
+      if (otherWorkflows && otherWorkflows.length > 0) {
+        const oldWorkflowIds = otherWorkflows.map((w: any) => w.n8n_workflow_id);
+        console.log(`Found ${oldWorkflowIds.length} old workflows to cleanup (excluding ${n8nResult.id}):`, oldWorkflowIds);
+        
+        // ... (rest of deletion logic remains same)
 
         // 2. Delete Routes for old workflows
         const { error: routeDelError } = await supabase
@@ -1520,22 +1590,22 @@ return { json: { userId, username, isFollowing } };`
       }
     }
 
-    // INSERT NEW WORKFLOW RECORD
-    const { error: insertError } = await supabase.from("n8n_workflows").insert({
-      user_id: user.id,
+    // UPSERT NEW WORKFLOW RECORD (Using upsert to handle updates gracefully)
+    const { error: insertError } = await supabase.from("n8n_workflows").upsert({
       n8n_workflow_id: n8nResult.id,
+      user_id: user.id,
       n8n_workflow_name: n8nResult.name,
       webhook_path: webhookPath,
       instagram_account_id: instagramAccount.id,
       template: template || 'instagram_automation_v1',
       variables: variables || {},
       automation_id: automationId || null,
-      is_active: autoActivate // Set initial active state
-    });
+      is_active: autoActivate 
+    }, { onConflict: 'n8n_workflow_id' });
 
     if (insertError) {
-      console.error("Failed to insert n8n_workflow record:", insertError);
-      throw new Error("Database Insert Failed: " + insertError.message);
+      console.error("Failed to upsert n8n_workflow record:", insertError);
+      throw new Error("Database Upsert Failed: " + insertError.message);
     }
 
     // ALWAYS CREATE ROUTES (Inactive by default if autoActivate is false)
