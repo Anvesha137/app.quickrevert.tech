@@ -73,10 +73,10 @@ serve(async (req) => {
       try {
         await freeClient.connect();
         const freeResult = await freeClient.queryObject(`
-          SELECT id, promo_code, discount_percentage, max_usage,
-                 total_usage_tilldate, expiry_date
+          SELECT id, code, discount_percentage, discount_amount,
+                 usage_limit, used_count, expires_at, pack_type, status
           FROM promo_codes
-          WHERE LOWER(promo_code) = LOWER($1)
+          WHERE LOWER(code) = LOWER($1)
           LIMIT 1
         `, [couponCode.trim()]);
 
@@ -90,7 +90,7 @@ serve(async (req) => {
         const coupon = freeResult.rows[0] as any;
 
         // Check expiry
-        if (new Date(coupon.expiry_date) < new Date()) {
+        if (new Date(coupon.expires_at) < new Date()) {
           return new Response(
             JSON.stringify({ error: 'Coupon has expired' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -107,7 +107,7 @@ serve(async (req) => {
 
         // Increment total_usage_tilldate in Neon DB
         await freeClient.queryObject(
-          `UPDATE promo_codes SET total_usage_tilldate = total_usage_tilldate + 1 WHERE id = $1`,
+          `UPDATE promo_codes SET used_count = used_count + 1 WHERE id = $1`,
           [coupon.id]
         );
         console.log(`Coupon ${couponCode} usage incremented in Neon DB (free flow).`);
@@ -181,7 +181,7 @@ serve(async (req) => {
           await couponClient.connect();
           const couponResult = await couponClient.queryObject(`
             SELECT discount_percentage FROM promo_codes
-            WHERE LOWER(promo_code) = LOWER($1) AND (expiry_date >= NOW()) AND (total_usage_tilldate < max_usage)
+            WHERE LOWER(code) = LOWER($1) AND (expires_at >= NOW()) AND (used_count < usage_limit)
             LIMIT 1
           `, [couponCode.trim()]);
           
@@ -391,7 +391,7 @@ serve(async (req) => {
         if (couponCode && !isFree) {
           try {
             await neonClient.queryObject(
-              `UPDATE promo_codes SET total_usage_tilldate = total_usage_tilldate + 1 WHERE LOWER(promo_code) = LOWER($1)`,
+              `UPDATE promo_codes SET used_count = used_count + 1 WHERE LOWER(code) = LOWER($1)`,
               [couponCode.trim()]
             );
             console.log(`Paid Coupon ${couponCode} usage incremented in Neon DB.`);

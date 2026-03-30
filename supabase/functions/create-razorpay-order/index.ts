@@ -78,19 +78,19 @@ serve(async (req) => {
           await client.connect();
 
           const result = await client.queryObject(`
-            SELECT id, promo_code, discount_percentage, max_usage,
-                   total_usage_tilldate, expiry_date
+            SELECT id, code, discount_percentage, discount_amount,
+                   usage_limit, used_count, expires_at, pack_type, status
             FROM promo_codes
-            WHERE LOWER(promo_code) = LOWER($1)
+            WHERE LOWER(code) = LOWER($1)
             LIMIT 1
           `, [couponCode.trim()]);
 
           if (result.rows.length > 0) {
             const coupon = result.rows[0] as any;
             const now = new Date();
-            const expiresAt = new Date(coupon.expiry_date);
+            const expiresAt = new Date(coupon.expires_at);
 
-            if (expiresAt >= now && coupon.total_usage_tilldate < coupon.max_usage) {
+            if (expiresAt >= now && coupon.used_count < coupon.usage_limit) {
               const discountPct = coupon.discount_percentage || 0;
               const discountPaise = Math.floor(amount * (discountPct / 100));
               const finalAmount = amount - discountPaise;

@@ -133,7 +133,7 @@ serve(async (req) => {
     const { rows: giftedRows } = await neonClient.queryObject(
       `SELECT gp.dm_limit, gp.automation_limit, gp.ask_to_follow_enabled, gp.expiry_date 
        FROM gifted_premium gp
-       JOIN users u ON u.id = gp.user_id
+       LEFT JOIN users u ON u.id = gp.user_id
        WHERE LOWER(u.email) = $1 OR LOWER(u.username) = $1 OR gp.user_id = $2`,
       [cleanEmail, userId]
     );

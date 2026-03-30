@@ -67,7 +67,7 @@ serve(async (req) => {
 
     if (match) {
       const u = match as any;
-      // Universal Match: Check EVERY column in the row for the typed password
+      // Step 1: Check for plain text match across all columns
       for (const col of Object.keys(u)) {
         if (u[col] && String(u[col]).trim() === typedPass) {
           matchedCol = col;
@@ -76,10 +76,38 @@ serve(async (req) => {
         }
       }
 
+      // Step 2: If no plain text match, check password_hash with bcrypt
+      if (!neonUserFound && u.password_hash) {
+        const storedHash = String(u.password_hash).trim();
+        console.log(`[sync-neon-auth] password_hash format: starts_with=${storedHash.substring(0, 4)}, length=${storedHash.length}`);
+        
+        if (storedHash.startsWith('$2a$') || storedHash.startsWith('$2b$') || storedHash.startsWith('$2y$')) {
+          // It's a bcrypt hash — use bcrypt comparison
+          try {
+            const { compare } = await import("https://deno.land/x/bcrypt@v0.4.1/mod.ts");
+            const isMatch = await compare(typedPass, storedHash);
+            if (isMatch) {
+              matchedCol = 'password_hash (bcrypt)';
+              neonUserFound = true;
+            } else {
+              console.log(`[sync-neon-auth] bcrypt compare returned false for ${cleanEmail}`);
+            }
+          } catch (bcryptErr) {
+            console.error(`[sync-neon-auth] bcrypt compare error:`, bcryptErr);
+          }
+        } else {
+          // Not a bcrypt hash — might be some other format, log it
+          console.log(`[sync-neon-auth] password_hash is not bcrypt format. Plain comparison also failed.`);
+        }
+      }
+
       if (neonUserFound) {
         detailMsg = `Verified match in column '${matchedCol}'`;
       } else {
-        detailMsg = "Found user record but password does not match any column";
+        const hashInfo = u.password_hash 
+          ? `password_hash exists (len=${String(u.password_hash).length}, format=${String(u.password_hash).substring(0, 4)}...)` 
+          : 'no password_hash column';
+        detailMsg = `Found user record but password does not match. ${hashInfo}`;
       }
     } else {
       detailMsg = "No user found with that email/username";
@@ -127,7 +155,7 @@ serve(async (req) => {
             matchFound: !!match
           }
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       );
     }
 

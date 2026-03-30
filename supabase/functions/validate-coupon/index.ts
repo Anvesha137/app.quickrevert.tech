@@ -13,129 +13,132 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || '';
-    const supabaseSecretKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SECRET_KEY') || '';
-    
-    // Verify authentication matches exactly the working create-razorpay-order function
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "No authentication token provided" }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-      );
-    }
-
-    const supabaseClient = createClient(supabaseUrl, supabaseSecretKey || supabaseAnonKey);
-    const jwt = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(jwt);
-
-    if (authError || !user) {
-      console.error('Auth Error:', authError?.message || 'User not found');
-      return new Response(
-        JSON.stringify({ error: "Authentication failed: " + (authError?.message || "User not found") }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-      );
-    }
-
     const { couponCode, planType } = await req.json()
 
-    // 1. Rate Limiting (using standardized created_at)
-    const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString();
-    const { count: attemptCount } = await supabaseClient
-        .from('automation_activities')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('activity_type', 'coupon_check')
-        .gte('created_at', oneMinuteAgo);
-
-    if ((attemptCount || 0) > 10) {
-        return new Response(
-            JSON.stringify({ valid: false, message: 'Too many attempts. Please try again later.' }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 429 }
-        );
-    }
-
-    // Log the activity
-    await supabaseClient.from('automation_activities').insert({
-        user_id: user.id,
-        automation_id: '00000000-0000-0000-0000-000000000000',
-        activity_type: 'coupon_check',
-        status: 'success',
-        message: `Validated coupon: ${couponCode}`,
-        metadata: { coupon: couponCode, plan: planType }
-    });
-
-    if (!couponCode || !couponCode.trim()) {
-        return new Response(
-            JSON.stringify({ valid: false, message: 'Please enter a coupon code.' }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-    }
-
-    // 2. Neon DB Validation
+    // Connect to Neon DB
     const neonDbUrl = Deno.env.get('NEON_DB_URL') ?? '';
+    if (!neonDbUrl) {
+      return new Response(
+        JSON.stringify({ valid: false, message: 'NEON_DB_URL not configured', debug: 'NO_NEON_URL' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     const neonClient = new Client(neonDbUrl);
     
     try {
       await neonClient.connect();
-      const result = await neonClient.queryObject(`
-        SELECT id, promo_code, discount_percentage, max_usage,
-               total_usage_tilldate, expiry_date, pack_type
-        FROM promo_codes
-        WHERE LOWER(TRIM(promo_code)) = LOWER(TRIM($1))
-        LIMIT 1
-      `, [couponCode.trim()]);
 
-      if (result.rows.length === 0) {
+      // STEP 1: Get the actual column names from the table
+      const schemaResult = await neonClient.queryObject(`
+        SELECT column_name, data_type 
+        FROM information_schema.columns 
+        WHERE table_name = 'promo_codes'
+        ORDER BY ordinal_position
+      `);
+      const columns = schemaResult.rows.map((r: any) => r.column_name);
+      console.log('[DEBUG] promo_codes columns:', JSON.stringify(columns));
+
+      // STEP 2: Get ALL rows to see what data exists
+      const allRows = await neonClient.queryObject(`SELECT * FROM promo_codes LIMIT 10`);
+      console.log('[DEBUG] promo_codes data:', JSON.stringify(allRows.rows));
+
+      // STEP 3: Try to find the coupon using whatever column names exist
+      let coupon = null;
+      let matchColumn = '';
+
+      // Try 'code' column first
+      if (columns.includes('code')) {
+        const r = await neonClient.queryObject(
+          `SELECT * FROM promo_codes WHERE LOWER(TRIM(code)) = LOWER(TRIM($1)) LIMIT 1`,
+          [couponCode.trim()]
+        );
+        if (r.rows.length > 0) {
+          coupon = r.rows[0] as any;
+          matchColumn = 'code';
+        }
+      }
+
+      // Try 'promo_code' column
+      if (!coupon && columns.includes('promo_code')) {
+        const r = await neonClient.queryObject(
+          `SELECT * FROM promo_codes WHERE LOWER(TRIM(promo_code)) = LOWER(TRIM($1)) LIMIT 1`,
+          [couponCode.trim()]
+        );
+        if (r.rows.length > 0) {
+          coupon = r.rows[0] as any;
+          matchColumn = 'promo_code';
+        }
+      }
+
+      if (!coupon) {
         return new Response(
-          JSON.stringify({ valid: false, message: 'Invalid coupon code' }),
+          JSON.stringify({ 
+            valid: false, 
+            message: 'Invalid coupon code',
+            debug: {
+              columns,
+              searchedFor: couponCode.trim(),
+              totalRowsInTable: allRows.rows.length,
+              sampleData: allRows.rows.slice(0, 3)
+            }
+          }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
-      const coupon = result.rows[0] as any;
+      // Found the coupon - figure out correct field names dynamically
+      const expiryField = coupon.expires_at || coupon.expiry_date;
+      const usageCount = coupon.used_count ?? coupon.total_usage_tilldate ?? 0;
+      const usageLimit = coupon.usage_limit ?? coupon.max_usage ?? 999;
+      const discountPct = coupon.discount_percentage || 0;
+      const packType = coupon.pack_type || coupon.package || null;
+      const couponStatus = coupon.status || 'active';
+
+      // Check status
+      if (couponStatus !== 'active') {
+        return new Response(
+          JSON.stringify({ valid: false, message: 'Coupon is no longer active' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
 
       // Check expiry
-      if (new Date(coupon.expiry_date) < new Date()) {
+      if (expiryField && new Date(expiryField) < new Date()) {
         return new Response(
           JSON.stringify({ valid: false, message: 'Coupon has expired' }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
       // Check usage limit
-      if (coupon.total_usage_tilldate >= coupon.max_usage) {
+      if (usageCount >= usageLimit) {
         return new Response(
           JSON.stringify({ valid: false, message: 'Coupon usage limit reached' }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
-      // Check plan restriction
-      if (coupon.pack_type) {
-        const pkgLower = coupon.pack_type.toLowerCase().trim();
-        const selectedPlan = (planType || '').toLowerCase().trim();
-        const isQuarterlyOnly = pkgLower.includes('quarterly') || pkgLower.includes('quaterly');
-        const isAnnualOnly = pkgLower.includes('annual') || pkgLower.includes('anually');
-
-        if (isQuarterlyOnly && selectedPlan !== 'quarterly') {
-            return new Response(
-                JSON.stringify({ valid: false, message: 'Coupon only valid for Quarterly Plan' }),
-                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
+      // Plan restriction
+      if (packType) {
+        const pkg = packType.toLowerCase();
+        const plan = (planType || '').toLowerCase();
+        if (pkg.includes('quarter') && plan !== 'quarterly') {
+          return new Response(
+            JSON.stringify({ valid: false, message: 'Coupon only valid for Quarterly Plan' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
         }
-        if (isAnnualOnly && selectedPlan !== 'annual') {
-            return new Response(
-                JSON.stringify({ valid: false, message: 'Coupon only valid for Annual Plan' }),
-                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
+        if (pkg.includes('annual') && plan !== 'annual') {
+          return new Response(
+            JSON.stringify({ valid: false, message: 'Coupon only valid for Annual Plan' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
         }
       }
 
       // Calculations
       const baseAmountRs = (planType === 'annual') ? (599 * 12) : (899 * 3);
-      const discountPct = coupon.discount_percentage || 0;
       const discountRs = Math.floor(baseAmountRs * (discountPct / 100));
       const finalAmountRs = Math.max(0, baseAmountRs - discountRs);
       const isFree = finalAmountRs === 0;
@@ -150,7 +153,8 @@ serve(async (req) => {
           isFree,
           message: isFree 
             ? '🎉 100% OFF! You get it for free!' 
-            : `✅ Coupon applied! ${discountPct}% off`
+            : `✅ Coupon applied! ${discountPct}% off`,
+          debug: { matchColumn, columns }
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -162,7 +166,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Validate coupon error:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ valid: false, message: 'Server error: ' + error.message }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     )
   }
