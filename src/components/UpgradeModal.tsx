@@ -94,14 +94,27 @@ export default function UpgradeModal() {
         setCoupon(prev => ({ ...prev, status: 'validating', message: '' }));
 
         try {
-            const { data, error } = await supabase.functions.invoke('validate-coupon', {
-                body: { couponCode: code.trim(), planType: billingCycle }
+            // Use manual fetch to bypass potential invoke 401 issues with publishable keys
+            const { data: { session } } = await supabase.auth.getSession();
+            const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
+            const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+
+            const response = await fetch(`${supabaseUrl}/functions/v1/validate-coupon`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session?.access_token}`,
+                    'apikey': supabaseAnonKey
+                },
+                body: JSON.stringify({ couponCode: code.trim(), planType: billingCycle })
             });
 
-            if (error || data?.error) {
+            const data = await response.json();
+
+            if (!response.ok || data.error) {
                 setCoupon({
                     status: 'invalid',
-                    message: error?.message || data?.error || 'Invalid coupon code.',
+                    message: data.error || data.message || 'Invalid coupon code.',
                     discountAmount: 0,
                     finalAmount: getBaseTotal(),
                     isFree: false,
