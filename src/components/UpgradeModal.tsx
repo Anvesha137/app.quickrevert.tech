@@ -94,8 +94,18 @@ export default function UpgradeModal() {
         setCoupon(prev => ({ ...prev, status: 'validating', message: '' }));
 
         try {
-            // Use manual fetch to bypass potential invoke 401 issues with publishable keys
-            const { data: { session } } = await supabase.auth.getSession();
+            // Use the session from useAuth and add safety check
+            if (!session?.access_token) {
+                setCoupon({
+                    status: 'invalid',
+                    message: 'Please log in to validate coupons.',
+                    discountAmount: 0,
+                    finalAmount: getBaseTotal(),
+                    isFree: false,
+                });
+                return;
+            }
+
             const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
             const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
 
@@ -103,7 +113,7 @@ export default function UpgradeModal() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session?.access_token}`,
+                    'Authorization': `Bearer ${session.access_token}`,
                     'apikey': supabaseAnonKey
                 },
                 body: JSON.stringify({ couponCode: code.trim(), planType: billingCycle })
