@@ -136,7 +136,10 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
 
   // Validators
   const isReplyValid = replyAction ? replyAction.replyTemplates.some(t => t.trim().length > 0) : true;
-  const isDmValid = dmAction ? (dmAction.title || '').trim().length > 0 : true;
+  const isDmValid = dmAction 
+    ? (dmAction.title || '').trim().length > 0 && 
+      dmAction.actionButtons.every(btn => btn.text.trim().length > 0 && /^(https?:\/\/)?([\w.-]+)\.([a-z]{2,})(:\d{1,5})?(\/.*)?$/i.test(btn.url || ''))
+    : true;
   const canSave = actions.length > 0 && isReplyValid && isDmValid;
 
   return (
@@ -385,18 +388,23 @@ export default function ActionConfig({ triggerType, actions, onActionsChange, on
                             disabled={readOnly}
                             className={`w-full border-2 rounded-lg px-3 py-1.5 outline-none font-medium text-base transition-all ${darkMode ? 'border-white/10 bg-white/5 text-white focus:border-white/20 placeholder:text-white/20' : 'border-gray-200 bg-white text-gray-900 focus:border-purple-500'}`}
                           />
-                          <input
-                            type="url"
-                            placeholder="URL Link"
-                            value={btn.url}
-                            onChange={(e) => {
-                              const btns = [...dmAction.actionButtons];
-                              btns[i].url = e.target.value;
-                              updateDmAction({ actionButtons: btns });
-                            }}
-                            disabled={readOnly}
-                            className={`w-full border-2 rounded-lg px-3 py-1.5 outline-none font-medium text-base transition-all ${darkMode ? 'border-white/10 bg-white/5 text-white focus:border-white/20 placeholder:text-white/20' : 'border-gray-200 bg-white text-gray-900 focus:border-purple-500'}`}
-                          />
+                          <div className="relative">
+                            <input
+                              type="url"
+                              placeholder="URL Link"
+                              value={btn.url}
+                              onChange={(e) => {
+                                const btns = [...dmAction.actionButtons];
+                                btns[i].url = e.target.value;
+                                updateDmAction({ actionButtons: btns });
+                              }}
+                              disabled={readOnly}
+                              className={`w-full border-2 rounded-lg px-3 py-1.5 outline-none font-medium text-base transition-all ${darkMode ? 'border-white/10 bg-white/5 text-white focus:border-white/20 placeholder:text-white/20' : 'border-gray-200 bg-white text-gray-900 focus:border-purple-500'} ${btn.url && !/^(https?:\/\/)?([\w.-]+)\.([a-z]{2,})(:\d{1,5})?(\/.*)?$/i.test(btn.url) ? 'border-red-500 focus:border-red-500' : ''}`}
+                            />
+                            {btn.url && !/^(https?:\/\/)?([\w.-]+)\.([a-z]{2,})(:\d{1,5})?(\/.*)?$/i.test(btn.url) && (
+                              <p className="text-[10px] text-red-500 font-bold mt-1">Invalid URL</p>
+                            )}
+                          </div>
                         </div>
                       ))}
                       {!readOnly && (dmAction?.actionButtons.length || 0) < 3 && (

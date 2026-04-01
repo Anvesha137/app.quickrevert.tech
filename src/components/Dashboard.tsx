@@ -245,13 +245,13 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Connection Status Banner - Black & White / Thinner for Millennial */}
+              {/* Connection Status Banner - Millennial */}
               <div className="mb-4 group">
                 {instagramAccount ? (
                   <div className={`relative overflow-hidden rounded-2xl py-3 px-4 md:py-4 md:px-6 shadow-xl transition-all duration-300 hover:shadow-2xl border-none bg-gradient-to-r from-orange-500 to-purple-700 text-white`}>
 
                     <div className="flex items-center gap-2 relative z-10">
-                      <div className={`w-8 h-8 md:w-9 md:h-9 rounded-xl border flex items-center justify-center shrink-0 bg-white/20 border-white/30 backdrop-blur-md`}>
+                      <div className={`w-14 h-14 md:w-16 md:h-16 rounded-2xl border flex items-center justify-center shrink-0 bg-white/20 border-white/30 backdrop-blur-md`}>
                         {instagramAccount.profile_picture_url ? (
                           <img
                             src={instagramAccount.profile_picture_url}
@@ -271,21 +271,20 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <div 
-                    className={`relative overflow-hidden rounded-2xl border py-3 px-4 md:py-4 md:px-6 flex items-center gap-3 group transition-all cursor-pointer ${
-                      darkMode 
-                        ? 'bg-gradient-to-r from-orange-500/5 to-purple-700/5 border-white/10 hover:border-white/20' 
-                        : 'bg-gradient-to-r from-orange-500/10 via-pink-500/10 to-purple-700/10 border-orange-100 hover:border-orange-200 shadow-sm shadow-orange-500/5'
-                    }`}
+                    className="relative overflow-hidden rounded-2xl py-4 px-5 md:py-5 md:px-6 flex items-center gap-4 cursor-pointer transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl shadow-xl bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white group"
                     onClick={() => window.location.href = '/connect-accounts'}
                   >
-                    <div className={`w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center shrink-0 transition-all ${
-                      darkMode ? 'bg-white/10 group-hover:bg-white/20' : 'bg-white/80 group-hover:bg-white shadow-sm'
-                    }`}>
-                      <Instagram className={`w-4 h-4 md:w-5 md:h-5 transition-colors ${darkMode ? 'text-white/60 group-hover:text-white' : 'text-orange-600 group-hover:text-purple-600'}`} />
+                    {/* Animated shimmer overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
+                    <div className="w-10 h-10 md:w-11 md:h-11 rounded-xl flex items-center justify-center shrink-0 bg-white/20 backdrop-blur-sm border border-white/30 shadow-lg">
+                      <Instagram className="w-5 h-5 md:w-6 md:h-6 text-white" />
                     </div>
-                    <div>
-                      <h3 className={`text-sm md:text-base font-bold transition-colors ${darkMode ? 'text-white' : 'text-gray-800 group-hover:text-black'}`}>Connect Instagram</h3>
-                      <p className={`text-[10px] md:text-xs font-medium ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Link your account</p>
+                    <div className="flex-1 relative z-10">
+                      <h3 className="text-sm md:text-base font-black leading-tight mb-0.5 text-white">Connect Instagram to Get Started</h3>
+                      <p className="text-[10px] md:text-xs font-semibold text-white/80">Required to use QuickRevert — tap to connect now ✨</p>
+                    </div>
+                    <div className="hidden md:flex items-center gap-1 px-4 py-2 bg-white/20 backdrop-blur-sm rounded-xl border border-white/30 text-white text-xs font-black uppercase tracking-wider shrink-0 group-hover:bg-white/30 transition-colors">
+                      Connect →
                     </div>
                   </div>
                 )}
@@ -528,7 +527,7 @@ export default function Dashboard() {
                   <div className={`relative overflow-hidden rounded-2xl p-6 transition-all duration-300 shadow-xl bg-gradient-to-r from-orange-500 to-purple-700 text-white shadow-purple-500/30`}>
 
                     <div className="flex items-center gap-4 relative z-10">
-                      <div className="w-12 h-12 rounded-xl border flex items-center justify-center shrink-0 bg-white/10 border-white/20 backdrop-blur-md">
+                      <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl border flex items-center justify-center shrink-0 bg-white/10 border-white/20 backdrop-blur-md">
                         {instagramAccount.profile_picture_url ? (
                           <img
                             src={instagramAccount.profile_picture_url}
@@ -547,21 +546,20 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ) : (
-                  <div className={`relative overflow-hidden rounded-2xl border-2 border-dashed p-6 flex items-center gap-4 group transition-all cursor-pointer ${
-                    darkMode 
-                      ? 'bg-gradient-to-br from-orange-500/5 to-purple-700/5 border-white/10 hover:border-white/20' 
-                      : 'bg-gradient-to-br from-orange-500/10 via-pink-500/10 to-purple-700/10 border-orange-200/50 hover:border-orange-300 shadow-sm shadow-orange-500/5'
-                  }`}>
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-all ${
-                      darkMode ? 'bg-white/10 group-hover:bg-white/20' : 'bg-white/80 group-hover:bg-white shadow-sm'
-                    }`}>
-                      <Instagram className={`w-6 h-6 transition-colors ${darkMode ? 'text-white/60 group-hover:text-white' : 'text-orange-500 group-hover:text-purple-600'}`} />
+                  <div className="relative overflow-hidden rounded-2xl p-6 flex items-center gap-5 group transition-all duration-300 cursor-pointer hover:scale-[1.01] hover:shadow-2xl shadow-xl bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white">
+                    {/* Animated shimmer overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
+                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 bg-white/20 backdrop-blur-sm border border-white/30 shadow-lg">
+                      <Instagram className="w-7 h-7 text-white" />
                     </div>
-                    <div>
-                      <h3 className={`text-lg font-bold transition-colors ${darkMode ? 'text-white' : 'text-slate-700 group-hover:text-black'}`}>Connect Instagram</h3>
-                      <p className={`text-sm font-medium ${darkMode ? 'text-gray-500' : 'text-slate-400'}`}>Link your account to start</p>
+                    <div className="flex-1 relative z-10">
+                      <h3 className="text-xl font-black leading-tight mb-1 text-white">Connect Instagram to Get Started</h3>
+                      <p className="text-sm font-semibold text-white/80">Required to use QuickRevert — tap to connect now ✨</p>
                     </div>
-                    <Link to="/connect-accounts" className="absolute inset-0" />
+                    <div className="hidden md:flex items-center gap-1 px-5 py-2.5 bg-white/20 backdrop-blur-sm rounded-xl border border-white/30 text-white text-sm font-black uppercase tracking-wider shrink-0 group-hover:bg-white/30 transition-colors">
+                      Connect →
+                    </div>
+                    <Link to="/connect-accounts" className="absolute inset-0 z-20" />
                   </div>
                 )}
               </div>

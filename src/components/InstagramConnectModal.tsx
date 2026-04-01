@@ -127,7 +127,7 @@ const InstagramConnectModal = ({ isOpen, onClose }: Omit<InstagramConnectModalPr
             <p className="text-gray-600 text-[11px] leading-snug mb-2 opacity-90">
               We only use official Instagram APIs and processes. Your account is secure.
             </p>
-            <div className="flex items-center justify-between gap-2 pt-2 border-t border-purple-100/30">
+            <div className="flex flex-col gap-2 pt-2 border-t border-purple-100/30">
               <div className="flex items-center gap-1.5">
                 <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
                 <span className="text-[10px] font-bold text-gray-700">Official Meta OAuth</span>

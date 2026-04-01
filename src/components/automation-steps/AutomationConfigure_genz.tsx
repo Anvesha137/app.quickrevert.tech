@@ -319,7 +319,12 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
     } as any);
   };
 
-  const canSave = actions.length > 0;
+  const isReplyValid = replyAction ? replyAction.replyTemplates.some(t => t.trim().length > 0) : true;
+  const isDmValid = dmAction 
+    ? (dmAction.title || '').trim().length > 0 && 
+      dmAction.actionButtons.every(btn => btn.text.trim().length > 0 && /^(https?:\/\/)?([\w.-]+)\.([a-z]{2,})(:\d{1,5})?(\/.*)?$/i.test(btn.url || ''))
+    : true;
+  const canSave = actions.length > 0 && isReplyValid && isDmValid;
   const TriggerIcon = getTriggerIcon();
 
   return (
@@ -420,7 +425,11 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                   if (!p) return <div className={cn("w-12 h-12 rounded-lg flex items-center justify-center", darkMode ? "bg-white/5" : "bg-gray-100")}><ImageIcon className="w-5 h-5 opacity-50" /></div>;
                   return (
                     <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 border border-white/10">
-                      <img src={p.media_type === 'VIDEO' ? p.thumbnail_url : p.media_url} className="w-full h-full object-cover" />
+                      {p.media_type === 'VIDEO' ? (
+                        <video src={p.media_url} poster={p.thumbnail_url} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                      ) : (
+                        <img src={p.media_url} className="w-full h-full object-cover" />
+                      )}
                     </div>
                   );
                 })()}
@@ -937,18 +946,24 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                               : "border-2 border-gray-200 focus:border-purple-500 text-gray-900"
                           )}
                         />
-                        <input
-                          type="url"
-                          placeholder="URL Link"
-                          value={btn.url}
-                          onChange={(e) => { const btns = [...dmAction.actionButtons]; btns[i].url = e.target.value; updateDmAction({ actionButtons: btns }); }}
-                          className={cn(
-                            "w-full rounded-lg px-3 py-1.5 outline-none font-bold text-base transition-all",
-                            darkMode
-                              ? "bg-black border-2 border-white/10 text-white placeholder:text-white/20 focus:border-white/20"
-                              : "border-2 border-gray-200 focus:border-purple-500 text-gray-900"
+                        <div className="relative">
+                          <input
+                            type="url"
+                            placeholder="URL Link"
+                            value={btn.url}
+                            onChange={(e) => { const btns = [...dmAction.actionButtons]; btns[i].url = e.target.value; updateDmAction({ actionButtons: btns }); }}
+                            className={cn(
+                              "w-full rounded-lg px-3 py-1.5 outline-none font-bold text-base transition-all",
+                              darkMode
+                                ? "bg-black border-2 border-white/10 text-white placeholder:text-white/20 focus:border-white/20"
+                                : "border-2 border-gray-200 focus:border-purple-500 text-gray-900",
+                              btn.url && !/^(https?:\/\/)?([\w.-]+)\.([a-z]{2,})(:\d{1,5})?(\/.*)?$/i.test(btn.url) ? '!border-red-500' : ''
+                            )}
+                          />
+                          {btn.url && !/^(https?:\/\/)?([\w.-]+)\.([a-z]{2,})(:\d{1,5})?(\/.*)?$/i.test(btn.url) && (
+                            <p className="text-[10px] text-red-500 font-bold mt-1">Invalid URL</p>
                           )}
-                        />
+                        </div>
                       </div>
                     ))}
                   </div>

@@ -215,7 +215,11 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                 if (!p) return <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${darkMode ? 'bg-white/5' : 'bg-gray-100'}`}><ImageIcon className="w-5 h-5 opacity-50" /></div>;
                 return (
                   <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 border border-white/10">
-                    <img src={p.media_type === 'VIDEO' ? p.thumbnail_url : p.media_url} className="w-full h-full object-cover" />
+                    {p.media_type === 'VIDEO' ? (
+                      <video src={p.media_url} poster={p.thumbnail_url} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                    ) : (
+                      <img src={p.media_url} className="w-full h-full object-cover" />
+                    )}
                   </div>
                 );
               })()}

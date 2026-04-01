@@ -34,14 +34,6 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('instagram_connected') === 'true') {
-      const username = params.get('username');
-      const usernameText = username ? `@${username}` : 'Your Instagram';
-      
-      toast.success(
-        `🎉 Yay! ${usernameText} is connected! Check the Automations page from the menu to create your first automation.`,
-        { duration: 8000 }
-      );
-      
       setCountdown(10);
       
       // Clean up URL params
@@ -278,19 +270,18 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
           {accounts.length === 0 && (
             <button
               onClick={handleConnectInstagram}
-              className={`flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-3xl transition-all duration-300 hover:scale-[1.02] min-h-[350px] ${
-                darkMode 
-                  ? 'bg-gradient-to-br from-orange-500/5 to-purple-700/5 border-white/10 hover:border-white/20' 
-                  : 'bg-gradient-to-br from-orange-500/10 via-pink-500/10 to-purple-700/10 border-orange-200 hover:border-orange-300 shadow-sm shadow-orange-500/5 font-bold'
-              }`}
+              className="group relative flex flex-col items-center justify-center p-8 rounded-3xl transition-all duration-300 hover:scale-[1.02] min-h-[350px] overflow-hidden shadow-xl hover:shadow-2xl bg-gradient-to-br from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white"
             >
-              <div className={`w-16 h-16 rounded-3xl flex items-center justify-center mb-4 transition-all ${
-                darkMode ? 'bg-white/10 group-hover:bg-white/20' : 'bg-white shadow-md group-hover:shadow-lg'
-              }`}>
-                <Instagram size={32} className="text-orange-500" />
+              {/* Animated shimmer overlay */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
+              <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-5 bg-white/20 backdrop-blur-sm border border-white/30 shadow-lg relative z-10">
+                <Instagram size={40} className="text-white" />
               </div>
-              <p className={`text-lg font-black mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Connect Account</p>
-              <p className={`text-sm font-medium ${darkMode ? 'text-white/30' : 'text-gray-500'}`}>Connect your Instagram profile</p>
+              <p className="text-xl font-black mb-2 relative z-10">Connect Instagram</p>
+              <p className="text-sm font-semibold text-white/80 relative z-10 mb-4">Required to use QuickRevert</p>
+              <div className="px-6 py-2.5 bg-white/20 backdrop-blur-sm rounded-xl border border-white/30 text-white text-sm font-black uppercase tracking-wider relative z-10 group-hover:bg-white/30 transition-colors">
+                Connect Now →
+              </div>
             </button>
           )}
 
@@ -358,20 +349,20 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
           )}
 
           {accounts.length === 0 ? (
-            <div className="text-center py-16">
-              <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-pink-100 via-rose-100 to-orange-100 rounded-3xl mb-6 shadow-lg">
-                <Instagram size={48} className="text-pink-600" />
+            <div className="text-center py-12">
+              <div className="group relative inline-flex flex-col items-center justify-center p-10 rounded-3xl overflow-hidden shadow-xl hover:shadow-2xl bg-gradient-to-br from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white transition-all duration-300 hover:scale-[1.02] cursor-pointer" onClick={handleConnectInstagram}>
+                {/* Animated shimmer overlay */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
+                <div className="w-24 h-24 rounded-3xl flex items-center justify-center mb-6 bg-white/20 backdrop-blur-sm border border-white/30 shadow-lg relative z-10">
+                  <Instagram size={48} className="text-white" />
+                </div>
+                <h3 className="text-2xl font-black mb-2 relative z-10">Connect Instagram to Get Started</h3>
+                <p className="text-white/80 mb-8 text-base font-semibold relative z-10">Required to use QuickRevert — connect your account now ✨</p>
+                <div className="inline-flex items-center gap-2 px-8 py-4 bg-white/20 backdrop-blur-sm rounded-xl border border-white/30 text-white font-black text-lg uppercase tracking-wider relative z-10 group-hover:bg-white/30 transition-colors shadow-lg">
+                  <Instagram size={24} />
+                  Connect Now →
+                </div>
               </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-3">No accounts connected</h3>
-              <p className="text-gray-600 mb-8 text-lg">Connect your Instagram account to start automating</p>
-              <button
-                onClick={handleConnectInstagram}
-                className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-orange-500 to-purple-700 text-white rounded-xl hover:scale-105 transition-all shadow-xl shadow-purple-500/20 hover:shadow-purple-500/40 font-bold text-lg"
-              >
-                <Instagram size={24} />
-                Connect Instagram Account
-              </button>
-
             </div>
           ) : (
             <div className="space-y-5">
