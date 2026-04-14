@@ -38,37 +38,23 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
     const supabaseClient = createClient(supabaseUrl, supabaseKey);
 
-    // Fetch Connected Instagram Account (Active)
-    const { data: instagramData, error: igError } = await supabaseClient
-      .from('instagram_accounts')
-      .select('username, initial_followers_count, followers_count')
-      .eq('user_id', userId)
-      .eq('status', 'active')
-      .maybeSingle();
+    // 1. Parallel Fetch all necessary data from Supabase
+    const [instagramResult, automationsResult, subResult, limitResult] = await Promise.all([
+      supabaseClient.from('instagram_accounts').select('username, initial_followers_count, followers_count').eq('user_id', userId).eq('status', 'active').maybeSingle(),
+      supabaseClient.from('automations').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'active'),
+      supabaseClient.from('subscriptions').select('*').eq('user_id', userId).maybeSingle(),
+      supabaseClient.from('user_limits').select('*').eq('user_id', userId).maybeSingle()
+    ]);
 
-    if (igError) console.warn("[sync-user-neon] Instagram fetch error:", igError.message);
-    const connectedHandle = instagramData?.username || null;
-    const initialFollowers = instagramData?.initial_followers_count || 0;
-    const currentFollowers = instagramData?.followers_count || 0;
+    if (instagramResult.error) console.warn("[sync-user-neon] Instagram fetch error:", instagramResult.error.message);
+    const connectedHandle = instagramResult.data?.username || null;
+    const initialFollowers = instagramResult.data?.initial_followers_count || 0;
+    const currentFollowers = instagramResult.data?.followers_count || 0;
 
-    // Count Active Automations
-    const { count: automationsCount, error: countError } = await supabaseClient
-      .from('automations')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .eq('status', 'active');
+    const activeAutomationsCount = automationsResult.count || 0;
 
-    if (countError) console.warn("[sync-user-neon] Automations count error:", countError.message);
-    const activeAutomationsCount = countError ? 0 : (automationsCount || 0);
-
-    // Fetch Subscription Status
-    const { data: subData, error: subError } = await supabaseClient
-      .from('subscriptions')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (subError) console.warn("[sync-user-neon] Subscription fetch error:", subError.message);
+    const subData = subResult.data;
+    if (subResult.error) console.warn("[sync-user-neon] Subscription fetch error:", subResult.error.message);
 
     let status = 'active';
     let packageName: string | null = null;
@@ -103,146 +89,65 @@ serve(async (req) => {
     }
 
     const usernameValue = instagramHandle || fullName || email.split('@')[0];
-    console.log(`[sync-user-neon] Upserting user: email=${email}, status=${status}, handle=${connectedHandle}, automations=${activeAutomationsCount}`);
-
-    neonClient = new Client(neonDbUrl);
-    await neonClient.connect();
-    console.log("[sync-user-neon] Connected to Neon DB");
-
     const cleanEmail = email.trim().toLowerCase();
 
-    // Check if user is banned
-    const { rows: bannedRows } = await neonClient.queryObject(
-      `SELECT id FROM banned_users WHERE LOWER(email) = $1`,
-      [cleanEmail]
-    );
+    // 2. Neon Operations
+    neonClient = new Client(neonDbUrl);
+    await neonClient.connect();
+    
+    // Combined Banned and Gifted Check
+    const [{ rows: bannedRows }, { rows: giftedRows }, { rows: existingNeonUsers }] = await Promise.all([
+      neonClient.queryObject(`SELECT id FROM banned_users WHERE LOWER(email) = $1`, [cleanEmail]),
+      neonClient.queryObject(`SELECT gp.dm_limit, gp.automation_limit, gp.ask_to_follow_enabled, gp.expiry_date FROM gifted_premium gp LEFT JOIN users u ON u.id = gp.user_id WHERE LOWER(u.email) = $1 OR LOWER(u.username) = $1 OR gp.user_id = $2`, [cleanEmail, userId]),
+      neonClient.queryObject(`SELECT id, deleted FROM users WHERE email = $1`, [email])
+    ]);
 
     if (bannedRows.length > 0) {
       console.log(`[sync-user-neon] User ${cleanEmail} is BANNED. Kicking out.`);
       await neonClient.end();
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          isBanned: true,
-          email 
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ success: true, isBanned: true, email }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const { rows: giftedRows } = await neonClient.queryObject(
-      `SELECT gp.dm_limit, gp.automation_limit, gp.ask_to_follow_enabled, gp.expiry_date 
-       FROM gifted_premium gp
-       LEFT JOIN users u ON u.id = gp.user_id
-       WHERE LOWER(u.email) = $1 OR LOWER(u.username) = $1 OR gp.user_id = $2`,
-      [cleanEmail, userId]
-    );
-
+    // Process Gifted
     let isGifted = giftedRows.length > 0;
     let giftedSettings = isGifted ? (giftedRows[0] as any) : null;
 
     if (isGifted && giftedSettings?.expiry_date) {
-      const expiryDate = new Date(giftedSettings.expiry_date);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      expiryDate.setHours(0, 0, 0, 0);
-
-      if (expiryDate < today) {
-        console.log(`[sync-user-neon] Gifted premium EXPIRED for ${cleanEmail} (expired on ${giftedSettings.expiry_date})`);
+      if (new Date(giftedSettings.expiry_date) < new Date()) {
         isGifted = false;
         giftedSettings = null;
       }
     }
-    
-    console.log(`[sync-user-neon] GIFTED CHECK: email=${cleanEmail}, userId=${userId}, found=${isGifted}`);
-    if (isGifted) console.log(`[sync-user-neon] Settings:`, JSON.stringify(giftedSettings));
 
+    // 3. Smart Limit Sync (Only update Supabase if values changed)
+    let syncDmLimit, syncAutoLimit;
     if (isGifted) {
-      console.log(`[sync-user-neon] User ${cleanEmail} is confirmed GIFTED PREMIUM.`);
       status = 'active';
       packageName = 'Gifted Premium';
       subscriptionEnd = giftedSettings.expiry_date || null;
-
-      // Upsert limits into user_limits table (Supabase)
-      const giftedDmLimit = giftedSettings?.dm_limit ?? null;
-      const giftedAutoLimit = giftedSettings?.automation_limit ?? null;
-      console.log(`[sync-user-neon] Syncing gifted limits: dm_limit=${giftedDmLimit}, automation_limit=${giftedAutoLimit}`);
-
-      const { error: updateError } = await supabaseClient
-        .from('user_limits')
-        .upsert({ 
-          user_id: userId,
-          is_gifted: true,
-          dm_limit: giftedDmLimit,
-          automation_limit: giftedAutoLimit,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'user_id' });
-        
-      if (updateError) {
-        console.error("[sync-user-neon] user_limits upsert error:", updateError.message);
-      }
+      syncDmLimit = giftedSettings?.dm_limit ?? null;
+      syncAutoLimit = giftedSettings?.automation_limit ?? null;
     } else {
-      // Determine limits based on subscription plan
-      const hasPaidPremium = subData && (subData.status === 'active' || subData.status === 'trialing') && 
-        subData.plan_id && subData.plan_id.toLowerCase() !== 'basic';
-      // Paid premium: null = unlimited. Basic/no sub: enforce defaults.
-      const syncDmLimit = hasPaidPremium ? null : 1000;
-      const syncAutoLimit = hasPaidPremium ? null : 3;
-      console.log(`[sync-user-neon] Syncing plan limits: dm_limit=${syncDmLimit}, automation_limit=${syncAutoLimit}, hasPaidPremium=${hasPaidPremium}`);
-
-      // Upsert limits into user_limits table (Supabase)
-      const { error: revertError } = await supabaseClient
-        .from('user_limits')
-        .upsert({ 
-          user_id: userId,
-          is_gifted: false,
-          dm_limit: syncDmLimit,
-          automation_limit: syncAutoLimit,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'user_id' });
-        
-      if (revertError) {
-        console.error("[sync-user-neon] user_limits upsert error:", revertError.message);
-      }
+      const hasPaidPremium = subData && (subData.status === 'active' || subData.status === 'trialing') && subData.plan_id && subData.plan_id.toLowerCase() !== 'basic';
+      syncDmLimit = hasPaidPremium ? null : 1000;
+      syncAutoLimit = hasPaidPremium ? null : 3;
     }
 
-    // 2. Check if user already exists in Neon and was soft-deleted
-    const { rows: existingNeonUsers } = await neonClient.queryObject(
-      `SELECT id, deleted FROM users WHERE email = $1`,
-      [email]
-    );
-
-    if (existingNeonUsers.length > 0) {
-      const existingUser = existingNeonUsers[0] as any;
-      if (existingUser.deleted) {
-        console.log(`[sync-user-neon] User ${email} was previously deleted. Removing old record for fresh start.`);
-        await neonClient.queryObject(`DELETE FROM users WHERE id = $1`, [existingUser.id]);
-      }
+    // Only update Supabase if limit settings mismatch current state
+    const currentLimits = limitResult.data;
+    if (!currentLimits || currentLimits.dm_limit !== syncDmLimit || currentLimits.automation_limit !== syncAutoLimit || currentLimits.is_gifted !== isGifted) {
+      await supabaseClient.from('user_limits').upsert({ user_id: userId, is_gifted: isGifted, dm_limit: syncDmLimit, automation_limit: syncAutoLimit, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
     }
 
-    // 3. Upsert user — covers all columns in the users table schema
+    // 4. Neon User Upsert
+    if (existingNeonUsers.length > 0 && (existingNeonUsers[0] as any).deleted) {
+      await neonClient.queryObject(`DELETE FROM users WHERE id = $1`, [(existingNeonUsers[0] as any).id]);
+    }
+
     await neonClient.queryObject(
-      `INSERT INTO users (
-        id,
-        username,
-        email,
-        status,
-        promo_code,
-        deleted,
-        joining_date,
-        last_active,
-        instagram_handle,
-        connected_instagram_handle,
-        no_of_automations,
-        insta_followers_at_joining,
-        insta_followers_now
-      ) VALUES (
-        $1, $2, $3, $4, $5, FALSE,
-        NOW() AT TIME ZONE 'Asia/Kolkata',
-        NOW() AT TIME ZONE 'Asia/Kolkata',
-        $6, $7, $8, $9, $10
-      )
-      ON CONFLICT (email) DO UPDATE SET
+      `INSERT INTO users (id, username, email, status, promo_code, deleted, joining_date, last_active, instagram_handle, connected_instagram_handle, no_of_automations, insta_followers_at_joining, insta_followers_now)
+       VALUES ($1, $2, $3, $4, $5, FALSE, NOW() AT TIME ZONE 'Asia/Kolkata', NOW() AT TIME ZONE 'Asia/Kolkata', $6, $7, $8, $9, $10)
+       ON CONFLICT (email) DO UPDATE SET
         username = COALESCE(EXCLUDED.username, users.username),
         status = EXCLUDED.status,
         promo_code = COALESCE(EXCLUDED.promo_code, users.promo_code),
@@ -253,18 +158,7 @@ serve(async (req) => {
         no_of_automations = EXCLUDED.no_of_automations,
         insta_followers_at_joining = COALESCE(EXCLUDED.insta_followers_at_joining, users.insta_followers_at_joining),
         insta_followers_now = EXCLUDED.insta_followers_now`,
-      [
-        userId,            // $1 - id
-        usernameValue,     // $2 - username
-        email,             // $3 - email
-        status,            // $4 - status
-        promoCode,         // $5 - promo_code
-        connectedHandle,   // $6 - instagram_handle
-        connectedHandle,   // $7 - connected_instagram_handle
-        activeAutomationsCount, // $8 - no_of_automations
-        initialFollowers,  // $9 - insta_followers_at_joining
-        currentFollowers,  // $10 - insta_followers_now
-      ]
+      [userId, usernameValue, email, status, promoCode, connectedHandle, connectedHandle, activeAutomationsCount, initialFollowers, currentFollowers]
     );
 
     await neonClient.end();
