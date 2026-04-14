@@ -254,12 +254,23 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
                 setInitialFetchDone(true);
             }
         }
-    }, [user, initialFetchDone, isGifted, giftedSettings]);
+    }, [user, initialFetchDone]);
 
     useEffect(() => {
         fetchSubscriptionData();
-        const interval = setInterval(fetchSubscriptionData, 300_000);
-        return () => clearInterval(interval);
+        const interval = setInterval(fetchSubscriptionData, 420_000); // 7 minutes
+
+        // Smart Refresh: Check when the user comes back to the tab
+        const handleFocus = () => {
+            console.log('[SubscriptionContext] Tab focused, triggering smart refresh...');
+            fetchSubscriptionData();
+        };
+        window.addEventListener('focus', handleFocus);
+
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('focus', handleFocus);
+        };
     }, [fetchSubscriptionData]);
 
     const planId = (subscription?.plan_id || 'basic').toLowerCase();
