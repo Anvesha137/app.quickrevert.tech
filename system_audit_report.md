@@ -109,15 +109,17 @@ These are the documented fixes for historical logic errors encountered during de
   3. **Parallel PATCH**: Updates all discovered credentials simultaneously.
 - **Affected Functions**: `instagram-oauth-callback`, `instagram-refresh-token`, `create-workflow`.
 
-### 5.6 Workflow Reactivation & Lead Manager Alignment (April 2026)
-- **Problem**: Reactivating an automation (toggling OFF/ON) occasionally failed to trigger new executions. Additionally, Lead Manager automations used hardcoded "Ask Name" placeholders instead of custom UI fields.
-- **Lead Manager Content Fixes**:
-  - **Dynamic Fields**: Nodes like "Ask Name", "Confirm Name", and "Final DM" now correctly pull from `lmMessages` configuration.
-  - **Newline Preservation**: Standardized `.replace(/\n/g, '\\n')` across all message nodes. Previously, newlines were stripped, causing cramped messages in Instagram.
-- **Reactivation Overhaul**:
-  - **Atomic DB Sync**: Migrated `activate-workflow` from manual deletes/inserts to the `register_automation` RPC. This ensures that `automation_routes` and `tracked_posts` (for specific media) are updated in a single database transaction. 
-  - **Specific Post Persistence**: Re-activating an automation now correctly restores media-specific triggers that were previously lost during manual toggling.
-  - **Forced Handshake**: Added a `force` parameter to `manage-instagram-webhook`. Every UI activation now triggers a forced re-subscription call to Meta Graph API, clearing potential "ghost" connection issues.
+### 5.6 Lead Manager & Atomic Reactivation (April 2026)
+- **Standardized Mapping**: Aligned Lead Manager nodes (Ask Name, Confirm Email, etc.) with dashboard UI fields.
+- **Atomic Reactivation**: Overhauled `activate-workflow` to use the `register_automation` RPC for consistent state restoration.
+- **Force Refresh**: Added a `force` parameter to Meta webhook subscriptions to clear "ghost" connection issues.
+
+### 5.7 Hybrid Automation Validation (April 2026)
+- **Post Comment Constraints**: Implemented frontend validation to restrict unsupported hybrid combinations.
+- **Incompatibility Guards**:
+    - **Ask to Follow + Lead Manager**: Mutually exclusive to prevent logic conflicts in lead collection.
+    - **Lead Manager + Menu Flow**: Restricted Lead Manager to Simple DMs and Carousels to ensure high conversion rates.
+- **User Feedback**: Added real-time toast notifications for blocked combinations to guide users toward supported workflows.
 
 ---
 

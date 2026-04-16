@@ -281,6 +281,20 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
 
   const toggleLeadManager = () => {
     if (readOnly) return;
+
+    if (!hasLeadManager && triggerType === 'post_comment') {
+      // 1. Validation: Lead Manager cannot work with Ask to Follow
+      if (hasFollowGate) {
+        toast.error("Ask to Follow + Lead Manager cannot be toggled on together");
+        return;
+      }
+      // 2. Validation: Lead Manager cannot work with Conversation Flow
+      if (hasDm && dmAction?.dmType === 'conversation_flow') {
+        toast.error("Lead Manager + Conversation Flow cannot be toggled on together");
+        return;
+      }
+    }
+
     if (hasLeadManager) {
       updateActions(actions.filter(a => a.type !== 'save_lead'));
     } else {
@@ -306,6 +320,13 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
   const toggleFollowGate = () => {
     if (readOnly) return;
     if (!canUseAskToFollow) { openModal(); return; }
+
+    // Validation: Ask to Follow cannot work with Lead Manager for Post Comment
+    if (!hasFollowGate && triggerType === 'post_comment' && hasLeadManager) {
+      toast.error("Ask to Follow + Lead Manager cannot be toggled on together");
+      return;
+    }
+
     if (!hasDm) {
       updateActions([...actions, {
         type: 'send_dm',
@@ -333,6 +354,13 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
 
   const updateDmAction = (updates: Partial<SendDmAction>) => {
     if (readOnly) return;
+
+    // Validation: Switching to Conversation Flow while Lead Manager is on
+    if (updates.dmType === 'conversation_flow' && triggerType === 'post_comment' && hasLeadManager) {
+      toast.error("Lead Manager + Conversation Flow cannot be toggled on together");
+      return;
+    }
+
     const newActions = [...actions];
     const idx = newActions.findIndex(a => a.type === 'send_dm');
     if (idx >= 0) { newActions[idx] = { ...newActions[idx], ...updates } as SendDmAction; updateActions(newActions); }

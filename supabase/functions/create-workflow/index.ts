@@ -743,6 +743,7 @@ if (typeof $getWorkflowStaticData === 'function') {
               "headerParameters": {
                 "parameters": [
                   { "name": "apikey", "value": supabaseAnonKey },
+                  { "name": "Authorization", "value": "Bearer " + supabaseAnonKey },
                   { "name": "x-quickrevert-secret", "value": internalSecret },
                   { "name": "Content-Type", "value": "application/json" }
                 ]
