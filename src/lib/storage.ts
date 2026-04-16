@@ -55,9 +55,9 @@ export const compressImage = async (file: File, maxSizeInBytes: number = 102400)
         };
         compress();
       };
-      img.onerror = () => reject(new Error(`Failed to load image: ${file.name} (${file.type})`));
+      img.onerror = () => reject(new Error('Failed to load image'));
     };
-    reader.onerror = () => reject(new Error(`Failed to read file: ${file.name} (${file.size} bytes)`));
+    reader.onerror = () => reject(new Error('Failed to read file'));
   });
 };
 

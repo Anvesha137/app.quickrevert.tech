@@ -272,58 +272,45 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
       const finalActions = JSON.parse(JSON.stringify(formData.actions));
 
       const processActions = async (actions: any[]) => {
-        const blobToPermanentMap = new Map<string, string>();
-        const urlsToClear = new Set<string>();
-
         for (const action of actions) {
-          const processImageUrl = async (obj: any) => {
-            if (obj.imageUrl && isBlobUrl(obj.imageUrl)) {
-              // Reuse if already uploaded in this session
-              if (blobToPermanentMap.has(obj.imageUrl)) {
-                obj.imageUrl = blobToPermanentMap.get(obj.imageUrl);
-                return;
-              }
-
-              const file = getPendingUpload(obj.imageUrl);
-              if (file) {
-                try {
-                  const permanentUrl = await uploadAutomationAsset(file);
-                  blobToPermanentMap.set(obj.imageUrl, permanentUrl);
-                  urlsToClear.add(obj.imageUrl);
-                  obj.imageUrl = permanentUrl;
-                } catch (err: any) {
-                  console.error(`Failed to upload image for ${file.name}:`, err);
-                  throw new Error(`Failed to upload image: ${err.message || 'Unknown error'}`);
-                }
-              } else {
-                console.warn(`File not found for blob URL: ${obj.imageUrl}. It may have been cleared or restored from a different session.`);
-                // If we can't find the file, we can't upload it. 
-                // We leave it as is, which might fail on the Meta side, but we shouldn't crash here.
-              }
-            }
-          };
-
           // 1. Simple Image
-          await processImageUrl(action);
+          if (action.imageUrl && isBlobUrl(action.imageUrl)) {
+            const file = getPendingUpload(action.imageUrl);
+            if (file) {
+              const permanentUrl = await uploadAutomationAsset(file);
+              clearPendingUpload(action.imageUrl);
+              action.imageUrl = permanentUrl;
+            }
+          }
 
           // 2. Carousel Cards
           if (action.carouselCards && Array.isArray(action.carouselCards)) {
             for (const card of action.carouselCards) {
-              await processImageUrl(card);
+              if (card.imageUrl && isBlobUrl(card.imageUrl)) {
+                const file = getPendingUpload(card.imageUrl);
+                if (file) {
+                  const permanentUrl = await uploadAutomationAsset(file);
+                  clearPendingUpload(card.imageUrl);
+                  card.imageUrl = permanentUrl;
+                }
+              }
             }
           }
 
           // 3. Conversation Flow Cards
           if (action.conversationCards && Array.isArray(action.conversationCards)) {
             for (const card of action.conversationCards) {
-              await processImageUrl(card);
+              if (card.imageUrl && isBlobUrl(card.imageUrl)) {
+                const file = getPendingUpload(card.imageUrl);
+                if (file) {
+                  const permanentUrl = await uploadAutomationAsset(file);
+                  clearPendingUpload(card.imageUrl);
+                  card.imageUrl = permanentUrl;
+                }
+              }
             }
           }
         }
-
-        // --- Cleanup Phase ---
-        // Only clear pending uploads after EVERYTHING is processed and saved to finalActions
-        urlsToClear.forEach(url => clearPendingUpload(url));
       };
 
       await processActions(finalActions);
