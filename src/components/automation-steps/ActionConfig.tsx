@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '../ui/tooltip';
 import { Skeleton } from '../ui/skeleton';
-import { TriggerType, Action, ReplyToCommentAction, SendDmAction, SaveLeadAction, LeadMessages, DEFAULT_LEAD_MESSAGES } from '../../types/automation';
+import { TriggerType, Action, ReplyToCommentAction, SendDmAction, SaveLeadAction, FollowUpAction, LeadMessages, DEFAULT_LEAD_MESSAGES } from '../../types/automation';
 import { CAPABILITIES } from '../../constants/capabilities';
 import { useSubscription } from '../../contexts/SubscriptionContext';
 import { useUpgradeModal } from '../../contexts/UpgradeModalContext';
@@ -44,12 +44,14 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
   const replyAction = actions.find(a => a.type === 'reply_to_comment') as ReplyToCommentAction | undefined;
   const dmAction = actions.find(a => a.type === 'send_dm') as SendDmAction | undefined;
   const leadAction = actions.find(a => a.type === 'save_lead') as SaveLeadAction | undefined;
+  const followUpAction = actions.find(a => a.type === 'follow_up') as FollowUpAction | undefined;
 
   const caps = CAPABILITIES[triggerType] || CAPABILITIES.post_comment;
   const hasReply = !!replyAction;
   const hasDm = !!dmAction;
   const hasFollowGate = dmAction?.askToFollow || false;
   const hasLeadManager = leadAction?.enabled || false;
+  const hasFollowUp = !!followUpAction && followUpAction.enabled;
   const [showLeadMessages, setShowLeadMessages] = useState(false);
   const [launchProgress, setLaunchProgress] = useState(0);
 
@@ -129,6 +131,18 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
       openModal();
       return;
     }
+
+    if (triggerType === 'user_directed_messages' || triggerType === 'story_reply') {
+      toast.error("Ask to Follow is only available for Post Comment triggers");
+      return;
+    }
+
+    // Validation: Ask to Follow cannot work with Lead Manager
+    if (!hasFollowGate && hasLeadManager) {
+      toast.error("Ask to Follow + Lead Manager cannot be toggled on together");
+      return;
+    }
+
     if (!hasDm) {
       onActionsChange([...actions, {
         type: 'send_dm',
@@ -158,6 +172,20 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
 
   const toggleLeadManager = () => {
     if (readOnly) return;
+    
+    if (!hasLeadManager) {
+      if (triggerType === 'post_comment') {
+        if (hasFollowGate) {
+          toast.error("Ask to Follow + Lead Manager cannot be toggled on together");
+          return;
+        }
+        if (hasDm && dmAction?.dmType === 'conversation_flow') {
+          toast.error("Lead Manager + Conversation Flow cannot be toggled on together");
+          return;
+        }
+      }
+    }
+
     if (hasLeadManager) {
       onActionsChange(actions.filter(a => a.type !== 'save_lead'));
     } else {
@@ -172,8 +200,35 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
     }
   };
 
+  const toggleFollowUp = () => {
+    if (readOnly) return;
+    if (triggerType !== 'user_directed_messages') {
+      toast.error("Follow up messages are only available for DM triggers");
+      return;
+    }
+
+    if (hasFollowUp) {
+      onActionsChange(actions.filter(a => a.type !== 'follow_up'));
+    } else {
+      onActionsChange([...actions, {
+        type: 'follow_up',
+        enabled: true,
+        delayValue: 30,
+        delayUnit: 'minutes',
+        message: 'Hey! Just checking in to see if you had any other questions? 😊'
+      } as FollowUpAction]);
+    }
+  };
+
   const updateDmAction = (updates: Partial<SendDmAction>) => {
     if (readOnly) return;
+
+    // Validation: Switching to Conversation Flow while Lead Manager is on (Post Comment only)
+    if (updates.dmType === 'conversation_flow' && triggerType === 'post_comment' && hasLeadManager) {
+      toast.error("Lead Manager + Conversation Flow cannot be toggled on together");
+      return;
+    }
+
     const newActions = [...actions];
     const index = newActions.findIndex(a => a.type === 'send_dm');
     if (index >= 0) {
@@ -213,7 +268,8 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
     )
     : true;
   const isLeadValid = true;
-  const canSave = actions.length > 0 && isReplyValid && isDmValid;
+  const isFollowUpValid = hasFollowUp ? (followUpAction?.message || '').trim().length > 0 : true;
+  const canSave = actions.length > 0 && isReplyValid && isDmValid && isFollowUpValid;
 
   return (
     <div className="space-y-5 md:space-y-6 pb-24 w-full">
@@ -1453,6 +1509,92 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
           </div>
         )}
 
+        {/* CARD 5: Follow Up Message */}
+        {triggerType === 'user_directed_messages' && (
+          <div className={cn("p-1.5 md:p-2 mb-4 space-y-1.5 md:space-y-2 transition-colors duration-300", darkMode ? "" : "bg-white border-2 border-emerald-100 rounded-[1.5rem]")}>
+            <div className={cn(
+              "rounded-2xl border-2 transition-all overflow-hidden",
+              hasFollowUp
+                ? (darkMode ? "border-emerald-500/30 bg-emerald-500/5" : "border-emerald-200 bg-emerald-50/30")
+                : (darkMode ? "border-transparent bg-transparent hover:bg-white/[0.04]" : "border-transparent bg-white hover:bg-gray-50")
+            )}>
+              <div className="p-3 md:p-4 flex items-center gap-3 md:gap-4 cursor-pointer" onClick={toggleFollowUp}>
+                <div className={cn(
+                  "w-10 h-10 md:w-12 md:h-12 rounded-[14px] md:rounded-xl flex items-center justify-center shrink-0 border",
+                  darkMode ? "bg-white/10 border-white/10" : "bg-gray-50 border-gray-100"
+                )}>
+                  <RotateCcw className={cn("w-4 h-4 md:w-5 md:h-5", darkMode ? "text-white/60" : "text-gray-500")} />
+                </div>
+                <div className="flex-1">
+                  <h3 className={cn("font-bold text-[14px] md:text-[15px] mb-0.5 md:mb-1", darkMode ? "text-white" : "text-gray-900")}>Follow Up Message</h3>
+                  <p className={cn("text-[11px] md:text-xs font-medium leading-tight", darkMode ? "text-white/40" : "text-gray-400")}>Send a second message automatically after a delay to boost response rates</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer pointer-events-none">
+                  <input type="checkbox" className="sr-only peer" checked={hasFollowUp} readOnly />
+                  <div className={cn(
+                    "w-10 h-6 md:w-12 md:h-7 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 md:after:h-6 md:after:w-6 after:transition-all peer-checked:bg-emerald-500 shadow-inner",
+                    darkMode && "bg-white/10"
+                  )}></div>
+                </label>
+              </div>
+
+              <AnimatePresence>
+                {hasFollowUp && (
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="px-5 pb-5 pt-0">
+                    <div className={cn("p-4 rounded-2xl border shadow-sm space-y-5", darkMode ? "bg-black/20 border-white/5" : "bg-white border-emerald-100")}>
+                      
+                      <div className="flex flex-col md:flex-row gap-6 md:items-end">
+                        <div className="flex-1 space-y-2">
+                          <label className={cn("text-[10px] font-black uppercase tracking-wider text-gray-500", darkMode && "text-white/40")}>Send delay</label>
+                          <div className="flex items-center gap-3">
+                            <input 
+                              type="number"
+                              min="1"
+                              max="30"
+                              value={followUpAction?.delayValue || 30}
+                              onChange={(e) => {
+                                const val = Math.min(30, Math.max(1, parseInt(e.target.value) || 1));
+                                const newActions = [...actions];
+                                const idx = newActions.findIndex(a => a.type === 'follow_up');
+                                if (idx >= 0) {
+                                  newActions[idx] = { ...newActions[idx], delayValue: val, delayUnit: 'minutes' } as FollowUpAction;
+                                  onActionsChange(newActions);
+                                }
+                              }}
+                              className={cn("w-20 px-4 py-2 rounded-xl border-2 font-black text-center outline-none transition-all", darkMode ? "bg-white/5 border-white/10 text-white focus:border-emerald-500" : "bg-gray-50 border-gray-100 focus:bg-white focus:border-emerald-500")}
+                            />
+                            <span className={cn("text-[11px] font-black uppercase tracking-widest opacity-40")}>Minutes</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center px-1">
+                          <label className={cn("text-[10px] font-black uppercase tracking-wider text-gray-500", darkMode && "text-white/40")}>Follow Up Message</label>
+                          <span className={cn("text-[9px] font-bold opacity-30")}>{(followUpAction?.message || '').length} / 1000</span>
+                        </div>
+                        <textarea
+                          value={followUpAction?.message || ''}
+                          onChange={(e) => {
+                            const newActions = [...actions];
+                            const idx = newActions.findIndex(a => a.type === 'follow_up');
+                            if (idx >= 0) {
+                              newActions[idx] = { ...newActions[idx], message: e.target.value } as FollowUpAction;
+                              onActionsChange(newActions);
+                            }
+                          }}
+                          placeholder="Hey! Just following up on my previous message... 😊"
+                          rows={3}
+                          className={cn("w-full p-4 rounded-xl border-2 font-medium text-sm outline-none transition-all resize-none", darkMode ? "bg-white/5 border-white/10 text-white focus:border-emerald-500" : "bg-gray-50 border-gray-100 focus:bg-white focus:border-emerald-500")}
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Global Action Button (Launch) for Step 2 */}
@@ -1519,7 +1661,8 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
               !isDmValid ? 'Finish DM configuration' :
                 leadAction?.enabled && isGoogleConnected !== true ? 'Connect Google Account' :
                   leadAction?.enabled && !isSheetValid ? 'Invalid Sheet URL' :
-                    'Check action settings'}
+                    !isFollowUpValid ? 'Complete follow up message' :
+                      'Check action settings'}
           </p>
         </div>
       )}

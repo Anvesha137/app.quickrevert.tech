@@ -8,7 +8,7 @@ import { twMerge } from "tailwind-merge";
 import {
   AutomationFormData, TriggerConfig,
   PostCommentTriggerConfig, StoryReplyTriggerConfig, UserDirectMessageTriggerConfig,
-  Action, ReplyToCommentAction, SendDmAction, SaveLeadAction, LeadMessages, DEFAULT_LEAD_MESSAGES
+  Action, ReplyToCommentAction, SendDmAction, SaveLeadAction, FollowUpAction, LeadMessages, DEFAULT_LEAD_MESSAGES
 } from '../../types/automation';
 import { CAPABILITIES } from '../../constants/capabilities';
 import { supabase } from '../../lib/supabase';
@@ -232,12 +232,14 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
   const replyAction = actions.find(a => a.type === 'reply_to_comment') as ReplyToCommentAction | undefined;
   const dmAction = actions.find(a => a.type === 'send_dm') as SendDmAction | undefined;
   const leadAction = actions.find(a => a.type === 'save_lead') as SaveLeadAction | undefined;
+  const followUpAction = actions.find(a => a.type === 'follow_up') as FollowUpAction | undefined;
 
   const caps = CAPABILITIES[triggerType];
   const hasReply = !!replyAction;
   const hasDm = !!dmAction;
   const hasFollowGate = dmAction?.askToFollow || false;
-  const hasLeadManager = !!leadAction && leadAction.enabled;
+  const hasLeadManager = !!leadAction;
+  const hasFollowUp = !!followUpAction && followUpAction.enabled;
 
 
   const updateActions = (newActions: Action[]) => {
@@ -248,16 +250,21 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
   const toggleReply = () => {
     if (readOnly) return;
     if (hasReply) updateActions(actions.filter(a => a.type !== 'reply_to_comment'));
-    else updateActions([...actions, {
-      type: 'reply_to_comment',
-      replyTemplates: [
-        'Check your DMs for the link! 👆',
-        'Done! Please check your direct messages ✨',
-        'Sent! You\'ll find the link in your DMs 📩',
-        'Just sent you a DM with all the details! 🚀'
-      ],
-      actionButtons: []
-    } as ReplyToCommentAction]);
+    else {
+      if (triggerType === 'user_directed_messages' || triggerType === 'story_reply') {
+        // Technically not allowed per new list, but keeping for now or blocking
+      }
+      updateActions([...actions, {
+        type: 'reply_to_comment',
+        replyTemplates: [
+          'Check your DMs for the link! 👆',
+          'Done! Please check your direct messages ✨',
+          'Sent! You\'ll find the link in your DMs 📩',
+          'Just sent you a DM with all the details! 🚀'
+        ],
+        actionButtons: []
+      } as ReplyToCommentAction]);
+    }
   };
 
   const toggleDm = () => {
@@ -265,6 +272,10 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
     if (hasDm) {
       updateActions(actions.filter(a => a.type !== 'send_dm'));
     } else {
+      // Validation: Lead Manager cannot work with Conversation Flow
+      // Note: toggleDm defaults to 'simple', which is allowed. 
+      // But if we ever change default, we'd check here.
+
       updateActions([...actions, {
         type: 'send_dm',
         dmType: 'simple',
@@ -282,17 +293,18 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
   const toggleLeadManager = () => {
     if (readOnly) return;
 
-    if (!hasLeadManager && triggerType === 'post_comment') {
-      // 1. Validation: Lead Manager cannot work with Ask to Follow
-      if (hasFollowGate) {
-        toast.error("Ask to Follow + Lead Manager cannot be toggled on together");
-        return;
+    if (!hasLeadManager) {
+      if (triggerType === 'post_comment') {
+        if (hasFollowGate) {
+          toast.error("Ask to Follow + Lead Manager cannot be toggled on together");
+          return;
+        }
+        if (hasDm && dmAction?.dmType === 'conversation_flow') {
+          toast.error("Lead Manager + Conversation Flow cannot be toggled on together");
+          return;
+        }
       }
-      // 2. Validation: Lead Manager cannot work with Conversation Flow
-      if (hasDm && dmAction?.dmType === 'conversation_flow') {
-        toast.error("Lead Manager + Conversation Flow cannot be toggled on together");
-        return;
-      }
+      // For DM and Story Reply, LM is generally allowed with things
     }
 
     if (hasLeadManager) {
@@ -309,6 +321,26 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
     }
   };
 
+  const toggleFollowUp = () => {
+    if (readOnly) return;
+    if (triggerType !== 'user_directed_messages') {
+      toast.error("Follow up messages are only available for DM triggers");
+      return;
+    }
+
+    if (hasFollowUp) {
+      updateActions(actions.filter(a => a.type !== 'follow_up'));
+    } else {
+      updateActions([...actions, {
+        type: 'follow_up',
+        enabled: true,
+        delayValue: 30,
+        delayUnit: 'minutes',
+        message: 'Hey! Just checking in to see if you had any other questions? 😊'
+      } as FollowUpAction]);
+    }
+  };
+
   const addDmFlow = toggleDm; // Keep for backward compatibility until UI is refactored
 
   useEffect(() => {
@@ -321,8 +353,13 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
     if (readOnly) return;
     if (!canUseAskToFollow) { openModal(); return; }
 
-    // Validation: Ask to Follow cannot work with Lead Manager for Post Comment
-    if (!hasFollowGate && triggerType === 'post_comment' && hasLeadManager) {
+    if (triggerType === 'user_directed_messages' || triggerType === 'story_reply') {
+      toast.error("Ask to Follow is only available for Post Comment triggers");
+      return;
+    }
+
+    // Validation: Ask to Follow cannot work with Lead Manager
+    if (!hasFollowGate && hasLeadManager) {
       toast.error("Ask to Follow + Lead Manager cannot be toggled on together");
       return;
     }
@@ -355,7 +392,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
   const updateDmAction = (updates: Partial<SendDmAction>) => {
     if (readOnly) return;
 
-    // Validation: Switching to Conversation Flow while Lead Manager is on
+    // Validation: Switching to Conversation Flow while Lead Manager is on (Post Comment only)
     if (updates.dmType === 'conversation_flow' && triggerType === 'post_comment' && hasLeadManager) {
       toast.error("Lead Manager + Conversation Flow cannot be toggled on together");
       return;
@@ -407,8 +444,9 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
           )
     )
     : true;
+  const isFollowUpValid = !hasFollowUp || (!!followUpAction && !!followUpAction.message && (followUpAction.delayValue || 0) > 0);
   const isLeadValid = true;
-  const canSave = (hasReply || hasDm || hasLeadManager) && isReplyValid && isDmValid && isLeadValid;
+  const canSave = (hasReply || hasDm || hasLeadManager) && isReplyValid && isDmValid && isFollowUpValid && isLeadValid;
   const TriggerIcon = getTriggerIcon();
 
   return (
@@ -781,8 +819,14 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                 </div>
                 <p className={cn("text-[11px] md:text-xs font-medium leading-tight", darkMode ? "text-white/40" : "text-gray-500")}>Only send the DM after they follow your account</p>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer pointer-events-none">
-                <input type="checkbox" className="sr-only peer" checked={hasFollowGate} readOnly />
+              <label className={cn("relative inline-flex items-center transition-opacity", (readOnly || (!hasFollowGate && hasLeadManager)) ? "cursor-not-allowed opacity-50" : "cursor-pointer")}>
+                <input 
+                  type="checkbox" 
+                  className="sr-only peer" 
+                  checked={hasFollowGate} 
+                  onChange={toggleFollowGate}
+                  disabled={readOnly || (!hasFollowGate && hasLeadManager)} 
+                />
                 <div className={cn(
                   "w-10 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600 shadow-inner",
                   darkMode && "bg-white/10"
@@ -868,13 +912,20 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                           return (
                             <button
                               key={type}
-                              onClick={() => updateDmAction({ dmType: type as any })}
-                              disabled={readOnly}
+                              onClick={() => {
+                                if (type === 'conversation_flow' && hasLeadManager) {
+                                  toast.error("Lead Manager + Conversation Flow cannot be toggled on together");
+                                  return;
+                                }
+                                updateDmAction({ dmType: type as any });
+                              }}
+                              disabled={readOnly || (type === 'conversation_flow' && hasLeadManager)}
                               className={cn(
                                 "flex-1 py-1.5 px-2 rounded-lg border-2 font-bold text-[11px] transition-all",
                                 isSelected
                                   ? (darkMode ? "border-purple-500 bg-purple-500/20 text-purple-300" : "border-purple-600 bg-purple-50 text-purple-700")
-                                  : (darkMode ? "border-white/5 bg-white/5 text-white/40 hover:bg-white/10" : "border-gray-100 bg-gray-50 text-gray-400 hover:bg-gray-100")
+                                  : (darkMode ? "border-white/5 bg-white/5 text-white/40 hover:bg-white/10" : "border-gray-100 bg-gray-50 text-gray-400 hover:bg-gray-100"),
+                                (type === 'conversation_flow' && hasLeadManager) && "opacity-50 cursor-not-allowed"
                               )}
                             >
                               {type === 'simple' && 'Simple'}
@@ -1570,8 +1621,14 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                 <h3 className={cn("font-bold text-[14px] mb-0.5", darkMode ? "text-white" : "text-gray-900")}>Save to Lead Manager</h3>
                 <p className={cn("text-[11px] font-medium leading-relaxed", darkMode ? "text-white/40" : "text-gray-400")}>Automatically capture and store user details in your Lead Manager</p>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer pointer-events-none">
-                <input type="checkbox" className="sr-only peer" checked={hasLeadManager} readOnly />
+              <label className={cn("relative inline-flex items-center transition-opacity", (readOnly || (!hasLeadManager && (hasFollowGate || (hasDm && dmAction?.dmType === 'conversation_flow')))) ? "cursor-not-allowed opacity-50" : "cursor-pointer")}>
+                <input 
+                  type="checkbox" 
+                  className="sr-only peer" 
+                  checked={hasLeadManager} 
+                  onChange={toggleLeadManager}
+                  disabled={readOnly || (!hasLeadManager && (hasFollowGate || (hasDm && dmAction?.dmType === 'conversation_flow')))} 
+                />
                 <div className={cn(
                   "w-10 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500 shadow-inner",
                   darkMode && "bg-white/10"
@@ -1751,7 +1808,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                                             </div>
 
                                             {/* BOTTOM: RETRY MESSAGE (FULL WIDTH) */}
-                                            <div className={cn("md:col-span-2 p-4 rounded-2xl border flex flex-col gap-2", darkMode ? "bg-white/[0.01] border-white/5" : "bg-white/10 border-gray-100")}>
+                                            <div className={cn("md:col-span-2 p-4 rounded-2xl border flex flex-col gap-2", darkMode ? "bg-white/[0.01] border-white/10" : "bg-white/10 border-gray-100")}>
                                               <div className="flex items-center justify-between">
                                                 <div className="flex items-center gap-2">
                                                   <RotateCcw size={10} className="opacity-40" />
@@ -1872,6 +1929,91 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
             </AnimatePresence>
           </div>
         )}
+
+        {/* CARD 4: Follow Up Message */}
+        {triggerType === 'user_directed_messages' && (
+          <div className={cn(
+            "rounded-2xl border-2 transition-all overflow-hidden",
+            hasFollowUp
+              ? (darkMode ? "border-emerald-500/30 bg-emerald-500/5" : "border-emerald-200 bg-emerald-50/30")
+              : (darkMode ? "border-white/5 bg-transparent" : "border-gray-100 bg-white")
+          )}>
+            <div className="p-4 flex items-center gap-3 cursor-pointer" onClick={toggleFollowUp}>
+              <div className={cn(
+                "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border",
+                darkMode ? "bg-white/10 border-white/10" : "bg-gray-50 border-gray-100"
+              )}>
+                <RotateCcw className={cn("w-5 h-5", darkMode ? "text-white/60" : "text-gray-500")} />
+              </div>
+              <div className="flex-1 text-left">
+                <h3 className={cn("font-bold text-[14px] mb-0.5", darkMode ? "text-white" : "text-gray-900")}>Follow Up Message</h3>
+                <p className={cn("text-[11px] font-medium leading-relaxed", darkMode ? "text-white/40" : "text-gray-400")}>Send a second message automatically after a delay to boost response rates</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer pointer-events-none">
+                <input type="checkbox" className="sr-only peer" checked={hasFollowUp} readOnly />
+                <div className={cn(
+                  "w-10 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 shadow-inner",
+                  darkMode && "bg-white/10"
+                )}></div>
+              </label>
+            </div>
+
+            <AnimatePresence>
+              {hasFollowUp && (
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="px-4 pb-4 pt-0">
+                  <div className={cn("p-6 rounded-2xl border space-y-6", darkMode ? "bg-black/20 border-white/5" : "bg-white border-emerald-100 shadow-sm")}>
+                    
+                    <div className="flex flex-col md:flex-row gap-6 md:items-end">
+                      <div className="flex-1 space-y-2">
+                        <label className={cn("text-[10px] font-black uppercase tracking-wider text-gray-500", darkMode && "text-white/40")}>Send delay</label>
+                        <div className="flex items-center gap-3">
+                          <input 
+                            type="number"
+                            min="1"
+                            max="30"
+                            value={followUpAction?.delayValue || 30}
+                            onChange={(e) => {
+                              const val = Math.min(30, Math.max(1, parseInt(e.target.value) || 1));
+                              const newActions = [...actions];
+                              const idx = newActions.findIndex(a => a.type === 'follow_up');
+                              if (idx >= 0) {
+                                newActions[idx] = { ...newActions[idx], delayValue: val, delayUnit: 'minutes' } as FollowUpAction;
+                                updateActions(newActions);
+                              }
+                            }}
+                            className={cn("w-20 px-4 py-2 rounded-xl border-2 font-black text-center outline-none transition-all", darkMode ? "bg-white/5 border-white/10 text-white focus:border-emerald-500" : "bg-gray-50 border-gray-100 focus:bg-white focus:border-emerald-500")}
+                          />
+                          <span className={cn("text-[11px] font-black uppercase tracking-widest opacity-40")}>Minutes</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center px-1">
+                        <label className={cn("text-[10px] font-black uppercase tracking-wider text-gray-500", darkMode && "text-white/40")}>Follow Up Message</label>
+                        <span className={cn("text-[9px] font-bold opacity-30")}>{(followUpAction?.message || '').length} / 1000</span>
+                      </div>
+                      <textarea
+                        value={followUpAction?.message || ''}
+                        onChange={(e) => {
+                          const newActions = [...actions];
+                          const idx = newActions.findIndex(a => a.type === 'follow_up');
+                          if (idx >= 0) {
+                            newActions[idx] = { ...newActions[idx], message: e.target.value } as FollowUpAction;
+                            updateActions(newActions);
+                          }
+                        }}
+                        placeholder="Hey! Just following up on my previous message... 😊"
+                        rows={3}
+                        className={cn("w-full p-4 rounded-xl border-2 font-medium text-sm outline-none transition-all", darkMode ? "bg-white/5 border-white/10 text-white focus:border-emerald-500" : "bg-gray-50 border-gray-100 focus:bg-white focus:border-emerald-500")}
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
       </div>
 
       {/* ===== BOTTOM BAR ===== */}
@@ -1921,7 +2063,8 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                 !isDmValid ? 'Finish DM configuration' :
                   leadAction?.enabled && isGoogleConnected !== true ? 'Connect Google Account' :
                     leadAction?.enabled && !isSheetValid ? 'Invalid Sheet URL' :
-                      'Check action settings'}
+                      !isFollowUpValid ? 'Complete follow up message' :
+                        'Check action settings'}
             </p>
           </div>
         )}

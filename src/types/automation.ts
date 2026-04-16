@@ -1,6 +1,6 @@
 export type TriggerType = 'post_comment' | 'story_reply' | 'user_directed_messages' | 'conversation_flow';
 
-export type ActionType = 'reply_to_comment' | 'ask_to_follow' | 'send_dm';
+export type ActionType = 'reply_to_comment' | 'ask_to_follow' | 'send_dm' | 'follow_up';
 
 export interface PostCommentTriggerConfig {
   postsType: 'all' | 'specific';
@@ -138,7 +138,16 @@ export interface SaveLeadAction {
   messages?: LeadMessages;
 }
 
-export type Action = ReplyToCommentAction | AskToFollowAction | SendDmAction | SaveLeadAction;
+export interface FollowUpAction {
+  type: 'follow_up';
+  enabled: boolean;
+  delayValue: number;
+  delayUnit: 'minutes' | 'hours' | 'days';
+  message: string;
+  actionButtons?: ActionButton[];
+}
+
+export type Action = ReplyToCommentAction | AskToFollowAction | SendDmAction | SaveLeadAction | FollowUpAction;
 
 export interface AutomationFormData {
   name: string;
