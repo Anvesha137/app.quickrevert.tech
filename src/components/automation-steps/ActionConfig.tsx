@@ -187,7 +187,8 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
     }
 
     if (hasLeadManager) {
-      onActionsChange(actions.filter(a => a.type !== 'save_lead'));
+      // Auto-disable follow-up if lead manager is turned off
+      onActionsChange(actions.filter(a => a.type !== 'save_lead' && a.type !== 'follow_up'));
     } else {
       onActionsChange([...actions, {
         type: 'save_lead',
@@ -202,8 +203,9 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
 
   const toggleFollowUp = () => {
     if (readOnly) return;
-    if (triggerType !== 'user_directed_messages') {
-      toast.error("Follow up messages are only available for DM triggers");
+    
+    if (!hasLeadManager) {
+      toast.error("Follow Up messages can only be enabled when Lead Manager is ON");
       return;
     }
 
@@ -267,7 +269,6 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
         : (dmAction.title || '').trim().length > 0 && (dmAction.actionButtons || []).every(btn => btn.text.trim().length > 0 && (btn.buttonType === 'postback' || /^(https?:\/\/)?([\w.-]+)\.([a-z]{2,})(:\d{1,5})?(\/.*)?$/i.test(btn.url || '')))
     )
     : true;
-  const isLeadValid = true;
   const isFollowUpValid = hasFollowUp ? (followUpAction?.message || '').trim().length > 0 : true;
   const canSave = actions.length > 0 && isReplyValid && isDmValid && isFollowUpValid;
 
@@ -1510,7 +1511,7 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
         )}
 
         {/* CARD 5: Follow Up Message */}
-        {triggerType === 'user_directed_messages' && (
+        {(triggerType === 'user_directed_messages' || (triggerType === 'post_comment' && hasLeadManager)) && (
           <div className={cn("p-1.5 md:p-2 mb-4 space-y-1.5 md:space-y-2 transition-colors duration-300", darkMode ? "" : "bg-white border-2 border-emerald-100 rounded-[1.5rem]")}>
             <div className={cn(
               "rounded-2xl border-2 transition-all overflow-hidden",
@@ -1588,6 +1589,93 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                           className={cn("w-full p-4 rounded-xl border-2 font-medium text-sm outline-none transition-all resize-none", darkMode ? "bg-white/5 border-white/10 text-white focus:border-emerald-500" : "bg-gray-50 border-gray-100 focus:bg-white focus:border-emerald-500")}
                         />
                       </div>
+
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center px-1">
+                          <label className={cn("text-[10px] font-black uppercase tracking-wider text-gray-500", darkMode && "text-white/40")}>Buttons (Max 3, URLs only)</label>
+                          <span className={cn("text-[9px] font-bold opacity-30")}>{(followUpAction?.actionButtons || []).length} / 3</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 gap-2">
+                          {(followUpAction?.actionButtons || []).map((btn, bIdx) => (
+                            <div key={btn.id} className={cn("p-3 rounded-xl border flex flex-col gap-2 transition-all", darkMode ? "bg-white/[0.03] border-white/5" : "bg-white border-gray-100 shadow-sm")}>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  value={btn.text}
+                                  placeholder="Button Label (e.g. Visit Website)"
+                                  onChange={(e) => {
+                                    const newActions = [...actions];
+                                    const idx = newActions.findIndex(a => a.type === 'follow_up');
+                                    if (idx >= 0) {
+                                      const followUp = { ...newActions[idx] } as FollowUpAction;
+                                      const btns = [...(followUp.actionButtons || [])];
+                                      btns[bIdx] = { ...btns[bIdx], text: e.target.value.substring(0, 20) };
+                                      newActions[idx] = { ...followUp, actionButtons: btns };
+                                      onActionsChange(newActions);
+                                    }
+                                  }}
+                                  className={cn("flex-1 bg-transparent border-none outline-none text-[11px] font-black", darkMode ? "text-white placeholder:text-white/20" : "text-gray-900 placeholder:text-gray-300")}
+                                />
+                                <button
+                                  onClick={() => {
+                                    const newActions = [...actions];
+                                    const idx = newActions.findIndex(a => a.type === 'follow_up');
+                                    if (idx >= 0) {
+                                      const followUp = { ...newActions[idx] } as FollowUpAction;
+                                      const btns = (followUp.actionButtons || []).filter((_, i) => i !== bIdx);
+                                      newActions[idx] = { ...followUp, actionButtons: btns };
+                                      onActionsChange(newActions);
+                                    }
+                                  }}
+                                  className={cn("p-1.5 rounded-lg transition-colors", darkMode ? "hover:bg-red-500/20 text-red-400" : "hover:bg-red-50 text-red-500")}
+                                >
+                                  <X size={12} />
+                                </button>
+                              </div>
+                              <div className="flex items-center gap-2 px-1 border-t border-dashed border-gray-500/10 pt-2">
+                                <Globe size={10} className="opacity-30" />
+                                <input
+                                  type="text"
+                                  value={btn.url || ''}
+                                  placeholder="https://example.com"
+                                  onChange={(e) => {
+                                    const newActions = [...actions];
+                                    const idx = newActions.findIndex(a => a.type === 'follow_up');
+                                    if (idx >= 0) {
+                                      const followUp = { ...newActions[idx] } as FollowUpAction;
+                                      const btns = [...(followUp.actionButtons || [])];
+                                      btns[bIdx] = { ...btns[bIdx], url: e.target.value, buttonType: 'web_url' };
+                                      newActions[idx] = { ...followUp, actionButtons: btns };
+                                      onActionsChange(newActions);
+                                    }
+                                  }}
+                                  className={cn("flex-1 bg-transparent border-none outline-none text-[9px] font-medium", darkMode ? "text-emerald-400 placeholder:text-white/10" : "text-emerald-600 placeholder:text-gray-300")}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                          
+                          {(followUpAction?.actionButtons || []).length < 3 && (
+                            <button
+                              onClick={() => {
+                                const newActions = [...actions];
+                                const idx = newActions.findIndex(a => a.type === 'follow_up');
+                                if (idx >= 0) {
+                                  const followUp = { ...newActions[idx] } as FollowUpAction;
+                                  const btns = [...(followUp.actionButtons || []), { id: Math.random().toString(36).substr(2, 9), text: '', url: '', buttonType: 'web_url' } as ActionButton];
+                                  newActions[idx] = { ...followUp, actionButtons: btns };
+                                  onActionsChange(newActions);
+                                }
+                              }}
+                              className={cn("p-3 rounded-xl border-2 border-dashed flex items-center justify-center gap-2 transition-all group", darkMode ? "bg-white/[0.02] border-white/5 hover:border-emerald-500/50 hover:bg-emerald-500/5" : "bg-gray-50/50 border-gray-100 hover:border-emerald-500/50 hover:bg-emerald-50/50")}
+                            >
+                              <Plus size={14} className={cn("transition-colors", darkMode ? "text-white/20 group-hover:text-emerald-400" : "text-gray-400 group-hover:text-emerald-500")} />
+                              <span className={cn("text-[10px] font-black uppercase tracking-wider transition-colors", darkMode ? "text-white/20 group-hover:text-emerald-400" : "text-gray-400 group-hover:text-emerald-500")}>Add Button</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -1659,10 +1747,8 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
           )}>
             {!isReplyValid ? 'Add a reply template' :
               !isDmValid ? 'Finish DM configuration' :
-                leadAction?.enabled && isGoogleConnected !== true ? 'Connect Google Account' :
-                  leadAction?.enabled && !isSheetValid ? 'Invalid Sheet URL' :
-                    !isFollowUpValid ? 'Complete follow up message' :
-                      'Check action settings'}
+                !isFollowUpValid ? 'Complete follow up message' :
+                  'Check action settings'}
           </p>
         </div>
       )}
