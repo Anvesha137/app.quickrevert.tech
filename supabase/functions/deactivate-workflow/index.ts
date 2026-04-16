@@ -1,27 +1,11 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
-};
+import { validateUser, corsHeaders } from "../_shared/auth.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) throw new Error("Unauthorized");
-    const jwt = authHeader.replace("Bearer ", "");
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
-    if (authError || !user) throw new Error("Unauthorized");
+    const { user, supabase } = await validateUser(req);
 
     const { workflowId } = await req.json();
     if (!workflowId) throw new Error("Missing workflowId");
@@ -31,7 +15,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: workflow, error: wfError } = await supabase
       .from("n8n_workflows")
-      .select("user_id")
+      .select("user_id, automation_id")
       .eq("n8n_workflow_id", workflowId)
       .eq("user_id", user.id) // STRICT
       .single();
@@ -78,6 +62,17 @@ Deno.serve(async (req: Request) => {
     if (wfUpdateError) {
       console.error("Failed to update n8n_workflow status:", wfUpdateError);
       throw new Error(`Workflow Table Update Failed: ${wfUpdateError.message}`);
+    }
+
+    // 5. 🔥 CRITICAL FIX: Update automations.status to trigger active_automations_count sync
+    if (workflow.automation_id) {
+      console.log(`Syncing automation ${workflow.automation_id} status to inactive`);
+      const { error: automationError } = await supabase
+        .from('automations')
+        .update({ status: 'inactive' })
+        .eq('id', workflow.automation_id);
+      
+      if (automationError) console.error('Failed to sync automation status:', automationError);
     }
 
     return new Response(JSON.stringify({ success: true }), {

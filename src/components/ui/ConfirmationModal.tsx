@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, AlertTriangle, Info, CheckCircle2 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
@@ -30,6 +31,29 @@ export default function ConfirmationModal({
     variant = 'primary',
     loading = false,
 }: ConfirmationModalProps) {
+    const [progress, setProgress] = useState(0);
+
+    // 🔥 PERCEIVED PERFORMANCE: Progress Bar Logic
+    useEffect(() => {
+        let interval: any;
+        if (loading) {
+            setProgress(0);
+            let current = 0;
+            interval = setInterval(() => {
+                if (current < 70) {
+                    current += Math.random() * 20;
+                    if (current > 70) current = 70;
+                } else if (current < 98) {
+                    current += 0.3;
+                }
+                setProgress(current);
+            }, 100);
+        } else {
+            setProgress(0);
+            if (interval) clearInterval(interval);
+        }
+        return () => clearInterval(interval);
+    }, [loading]);
 
     const variants = {
         primary: {
@@ -109,18 +133,29 @@ export default function ConfirmationModal({
                                     onClick={onConfirm}
                                     disabled={loading}
                                     className={cn(
-                                        "flex-[2] rounded-2xl px-6 py-4 text-sm font-bold text-white shadow-xl transition-all active:scale-95 disabled:opacity-50",
+                                        "flex-[2] rounded-2xl px-6 py-4 text-sm font-bold text-white shadow-xl transition-all active:scale-95 disabled:opacity-50 relative overflow-hidden",
                                         currentVariant.button
                                     )}
                                 >
-                                    {loading ? (
-                                        <div className="flex items-center justify-center gap-2">
-                                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                                            <span>Processing...</span>
-                                        </div>
-                                    ) : (
-                                        confirmLabel
+                                    {loading && (
+                                        <motion.div
+                                            initial={{ width: '0%' }}
+                                            animate={{ width: `${progress}%` }}
+                                            className="absolute inset-y-0 left-0 bg-white/20"
+                                            transition={{ type: 'spring', bounce: 0, duration: 0.5 }}
+                                        />
                                     )}
+
+                                    <div className="relative z-10 flex items-center justify-center gap-2">
+                                        {loading ? (
+                                            <>
+                                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                                <span>{progress < 80 ? 'Processing...' : 'Almost done...'}</span>
+                                            </>
+                                        ) : (
+                                            confirmLabel
+                                        )}
+                                    </div>
                                 </button>
                             </div>
                         </div>

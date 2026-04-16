@@ -159,25 +159,8 @@ Deno.serve(async (req: Request) => {
 
     console.log(`✅ Matches found: ${matchedAutomations.length}`);
 
-    // 5. Log Inbound Event
+    // 5. Log Inbound Event (REMOVED: Now handled by webhook-meta for deduplication)
     const primaryAutomationId = matchedAutomations.length > 0 ? matchedAutomations[0].id : null;
-    try {
-      const activityType = triggerType === 'post_comment' ? 'incoming_comment' :
-        triggerType === 'user_directed_messages' ? 'incoming_message' : 'incoming_event';
-
-      await supabase.from('automation_activities').insert({
-        user_id: userId,
-        automation_id: primaryAutomationId,
-        instagram_account_id: instagramAccountId,
-        activity_type: activityType,
-        target_username: eventData.from.username || eventData.from.id,
-        message: eventData.commentText || eventData.messageText || '',
-        status: 'success',
-        metadata: { ...eventData, direction: 'inbound', matchedCount: matchedAutomations.length }
-      });
-    } catch (err) {
-      console.error('❌ Error logging event:', err);
-    }
 
     // 6. Execute Actions
     for (const automation of matchedAutomations) {
@@ -258,7 +241,7 @@ async function executeAction(params: any) {
         payload: {
           template_type: 'generic',
           elements: [{
-            title: messageText.substring(0, 80),
+            title: messageText.substring(0, 400),
             subtitle: "Powered By Quickrevert.tech",
             buttons: buttons.slice(0, 3).map((btn: any) => ({
               type: btn.url?.startsWith('http') ? 'web_url' : 'postback',

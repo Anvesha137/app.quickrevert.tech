@@ -12,11 +12,14 @@ import { useSubscription } from '../contexts/SubscriptionContext';
 import {
   AutomationFormData, TriggerType, TriggerConfig,
   PostCommentTriggerConfig, StoryReplyTriggerConfig, UserDirectMessageTriggerConfig,
+  ConversationFlowTriggerConfig, LeadManagerTriggerConfig,
   ReplyToCommentAction, SendDmAction
 } from '../types/automation';
 import { N8nWorkflowService } from '../lib/n8nService';
 import TriggerSelection from './automation-steps/TriggerSelection';
 import AutomationConfigureGenz from './automation-steps/AutomationConfigure_genz';
+import { getPendingUpload, isBlobUrl, clearPendingUpload } from '../lib/pendingUploads';
+import { uploadAutomationAsset } from '../lib/storage';
 
 // Utility for class merging
 function cn(...inputs: ClassValue[]) {
@@ -138,11 +141,13 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
     }
   }, [hasInstagramConnected, subLoading, initialFetchDone, navigate]);
 
+  const [wasLoaded, setWasLoaded] = useState(false);
+
   useEffect(() => {
-    if (id) {
+    if (id && !wasLoaded) {
       fetchAutomation(id);
     }
-  }, [user, id]);
+  }, [user, id, wasLoaded]);
 
   const fetchAutomation = async (automationId: string) => {
     if (!user) return;
@@ -172,8 +177,7 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
           triggerConfig: data.trigger_config,
           actions: data.actions || [],
         });
-        // If viewing, maybe jump to configuration if valid?
-        // But setup step shows name which is important.
+        setWasLoaded(true);
       }
     } catch (error) {
       console.error('Error fetching automation:', error);
@@ -263,13 +267,62 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
     setSaving(true);
 
     try {
+      // --- Upload Phase: Process any pending local images ---
+      // We clone the actions to avoid mutating the UI state directly while saving
+      const finalActions = JSON.parse(JSON.stringify(formData.actions));
+
+      const processActions = async (actions: any[]) => {
+        for (const action of actions) {
+          // 1. Simple Image
+          if (action.imageUrl && isBlobUrl(action.imageUrl)) {
+            const file = getPendingUpload(action.imageUrl);
+            if (file) {
+              const permanentUrl = await uploadAutomationAsset(file);
+              clearPendingUpload(action.imageUrl);
+              action.imageUrl = permanentUrl;
+            }
+          }
+
+          // 2. Carousel Cards
+          if (action.carouselCards && Array.isArray(action.carouselCards)) {
+            for (const card of action.carouselCards) {
+              if (card.imageUrl && isBlobUrl(card.imageUrl)) {
+                const file = getPendingUpload(card.imageUrl);
+                if (file) {
+                  const permanentUrl = await uploadAutomationAsset(file);
+                  clearPendingUpload(card.imageUrl);
+                  card.imageUrl = permanentUrl;
+                }
+              }
+            }
+          }
+
+          // 3. Conversation Flow Cards
+          if (action.conversationCards && Array.isArray(action.conversationCards)) {
+            for (const card of action.conversationCards) {
+              if (card.imageUrl && isBlobUrl(card.imageUrl)) {
+                const file = getPendingUpload(card.imageUrl);
+                if (file) {
+                  const permanentUrl = await uploadAutomationAsset(file);
+                  clearPendingUpload(card.imageUrl);
+                  card.imageUrl = permanentUrl;
+                }
+              }
+            }
+          }
+        }
+      };
+
+      await processActions(finalActions);
+      // --- End Upload Phase ---
+
       console.log(`${id ? 'Updating' : 'Saving'} automation:`, {
         user_id: user.id,
         name: formData.name.trim(),
         trigger_type: formData.triggerType,
         trigger_config: formData.triggerConfig,
-        actions: formData.actions,
-        status: 'inactive',
+        actions: finalActions,
+        status: 'active',
       });
 
       let automationData;
@@ -282,7 +335,7 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
             name: formData.name.trim(),
             trigger_type: formData.triggerType,
             trigger_config: formData.triggerConfig,
-            actions: formData.actions,
+            actions: finalActions,
             // Don't reset status on edit, or maybe we should?
             // Usually editing deactivates to ensure sync, but let's keep it simple for now or follow business logic.
             // Let's NOT update status automatically on edit unless passed.
@@ -306,8 +359,8 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
             name: formData.name.trim(),
             trigger_type: formData.triggerType,
             trigger_config: formData.triggerConfig,
-            actions: formData.actions,
-            status: 'inactive',
+            actions: finalActions,
+            status: 'active',
           }).select('id').single();
 
         if (error) throw error;
@@ -336,10 +389,10 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
         // Create workflow using the service
         const workflowName = `${formData.name.trim()} - ${new Date().toISOString().split('T')[0]}`;
 
-        const replyAction = formData.actions.find(a => a.type === 'reply_to_comment') as ReplyToCommentAction | undefined;
+        const replyAction = finalActions.find((a: any) => a.type === 'reply_to_comment') as ReplyToCommentAction | undefined;
         const replyMessage = replyAction?.replyTemplates?.[0] || 'Thanks for your comment!';
 
-        const dmAction = formData.actions.find(a => a.type === 'send_dm') as SendDmAction | undefined;
+        const dmAction = finalActions.find((a: any) => a.type === 'send_dm') as SendDmAction | undefined;
         const dmTitle = dmAction?.title || 'Hi there!';
 
         const result = await N8nWorkflowService.createWorkflow({
@@ -353,7 +406,7 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
             dmTitle: dmTitle,
             dmImageUrl: (dmAction?.showImage && dmAction?.imageUrl) ? dmAction.imageUrl : '',
           },
-          autoActivate: false,
+          autoActivate: true,
         }, user.id);
 
         console.log('N8N workflow created successfully:', result);
@@ -366,6 +419,9 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
         // Just log the issue and continue
         toast.warning(`Warning: Automation saved but workflow creation failed: ${n8nError.message || 'Unknown error'}. This may affect automation functionality.`);
       }
+
+      // Clear draft on successful save
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
 
       navigate('/automation');
     } catch (error: any) {
@@ -500,6 +556,13 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
                         selectedTrigger={formData.triggerType}
                         onTriggerSelect={(triggerType: TriggerType) => {
                           if (readOnly) return;
+                          
+                          // If same trigger is selected, just move next without resetting
+                          if (formData.triggerType === triggerType) {
+                            setCurrentStep('configuration');
+                            return;
+                          }
+
                           let defaultConfig: TriggerConfig | null = null;
                           if (triggerType === 'post_comment') {
                             defaultConfig = { postsType: 'specific', commentsType: 'all', keywords: [] } as PostCommentTriggerConfig;
@@ -507,7 +570,12 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
                             defaultConfig = { storiesType: 'specific', replyType: 'all', keywords: [] } as StoryReplyTriggerConfig;
                           } else if (triggerType === 'user_directed_messages') {
                             defaultConfig = { messageType: 'all', keywords: [], cooldownEnabled: true, cooldownDuration: 3600000 } as UserDirectMessageTriggerConfig;
+                          } else if (triggerType === 'conversation_flow') {
+                            defaultConfig = { welcomeTitle: 'Welcome to Bright Future Academy!', welcomeSubtitle: "We're so glad you reached out. What brings you here today?", l1Labels: ['Admissions Info', 'Courses & Programs', 'Fees & Scholarships'] } as ConversationFlowTriggerConfig;
+                          } else if (triggerType === 'lead_manager') {
+                            defaultConfig = { googleSheetUrl: '' } as LeadManagerTriggerConfig;
                           }
+
                           let defaultActions: any[] = [];
                           if (triggerType === 'post_comment') {
                             defaultActions = [{
@@ -520,6 +588,10 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
                               ],
                               actionButtons: []
                             }];
+                          } else if (triggerType === 'conversation_flow' || triggerType === 'lead_manager') {
+                            // These workflows are entirely template-driven, but we add a dummy
+                            // action here to pass the "actions.length > 0" validation in the stepper.
+                            defaultActions = [{ type: 'send_dm', title: 'Managed by workflow template' }];
                           }
 
                           setFormData({

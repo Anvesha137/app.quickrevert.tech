@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { syncN8nCredential } from "../_shared/n8n.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -190,6 +191,22 @@ Deno.serve(async (req: Request) => {
       }
 
       console.log('New account created successfully');
+    }
+
+    // --- SYNC TO N8N ---
+    console.log('🔄 Syncing to n8n...');
+    try {
+      const { data: finalAccount } = await supabase
+        .from("instagram_accounts")
+        .select("*")
+        .eq("instagram_user_id", instagramUserId)
+        .single();
+      
+      if (finalAccount) {
+        await syncN8nCredential(supabase, finalAccount);
+      }
+    } catch (n8nError) {
+      console.error('⚠️ n8n sync failed (non-fatal):', n8nError);
     }
 
     // ✅ CRITICAL: Subscribe webhooks using Page-scoped IGBA ID

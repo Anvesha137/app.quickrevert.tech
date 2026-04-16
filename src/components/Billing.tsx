@@ -33,7 +33,9 @@ const Billing = () => {
     if (!id || id === 'basic') return 'BASIC';
     const lowerId = id.toLowerCase();
     if (lowerId.includes('enterprise')) return 'ENTERPRISE';
-    if (lowerId.includes('premium') || lowerId.includes('quarterly')) return 'PREMIUM';
+    if (lowerId.includes('professional')) return 'PROFESSIONAL';
+    if (lowerId.includes('try_me_out')) return 'TRY ME OUT';
+    if (lowerId.includes('premium')) return 'PREMIUM';
     return lowerId.toUpperCase();
   };
 
@@ -41,8 +43,16 @@ const Billing = () => {
     if (isGifted) return '₹0';
     if (!id || id === 'basic') return '₹0';
     if (amount !== undefined && amount !== null) return `₹${amount}`;
-    if (id.includes('annual')) return '₹7,188';
-    return '₹2,697';
+    
+    const lowerId = id.toLowerCase();
+    if (lowerId.includes('try_me_out')) return '₹199';
+    if (lowerId.includes('premium')) {
+      return lowerId.includes('annual') ? '₹4,199' : '₹1,199';
+    }
+    if (lowerId.includes('professional')) {
+      return lowerId.includes('annual') ? '₹5,999' : '₹1,799';
+    }
+    return '₹0';
   };
 
   if (loading) {

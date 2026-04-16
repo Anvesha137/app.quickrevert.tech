@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
+import { syncN8nCredential } from "../_shared/n8n.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,6 +23,13 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const n8nBaseUrl = Deno.env.get("N8N_BASE_URL")!;
     const n8nApiKey = Deno.env.get("X-N8N-API-KEY")!;
+    const internalSecret = Deno.env.get("QUICKREVERT_INTERNAL_SECRET") || "";
+
+    console.log("--- CONFIG DIAGNOSTICS ---");
+    console.log(`SUPABASE_URL: ${supabaseUrl?.substring(0, 10)}...`);
+    console.log(`SUPABASE_ANON_KEY (dots): ${(supabaseAnonKey?.match(/\./g) || []).length}`);
+    console.log(`SUPABASE_SERVICE_ROLE_KEY (dots): ${(supabaseServiceKey?.match(/\./g) || []).length}`);
+    console.log("------------------------");
 
     if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey || !n8nBaseUrl || !n8nApiKey) return new Response(JSON.stringify({ error: "Config missing" }), { status: 500 });
 
@@ -64,13 +72,13 @@ Deno.serve(async (req: Request) => {
     if (instagramAccountId) {
       const { data, error } = await supabase.from("instagram_accounts").select("*").eq("id", instagramAccountId).eq("status", "active").single();
       if (error || !data) throw new Error("Account not found");
-      
+
       // 🔒 OWNERSHIP VERIFICATION
       if (data.user_id !== user.id) {
         console.error(`[SECURITY] User ${user.id} tried to access account ${instagramAccountId} owned by ${data.user_id}`);
         throw new Error("Unauthorized: You do not own this account");
       }
-      
+
       instagramAccount = data;
     } else {
       const { data, error } = await supabase.from("instagram_accounts").select("*").eq("user_id", userId).eq("status", "active").order("connected_at", { ascending: false }).limit(1).maybeSingle();
@@ -79,31 +87,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // --- CREDENTIAL MANAGEMENT ---
-    const ensureCredential = async () => {
-      if (instagramAccount.n8n_credential_id) return instagramAccount.n8n_credential_id;
-
-      const credName = `Instagram - ${instagramAccount.username} (${instagramAccount.instagram_user_id})`;
-      const credType = "facebookGraphApi";
-      try {
-        const listRes = await fetch(`${n8nBaseUrl}/api/v1/credentials`, { headers: { "X-N8N-API-KEY": n8nApiKey } });
-        if (listRes.ok) {
-          const listData = await listRes.json();
-          const existing = listData.data.find((c: any) => c.name === credName);
-          if (existing) {
-            await fetch(`${n8nBaseUrl}/api/v1/credentials/${existing.id}`, { method: "PUT", headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey }, body: JSON.stringify({ data: { accessToken: instagramAccount.access_token } }) });
-            await supabase.from('instagram_accounts').update({ n8n_credential_id: existing.id }).eq('id', instagramAccount.id);
-            return existing.id;
-          }
-        }
-      } catch (e) { console.warn("Cred search failed", e); }
-      const createRes = await fetch(`${n8nBaseUrl}/api/v1/credentials`, { method: "POST", headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey }, body: JSON.stringify({ name: credName, type: credType, data: { accessToken: instagramAccount.access_token } }) });
-      if (!createRes.ok) throw new Error("Cred creation failed");
-      const credId = (await createRes.json()).id;
-
-      await supabase.from('instagram_accounts').update({ n8n_credential_id: credId }).eq('id', instagramAccount.id);
-      return credId;
-    };
-    const credentialId = await ensureCredential();
+    const credentialId = await syncN8nCredential(supabase, instagramAccount);
 
     const userProvidedName = workflowName || `Instagram Automation - ${new Date().toISOString().split('T')[0]}`;
     const finalWorkflowName = `[${instagramAccount.username}] ${userProvidedName}`;
@@ -132,13 +116,952 @@ Deno.serve(async (req: Request) => {
     // --- BUILDERS ---
     const buildWorkflow = () => {
 
-      const triggerType = bodyTriggerType || automationData?.trigger_type || "user_dm";
-      const actions = automationData?.actions || [];
+      const actions = automationData?.actions || body.actions || [];
+      const dmAction = actions.find((a: any) => a.type === 'send_dm') || {};
+      const bodyCards = body.actions?.find((a: any) => a.type === 'send_dm')?.conversationCards || [];
+      const dbCards = dmAction.conversationCards || [];
+      const cards = bodyCards.length > 0 ? bodyCards : dbCards;
+
+      // Detection for Hybrid: Post Comment trigger + Menu Flow message
+      const isPostCommentMenuFlow = (bodyTriggerType === 'post_comment' || automationData?.trigger_type === 'post_comment') &&
+        (dmAction?.dmType === 'conversation_flow' || (cards && cards.length > 0));
+
+      const triggerType = (bodyTriggerType === 'conversation_flow' || (bodyTriggerType !== 'post_comment' && (cards && cards.length > 0)))
+        ? 'conversation_flow'
+        : (bodyTriggerType || automationData?.trigger_type || "user_dm");
+
       const hasAskToFollow = actions.some((a: any) => a.type === 'send_dm' && a.askToFollow);
+      const leadAction = actions.find((a: any) => a.type === 'save_lead');
+      const hasLeadManager = !!leadAction;
+      const dataToCollect = leadAction?.collectFields || leadAction?.dataToCollect || ['name', 'email'];
+      const hasPhone = dataToCollect.includes('phone');
       const uniqueId = automationId ? automationId.replace(/-/g, '') : Date.now().toString();
 
-      // 0. Analytics Workflow (Special Case)
-      if (bodyTriggerType === 'enable_analytics') {
+      // --- COMMON VARIABLES ---
+      const instagramUsername = instagramAccount.username;
+      const senderExpr = "{{ $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id }}";
+      const level0Buttons = dmAction.actionButtons || [];
+      const triggerConfig = automationData?.trigger_config || {};
+
+      // --- HELPERS ---
+      const formatButtons = (btns: any[]) => (btns || []).filter(b => b.text).map(b => {
+        if (b.buttonType === 'web_url') return { type: "web_url", url: b.url || '', title: b.text.substring(0, 20) };
+        return { type: "postback", title: b.text.substring(0, 20), payload: b.payload || b.id };
+      }).slice(0, 3);
+
+      const getCardName = (cardId: string): string => {
+        const l0Btn = level0Buttons.find((b: any) => b.payload === cardId);
+        if (l0Btn?.text) return `Card: ${l0Btn.text}`;
+        for (const c of cards) {
+          const btn = (c.actionButtons || []).find((b: any) => b.payload === cardId);
+          if (btn?.text) return `Card: ${btn.text}`;
+        }
+        return `Card: ${cardId}`;
+      };
+
+      const allPostbackButtons = [...(dmAction.actionButtons || [])];
+      cards.forEach((c: any) => { if (c.actionButtons) allPostbackButtons.push(...c.actionButtons); });
+      const uniquePayloads = Array.from(new Set(
+        allPostbackButtons.filter((b: any) => b.buttonType === 'postback' && b.payload).map((b: any) => b.payload)
+      ));
+
+      // --- HYBRID POST COMMENT + MENU FLOW TEMPLATE ---
+      if (isPostCommentMenuFlow) {
+        console.log(`[TEMPLATE] Building Hybrid Post Comment + Menu Flow workflow`);
+
+        const replyAction = (automationData?.actions || []).find((a: any) => a.type === 'reply_to_comment');
+        const replyTemplates = replyAction?.replyTemplates && replyAction.replyTemplates.length > 0
+          ? replyAction.replyTemplates
+          : ["Ayyy check your DMs 👀✨", "Just dropped you a message 💌🔥", "Doneee, sent you the details 🫶📩", "You got a lil surprise in your inbox 😌💫"];
+
+        const hybridNodes: any[] = [
+          // 1. Worker Webhook
+          {
+            "parameters": { "httpMethod": "POST", "path": webhookPath, "options": {} },
+            "id": "webhook-node", "name": "Worker Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 2.1,
+            "position": [-1264, -1184], "webhookId": webhookPath
+          },
+          // 2. Event Type Router
+          {
+            "parameters": {
+              "rules": {
+                "values": [
+                  {
+                    "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "leftValue": "={{ $json.body.entry[0].changes[0].field }}", "rightValue": "comments", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" },
+                    "renameOutput": true, "outputKey": "comments"
+                  },
+                  {
+                    "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "leftValue": "={{ $json.body.entry?.[0]?.messaging?.[0]?.sender?.id }}", "rightValue": "", "operator": { "type": "string", "operation": "notEmpty", "singleValue": true } }], "combinator": "and" },
+                    "renameOutput": true, "outputKey": "postback"
+                  }
+                ]
+              }, "options": {}
+            },
+            "id": "event-router", "name": "Event Type Router", "type": "n8n-nodes-base.switch", "typeVersion": 3.3, "position": [-1040, -1184]
+          }
+        ];
+
+        // --- BRANCH 1: COMMENTS ---
+        let commentsAnchor = "Event Type Router";
+        let commentsAnchorIndex = 0;
+
+        // 1.1 Post Filter Switch (if specific posts)
+        const specificPosts = triggerConfig.postsType === 'specific' ? (triggerConfig.specificPosts || []) : [];
+        if (specificPosts.length > 0) {
+          hybridNodes.push({
+            "parameters": {
+              "rules": {
+                "values": [{
+                  "conditions": {
+                    "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 },
+                    "conditions": specificPosts.map((id: string, i: number) => ({
+                      "id": `post-${i}`,
+                      "leftValue": "={{ $(\'Worker Webhook\').item.json.body.entry[0].changes[0].value.media.id }}",
+                      "rightValue": id,
+                      "operator": { "type": "string", "operation": "equals" }
+                    })),
+                    "combinator": "or"
+                  }
+                }]
+              }, "options": { "ignoreCase": true }
+            },
+            "id": "post-filter", "name": "Post Filter Switch", "type": "n8n-nodes-base.switch", "typeVersion": 3.3, "position": [-816, -416]
+          });
+          commentsAnchor = "Post Filter Switch";
+          commentsAnchorIndex = 0;
+        }
+
+        // 1.2 Loop Protection Switch
+        hybridNodes.push({
+          "parameters": {
+            "rules": {
+              "values": [{
+                "conditions": {
+                  "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 3 },
+                  "conditions": [{ "id": "loop-check-1", "leftValue": "={{ $json.body.entry?.[0]?.changes?.[0]?.value?.from?.username }}", "rightValue": instagramUsername, "operator": { "type": "string", "operation": "notEquals" } }],
+                  "combinator": "and"
+                }
+              }]
+            }, "options": { "ignoreCase": true }
+          },
+          "id": "loop-protection", "name": "Loop Protection Switch", "type": "n8n-nodes-base.switch", "typeVersion": 3.4, "position": [-592, -416]
+        });
+
+        // 1.3 Round Robin Picker
+        hybridNodes.push({
+          "parameters": {
+            "jsCode": `const replies = ${JSON.stringify(replyTemplates)};
+const username = $('Worker Webhook').item.json.body.entry[0].changes[0].value.from.username;
+
+if (typeof $getWorkflowStaticData === 'function') {
+  const staticData = $getWorkflowStaticData('global');
+  if (staticData.replyIndex === undefined) staticData.replyIndex = 0;
+  const index = staticData.replyIndex;
+  staticData.replyIndex = (index + 1) % replies.length;
+  const chosenReply = replies[index].replace('{username}', username).replace('@{username}', '@' + username);
+  return [{ json: { chosenReply, index } }];
+} else {
+  const chosenReply = replies[0].replace('{username}', username).replace('@{username}', '@' + username);
+  return [{ json: { chosenReply, index: 0 } }];
+}`
+          },
+          "id": "picker", "name": "Round Robin Picker", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [-368, -512]
+        });
+
+        // 1.4 Reply to Comment
+        hybridNodes.push({
+          "parameters": {
+            "method": "POST",
+            "url": "=https://graph.instagram.com/v24.0/{{ $('Worker Webhook').item.json.body.entry[0].changes[0].value.id }}/replies",
+            "authentication": "predefinedCredentialType",
+            "nodeCredentialType": "facebookGraphApi",
+            "sendBody": true,
+            "specifyBody": "json",
+            "jsonBody": "={\n  \"message\": \"{{ $json.chosenReply }}\"\n}",
+            "options": {}
+          },
+          "id": "reply-node", "name": "Reply to Comment", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.3, "position": [-144, -512],
+          "credentials": { "facebookGraphApi": { "id": credentialId } }
+        });
+
+        // 1.5 Send Welcome DM (Initial Menu)
+        const welcomeBody = {
+          recipient: { comment_id: "{{ $('Worker Webhook').item.json.body.entry[0].changes[0].value.id }}" },
+          message: {
+            attachment: {
+              type: "template",
+              payload: {
+                template_type: "generic",
+                elements: [{
+                  title: (dmAction.title || "Hi! How can I help you today? 👋").substring(0, 400),
+                  subtitle: (dmAction.subtitle || "Pick one of the options below").substring(0, 400),
+                  buttons: formatButtons(dmAction.actionButtons || [])
+                }]
+              }
+            }
+          }
+        };
+        hybridNodes.push({
+          "parameters": {
+            "method": "POST",
+            "url": "https://graph.instagram.com/v24.0/me/messages",
+            "authentication": "predefinedCredentialType",
+            "nodeCredentialType": "facebookGraphApi",
+            "sendBody": true,
+            "specifyBody": "json",
+            "jsonBody": `=${JSON.stringify(welcomeBody, null, 2)}`,
+            "options": {}
+          },
+          "id": "welcome-dm", "name": "Send Welcome DM", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.3, "position": [-368, -320],
+          "credentials": { "facebookGraphApi": { "id": credentialId } }
+        });
+
+        // --- BRANCH 2: POSTBACKS ---
+        // 2.1 Extract Payload
+        hybridNodes.push({
+          "parameters": { "jsCode": "const entry = $('Worker Webhook').item.json.body.entry?.[0]?.messaging?.[0];\nconst payload = entry?.postback?.payload || entry?.message?.quick_reply?.payload || entry?.message?.text || '';\nconst senderId = entry?.sender?.id || '';\nreturn [{ json: { payload, senderId } }];" },
+          "id": "extract-payload", "name": "Extract Payload", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [-816, -1952]
+        });
+
+        // 2.2 Payload Router
+        hybridNodes.push({
+          "parameters": {
+            "rules": {
+              "values": uniquePayloads.map((p: string) => ({
+                "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": (p || '').toLowerCase().replace(/[^a-z0-9]/g, ''), "leftValue": "={{ $json.payload }}", "rightValue": p, "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": p
+              }))
+            }, "options": { "ignoreCase": true }
+          },
+          "id": "payload-router", "name": "Payload Router", "type": "n8n-nodes-base.switch", "typeVersion": 3.3, "position": [-592, -2144]
+        });
+
+        // 2.3 Card Nodes
+        cards.forEach((card: any, idx: number) => {
+          const cardNodeName = getCardName(card.id);
+          const cardPostbacks = formatButtons(card.actionButtons);
+          const hasPostbacks = cardPostbacks.some((b: any) => b.type === 'postback');
+
+          let cardJsonBody: string;
+          if (hasPostbacks) {
+            const cardBody = {
+              recipient: { id: senderExpr },
+              message: {
+                attachment: {
+                  type: "template",
+                  payload: {
+                    template_type: "generic",
+                    elements: [{
+                      title: (card.messageTemplate || "Select an option").substring(0, 400),
+                      subtitle: (card.title || "Choose below").substring(0, 400),
+                      buttons: cardPostbacks
+                    }]
+                  }
+                }
+              }
+            };
+            cardJsonBody = `=${JSON.stringify(cardBody, null, 2)}`;
+          } else {
+            const textBody = { recipient: { id: senderExpr }, message: { text: card.messageTemplate || "Thank you!" } };
+            cardJsonBody = `=${JSON.stringify(textBody, null, 2)}`;
+          }
+
+          hybridNodes.push({
+            "parameters": { "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json", "jsonBody": cardJsonBody, "options": {} },
+            "id": `cf-card-${card.id}`, "name": cardNodeName, "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.3,
+            "position": [-368, -3200 + (idx * 200)],
+            "credentials": { "facebookGraphApi": { "id": credentialId } }
+          });
+        });
+
+        // --- HYBRID CONNECTIONS ---
+        const hybridConnections: any = {
+          "Worker Webhook": { "main": [[{ "node": "Event Type Router", "type": "main", "index": 0 }]] },
+          "Event Type Router": {
+            "main": [
+              [{ "node": specificPosts.length > 0 ? "Post Filter Switch" : "Loop Protection Switch", "type": "main", "index": 0 }],
+              [{ "node": "Extract Payload", "type": "main", "index": 0 }]
+            ]
+          },
+          "Post Filter Switch": { "main": [[{ "node": "Loop Protection Switch", "type": "main", "index": 0 }]] },
+          "Loop Protection Switch": {
+            "main": [[
+              { "node": "Round Robin Picker", "type": "main", "index": 0 },
+              { "node": "Send Welcome DM", "type": "main", "index": 0 }
+            ]]
+          },
+          "Round Robin Picker": { "main": [[{ "node": "Reply to Comment", "type": "main", "index": 0 }]] },
+          "Extract Payload": { "main": [[{ "node": "Payload Router", "type": "main", "index": 0 }]] },
+          "Payload Router": {
+            "main": uniquePayloads.map((p: string) => {
+              const targetName = getCardName(p);
+              return [{ "node": targetName, "type": "main", "index": 0 }];
+            })
+          }
+        };
+
+        return { name: finalWorkflowName, nodes: hybridNodes, connections: hybridConnections, settings: { saveExecutionProgress: true, timezone: "Asia/Kolkata" } };
+      }
+
+      // Lead Manager Flow (Highest Priority for Lead collection)
+      if (hasLeadManager) {
+        console.log(`[TEMPLATE] Building Lead Manager workflow`);
+        const isPostCommentLeadManager = (bodyTriggerType === 'post_comment' || automationData?.trigger_type === 'post_comment') && hasLeadManager;
+        const lmCredName = `Instagram - ${instagramAccount.username} (${instagramAccount.instagram_user_id})`;
+        const lmSpreadsheetUrl = leadAction.spreadsheetUrl || '';
+        const lmMessages = leadAction.messages || {};
+        const docMatch = lmSpreadsheetUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+        const documentId = docMatch ? docMatch[1] : '';
+
+        const lmNodes: any[] = [
+          {
+            "id": "webhook-node",
+            "webhookId": webhookPath,
+            "parameters": { "httpMethod": "POST", "path": webhookPath, "responseMode": "onReceived", "options": {} },
+            "name": "Worker Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2.1,
+            "position": [700, 2800]
+          },
+          {
+            "parameters": { "url": "https://graph.instagram.com/v24.0/me?fields=id,username", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "options": {} },
+            "name": "Fetch Usernames1",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [950, 2800],
+            "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
+          },
+          ...(isPostCommentLeadManager && triggerConfig?.postsType === 'specific' && (triggerConfig.specificPosts || []).length > 0 ? [{
+            "parameters": {
+              "rules": {
+                "values": [{
+                  "conditions": {
+                    "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 },
+                    "conditions": (triggerConfig.specificPosts || []).map((id: string, i: number) => ({
+                      "id": `post-${i}`,
+                      "leftValue": "={{ $(\'Worker Webhook\').item.json.body.entry[0].changes[0].value.media.id }}",
+                      "rightValue": id,
+                      "operator": { "type": "string", "operation": "equals" }
+                    })),
+                    "combinator": "or"
+                  }
+                }]
+              }, "options": { "ignoreCase": true }
+            },
+            "id": "post-filter-lm", "name": "Post Filter Switch", "type": "n8n-nodes-base.switch", "typeVersion": 3.3, "position": [1200, 3100]
+          }] : []),
+          {
+            "parameters": {
+              "rules": {
+                "values": [
+                  {
+                    "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "is-postback", "leftValue": "={{ $('Worker Webhook').first().json.body.sub_type }}", "rightValue": "postback", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" },
+                    "renameOutput": true, "outputKey": "Postback"
+                  },
+                  {
+                    "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "is-dm", "leftValue": "={{ $('Worker Webhook').first().json.body.sub_type }}", "rightValue": "postback", "operator": { "type": "string", "operation": "notEquals" } }, { "id": "sender-not-bot", "leftValue": "={{ $('Worker Webhook').first().json.body.entry?.[0]?.messaging?.[0]?.sender?.id }}", "rightValue": "={{ $('Fetch Usernames1').first().json.id }}", "operator": { "type": "string", "operation": "notEquals" } }, { "id": "has-text", "leftValue": "={{ $('Worker Webhook').first().json.body.entry?.[0]?.messaging?.[0]?.message?.text }}", "rightValue": "", "operator": { "type": "string", "operation": "exists", "singleValue": true } }], "combinator": "and" },
+                    "renameOutput": true, "outputKey": "Text DM"
+                  },
+                  ...(isPostCommentLeadManager ? [{
+                    "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "is-comment", "leftValue": "={{ $('Worker Webhook').first().json.body.sub_type }}", "rightValue": "comments", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" },
+                    "renameOutput": true, "outputKey": "comments"
+                  }] : [])
+                ]
+              },
+              "options": { "ignoreCase": true }
+            },
+            "name": "Entry Switch",
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 3.3,
+            "position": [1200, 2800]
+          },
+          {
+            "parameters": { "jsCode": "const payload = $('Worker Webhook').first().json.body.entry?.[0]?.messaging?.[0]?.postback?.payload || '';\nconst senderId = $('Worker Webhook').first().json.body.entry?.[0]?.messaging?.[0]?.sender?.id || '';\nreturn [{ json: { payload, senderId } }];" },
+            "name": "Extract Postback",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [1450, 2600]
+          },
+          {
+            "parameters": {
+              "rules": {
+                "values": [
+                  { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "start", "leftValue": "={{ $json.payload }}", "rightValue": "START_FLOW_" + uniqueId, "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "START_FLOW" },
+                  { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "change-name", "leftValue": "={{ $json.payload }}", "rightValue": "CHANGE_NAME_" + uniqueId, "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "CHANGE_NAME" },
+                  { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "change-email", "leftValue": "={{ $json.payload }}", "rightValue": "CHANGE_EMAIL_" + uniqueId, "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "CHANGE_EMAIL" },
+                  { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "change-phone", "leftValue": "={{ $json.payload }}", "rightValue": "CHANGE_PHONE_" + uniqueId, "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "CHANGE_PHONE" },
+                  { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "confirm", "leftValue": "={{ $json.payload }}", "rightValue": "CONFIRM_SAVE_" + uniqueId, "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "CONFIRM_SAVE" }
+                ]
+              },
+              "options": { "ignoreCase": true }
+            },
+            "name": "Postback Router",
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 3.3,
+            "position": [1700, 2600]
+          },
+          {
+            "parameters": { "jsCode": "const msg = $('Worker Webhook').first().json.body.entry?.[0]?.messaging?.[0]?.message?.text?.trim() || '';\nconst senderId = $('Worker Webhook').first().json.body.entry?.[0]?.messaging?.[0]?.sender?.id || '';\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst lead = staticData.leads[senderId] || { state: 'new', name: '', email: '', phone: '' };\nreturn [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead.email, phone: lead.phone } }];" },
+            "name": "Read State",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [1450, 3000]
+          },
+          {
+            "parameters": {
+              "rules": {
+                "values": [
+                  { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "waiting-name", "leftValue": "={{ $json.state }}", "rightValue": "waiting_name", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "Got Name" },
+                  { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "waiting-email", "leftValue": "={{ $json.state }}", "rightValue": "waiting_email", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "Got Email" },
+                  { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "waiting-phone", "leftValue": "={{ $json.state }}", "rightValue": "waiting_phone", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "Got Phone" },
+                  { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "new-or-done", "leftValue": "={{ $json.state }}", "rightValue": "new", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "New" }
+                ]
+              },
+              "options": { "ignoreCase": true }
+            },
+            "name": "State Router",
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 3.3,
+            "position": [1700, 3000]
+          },
+          {
+            "parameters": { "jsCode": "const senderId = $json.senderId;\nconst name = $json.msg;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nstaticData.leads[senderId] = { state: 'waiting_email', name: name, email: '', phone: '' };\nreturn [{ json: { senderId, name } }];" },
+            "name": "Save Name",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [1950, 2800]
+          },
+          {
+            "parameters": { "jsCode": `const senderId = $json.senderId;\nconst msg = $json.msg;\nconst name = $json.name;\nconst emailRegex = /[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}/;\nconst emailMatch = msg.match(emailRegex);\nconst email = emailMatch ? emailMatch[0] : msg;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nstaticData.leads[senderId] = { state: '${hasPhone ? 'waiting_phone' : 'waiting_confirm'}', name: name, email: email, phone: '' };\nreturn [{ json: { senderId, name, email } }];` },
+            "name": "Save Email",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [1950, 3000]
+          },
+          {
+            "parameters": { "jsCode": "const senderId = $json.senderId;\nconst msg = $json.msg;\nconst name = $json.name;\nconst email = $json.email;\nconst phoneRaw = msg.replace(/[^\\d+\\-() ]/g, '').trim();\nconst phone = phoneRaw || msg;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nstaticData.leads[senderId] = { state: 'waiting_confirm', name: name, email: email, phone: phone };\nreturn [{ json: { senderId, name, email, phone } }];" },
+            "name": "Save Phone",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [1950, 3200]
+          },
+          {
+            "parameters": { "jsCode": "const senderId = $json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nstaticData.leads[senderId] = { state: 'waiting_name', name: '', email: '', phone: '' };\nreturn [{ json: { senderId } }];" },
+            "name": "Init Lead",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [1950, 3400]
+          },
+          {
+            "parameters": {
+              "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
+              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [{\n          \"title\": \"" + (lmMessages.confirmName || "Awesome, {{name}}! 😊").split('\n')[0].replace('{{name}}', '{{ $json.name }}').replace(/"/g, '\\\"') + "\",\n          \"subtitle\": \"" + ((lmMessages.confirmName || "").includes('\n') ? lmMessages.confirmName.split('\n')[1].replace('{{name}}', '{{ $json.name }}') : "If you typed your name wrong, fix it below.").replace(/"/g, '\\\"') + "\",\n          \"buttons\": [\n            { \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeName || "✏️ Change First Name").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_NAME_" + uniqueId + "\" }\n          ]\n        }]\n      }\n    }\n  }\n}",
+              "options": {}
+            },
+            "name": "Confirm Name + Ask Email",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [2200, 2800],
+            "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
+          },
+          {
+            "parameters": {
+              "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
+              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $('Worker Webhook').first().json.body.entry[0].messaging[0].sender.id }}\" },\n  \"message\": { \"text\": \"" + (lmMessages.askEmail || "What email should we use to get in touch with you? 📧").replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\" }\n}",
+              "options": {}
+            },
+            "name": "Ask Email",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [2450, 2800],
+            "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
+          },
+          ...(hasPhone ? [
+            {
+              "parameters": {
+                "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
+                "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [{\n          \"title\": \"" + (lmMessages.confirmEmail || "Perfect, {{ $json.name }}! 📧").split('\n')[0].replace('{{name}}', '{{ $json.name }}').replace(/"/g, '\\\"') + "\",\n          \"subtitle\": \"" + ((lmMessages.confirmEmail || "").includes('\n') ? lmMessages.confirmEmail.split('\n')[1].replace('{{name}}', '{{ $json.name }}') : "Email saved: {{ $json.email }}").replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\",\n          \"buttons\": [\n            { \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeEmail || "✏️ Change Email").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_EMAIL_" + uniqueId + "\" }\n          ]\n        }]\n      }\n    }\n  }\n}",
+                "options": {}
+              },
+              "name": "Confirm Email + Ask Phone",
+              "type": "n8n-nodes-base.httpRequest",
+              "typeVersion": 4.3,
+              "position": [2200, 3000],
+              "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
+            },
+            {
+              "parameters": {
+                "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
+                "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $('Worker Webhook').first().json.body.entry[0].messaging[0].sender.id }}\" },\n  \"message\": { \"text\": \"" + (lmMessages.askPhone || "What phone number should we use to contact you? 📱").replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\" }\n}",
+                "options": {}
+              },
+              "name": "Ask Phone",
+              "type": "n8n-nodes-base.httpRequest",
+              "typeVersion": 4.3,
+              "position": [2450, 3000],
+              "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
+            }
+          ] : []),
+          {
+            "parameters": {
+              "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
+              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [{\n          \"title\": \"" + (lmMessages.confirmAll ? lmMessages.confirmAll.split('\n')[0].replace('{{name}}', '{{ $json.name }}').replace('{{email}}', '{{ $json.email }}').replace('{{phone}}', '{{ $json.phone }}') : "Perfect! Just confirming ✅").replace(/"/g, '\\\"') + "\",\n          \"subtitle\": \"Powered by Quickrevert.tech\",\n          \"buttons\": [\n            { \"type\": \"postback\", \"title\": \"" + (lmMessages.btnYesLooksGood || "✅ Yes, looks good!").replace(/"/g, '\\\"') + "\", \"payload\": \"CONFIRM_SAVE_" + uniqueId + "\" },\n            { \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeEmail || "✏️ Change Email").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_EMAIL_" + uniqueId + "\" },\n            " + (hasPhone ? "{ \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangePhone || "✏️ Change Phone").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_PHONE_" + uniqueId + "\" }" : "{ \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeName || "✏️ Change Name").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_NAME_" + uniqueId + "\" }") + "\n          ]\n        }]\n      }\n    }\n  }\n}",
+              "options": {}
+            },
+            "name": "Confirm Details",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [2200, 3200],
+            "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
+          },
+          {
+            "parameters": {
+              "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
+              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": { \"text\": \"" + (lmMessages.askName || "👋 Hey! Thanks for reaching out. What's your first name? 😊").replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\" }\n}",
+              "options": {}
+            },
+            "name": "Ask Name",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [2200, 3400],
+            "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
+          },
+          {
+            "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst existing = staticData.leads[senderId] || {};\nstaticData.leads[senderId] = { state: 'waiting_name', name: '', email: existing.email || '', phone: existing.phone || '' };\nreturn [{ json: { senderId } }];" },
+            "name": "Reset Name State",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [1950, 2200]
+          },
+          {
+            "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst existing = staticData.leads[senderId] || {};\nstaticData.leads[senderId] = { state: 'waiting_email', name: existing.name || '', email: '', phone: existing.phone || '' };\nreturn [{ json: { senderId, name: existing.name || '' } }];" },
+            "name": "Reset Email State",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [1950, 2400]
+          },
+          {
+            "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst existing = staticData.leads[senderId] || {};\nstaticData.leads[senderId] = { state: 'waiting_phone', name: existing.name || '', email: existing.email || '', phone: '' };\nreturn [{ json: { senderId, name: existing.name || '', email: existing.email || '' } }];" },
+            "name": "Reset Phone State",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [1950, 2600]
+          },
+          {
+            "parameters": {
+              "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
+              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": { \"text\": \"" + (lmMessages.askNameAgain || "No problem! What's your correct first name? ✏️").replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\" }\n}",
+              "options": {}
+            },
+            "name": "Ask Name Again",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [2200, 2200],
+            "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
+          },
+          {
+            "parameters": {
+              "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
+              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": { \"text\": \"" + (lmMessages.askEmailAgain || "Sure! What's the correct email address? 📧").replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\" }\n}",
+              "options": {}
+            },
+            "name": "Ask Email Again",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [2200, 2400],
+            "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
+          },
+          {
+            "parameters": {
+              "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
+              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": { \"text\": \"" + (lmMessages.askPhoneAgain || "Sure! What's the correct phone number? 📱").replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\" }\n}",
+              "options": {}
+            },
+            "name": "Ask Phone Again",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [2200, 2600],
+            "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
+          },
+          {
+            "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst lead = staticData.leads[senderId] || {};\nstaticData.leads[senderId] = { state: 'saved', name: lead.name, email: lead.email, phone: lead.phone || '' };\nconst now = new Date();\nconst timestamp = now.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });\nreturn [{ json: { senderId, name: lead.name, email: lead.email, phone: lead.phone || '', timestamp } }];" },
+            "name": "Confirm Save",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [1950, 1800]
+          },
+          {
+            "parameters": { "url": "=https://graph.instagram.com/v24.0/{{ $json.senderId }}?fields=id,username", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "options": {} },
+            "name": "Fetch IG Profile",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [2200, 1800],
+            "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
+          },
+          {
+            "parameters": { "jsCode": "const profile = $('Fetch IG Profile').first().json;\nconst confirmData = $('Confirm Save').first().json;\nreturn [{\n  json: {\n    \"Timestamp\": confirmData.timestamp,\n    \"Instagram Username\": '@' + (profile.username || 'unknown'),\n    \"Instagram ID\": profile.id || confirmData.senderId,\n    \"Name\": confirmData.name,\n    \"Email\": confirmData.email,\n    \"Phone\": confirmData.phone || '',\n    \"Type\": \"lead\",\n    \"Raw Message\": confirmData.name + ' | ' + confirmData.email + ' | ' + (confirmData.phone || '')\n  }\n}];" },
+            "name": "Prepare Row",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [2450, 1800]
+          },
+          {
+            "parameters": {
+              "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
+              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $('Extract Postback').first().json.senderId }}\" },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [{\n          \"title\": \"👋 Hey! Ready to connect?\",\n          \"subtitle\": \"Tap below to get started!\",\n          \"buttons\": [\n            { \"type\": \"postback\", \"title\": \"🚀 Yes, let's go!\", \"payload\": \"START_FLOW\" }\n          ]\n        }]\n      }\n    }\n  }\n}",
+              "options": {}
+            },
+            "name": "Send Start Message",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [2200, 2000],
+            "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
+          },
+          {
+            "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nstaticData.leads[senderId] = { state: 'waiting_name', name: '', email: '', phone: '' };\nreturn [{ json: { senderId } }];" },
+            "name": "Init From Start",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [1950, 2000]
+          },
+          {
+            "parameters": {
+              "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
+              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $('Worker Webhook').first().json.body.entry?.[0]?.messaging?.[0]?.sender?.id || $json.senderId }}\" },\n  \"message\": { \n    \"text\": \"" + (lmMessages.finalMessage || dmAction.title || "🎉 We've got you, {{name}}!\\n\\nYour details have been saved.").replace('{{name}}', '{{ $json.name }}').replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\"\n  }\n}",
+              "options": {}
+            },
+            "name": "Final Confirmation DM",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [3700, 1800],
+            "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
+          },
+          {
+            "parameters": {
+              "method": "POST",
+              "url": supabaseUrl + "/functions/v1/save-lead",
+              "sendHeaders": true,
+              "headerParameters": {
+                "parameters": [
+                  { "name": "apikey", "value": supabaseAnonKey },
+                  { "name": "x-quickrevert-secret", "value": internalSecret },
+                  { "name": "Content-Type", "value": "application/json" }
+                ]
+              },
+              "sendBody": true,
+              "specifyBody": "json",
+              "jsonBody": "={\n  \"automation_id\": \"" + automationId + "\",\n  \"instagram_username\": \"{{ ($json.username || 'unknown') }}\",\n  \"full_name\": \"{{ $('Confirm Save').first().json.name }}\",\n  \"email\": \"{{ $('Confirm Save').first().json.email }}\",\n  \"phone\": \"{{ $('Confirm Save').first().json.phone || '' }}\",\n  \"metadata\": { \"source\": \"n8n_workflow\" }\n}",
+              "options": {}
+            },
+            "name": "Save to Lead Manager DB",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [2450, 2000]
+          }
+        ];
+
+        if (isPostCommentLeadManager) {
+          lmNodes.push({
+            "parameters": {
+              "rules": {
+                "values": [{
+                  "conditions": {
+                    "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 3 },
+                    "conditions": [{ "id": "loop-check-1", "leftValue": "={{ $('Worker Webhook').first().json.body.entry?.[0]?.changes?.[0]?.value?.from?.username }}", "rightValue": instagramAccount.username, "operator": { "type": "string", "operation": "notEquals" } }],
+                    "combinator": "and"
+                  }
+                }]
+              }, "options": { "ignoreCase": true }
+            },
+            "id": "loop-protection-lm", "name": "Loop Protection Switch", "type": "n8n-nodes-base.switch", "typeVersion": 3.4, "position": [1600, 3100]
+          });
+
+          const replyAction = (automationData?.actions || []).find((a: any) => a.type === 'reply_to_comment');
+          const replyTemplatesForLead = replyAction?.replyTemplates && replyAction.replyTemplates.length > 0 
+            ? replyAction.replyTemplates 
+            : ["Ayyy check your DMs 👀✨","Just dropped you a message 💌🔥","Doneee, sent you the details 🫶📩","You got a lil surprise in your inbox 😌💫"];
+          
+          lmNodes.push({
+            "parameters": {
+              "jsCode": "// Round Robin Picker\nconst replies = " + JSON.stringify(replyTemplatesForLead) + ";\nconst username = $('Worker Webhook').item.json.body.entry[0].changes[0].value.from.username;\n\nif (typeof $getWorkflowStaticData === 'function') {\n  const staticData = $getWorkflowStaticData('global');\n  if (staticData.replyIndex === undefined) staticData.replyIndex = 0;\n  const index = staticData.replyIndex;\n  staticData.replyIndex = (index + 1) % replies.length;\n  // User asked for exact snippet logic: replace {username}\n  const chosenReply = replies[index].replace('{username}', username).replace('@{username}', '@' + username);\n  return [{ json: { chosenReply, index } }];\n} else {\n  // Fallback if static data not available\n  const chosenReply = replies[0].replace('{username}', username).replace('@{username}', '@' + username);\n  return [{ json: { chosenReply, index: 0 } }];\n}"
+            },
+            "id": "round-robin-picker-lm", "name": "Round Robin Picker", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1824, 3000]
+          });
+
+          lmNodes.push({
+            "parameters": {
+              "method": "POST", "url": "=https://graph.instagram.com/v24.0/{{ $('Worker Webhook').first().json.body.entry[0].changes[0].value.id }}/replies", "sendBody": true, "specifyBody": "json",
+              "jsonBody": "={\n  \"message\": \"{{ $json.chosenReply }}\"\n}",
+              "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "options": {}
+            },
+            "id": "reply-to-comment-lm", "name": "Reply To Comment", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.3, "position": [2048, 3000],
+            "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
+          });
+
+          lmNodes.push({
+            "parameters": {
+              "jsCode": "const senderId = $('Worker Webhook').first().json.body.entry[0].changes[0].value.from.id;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nstaticData.leads[senderId] = { state: 'waiting_name', name: '', email: '', phone: '' };\nreturn [{ json: { senderId } }];"
+            },
+            "name": "Init Lead (From Comment)", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1824, 3200], "id": "init-lead-comment-lm"
+          });
+
+          lmNodes.push({
+            "parameters": {
+              "method": "POST", "url": "=https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
+              "jsonBody": "={\n  \"recipient\": { \"comment_id\": \"{{ $('Worker Webhook').first().json.body.entry[0].changes[0].value.id }}\" },\n  \"message\": { \"text\": \"" + (lmMessages.askName || "👋 Hey! Thanks for reaching out. What's your first name? 😊").replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\" }\n}",
+              "options": {}
+            },
+            "name": "Ask Name (From Comment)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.3, "position": [2048, 3200],
+            "id": "ask-name-comment-lm",
+            "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
+          });
+        }
+
+        // --- NEW: Hybrid Lead + DM Support ---
+        const hasAutomatedDM = actions.some((a: any) => a.type === 'send_dm' && (a.title || (a.conversationCards && a.conversationCards.length > 0)));
+        if (hasLeadManager && hasAutomatedDM) {
+          const followUpButtons = formatButtons(dmAction.actionButtons || []);
+          const hasPostbacks = followUpButtons.some((b: any) => b.type === 'postback');
+
+          let followUpJsonBody: string;
+          if (hasPostbacks) {
+            const body = {
+              recipient: { id: senderExpr },
+              message: {
+                attachment: {
+                  type: "template",
+                  payload: {
+                    template_type: "generic",
+                    elements: [{
+                      title: (dmAction.title || "Ready to explore more?").substring(0, 400),
+                      subtitle: (dmAction.subtitle || "Choose an option below").substring(0, 400),
+                      buttons: followUpButtons
+                    }]
+                  }
+                }
+              }
+            };
+            followUpJsonBody = `=${JSON.stringify(body, null, 2)}`;
+          } else {
+            const textBody = {
+              recipient: { id: senderExpr },
+              message: { text: (dmAction.title || "Thank you for connecting with us!").substring(0, 1000) }
+            };
+            followUpJsonBody = `=${JSON.stringify(textBody, null, 2)}`;
+          }
+
+          lmNodes.push({
+            "parameters": {
+              "method": "POST",
+              "url": "https://graph.instagram.com/v24.0/me/messages",
+              "authentication": "predefinedCredentialType",
+              "nodeCredentialType": "facebookGraphApi",
+              "sendBody": true,
+              "specifyBody": "json",
+              "jsonBody": followUpJsonBody,
+              "options": {}
+            },
+            "name": "Lead Follow-up Message",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [3950, 1800],
+            "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
+          });
+        }
+
+        const lmConnections: any = {
+          "Worker Webhook": { "main": [[{ "node": "Fetch Usernames1", "type": "main", "index": 0 }]] },
+          "Fetch Usernames1": { "main": [[{ "node": "Entry Switch", "type": "main", "index": 0 }]] },
+          "Entry Switch": {
+            "main": [
+              [{ "node": "Extract Postback", "type": "main", "index": 0 }],
+              [{ "node": "Read State", "type": "main", "index": 0 }],
+              ...(isPostCommentLeadManager ? [
+                [{ "node": (triggerConfig.postsType === 'specific' && (triggerConfig.specificPosts || []).length > 0) ? "Post Filter Switch" : "Loop Protection Switch", "type": "main", "index": 0 }]
+              ] : [])
+            ]
+          },
+          ...(isPostCommentLeadManager && (triggerConfig.postsType === 'specific' && (triggerConfig.specificPosts || []).length > 0) ? {
+            "Post Filter Switch": { "main": [[{ "node": "Loop Protection Switch", "type": "main", "index": 0 }]] }
+          } : {}),
+          "Extract Postback": { "main": [[{ "node": "Postback Router", "type": "main", "index": 0 }]] },
+          "Postback Router": { "main": [[{ "node": "Init From Start", "type": "main", "index": 0 }], [{ "node": "Reset Name State", "type": "main", "index": 0 }], [{ "node": "Reset Email State", "type": "main", "index": 0 }], [{ "node": "Reset Phone State", "type": "main", "index": 0 }], [{ "node": "Confirm Save", "type": "main", "index": 0 }]] },
+          "Read State": { "main": [[{ "node": "State Router", "type": "main", "index": 0 }]] },
+          "State Router": { "main": [[{ "node": "Save Name", "type": "main", "index": 0 }], [{ "node": "Save Email", "type": "main", "index": 0 }], [{ "node": "Save Phone", "type": "main", "index": 0 }], [{ "node": "Init Lead", "type": "main", "index": 0 }]] },
+          "Save Name": { "main": [[{ "node": "Confirm Name + Ask Email", "type": "main", "index": 0 }]] },
+          "Save Email": { "main": [[{ "node": hasPhone ? "Confirm Email + Ask Phone" : "Confirm Details", "type": "main", "index": 0 }]] },
+          "Save Phone": { "main": [[{ "node": "Confirm Details", "type": "main", "index": 0 }]] },
+          "Init Lead": { "main": [[{ "node": "Ask Name", "type": "main", "index": 0 }]] },
+          "Confirm Name + Ask Email": { "main": [[{ "node": "Ask Email", "type": "main", "index": 0 }]] },
+          "Confirm Email + Ask Phone": { "main": [[{ "node": "Ask Phone", "type": "main", "index": 0 }]] },
+          "Confirm Details": { "main": [[{ "node": "Confirm Save", "type": "main", "index": 0 }]] },
+          "Reset Name State": { "main": [[{ "node": "Ask Name Again", "type": "main", "index": 0 }]] },
+          "Reset Email State": { "main": [[{ "node": "Ask Email Again", "type": "main", "index": 0 }]] },
+          "Reset Phone State": { "main": [[{ "node": "Ask Phone Again", "type": "main", "index": 0 }]] },
+          "Confirm Save": { "main": [[{ "node": "Fetch IG Profile", "type": "main", "index": 0 }]] },
+          "Fetch IG Profile": { "main": [[{ "node": "Save to Lead Manager DB", "type": "main", "index": 0 }]] },
+          "Save to Lead Manager DB": { "main": [[{ "node": "Prepare Row", "type": "main", "index": 0 }]] },
+          "Prepare Row": { "main": [[{ "node": "Final Confirmation DM", "type": "main", "index": 0 }]] },
+          "Final Confirmation DM": { "main": (hasLeadManager && hasAutomatedDM) ? [[{ "node": "Lead Follow-up Message", "type": "main", "index": 0 }]] : [] },
+          "Init From Start": { "main": [[{ "node": "Send Start Message", "type": "main", "index": 0 }]] },
+          "Send Start Message": { "main": [[{ "node": "Ask Name", "type": "main", "index": 0 }]] }
+        };
+
+        if (isPostCommentLeadManager) {
+          lmConnections["Loop Protection Switch"] = {
+            "main": [[
+              { "node": "Round Robin Picker", "type": "main", "index": 0 },
+              { "node": "Init Lead (From Comment)", "type": "main", "index": 0 }
+            ]]
+          };
+          lmConnections["Round Robin Picker"] = { "main": [[{ "node": "Reply To Comment", "type": "main", "index": 0 }]] };
+          lmConnections["Init Lead (From Comment)"] = { "main": [[{ "node": "Ask Name (From Comment)", "type": "main", "index": 0 }]] };
+        }
+
+        return { name: finalWorkflowName, nodes: lmNodes, connections: lmConnections, settings: { saveExecutionProgress: true, timezone: "Asia/Kolkata" } };
+      }
+
+      // 0. Conversation Flow (Priority)
+      if (triggerType === 'conversation_flow') {
+        console.log(`[TEMPLATE] Building Dynamic Conversation Flow workflow`);
+
+        // ── NODES ────────────────────────────────────────────────────
+        const cfNodes: any[] = [
+          // 1. Webhook
+          {
+            "parameters": { "httpMethod": "POST", "path": webhookPath, "options": {} },
+            "id": "webhook-node", "name": "Worker Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 2.1,
+            "position": [-304, 4048], "webhookId": webhookPath
+          },
+          // 2. Fetch Usernames
+          {
+            "parameters": { "url": "https://graph.instagram.com/v24.0/me?fields=id,username", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "options": {} },
+            "id": "cf-fetch-user", "name": "Fetch Usernames", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.3,
+            "position": [-80, 4048],
+            "credentials": { "facebookGraphApi": { "id": credentialId } }
+          },
+          // 3. Entry Switch
+          {
+            "parameters": {
+              "rules": {
+                "values": [
+                  { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "is-postback", "leftValue": "={{ $('Worker Webhook').item.json.body.sub_type }}", "rightValue": "postback", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "Postback" },
+                  { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "is-dm", "leftValue": "={{ $('Worker Webhook').item.json.body.sub_type }}", "rightValue": "postback", "operator": { "type": "string", "operation": "notEquals" } }, { "id": "sender-not-bot", "leftValue": "={{ $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id }}", "rightValue": "={{ $('Fetch Usernames').item.json.id }}", "operator": { "type": "string", "operation": "notEquals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "New DM" }
+                ]
+              }, "options": { "ignoreCase": true }
+            },
+            "id": "cf-entry-switch", "name": "Entry Switch", "type": "n8n-nodes-base.switch", "typeVersion": 3.3, "position": [144, 4048]
+          },
+          // 4. Extract Payload
+          {
+            "parameters": { "jsCode": "const payload = $('Worker Webhook').item.json.body.entry?.[0]?.messaging?.[0]?.postback?.payload || $('Worker Webhook').item.json.body.entry?.[0]?.messaging?.[0]?.message?.quick_reply?.payload || '';\nconst senderId = $('Worker Webhook').item.json.body.entry?.[0]?.messaging?.[0]?.sender?.id || '';\nreturn [{ json: { payload, senderId } }];" },
+            "id": "cf-extract-payload", "name": "Extract Payload", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [368, 3952]
+          },
+          // 5. Payload Router
+          {
+            "parameters": {
+              "rules": {
+                "values": uniquePayloads.map((p: string) => ({
+                  "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": (p || '').toLowerCase().replace(/[^a-z0-9]/g, ''), "leftValue": "={{ $json.payload }}", "rightValue": p, "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": p
+                }))
+              }, "options": { "ignoreCase": true }
+            },
+            "id": "cf-payload-router", "name": "Payload Router", "type": "n8n-nodes-base.switch", "typeVersion": 3.3, "position": [592, 3360]
+          }
+        ];
+
+        // 6. Send Level 0 Menu (opening message)
+        const level0Body = {
+          recipient: { id: senderExpr },
+          message: {
+            attachment: {
+              type: "template",
+              payload: {
+                template_type: "generic",
+                elements: [{
+                  title: (dmAction.title || "Welcome!").substring(0, 1500),
+                  subtitle: (dmAction.subtitle || "Powered by QuickRevert").substring(0, 1500),
+                  buttons: formatButtons(level0Buttons)
+                }]
+              }
+            }
+          }
+        };
+        cfNodes.push({
+          "parameters": { "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json", "jsonBody": `=${JSON.stringify(level0Body, null, 2)}`, "options": {} },
+          "id": "cf-level-0", "name": "Send Level 0 Menu", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.3, "position": [368, 4144],
+          "credentials": { "facebookGraphApi": { "id": credentialId } }
+        });
+
+        // 7. Card Nodes — one per conversationCard
+        const cardNameMap: Record<string, string> = {}; // payload → node name
+        cards.forEach((card: any, idx: number) => {
+          const cardNodeName = getCardName(card.id);
+          cardNameMap[card.id] = cardNodeName;
+
+          const cardPostbacks = formatButtons(card.actionButtons);
+          const hasPostbacks = cardPostbacks.some((b: any) => b.type === 'postback');
+
+          // If card has postback buttons → send as template; otherwise send as plain text
+          let cardJsonBody: string;
+          if (hasPostbacks) {
+            const cardBody = {
+              recipient: { id: senderExpr },
+              message: {
+                attachment: {
+                  type: "template",
+                  payload: {
+                    template_type: "generic",
+                    elements: [{
+                      title: (card.messageTemplate || "Select an option").substring(0, 1500),
+                      subtitle: (card.title || "Choose below").substring(0, 1500),
+                      buttons: cardPostbacks
+                    }]
+                  }
+                }
+              }
+            };
+            cardJsonBody = `=${JSON.stringify(cardBody, null, 2)}`;
+          } else {
+            // Leaf card — plain text message
+            const textBody = {
+              recipient: { id: senderExpr },
+              message: { text: card.messageTemplate || "Thank you!" }
+            };
+            cardJsonBody = `=${JSON.stringify(textBody, null, 2)}`;
+          }
+
+          cfNodes.push({
+            "parameters": { "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json", "jsonBody": cardJsonBody, "options": {} },
+            "id": `cf-card-${card.id}`, "name": cardNodeName, "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.3,
+            "position": [816, 1648 + (idx * 384)],
+            "credentials": { "facebookGraphApi": { "id": credentialId } }
+          });
+        });
+
+        // ── CONNECTIONS (Using NODE NAMES — this is what n8n requires) ──
+        const cfConnections: any = {
+          "Worker Webhook": { "main": [[{ "node": "Fetch Usernames", "type": "main", "index": 0 }]] },
+          "Fetch Usernames": { "main": [[{ "node": "Entry Switch", "type": "main", "index": 0 }]] },
+          "Entry Switch": {
+            "main": [
+              [{ "node": "Extract Payload", "type": "main", "index": 0 }],
+              [{ "node": "Send Level 0 Menu", "type": "main", "index": 0 }]
+            ]
+          },
+          "Extract Payload": { "main": [[{ "node": "Payload Router", "type": "main", "index": 0 }]] },
+          "Payload Router": {
+            "main": uniquePayloads.map((p: string) => {
+              const targetName = cardNameMap[p] || `Card: ${p}`;
+              return [{ "node": targetName, "type": "main", "index": 0 }];
+            })
+          }
+        };
+
+        return { name: finalWorkflowName, nodes: cfNodes, connections: cfConnections, settings: { saveExecutionProgress: true, timezone: "Asia/Kolkata" } };
+      }
+
+      // 1. Analytics Workflow (Special Case)
+      if (triggerType === 'enable_analytics') {
         const nodes = [
           {
             "parameters": {
@@ -214,34 +1137,25 @@ Deno.serve(async (req: Request) => {
           {
             "parameters": {
               "method": "POST",
-              "url": `${supabaseUrl}/functions/v1/update-followers`,
-              "authentication": "genericCredentialType",
-              "genericAuthType": "httpHeaderAuth",
+              "url": supabaseUrl + "/functions/v1/update-followers",
               "sendHeaders": true,
               "headerParameters": {
                 "parameters": [
-                  {
-                    "name": "content-type",
-                    "value": "application/json"
-                  }
+                  { "name": "apikey", "value": supabaseAnonKey },
+                  { "name": "x-quickrevert-secret", "value": internalSecret },
+                  { "name": "Content-Type", "value": "application/json" }
                 ]
               },
               "sendBody": true,
               "specifyBody": "json",
-              "jsonBody": "={\n  \"id\": \"{{ $json.id }}\",\n  \"username\": \"{{ $json.username }}\",\n  \"followers_count\": {{ $json.followers_count }}\n}\n",
+              "jsonBody": "={\n  \"id\": \"{{ $json.id }}\",\n  \"username\": \"{{ $json.username }}\",\n  \"followers_count\": {{ $json.followers_count }}\n}",
               "options": {}
             },
             "type": "n8n-nodes-base.httpRequest",
-            "typeVersion": 4.3,
+            "typeVersion": 4.1,
             "position": [288, 464],
             "id": "update-followers-webhook",
-            "name": "HTTP Request",
-            "credentials": {
-              "httpHeaderAuth": {
-                "id": "uhPTiowIMVTOTKGn",
-                "name": "supabase anon"
-              }
-            }
+            "name": "Update Followers"
           },
           {
             "parameters": {
@@ -275,7 +1189,7 @@ Deno.serve(async (req: Request) => {
             "main": [
               [
                 {
-                  "node": "HTTP Request",
+                  "node": "Update Followers",
                   "type": "main",
                   "index": 0
                 }
@@ -308,6 +1222,7 @@ Deno.serve(async (req: Request) => {
 
         return { name: `[Analytics] ${instagramAccount.username}`, nodes, connections, settings: { saveExecutionProgress: false, timezone: "Asia/Kolkata" } };
       }
+
 
       const nodes: any[] = [];
       let nodeX = -300; // Start closer to center
@@ -593,8 +1508,8 @@ if (diff > COOLDOWN_MS) {
         previousNode = "Message Switch";
 
         if (sendDmAction) {
-          const text = sendDmAction.title || "Hello!";
-          const subtitle = sendDmAction.subtitle || sendDmAction.messageTemplate || "";
+          const text = (sendDmAction.title || "Hello!").substring(0, 400);
+          const subtitle = (sendDmAction.subtitle || sendDmAction.messageTemplate || "").substring(0, 400);
           const imageUrl = sendDmAction.imageUrl || "";
           const hasButtons = sendDmAction.actionButtons && sendDmAction.actionButtons.length > 0;
           const isRichMessage = hasButtons || imageUrl;
@@ -660,7 +1575,7 @@ if (diff > COOLDOWN_MS) {
           let btnText = `You selected: ${b.title}`;
           let btnImage = "";
           if (linkedAction) {
-            const bodyText = linkedAction.subtitle || linkedAction.messageTemplate || linkedAction.title;
+            const bodyText = (linkedAction.subtitle || linkedAction.messageTemplate || linkedAction.title || "").substring(0, 400);
             btnText = bodyText;
             btnImage = linkedAction.imageUrl || "";
           }
@@ -1192,27 +2107,65 @@ if (typeof $getWorkflowStaticData === 'function') {
             return;
           }
           nodeName = `Send DM ${index + 1}`;
-          const recipient = triggerType === 'post_comment' ? { comment_id: "{{ $('Worker Webhook').item.json.body.entry[0].changes[0].value.id }}" } : { id: senderIdPath };
+          const recipient = triggerType === 'post_comment'
+            ? { comment_id: "{{ $('Worker Webhook').item.json.body.entry[0].changes[0].value.id }}" }
+            : { id: "{{ $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id }}" };
           const hasButtons = action.actionButtons && action.actionButtons.length > 0;
+          const isCarousel = action.dmType === 'carousel';
           const hasImage = !!action.imageUrl;
 
           let messagePayload: any;
-          if (hasButtons || hasImage) {
+
+          if (isCarousel && action.carouselCards && action.carouselCards.length > 0) {
+            // Build elements for carousel
+            const elements = action.carouselCards.map((card: any) => {
+              const element: any = {
+                title: (card.title || "Hi 👋").substring(0, 400),
+                subtitle: (card.subtitle || "Powered by Quickrevert.tech").substring(0, 400),
+              };
+              if (card.imageUrl) element.image_url = card.imageUrl;
+
+              if (card.buttons && card.buttons.length > 0) {
+                element.buttons = card.buttons.slice(0, 3).map((b: any) => {
+                  const btnType = b.buttonType || (b.url ? 'web_url' : 'postback');
+                  if (btnType === 'web_url') {
+                    return { type: "web_url", url: b.url, title: (b.text || "Open").substring(0, 20) };
+                  } else {
+                    return { type: "postback", title: (b.text || "Click").substring(0, 20), payload: `${b.text || "Click"}_${uniqueId}` };
+                  }
+                });
+              }
+              return element;
+            });
+
+            messagePayload = {
+              recipient,
+              message: {
+                attachment: {
+                  type: "template",
+                  payload: {
+                    template_type: "generic",
+                    elements: elements
+                  }
+                }
+              }
+            };
+          } else if (hasButtons || hasImage) {
             // Build generic template with buttons
             const templateButtons: any[] = [];
             if (hasButtons) {
               action.actionButtons.slice(0, 3).forEach((b: any) => {
                 const btnType = b.buttonType || (b.url ? 'web_url' : 'postback');
                 if (btnType === 'web_url') {
-                  templateButtons.push({ type: "web_url", url: b.url, title: (b.text || "Open") });
+                  templateButtons.push({ type: "web_url", url: b.url, title: (b.text || "Open").substring(0, 20) });
                 } else {
-                  templateButtons.push({ type: "postback", title: (b.text || "Click"), payload: `${b.text || "Click"}_${uniqueId}` });
+                  templateButtons.push({ type: "postback", title: (b.text || "Click").substring(0, 20), payload: `${b.text || "Click"}_${uniqueId}` });
                 }
               });
             }
             const element: any = {
-              title: (action.title || "Hi 👋"),
-              subtitle: (action.subtitle || "Powered by Quickrevert.tech"),
+              title: (action.title || "Hi 👋").substring(0, 400),
+              subtitle: (action.subtitle || "Powered by Quickrevert.tech").substring(0, 400),
             };
             if (action.imageUrl) element.image_url = action.imageUrl;
             if (templateButtons.length > 0) element.buttons = templateButtons;
@@ -1362,45 +2315,82 @@ return { json: { userId, username, isFollowing } };`
           connections[extractName] = { main: [[{ node: ifName, type: "main", index: 0 }]] };
           postbackNodeX += 250;
 
-          // 3.5 REWARD (True Branch) - Use Generic Template
-          const rewardButtons: any[] = [];
-          if (action.actionButtons && action.actionButtons.length > 0) {
-            action.actionButtons.slice(0, 3).forEach((b: any) => {
-              if (b.url) {
-                rewardButtons.push({
-                  type: "web_url",
-                  url: b.url,
-                  title: (b.text || "link").substring(0, 20)
-                });
-              } else {
-                rewardButtons.push({
-                  type: "postback",
-                  title: (b.text || "Click").substring(0, 20),
-                  payload: `${b.text || "Click"}_${uniqueId}`
+          // 3.5 REWARD (True Branch) - Use Generic Template or Carousel
+          let rewardPayload: any;
+
+          if (action.dmType === 'carousel' && action.carouselCards && action.carouselCards.length > 0) {
+            const elements = action.carouselCards.map((card: any) => {
+              const element: any = {
+                title: (card.title || "Hi 👋").substring(0, 1500),
+                subtitle: (card.subtitle || "Powered by Quickrevert.tech").substring(0, 1500),
+              };
+              if (card.imageUrl) element.image_url = card.imageUrl;
+
+              if (card.buttons && card.buttons.length > 0) {
+                element.buttons = card.buttons.slice(0, 3).map((b: any) => {
+                  const bType = b.buttonType || (b.url ? 'web_url' : 'postback');
+                  if (bType === 'web_url') {
+                    return { type: "web_url", url: b.url, title: (b.text || "Open").substring(0, 20) };
+                  } else {
+                    return { type: "postback", title: (b.text || "Click").substring(0, 20), payload: `${b.text || "Click"}_${uniqueId}` };
+                  }
                 });
               }
+              return element;
             });
-          }
 
-          const rewardElement: any = {
-            title: action.title || "hey, heres your link",
-            subtitle: action.subtitle || "Powered By Quickrevert.tech"
-          };
-          if (action.imageUrl) rewardElement.image_url = action.imageUrl;
-          if (rewardButtons.length > 0) rewardElement.buttons = rewardButtons;
-
-          const rewardPayload = {
-            recipient: { id: "{{ $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id }}" },
-            message: {
-              attachment: {
-                type: "template",
-                payload: {
-                  template_type: "generic",
-                  elements: [rewardElement]
+            rewardPayload = {
+              recipient: { id: recipientId },
+              message: {
+                attachment: {
+                  type: "template",
+                  payload: {
+                    template_type: "generic",
+                    elements: elements
+                  }
                 }
               }
+            };
+          } else {
+            const rewardButtons: any[] = [];
+            if (action.actionButtons && action.actionButtons.length > 0) {
+              action.actionButtons.slice(0, 3).forEach((b: any) => {
+                if (b.url) {
+                  rewardButtons.push({
+                    type: "web_url",
+                    url: b.url,
+                    title: (b.text || "link").substring(0, 20)
+                  });
+                } else {
+                  rewardButtons.push({
+                    type: "postback",
+                    title: (b.text || "Click").substring(0, 20),
+                    payload: `${b.text || "Click"}_${uniqueId}`
+                  });
+                }
+              });
             }
-          };
+
+            const rewardElement: any = {
+              title: (action.title || "hey, heres your link").substring(0, 1500),
+              subtitle: (action.subtitle || "Powered By Quickrevert.tech").substring(0, 1500)
+            };
+            if (action.imageUrl) rewardElement.image_url = action.imageUrl;
+            if (rewardButtons.length > 0) rewardElement.buttons = rewardButtons;
+
+            rewardPayload = {
+              recipient: { id: recipientId },
+              message: {
+                attachment: {
+                  type: "template",
+                  payload: {
+                    template_type: "generic",
+                    elements: [rewardElement]
+                  }
+                }
+              }
+            };
+          }
 
           const rewardName = `Send Reward 2`; // Match user JSON naming
           nodes.push({
@@ -1490,10 +2480,10 @@ return { json: { userId, username, isFollowing } };`
       // 🔄 UPDATE IN-PLACE
       console.log(`[UPDATE] Updating existing n8n workflow: ${existingWorkflowId}`);
       const baseUrl = n8nBaseUrl.endsWith('/') ? n8nBaseUrl.slice(0, -1) : n8nBaseUrl;
-      const updateRes = await fetch(`${baseUrl}/api/v1/workflows/${existingWorkflowId}`, { 
-        method: "PUT", 
-        headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey }, 
-        body: JSON.stringify(n8nWorkflowJSON) 
+      const updateRes = await fetch(`${baseUrl}/api/v1/workflows/${existingWorkflowId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey },
+        body: JSON.stringify(n8nWorkflowJSON)
       });
       if (!updateRes.ok) throw new Error(`n8n Update Failed: ${updateRes.statusText}`);
       n8nResult = await updateRes.json();
@@ -1501,33 +2491,66 @@ return { json: { userId, username, isFollowing } };`
       // 🆕 CREATE NEW
       console.log(`[CREATE] Creating new n8n workflow`);
       const baseUrl = n8nBaseUrl.endsWith('/') ? n8nBaseUrl.slice(0, -1) : n8nBaseUrl;
-      const createRes = await fetch(`${baseUrl}/api/v1/workflows`, { 
-        method: "POST", 
-        headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey }, 
-        body: JSON.stringify(n8nWorkflowJSON) 
+      const createRes = await fetch(`${baseUrl}/api/v1/workflows`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey },
+        body: JSON.stringify(n8nWorkflowJSON)
       });
       if (!createRes.ok) throw new Error(`n8n Create Failed: ${createRes.statusText}`);
       n8nResult = await createRes.json();
     }
 
-    const action = autoActivate ? 'activate' : 'deactivate';
-    
-    // Sanitize URL (ensure no trailing slash)
-    const baseUrl = n8nBaseUrl.endsWith('/') ? n8nBaseUrl.slice(0, -1) : n8nBaseUrl;
-    const finalUrl = `${baseUrl}/api/v1/workflows/${n8nResult.id}/${action}`;
-    
-    console.log(`Sending ${action} request to n8n during creation: ${finalUrl}`);
-    
-    const n8nActRes = await fetch(finalUrl, {
-      method: "POST",
-      headers: { "X-N8N-API-KEY": n8nApiKey }
-    });
+    // 🔥 PERFORMANCE: Return response as soon as we have the workflow ID
+    // Activation and Routes can happen in the background
+    const finalizationTask = (async () => {
+      try {
+        const action = autoActivate ? 'activate' : 'deactivate';
+        const baseUrl = n8nBaseUrl.endsWith('/') ? n8nBaseUrl.slice(0, -1) : n8nBaseUrl;
+        const finalUrl = `${baseUrl}/api/v1/workflows/${n8nResult.id}/${action}`;
 
-    if (!n8nActRes.ok) {
-      console.error(`n8n ${action} failed:`, await n8nActRes.text());
-      // For initial creation, if activation fails, we still have the workflow, but we should inform the user.
-      // However, to keep it strict, we'll throw here so the user knows why it didn't 'go live'.
-      throw new Error(`n8n ${action} failed: ${n8nActRes.statusText}`);
+        console.log(`[BACKGROUND] Sending ${action} request to n8n: ${finalUrl}`);
+        const n8nActRes = await fetch(finalUrl, {
+          method: "POST",
+          headers: { "X-N8N-API-KEY": n8nApiKey }
+        });
+
+        if (!n8nActRes.ok) {
+          console.error(`[BACKGROUND] n8n ${action} failed:`, await n8nActRes.text());
+        }
+
+        // ALWAYS CREATE ROUTES (Inactive by default if autoActivate is false)
+        const userAccounts = instagramAccountId ? [{ id: instagramAccountId }] : [{ id: instagramAccount.id }];
+        if (userAccounts && userAccounts.length > 0) {
+          const newRoutes: any[] = [];
+          const finalTriggerType = bodyTriggerType || automationData?.trigger_type || 'user_dm';
+
+          for (const account of userAccounts) {
+            if (finalTriggerType === 'post_comment') {
+              newRoutes.push({ account_id: account.id, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'changes', sub_type: 'comments', is_active: autoActivate });
+              newRoutes.push({ account_id: account.id, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: 'postback', is_active: autoActivate });
+              const actions = automationData?.actions || body.actions || [];
+              if (actions.some((a: any) => a.type === 'save_lead')) {
+                newRoutes.push({ account_id: account.id, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: null, is_active: autoActivate });
+              }
+            } else if (finalTriggerType === 'story_reply') {
+              newRoutes.push({ account_id: account.id, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: null, is_active: autoActivate });
+            } else {
+              newRoutes.push({ account_id: account.id, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: null, is_active: autoActivate });
+              newRoutes.push({ account_id: account.id, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: 'postback', is_active: autoActivate });
+            }
+          }
+          const { error: routeError } = await supabase.from('automation_routes').insert(newRoutes);
+          if (routeError) console.error("[BACKGROUND] Failed to create routes:", routeError);
+        }
+      } catch (err) {
+        console.error("[BACKGROUND] Finalization error:", err.message);
+      }
+    })();
+
+    // @ts-ignore
+    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(finalizationTask);
     }
 
     // ATOMIC DATABASE REGISTRATION & CLEANUP
@@ -1544,48 +2567,34 @@ return { json: { userId, username, isFollowing } };`
       if (otherWorkflows && otherWorkflows.length > 0) {
         const oldWorkflowIds = otherWorkflows.map((w: any) => w.n8n_workflow_id);
         console.log(`Found ${oldWorkflowIds.length} old workflows to cleanup (excluding ${n8nResult.id}):`, oldWorkflowIds);
-        
-        // ... (rest of deletion logic remains same)
 
-        // 2. Delete Routes for old workflows
-        const { error: routeDelError } = await supabase
-          .from('automation_routes')
-          .delete()
-          .in('n8n_workflow_id', oldWorkflowIds);
+        // 🔥 PERFORMANCE FIX: Run cleanup in background so user doesn't wait
+        const cleanupTask = (async () => {
+          // 2. Delete Routes for old workflows
+          await supabase.from('automation_routes').delete().in('n8n_workflow_id', oldWorkflowIds);
 
-        if (routeDelError) console.error("Error cleaning up old routes:", routeDelError);
+          // 3. Delete from n8n_workflows table
+          await supabase.from('n8n_workflows').delete().in('n8n_workflow_id', oldWorkflowIds);
 
-        // 3. Delete from n8n_workflows table
-        const { error: wfDelError } = await supabase
-          .from('n8n_workflows')
-          .delete()
-          .in('n8n_workflow_id', oldWorkflowIds);
-
-        if (wfDelError) console.error("Error cleaning up old workflow records:", wfDelError);
-
-        // 4. Request n8n to delete old workflows to keep things clean
-        for (const oldId of oldWorkflowIds) {
-          try {
-            const delRes = await fetch(`${n8nBaseUrl}/api/v1/workflows/${oldId}`, {
-              method: "DELETE",
-              headers: { "X-N8N-API-KEY": n8nApiKey }
-            });
-            if (!delRes.ok) {
-              await supabase.from('failed_events').insert({
-                event_id: 'delete_workflow',
-                account_id: instagramAccount.id,
-                payload: { oldId, status: delRes.status },
-                error_message: 'Failed to delete n8n workflow'
+          // 4. Request n8n to delete old workflows in PARALLEL
+          await Promise.all(oldWorkflowIds.map(async (oldId) => {
+            try {
+              const delRes = await fetch(`${n8nBaseUrl}/api/v1/workflows/${oldId}`, {
+                method: "DELETE",
+                headers: { "X-N8N-API-KEY": n8nApiKey }
               });
+              console.log(`[CLEANUP] Deleted old workflow ${oldId}: ${delRes.status}`);
+            } catch (e) {
+              console.error(`[CLEANUP] Failed to delete ${oldId}:`, e.message);
             }
-          } catch (e: any) {
-            await supabase.from('failed_events').insert({
-              event_id: 'delete_workflow',
-              account_id: instagramAccount.id,
-              payload: { oldId },
-              error_message: e.message
-            });
-          }
+          }));
+        })();
+
+        // Fire and forget (or use waitUntil)
+        // @ts-ignore
+        if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
+          // @ts-ignore
+          EdgeRuntime.waitUntil(cleanupTask);
         }
       }
     }
@@ -1600,7 +2609,7 @@ return { json: { userId, username, isFollowing } };`
       template: template || 'instagram_automation_v1',
       variables: variables || {},
       automation_id: automationId || null,
-      is_active: autoActivate 
+      is_active: autoActivate
     }, { onConflict: 'n8n_workflow_id' });
 
     if (insertError) {
@@ -1608,54 +2617,6 @@ return { json: { userId, username, isFollowing } };`
       throw new Error("Database Upsert Failed: " + insertError.message);
     }
 
-    // ALWAYS CREATE ROUTES (Inactive by default if autoActivate is false)
-    // This ensues that toggling "Active" in UI works immediately because routes exist.
-    const userAccounts = instagramAccountId
-      ? [{ id: instagramAccountId }]
-      : [{ id: instagramAccount.id }];
-
-    if (userAccounts && userAccounts.length > 0) {
-      const newRoutes: any[] = [];
-      const finalTriggerType = bodyTriggerType || automationData?.trigger_type || 'user_dm';
-
-      for (const account of userAccounts) {
-        if (finalTriggerType === 'post_comment') {
-          // Comment automations: changes/comments routes + postback for buttons
-          newRoutes.push({
-            account_id: account.id, user_id: user.id, n8n_workflow_id: n8nResult.id,
-            event_type: 'changes', sub_type: 'comments', is_active: autoActivate
-          });
-          newRoutes.push({
-            account_id: account.id, user_id: user.id, n8n_workflow_id: n8nResult.id,
-            event_type: 'messaging', sub_type: 'postback', is_active: autoActivate
-          });
-        } else if (finalTriggerType === 'story_reply') {
-          // Story reply: only messaging routes (stories come as messaging events with story_reply sub_type)
-          newRoutes.push({
-            account_id: account.id, user_id: user.id, n8n_workflow_id: n8nResult.id,
-            event_type: 'messaging', sub_type: null, is_active: autoActivate
-          });
-        } else {
-          // Default: DM automation (user_dm / user_directed_messages)
-          // Broad messaging route (catches all DMs)
-          newRoutes.push({
-            account_id: account.id, user_id: user.id, n8n_workflow_id: n8nResult.id,
-            event_type: 'messaging', sub_type: null, is_active: autoActivate
-          });
-          // Postback route (for quick replies / button clicks)
-          newRoutes.push({
-            account_id: account.id, user_id: user.id, n8n_workflow_id: n8nResult.id,
-            event_type: 'messaging', sub_type: 'postback', is_active: autoActivate
-          });
-        }
-      }
-
-      const { error: routeError } = await supabase.from('automation_routes').insert(newRoutes);
-      if (routeError) console.error("Failed to create default routes:", routeError);
-      else console.log(`Created ${newRoutes.length} default routes (Active: ${autoActivate})`);
-    } else {
-      console.warn("No active Instagram accounts found. Routes not created.");
-    }
 
     return new Response(JSON.stringify({
       success: true,

@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Grid, Globe, Target, Tag, Search, X, CheckCircle2, Clock, ChevronDown, Info, Image as ImageIcon } from 'lucide-react';
+import { Grid, Globe, Target, Tag, Search, X, CheckCircle2, Clock, ChevronDown, Info, Image as ImageIcon, FileSpreadsheet } from 'lucide-react';
 import { motion, AnimatePresence } from "motion/react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { TriggerType, TriggerConfig, PostCommentTriggerConfig, StoryReplyTriggerConfig, UserDirectMessageTriggerConfig } from '../../types/automation';
+import { TriggerType, TriggerConfig, PostCommentTriggerConfig, StoryReplyTriggerConfig, UserDirectMessageTriggerConfig, LeadManagerTriggerConfig } from '../../types/automation';
 import { supabase } from '../../lib/supabase';
 import { useSubscription } from '../../contexts/SubscriptionContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -61,47 +61,100 @@ function OptionCard({ icon: Icon, title, description, selected, onClick, disable
   );
 }
 
+function ConnectGoogleButton({ isConnected, email, onConnect, onDisconnect, readOnly }: any) {
+  const { darkMode } = useTheme();
+  
+  if (isConnected) {
+    return (
+      <div className={cn("flex items-center justify-between p-3 rounded-xl border transition-all", darkMode ? "bg-emerald-500/10 border-emerald-500/20" : "bg-emerald-50 border-emerald-200")}>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <div>
+            <p className={cn("text-[11px] font-bold uppercase tracking-wider", darkMode ? "text-emerald-400" : "text-emerald-700")}>Connected to Google</p>
+            <p className={cn("text-xs font-medium opacity-70", darkMode ? "text-white" : "text-gray-900")}>{email}</p>
+          </div>
+        </div>
+        {!readOnly && (
+          <button 
+            onClick={onDisconnect}
+            className={cn("text-[10px] font-bold py-1 px-2 rounded-lg transition-all", darkMode ? "bg-white/10 text-white/60 hover:bg-white/20 hover:text-white" : "bg-white border text-gray-500 hover:text-red-600 hover:border-red-100")}
+          >
+            Disconnect
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={onConnect}
+      disabled={readOnly}
+      className={cn(
+        "w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-bold text-sm transition-all group",
+        darkMode 
+          ? "border-white/10 bg-white/5 hover:border-blue-500/50 hover:bg-blue-500/10 text-white" 
+          : "border-blue-100 bg-blue-50/30 hover:border-blue-500 hover:bg-blue-50 text-blue-700"
+      )}
+    >
+      <div className={cn("w-6 h-6 rounded-full flex items-center justify-center transition-transform group-hover:scale-110", darkMode ? "bg-white/10" : "bg-white shadow-sm")}>
+        <Globe className={cn("w-3.5 h-3.5", darkMode ? "text-blue-400" : "text-blue-600")} />
+      </div>
+      Connect Google Account
+    </button>
+  );
+}
+
 export default function TriggerConfigStep({ triggerType, config, onConfigChange, readOnly }: TriggerConfigProps) {
   const { darkMode } = useTheme();
   const { isPremium } = useSubscription();
   const [keyword, setKeyword] = useState('');
   const [posts, setPosts] = useState<InstagramMedia[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(false);
-  const [pendingMediaId, setPendingMediaId] = useState<string | null>(null);
-  const [isSelectingMedia, setIsSelectingMedia] = useState<boolean>(true);
+  
+  // 🔥 UX: Initialize selection states from the existing config if present
+  const initialSavedPosts = (config as PostCommentTriggerConfig)?.specificPosts || [];
+  const initialSavedStories = (config as StoryReplyTriggerConfig)?.specificStories || [];
+  const initialSelection = (initialSavedPosts[0] || initialSavedStories[0] || null);
+
+  const [pendingMediaId, setPendingMediaId] = useState<string | null>(initialSelection);
+  const [isSelectingMedia, setIsSelectingMedia] = useState<boolean>(!initialSelection);
 
   const getConfig = (): TriggerConfig => {
     if (config) return config;
     if (triggerType === 'post_comment') return { postsType: 'specific', commentsType: 'all' } as PostCommentTriggerConfig;
     if (triggerType === 'story_reply') return { storiesType: 'specific', replyType: 'all' } as StoryReplyTriggerConfig;
+    if (triggerType === 'conversation_flow') return {} as any;
+    if (triggerType === 'lead_manager') return { googleSheetUrl: '' } as LeadManagerTriggerConfig;
     return { messageType: 'all', cooldownEnabled: true, cooldownDuration: 3600000 } as UserDirectMessageTriggerConfig;
   };
 
   const currentConfig = getConfig();
 
+  // 🔥 PERCEIVED PERFORMANCE: Synchronize state with config changes (e.g. after fetchAutomation)
   useEffect(() => {
+    const savedPosts = (currentConfig as PostCommentTriggerConfig).specificPosts || [];
+    const savedStories = (currentConfig as StoryReplyTriggerConfig).specificStories || [];
+    const dbSelection = savedPosts[0] || savedStories[0] || null;
+
+    if (dbSelection) {
+      setPendingMediaId(dbSelection);
+      // Only hide the selector if we have a selection and we aren't currently "changing" it
+      setIsSelectingMedia(false);
+    }
+
     if (triggerType === 'post_comment' && (currentConfig as PostCommentTriggerConfig).postsType === 'specific') {
       fetchMedia('posts');
-      const savedIds = (currentConfig as PostCommentTriggerConfig).specificPosts || [];
-      if (savedIds.length > 0) {
-        setPendingMediaId(savedIds[0]);
-        setIsSelectingMedia(false);
-      } else {
-        setPendingMediaId(null);
-        setIsSelectingMedia(true);
-      }
     } else if (triggerType === 'story_reply' && (currentConfig as StoryReplyTriggerConfig).storiesType === 'specific') {
       fetchMedia('stories');
-      const savedIds = (currentConfig as StoryReplyTriggerConfig).specificStories || [];
-      if (savedIds.length > 0) {
-        setPendingMediaId(savedIds[0]);
-        setIsSelectingMedia(false);
-      } else {
-        setPendingMediaId(null);
-        setIsSelectingMedia(true);
-      }
     }
-  }, [triggerType, (currentConfig as PostCommentTriggerConfig).postsType, (currentConfig as StoryReplyTriggerConfig).storiesType]);
+  }, [
+    triggerType, 
+    (currentConfig as PostCommentTriggerConfig).postsType, 
+    (currentConfig as StoryReplyTriggerConfig).storiesType,
+    JSON.stringify((currentConfig as PostCommentTriggerConfig).specificPosts),
+    JSON.stringify((currentConfig as StoryReplyTriggerConfig).specificStories)
+  ]);
 
   const fetchMedia = async (type: 'posts' | 'stories') => {
     try {
@@ -128,11 +181,24 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
 
   const confirmMediaSelection = () => {
     if (!pendingMediaId) return;
+    
+    // Find the selected media to get its thumbnail/media URL
+    const selectedMedia = posts.find(p => p.id === pendingMediaId);
+    const thumbnail_url = selectedMedia?.media_type === 'VIDEO' ? selectedMedia.thumbnail_url : selectedMedia?.media_url;
+
     const isPostComment = triggerType === 'post_comment';
     if (isPostComment) {
-      onConfigChange({ ...currentConfig, specificPosts: [pendingMediaId] } as PostCommentTriggerConfig);
+      onConfigChange({ 
+        ...currentConfig, 
+        specificPosts: [pendingMediaId],
+        thumbnail_url
+      } as any);
     } else {
-      onConfigChange({ ...currentConfig, specificStories: [pendingMediaId] } as StoryReplyTriggerConfig);
+      onConfigChange({ 
+        ...currentConfig, 
+        specificStories: [pendingMediaId],
+        thumbnail_url
+      } as any);
     }
     setIsSelectingMedia(false);
   };
@@ -334,7 +400,8 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
   return (
     <div className="space-y-10 md:space-y-14 pb-8">
 
-      {/* Scope Section */}
+
+      {/* ===== SECTION: Which Post/Reel (post_comment / story_reply only) ===== */}
       {(triggerType === 'post_comment' || triggerType === 'story_reply') && (
         <div id="post-selection-section" className="w-full">
           <div className="flex items-start gap-3 md:gap-4 mb-3 md:mb-4">
@@ -342,28 +409,22 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
               <Grid className={`w-5 h-5 md:w-6 md:h-6 ${darkMode ? 'text-purple-400 fill-purple-400' : 'fill-purple-200 text-purple-200'}`} />
             </div>
             <div className="pt-0.5 md:pt-1">
-              <h2 className={`text-lg md:text-xl font-bold leading-tight ${darkMode ? 'text-white' : 'text-gray-900'}`}>Which posts should trigger this?</h2>
-              <p className={`text-xs md:text-sm font-medium mt-0.5 ${darkMode ? 'text-white/40' : 'text-gray-400'}`}>Apply to all posts, or pick specific ones.</p>
+              <h2 className={`text-lg md:text-xl font-bold leading-tight ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                {triggerType === 'post_comment' ? 'Which Post or Reel?' : 'Which Story?'}
+              </h2>
+              <p className={`text-xs md:text-sm font-medium leading-relaxed mt-0.5 ${darkMode ? 'text-white/40' : 'text-gray-400'}`}>
+                {triggerType === 'post_comment' ? 'Pick a post or reel to trigger the automation.' : 'Pick a story to trigger the automation.'}
+              </p>
             </div>
           </div>
 
           <div className="pl-0">
             <div className={`px-4 md:px-5 py-3 md:py-4 space-y-2.5 transition-colors duration-300 ${darkMode ? '' : 'bg-white border-2 border-purple-100 rounded-2xl md:rounded-[1.5rem]'}`}>
-              {/* OptionCard for All Posts & Reels commented out per user request FOR NOW
-              <OptionCard
-                icon={Globe}
-                title={triggerType === 'post_comment' ? "All my posts & reels" : "All my stories"}
-                description={triggerType === 'post_comment' ? "Every post you publish will trigger this." : "Every story you publish will trigger this."}
-                selected={(triggerType === 'post_comment' ? (currentConfig as PostCommentTriggerConfig).postsType : (currentConfig as StoryReplyTriggerConfig).storiesType) === 'all'}
-                onClick={() => handlePostsTypeChange('all')}
-                disabled={readOnly}
-              />
-              */}
               <OptionCard
                 icon={Target}
-                title={triggerType === 'post_comment' ? "Select your post or reel" : "Select your story"}
-                description={triggerType === 'post_comment' ? "Pick exactly which posts you want this to work on." : "Pick exactly which story you want this to work on."}
-                selected={(triggerType === 'post_comment' ? (currentConfig as PostCommentTriggerConfig).postsType : (currentConfig as StoryReplyTriggerConfig).storiesType) === 'specific'}
+                title={triggerType === 'post_comment' ? 'Select your post or reel' : 'Select your story'}
+                description={triggerType === 'post_comment' ? 'Pick exactly which posts you want this to work on.' : 'Pick exactly which stories you want this to work on.'}
+                selected={triggerType === 'post_comment' ? (currentConfig as PostCommentTriggerConfig).postsType === 'specific' : (currentConfig as StoryReplyTriggerConfig).storiesType === 'specific'}
                 onClick={() => handlePostsTypeChange('specific')}
                 disabled={readOnly}
               />

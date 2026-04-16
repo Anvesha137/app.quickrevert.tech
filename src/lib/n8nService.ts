@@ -147,35 +147,12 @@ export class N8nWorkflowService {
 
   static async getExecution(executionId: string, userId: string): Promise<ExecutionResponse> {
     try {
-      let { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-      if (!session || sessionError) {
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError || !refreshData.session) {
-          throw new Error('No authentication token available. Please log in again.');
-        }
-        session = refreshData.session;
-      }
-
-      const authToken = session.access_token;
-
-      if (!authToken) {
-        throw new Error('No authentication token available');
-      }
-
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-executions?executionId=${executionId}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
+      const { data: result, error: invokeError } = await supabase.functions.invoke(`get-executions?executionId=${executionId}`, {
+        method: 'GET'
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || `HTTP error! status: ${response.status}`);
-      }
+      if (invokeError) throw invokeError;
+      if (result?.error) throw new Error(result.error);
 
       return result;
     } catch (error) {
@@ -186,39 +163,16 @@ export class N8nWorkflowService {
 
   static async getExecutions(workflowId?: string, limit: number = 50, userId?: string): Promise<ExecutionResponse> {
     try {
-      let { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-      if (!session || sessionError) {
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError || !refreshData.session) {
-          throw new Error('No authentication token available. Please log in again.');
-        }
-        session = refreshData.session;
-      }
-
-      const authToken = session.access_token;
-
-      if (!authToken) {
-        throw new Error('No authentication token available');
-      }
-
       const params = new URLSearchParams();
       if (workflowId) params.append('workflowId', workflowId);
       params.append('limit', limit.toString());
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-executions?${params.toString()}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
+      const { data: result, error: invokeError } = await supabase.functions.invoke(`get-executions?${params.toString()}`, {
+        method: 'GET'
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || `HTTP error! status: ${response.status}`);
-      }
+      if (invokeError) throw invokeError;
+      if (result?.error) throw new Error(result.error);
 
       return result;
     } catch (error) {
@@ -229,37 +183,12 @@ export class N8nWorkflowService {
 
   static async deleteWorkflow(workflowId: string, userId: string): Promise<{ success: boolean; message: string }> {
     try {
-      let { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-      if (!session || sessionError) {
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError || !refreshData.session) {
-          throw new Error('No authentication token available. Please log in again.');
-        }
-        session = refreshData.session;
-      }
-
-      const authToken = session.access_token;
-
-      if (!authToken) {
-        throw new Error('No authentication token available');
-      }
-
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-workflow`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({ workflowId })
+      const { data: result, error: invokeError } = await supabase.functions.invoke('delete-workflow', {
+        body: { workflowId }
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || `HTTP error! status: ${response.status}`);
-      }
+      if (invokeError) throw invokeError;
+      if (result?.error) throw new Error(result.error);
 
       return result;
     } catch (error) {

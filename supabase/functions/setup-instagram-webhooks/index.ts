@@ -44,7 +44,10 @@ Deno.serve(async (req: Request) => {
       throw new Error('Instagram account not found');
     }
 
-    const webhookUrl = `${supabaseUrl}/functions/v1/instagram-webhook`;
+    // 🔥 INFRASTRUCTURE FIX: Use Cloudflare Bouncer as the primary entry point
+    // This drops delivery/read receipts at the edge before they hit Supabase.
+    const bouncerUrl = Deno.env.get('CLOUDFLARE_BOUNCER_URL') || 'https://autumn-lake-2510.connectquickrevert.workers.dev/webhook-meta';
+    const webhookUrl = bouncerUrl;
     const appId = Deno.env.get('INSTAGRAM_CLIENT_ID');
     const appSecret = Deno.env.get('INSTAGRAM_CLIENT_SECRET');
 

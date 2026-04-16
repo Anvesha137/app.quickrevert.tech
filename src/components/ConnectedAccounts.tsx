@@ -136,9 +136,39 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
   };
 
 
-  const handleDisconnect = (accountId: string) => {
-    setAccountToDisconnect(accountId);
-    setIsDisconnectModalOpen(true);
+  const handleDisconnect = async (accountId: string) => {
+    if (!user) return;
+
+    try {
+      const { data: activeAutomations, error } = await supabase
+        .from('automations')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('status', 'active');
+
+      if (error) {
+        console.error('Error checking active automations:', error);
+        toast.error('Failed to check automation status');
+        return;
+      }
+
+      if (activeAutomations && activeAutomations.length > 0) {
+        toast.error(
+          <div className="flex flex-col gap-1">
+            <span>Deactivate automation ⏸️, then you can disconnect 🗑️</span>
+            <span>Safety first! 🛡️</span>
+          </div>,
+          { duration: 5000 }
+        );
+        return;
+      }
+
+      setAccountToDisconnect(accountId);
+      setIsDisconnectModalOpen(true);
+    } catch (err) {
+      console.error('Unexpected error checking automations:', err);
+      toast.error('Failed to process account disconnection');
+    }
   };
 
   const confirmDisconnect = async () => {

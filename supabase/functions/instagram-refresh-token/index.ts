@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { syncN8nCredential } from "../_shared/n8n.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -94,6 +95,20 @@ Deno.serve(async (req: Request) => {
             error: updateError.message,
           });
         } else {
+          // --- SYNC TO N8N ---
+          try {
+            const { data: refreshedAccount } = await supabase
+              .from("instagram_accounts")
+              .select("*")
+              .eq("id", account.id)
+              .single();
+            if (refreshedAccount) {
+              await syncN8nCredential(supabase, refreshedAccount);
+            }
+          } catch (n8nError) {
+            console.error(`[n8n-sync] Failed to sync ${account.username}:`, n8nError);
+          }
+
           results.push({
             instagram_user_id: account.instagram_user_id,
             username: account.username,

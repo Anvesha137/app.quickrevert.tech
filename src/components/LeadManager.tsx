@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Search, User, CheckCircle2, XCircle, MessageSquare, Clock, Users as UsersIcon, ExternalLink } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, User, CheckCircle2, XCircle, MessageSquare, Clock, Users as UsersIcon, ExternalLink, ClipboardCheck, Phone, Mail, Bot } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -22,10 +22,23 @@ interface Contact {
   avatar_url?: string;
 }
 
-export default function Contacts() {
+interface Lead {
+  id: string;
+  instagram_username: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  automation_name: string;
+  created_at: string;
+  metadata: any;
+}
+
+export default function LeadManager() {
   const { user } = useAuth();
   const { darkMode } = useTheme();
+  const [activeTab, setActiveTab] = useState<'leads' | 'audience'>('leads');
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -34,9 +47,32 @@ export default function Contacts() {
 
   useEffect(() => {
     if (user) {
-      fetchContacts();
+      if (activeTab === 'audience') {
+        fetchContacts();
+      } else {
+        fetchLeads();
+      }
     }
-  }, [user]);
+  }, [user, activeTab]);
+
+  async function fetchLeads() {
+    if (!user) return;
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setLeads(data || []);
+    } catch (error) {
+      console.error('Error fetching leads:', error);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function fetchAutomationNamesForActivities(activitiesData: any[]) {
     if (!activitiesData || activitiesData.length === 0) return;
@@ -305,6 +341,12 @@ export default function Contacts() {
     (contact.full_name?.toLowerCase() || '').includes(searchQuery.toLowerCase())
   );
 
+  const filteredLeads = leads.filter((lead) =>
+    (lead.instagram_username?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+    (lead.full_name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+    (lead.email?.toLowerCase() || '').includes(searchQuery.toLowerCase())
+  );
+
   function formatRelativeTime(date: string) {
     const now = new Date();
     const past = new Date(date);
@@ -343,13 +385,40 @@ export default function Contacts() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
             <h1 className={cn("text-3xl font-bold tracking-tight flex items-center gap-3", darkMode ? "text-white" : "text-gray-800")}>
-              <UsersIcon className="w-8 h-8 text-blue-600" />
-              Contacts
+              <ClipboardCheck className="w-8 h-8 text-blue-600" />
+              Lead Manager
             </h1>
-            <p className={cn("mt-1", darkMode ? "text-white/60" : "text-gray-600")}>Track and manage your automated audience interactions</p>
+            <p className={cn("mt-1", darkMode ? "text-white/60" : "text-gray-600")}>Manage your captured leads and audience interactions</p>
           </div>
 
           <div className="flex items-center gap-4 w-full md:w-auto">
+            <div className={cn(
+              "flex p-1 rounded-xl",
+              darkMode ? "bg-white/5" : "bg-gray-100"
+            )}>
+              <button
+                onClick={() => setActiveTab('leads')}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-xs font-bold transition-all",
+                  activeTab === 'leads'
+                    ? (darkMode ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "bg-white text-blue-600 shadow-sm")
+                    : (darkMode ? "text-white/40 hover:text-white/60" : "text-gray-500 hover:text-gray-700")
+                )}
+              >
+                Captured Leads
+              </button>
+              <button
+                onClick={() => setActiveTab('audience')}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-xs font-bold transition-all",
+                  activeTab === 'audience'
+                    ? (darkMode ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "bg-white text-blue-600 shadow-sm")
+                    : (darkMode ? "text-white/40 hover:text-white/60" : "text-gray-500 hover:text-gray-700")
+                )}
+              >
+                All Audience
+              </button>
+            </div>
             <button
               onClick={manualSync}
               disabled={isSyncing}
@@ -387,113 +456,197 @@ export default function Contacts() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className={cn("border-b transition-colors", darkMode ? "bg-transparent border-white/5" : "bg-white/40 border-white/20")}>
-                  <th className={cn("px-6 py-5 text-xs font-bold uppercase tracking-widest", darkMode ? "text-white/40" : "text-gray-500")}>User Details</th>
-                  <th className={cn("px-6 py-5 text-xs font-bold uppercase tracking-widest", darkMode ? "text-white/40" : "text-gray-500")}>Automations</th>
-                  <th className={cn("px-6 py-5 text-xs font-bold uppercase tracking-widest text-center", darkMode ? "text-white/40" : "text-gray-500")}>Interactions</th>
-                  <th className={cn("px-6 py-5 text-xs font-bold uppercase tracking-widest", darkMode ? "text-white/40" : "text-gray-500")}>Last Active</th>
+                  {activeTab === 'leads' ? (
+                    <>
+                      <th className={cn("px-6 py-5 text-xs font-bold uppercase tracking-widest", darkMode ? "text-white/40" : "text-gray-500")}>Lead Details</th>
+                      <th className={cn("px-6 py-5 text-xs font-bold uppercase tracking-widest", darkMode ? "text-white/40" : "text-gray-500")}>Contact Info</th>
+                      <th className={cn("px-6 py-5 text-xs font-bold uppercase tracking-widest", darkMode ? "text-white/40" : "text-gray-500")}>Automation Source</th>
+                      <th className={cn("px-6 py-5 text-xs font-bold uppercase tracking-widest", darkMode ? "text-white/40" : "text-gray-500")}>Captured</th>
+                    </>
+                  ) : (
+                    <>
+                      <th className={cn("px-6 py-5 text-xs font-bold uppercase tracking-widest", darkMode ? "text-white/40" : "text-gray-500")}>User Details</th>
+                      <th className={cn("px-6 py-5 text-xs font-bold uppercase tracking-widest", darkMode ? "text-white/40" : "text-gray-500")}>Automations</th>
+                      <th className={cn("px-6 py-5 text-xs font-bold uppercase tracking-widest text-center", darkMode ? "text-white/40" : "text-gray-500")}>Interactions</th>
+                      <th className={cn("px-6 py-5 text-xs font-bold uppercase tracking-widest", darkMode ? "text-white/40" : "text-gray-500")}>Last Active</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody className={cn("divide-y transition-colors", darkMode ? "divide-white/5" : "divide-white/20")}>
-                {filteredContacts.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-20 text-center">
-                      <div className="flex flex-col items-center justify-center">
-                        <div className={cn("w-16 h-16 rounded-full flex items-center justify-center mb-4 shadow-inner", darkMode ? "bg-white/5 text-white/40" : "bg-blue-100 text-blue-600")}>
-                          <User className="w-8 h-8" />
-                        </div>
-                        <p className={cn("font-bold text-lg", darkMode ? "text-white" : "text-gray-800")}>No contacts yet</p>
-                        <p className={cn("text-sm max-w-xs mx-auto", darkMode ? "text-white/40" : "text-gray-500")}>Connect your Instagram and start your first automation to see your audience here.</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredContacts.map((contact) => (
-                    <tr key={contact.id} className="hover:bg-white/40 transition-colors group">
-                      <td className="px-6 py-5">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-lg transform group-hover:scale-110 transition-transform overflow-hidden">
-                            {contact.avatar_url ? (
-                              <img src={contact.avatar_url} alt={contact.username} className="w-full h-full object-cover" />
-                            ) : (
-                              (contact.full_name && contact.full_name !== 'Instagram User' && !contact.full_name.startsWith('User '))
-                                ? contact.full_name[0].toUpperCase()
-                                : (contact.username?.startsWith('IG:') ? '?' : contact.username?.[0]?.toUpperCase() || '?')
-                            )}
+                {activeTab === 'leads' ? (
+                  filteredLeads.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-20 text-center">
+                        <div className="flex flex-col items-center justify-center">
+                          <div className={cn("w-16 h-16 rounded-full flex items-center justify-center mb-4 shadow-inner", darkMode ? "bg-white/5 text-white/40" : "bg-blue-100 text-blue-600")}>
+                            <ClipboardCheck className="w-8 h-8" />
                           </div>
-                          <div>
-                            {(() => {
-                              const isGeneratedId = !contact.username || contact.username === 'Instagram User' || contact.username === 'Unknown' || contact.username?.startsWith('IG:');
-                              const hasRealName = contact.full_name && contact.full_name !== 'Instagram User' && !contact.full_name.startsWith('User ');
-
-                              if (isGeneratedId) {
-                                return (
-                                  <div className="flex flex-col">
-                                    <span className={cn("text-sm font-bold", darkMode ? "text-white" : "text-gray-900")}>
-                                      {hasRealName ? contact.full_name : 'Instagram User'}
-                                    </span>
-                                  </div>
-                                );
-                              }
- 
-                              return (
-                                <>
-                                  <div className="flex items-center gap-2">
-                                    <span className={cn("text-sm font-bold", darkMode ? "text-white" : "text-gray-900")}>@{contact.username}</span>
-                                    <a
-                                      href={`https://instagram.com/${contact.username}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className={cn("transition-colors", darkMode ? "text-white/40 hover:text-blue-400" : "text-gray-400 hover:text-blue-500")}
-                                    >
-                                      <ExternalLink className="w-3 h-3" />
-                                    </a>
-                                  </div>
-                                  <div className={cn("text-xs font-medium", darkMode ? "text-white/40" : "text-gray-500")}>{contact.full_name || 'Instagram User'}</div>
-                                </>
-                              );
-                            })()}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-5">
-                        {(function () {
-                          const normalized = contact.username?.toLowerCase().replace('@', '').trim();
-                          const psid = contact.instagram_user_id ? String(contact.instagram_user_id) : null;
-                          const autos = (psid && automationNames[psid]) || automationNames[normalized] || contact.interacted_automations;
-
-                          return autos?.length > 0 ? (
-                            <div className={cn(
-                              "text-xs font-bold px-3 py-1.5 rounded-xl border inline-block max-w-[200px] truncate",
-                              darkMode 
-                                ? "text-blue-400 bg-blue-400/10 border-blue-400/20" 
-                                : "text-blue-600 bg-blue-50/50 border-blue-100"
-                            )} title={autos.join(', ')}>
-                              {autos.join(', ')}
-                            </div>
-                          ) : (
-                            <span className={cn("text-[10px] font-medium italic", darkMode ? "text-white/20" : "text-gray-400")}>No triggers yet</span>
-                          );
-                        })()}
-                      </td>
-                      <td className="px-6 py-5 text-center">
-                        <div className={cn(
-                          "inline-flex items-center gap-2 px-4 py-1.5 rounded-xl font-bold text-sm shadow-sm border transition-colors",
-                          darkMode 
-                            ? "bg-white/5 text-white border-white/10" 
-                            : "bg-white/60 text-gray-800 border-white/50"
-                        )}>
-                          <MessageSquare className="w-3.5 h-3.5 text-blue-500" />
-                          {contact.interaction_count}
-                        </div>
-                      </td>
-                      <td className="px-6 py-5">
-                        <div className={cn("flex items-center gap-2.5 text-xs font-medium transition-colors", darkMode ? "text-white/40" : "text-gray-600")}>
-                          <Clock className={cn("w-4 h-4", darkMode ? "text-white/20" : "text-gray-400")} />
-                          {formatRelativeTime(contact.last_interaction_at)}
+                          <p className={cn("font-bold text-lg", darkMode ? "text-white" : "text-gray-800")}>No leads captured yet</p>
+                          <p className={cn("text-sm max-w-xs mx-auto", darkMode ? "text-white/40" : "text-gray-500")}>Use 'Save Lead' in your automations to start internal lead storage.</p>
                         </div>
                       </td>
                     </tr>
-                  ))
+                  ) : (
+                    filteredLeads.map((lead) => (
+                      <tr key={lead.id} className="hover:bg-white/40 transition-colors group">
+                        <td className="px-6 py-5">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-500 to-pink-600 flex items-center justify-center text-white font-bold text-lg shadow-lg transform group-hover:scale-110 transition-transform overflow-hidden">
+                              {lead.full_name?.[0]?.toUpperCase() || lead.instagram_username?.[0]?.toUpperCase() || '?'}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className={cn("text-sm font-bold", darkMode ? "text-white" : "text-gray-900")}>@{lead.instagram_username}</span>
+                                <a
+                                  href={`https://instagram.com/${lead.instagram_username}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={cn("transition-colors", darkMode ? "text-white/40 hover:text-blue-400" : "text-gray-400 hover:text-blue-500")}
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              </div>
+                              <div className={cn("text-xs font-medium", darkMode ? "text-white/40" : "text-gray-500")}>{lead.full_name || 'Instagram User'}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-5">
+                          <div className="space-y-1.5">
+                            {lead.email && (
+                              <div className={cn("flex items-center gap-2 text-xs font-bold", darkMode ? "text-white/60" : "text-gray-700")}>
+                                <Mail className="w-3 h-3 text-blue-500" />
+                                {lead.email}
+                              </div>
+                            )}
+                            {lead.phone && (
+                              <div className={cn("flex items-center gap-2 text-xs font-bold", darkMode ? "text-white/60" : "text-gray-700")}>
+                                <Phone className="w-3 h-3 text-emerald-500" />
+                                {lead.phone}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-5">
+                          <div className={cn(
+                            "inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold border shadow-sm",
+                            darkMode ? "bg-white/5 text-purple-400 border-purple-500/20" : "bg-purple-50 text-purple-700 border-purple-100"
+                          )}>
+                            <Bot className="w-3.5 h-3.5" />
+                            {lead.automation_name}
+                          </div>
+                        </td>
+                        <td className="px-6 py-5">
+                          <div className={cn("flex items-center gap-2.5 text-xs font-medium transition-colors", darkMode ? "text-white/40" : "text-gray-600")}>
+                            <Clock className={cn("w-4 h-4", darkMode ? "text-white/20" : "text-gray-400")} />
+                            {formatRelativeTime(lead.created_at)}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )
+                ) : (
+                  filteredContacts.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-20 text-center">
+                        <div className="flex flex-col items-center justify-center">
+                          <div className={cn("w-16 h-16 rounded-full flex items-center justify-center mb-4 shadow-inner", darkMode ? "bg-white/5 text-white/40" : "bg-blue-100 text-blue-600")}>
+                            <User className="w-8 h-8" />
+                          </div>
+                          <p className={cn("font-bold text-lg", darkMode ? "text-white" : "text-gray-800")}>No contacts yet</p>
+                          <p className={cn("text-sm max-w-xs mx-auto", darkMode ? "text-white/40" : "text-gray-500")}>Connect your Instagram and start your first automation to see your audience here.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredContacts.map((contact) => (
+                      <tr key={contact.id} className="hover:bg-white/40 transition-colors group">
+                        <td className="px-6 py-5">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-lg transform group-hover:scale-110 transition-transform overflow-hidden">
+                              {contact.avatar_url ? (
+                                <img src={contact.avatar_url} alt={contact.username} className="w-full h-full object-cover" />
+                              ) : (
+                                (contact.full_name && contact.full_name !== 'Instagram User' && !contact.full_name.startsWith('User '))
+                                  ? contact.full_name[0].toUpperCase()
+                                  : (contact.username?.startsWith('IG:') ? '?' : contact.username?.[0]?.toUpperCase() || '?')
+                              )}
+                            </div>
+                            <div>
+                              {(() => {
+                                const isGeneratedId = !contact.username || contact.username === 'Instagram User' || contact.username === 'Unknown' || contact.username?.startsWith('IG:');
+                                const hasRealName = contact.full_name && contact.full_name !== 'Instagram User' && !contact.full_name.startsWith('User ');
+
+                                if (isGeneratedId) {
+                                  return (
+                                    <div className="flex flex-col">
+                                      <span className={cn("text-sm font-bold", darkMode ? "text-white" : "text-gray-900")}>
+                                        {hasRealName ? contact.full_name : 'Instagram User'}
+                                      </span>
+                                    </div>
+                                  );
+                                }
+   
+                                return (
+                                  <>
+                                    <div className="flex items-center gap-2">
+                                      <span className={cn("text-sm font-bold", darkMode ? "text-white" : "text-gray-900")}>@{contact.username}</span>
+                                      <a
+                                        href={`https://instagram.com/${contact.username}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={cn("transition-colors", darkMode ? "text-white/40 hover:text-blue-400" : "text-gray-400 hover:text-blue-500")}
+                                      >
+                                        <ExternalLink className="w-3 h-3" />
+                                      </a>
+                                    </div>
+                                    <div className={cn("text-xs font-medium", darkMode ? "text-white/40" : "text-gray-500")}>{contact.full_name || 'Instagram User'}</div>
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-5">
+                          {(function () {
+                            const normalized = contact.username?.toLowerCase().replace('@', '').trim();
+                            const psid = contact.instagram_user_id ? String(contact.instagram_user_id) : null;
+                            const autos = (psid && automationNames[psid]) || automationNames[normalized] || contact.interacted_automations;
+
+                            return autos?.length > 0 ? (
+                              <div className={cn(
+                                "text-xs font-bold px-3 py-1.5 rounded-xl border inline-block max-w-[200px] truncate",
+                                darkMode 
+                                  ? "text-blue-400 bg-blue-400/10 border-blue-400/20" 
+                                  : "text-blue-600 bg-blue-50/50 border-blue-100"
+                              )} title={autos.join(', ')}>
+                                {autos.join(', ')}
+                              </div>
+                            ) : (
+                              <span className={cn("text-[10px] font-medium italic", darkMode ? "text-white/20" : "text-gray-400")}>No triggers yet</span>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-6 py-5 text-center">
+                          <div className={cn(
+                            "inline-flex items-center gap-2 px-4 py-1.5 rounded-xl font-bold text-sm shadow-sm border transition-colors",
+                            darkMode 
+                              ? "bg-white/5 text-white border-white/10" 
+                              : "bg-white/60 text-gray-800 border-white/50"
+                          )}>
+                            <MessageSquare className="w-3.5 h-3.5 text-blue-500" />
+                            {contact.interaction_count}
+                          </div>
+                        </td>
+                        <td className="px-6 py-5">
+                          <div className={cn("flex items-center gap-2.5 text-xs font-medium transition-colors", darkMode ? "text-white/40" : "text-gray-600")}>
+                            <Clock className={cn("w-4 h-4", darkMode ? "text-white/20" : "text-gray-400")} />
+                            {formatRelativeTime(contact.last_interaction_at)}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )
                 )}
               </tbody>
             </table>

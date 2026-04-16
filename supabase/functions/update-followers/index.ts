@@ -17,6 +17,14 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    const secret = req.headers.get("x-quickrevert-secret");
+    if (secret !== Deno.env.get("QUICKREVERT_INTERNAL_SECRET")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     let id: string | null = null;
     let username: string | null = null;
     let followers_count: number = NaN;

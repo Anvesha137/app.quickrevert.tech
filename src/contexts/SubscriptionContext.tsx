@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode, useCallback 
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 
-export type PlanId = 'basic' | 'premium' | 'enterprise';
+export type PlanId = 'basic' | 'try_me_out' | 'premium' | 'professional' | 'enterprise';
 
 interface Subscription {
     id: string;
@@ -27,15 +27,21 @@ interface SubscriptionContextType {
     usage: Usage;
     loading: boolean;
     isPremium: boolean;
+    isProfessional: boolean;
     isGold: boolean;
     isGifted: boolean;
     isExpired: boolean;
     isAtLimit: boolean;
     giftedSettings: any | null;
     canUseAskToFollow: boolean;
+    canUseCarousel: boolean;
+    canUseLeadManager: boolean;
+    canUseFollowUpMsgs: boolean;
+    canUseAppointmentManager: boolean;
     dmLimit: number | 'Unlimited';
     automationLimit: number | 'Unlimited';
     hasInstagramConnected: boolean;
+    hasUsedSampler: boolean;
     initialFetchDone: boolean;
     invoices: Subscription[];
     refresh: () => Promise<void>;
@@ -258,12 +264,18 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         fetchSubscriptionData();
-        const interval = setInterval(fetchSubscriptionData, 420_000); // 7 minutes
+        const interval = setInterval(fetchSubscriptionData, 900_000); // 15 minutes (Optimized from 7m)
 
         // Smart Refresh: Check when the user comes back to the tab
+        let lastFocusTime = Date.now();
         const handleFocus = () => {
-            console.log('[SubscriptionContext] Tab focused, triggering smart refresh...');
-            fetchSubscriptionData();
+            const now = Date.now();
+            // Only refresh if at least 5 minutes have passed since last refresh
+            if (now - lastFocusTime > 300_000) {
+                console.log('[SubscriptionContext] Tab focused, triggering smart refresh...');
+                lastFocusTime = now;
+                fetchSubscriptionData();
+            }
         };
         window.addEventListener('focus', handleFocus);
 
@@ -273,7 +285,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         };
     }, [fetchSubscriptionData]);
 
-    const planId = (subscription?.plan_id || 'basic').toLowerCase();
+    const planId = (subscription?.plan_id || 'basic').toLowerCase() as PlanId;
     const isPlanActive = subscription && (
         subscription.status === 'active' || 
         subscription.status === 'trialing' || 
@@ -282,15 +294,42 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
     const isGiftedActive = isGifted && giftedSettings?.expiry_date && new Date(giftedSettings.expiry_date) > new Date();
     const isPremium = isGiftedActive || (planId !== 'basic' && isPlanActive);
+    const isProfessional = isGiftedActive || (['professional', 'enterprise'].includes(planId) && !!isPlanActive);
     const isGold = isPremium && planId.includes('enterprise');
-    const canUseAskToFollow = isGiftedActive ? (giftedSettings?.ask_to_follow_enabled ?? true) : isPremium;
-    const dmLimit = isGiftedActive ? (giftedSettings?.dm_limit ?? 'Unlimited') : (isPremium ? 'Unlimited' : 1000);
-    const automationLimit = isGiftedActive ? (giftedSettings?.automation_limit ?? 'Unlimited') : (isPremium ? 'Unlimited' : 3);
 
+    // Feature flags
+    const canUseAskToFollow = isGiftedActive ? (giftedSettings?.ask_to_follow_enabled ?? true) : (planId !== 'basic' && !!isPlanActive);
+    const advancedPlanIds: PlanId[] = ['try_me_out', 'professional', 'enterprise'];
+    const hasAdvancedFeatures = isGiftedActive || (advancedPlanIds.includes(planId) && !!isPlanActive);
+    const canUseCarousel = hasAdvancedFeatures;
+    const canUseLeadManager = hasAdvancedFeatures;
+    const canUseFollowUpMsgs = hasAdvancedFeatures;
+    const canUseAppointmentManager = hasAdvancedFeatures;
+
+    // Limits
+    const dmLimit = isGiftedActive
+        ? (giftedSettings?.dm_limit ?? 'Unlimited')
+        : planId === 'basic' ? 2000
+        : planId === 'try_me_out' && isPlanActive ? 10000
+        : isPlanActive ? 'Unlimited' : 2000;
+
+    const automationLimit = isGiftedActive
+        ? (giftedSettings?.automation_limit ?? 'Unlimited')
+        : planId === 'basic' ? 5
+        : planId === 'try_me_out' && isPlanActive ? 10
+        : isPlanActive ? 'Unlimited' : 5;
 
     const isExpired = !isPremium && (isGifted || (subscription !== null && planId !== 'basic'));
-    const limitValueForCheck = typeof dmLimit === 'number' ? dmLimit : 1000;
-    const isAtLimit = (dmLimit !== 'Unlimited') && (usage.dms >= limitValueForCheck || usage.contacts >= limitValueForCheck);
+    
+    const dmLimitExceeded = (dmLimit !== 'Unlimited') && (usage.dms >= dmLimit);
+    const automationLimitExceeded = (automationLimit !== 'Unlimited') && (usage.automations >= automationLimit);
+    const isAtLimit = dmLimitExceeded || automationLimitExceeded;
+
+    const hasUsedSampler = invoices.some(inv => 
+        inv.plan_id?.toLowerCase().includes('try_me_out') && 
+        inv.status !== 'canceled' // Only count successful or active as 'used'
+    );
+
 
     return (
         <SubscriptionContext.Provider value={{
@@ -298,15 +337,21 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
             usage,
             loading,
             isPremium,
+            isProfessional,
             isGold,
             isGifted,
             isExpired,
             isAtLimit,
             giftedSettings,
             canUseAskToFollow,
+            canUseCarousel,
+            canUseLeadManager,
+            canUseFollowUpMsgs,
+            canUseAppointmentManager,
             dmLimit,
             automationLimit,
             hasInstagramConnected,
+            hasUsedSampler,
             initialFetchDone,
             invoices,
             refresh: fetchSubscriptionData

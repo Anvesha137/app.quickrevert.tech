@@ -14,7 +14,7 @@ import Dashboard from './components/Dashboard';
 import Automations from './components/Automations';
 
 import MyAccount from './components/MyAccount';
-import Contacts from './components/Contacts';
+import LeadManager from './components/LeadManager';
 import Billing from './components/Billing';
 import Pricing from './components/Pricing';
 import DeletionStatus from './components/DeletionStatus';
@@ -51,10 +51,6 @@ function AppContent() {
 
   // Standalone pages (no sidebar)
   if (location.pathname === '/pricing') {
-    // Premium users should never see the pricing page — send them to dashboard
-    if (isPremium) {
-      return <Navigate to="/" replace />;
-    }
     return (
       <ErrorBoundary>
         <Routes>
@@ -102,7 +98,8 @@ function AuthenticatedApp() {
                     <Route path="/automation/create" element={<CreatePage />} />
                     <Route path="/automation/view/:id" element={<CreatePage readOnly />} />
                     <Route path="/automation/edit/:id" element={<CreatePage />} />
-                    <Route path="/contacts" element={<Contacts />} />
+                    <Route path="/lead-manager" element={<LeadManager />} />
+                    <Route path="/contacts" element={<Navigate to="/lead-manager" replace />} />
                     <Route path="/billing" element={<Billing />} />
                     <Route path="/account" element={<MyAccount />} />
                     <Route path="/settings" element={<Navigate to="/account" replace />} />
@@ -132,7 +129,8 @@ function AuthenticatedApp() {
             <Route path="/automation/create" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1 transition-colors duration-500"><CreatePage /></div>} />
             <Route path="/automation/view/:id" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1 transition-colors duration-500"><CreatePage readOnly /></div>} />
             <Route path="/automation/edit/:id" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1 transition-colors duration-500"><CreatePage /></div>} />
-            <Route path="/contacts" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1 transition-colors duration-500"><Contacts /></div>} />
+            <Route path="/lead-manager" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1 transition-colors duration-500"><LeadManager /></div>} />
+            <Route path="/contacts" element={<Navigate to="/lead-manager" replace />} />
             <Route path="/billing" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1 transition-colors duration-500"><Billing /></div>} />
             <Route path="/account" element={<div className="ml-0 md:ml-80 pb-20 md:pb-0 flex-1 transition-colors duration-500"><MyAccount /></div>} />
             <Route path="/settings" element={<Navigate to="/account" replace />} />

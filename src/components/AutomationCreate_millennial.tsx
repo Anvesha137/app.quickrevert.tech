@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, Check, Bot, MessageSquare, Image as ImageIcon, Mail, Pencil
+  ArrowLeft, Check, Bot, MessageSquare, Image as ImageIcon, Mail, Pencil, ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../lib/supabase';
@@ -16,6 +16,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import { N8nWorkflowService } from '../lib/n8nService';
 import TriggerConfigStep from './automation-steps/TriggerConfig';
 import ActionConfig from './automation-steps/ActionConfig';
+import { getPendingUpload, isBlobUrl, clearPendingUpload } from '../lib/pendingUploads';
+import { uploadAutomationAsset } from '../lib/storage';
 
 type WizardStep = 0 | 1 | 2;
 
@@ -29,25 +31,26 @@ const TRIGGER_OPTIONS: {
   title: string;
   description: string;
 }[] = [
-  {
-    type: 'post_comment',
-    icon: MessageSquare,
-    title: 'Someone comments on my post',
-    description: 'When a follower leaves a comment on your Instagram photo or video, this automation kicks in automatically.',
-  },
-  {
-    type: 'story_reply',
-    icon: ImageIcon,
-    title: 'Someone replies to my story',
-    description: 'When a follower taps Reply on your Instagram story, this automation starts working for you.',
-  },
-  {
-    type: 'user_directed_messages',
-    icon: Mail,
-    title: 'Someone sends me a DM',
-    description: 'When someone slides into your DMs on Instagram, this automation handles the reply for you.',
-  },
-];
+    {
+      type: 'post_comment',
+      icon: MessageSquare,
+      title: 'Someone comments on my post',
+      description: 'When a follower leaves a comment on your Instagram photo or video, this automation kicks in automatically.',
+    },
+    {
+      type: 'story_reply',
+      icon: ImageIcon,
+      title: 'Someone replies to my story',
+      description: 'When a follower taps Reply on your Instagram story, this automation starts working for you.',
+    },
+    {
+      type: 'user_directed_messages',
+      icon: Mail,
+      title: 'Someone sends me a DM',
+      description: 'When someone slides into your DMs on Instagram, this automation handles the reply for you.',
+    },
+
+  ];
 
 export default function AutomationCreateMillennial({ readOnly = false }: AutomationCreateMillennialProps) {
   const { user } = useAuth();
@@ -58,16 +61,16 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
 
   const [searchParams, setSearchParams] = useSearchParams();
   const stepParam = searchParams.get('step');
-  
+
   // Map string steps from Gen Z theme to Millennial numeric steps
   const getInitialStep = (): WizardStep => {
     if (stepParam === 'setup') return 0;
     if (stepParam === 'configuration') return 1;
-    
+
     const parsed = parseInt(stepParam || '0');
     return (isNaN(parsed) ? 0 : parsed) as WizardStep;
   };
-  
+
   const step = getInitialStep();
 
   const setStep = (newStep: WizardStep) => {
@@ -136,9 +139,13 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
     }
   }, [hasInstagramConnected, subLoading, initialFetchDone, navigate]);
 
+  const [wasLoaded, setWasLoaded] = useState(false);
+
   useEffect(() => {
-    if (id) fetchAutomation(id);
-  }, [user, id]);
+    if (id && !wasLoaded) {
+      fetchAutomation(id);
+    }
+  }, [user, id, wasLoaded]);
 
   const topRef = useRef<HTMLDivElement>(null);
 
@@ -169,7 +176,7 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
           triggerConfig: data.trigger_config,
           actions: data.actions || [],
         });
-        if (readOnly || data.trigger_type) setStep(2);
+        setWasLoaded(true);
       }
     } catch {
       toast.error('Could not load this automation.');
@@ -225,6 +232,51 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
 
     setSaving(true);
     try {
+      // --- Upload Phase: Process any pending local images ---
+      const finalActions = JSON.parse(JSON.stringify(formData.actions));
+
+      const processActions = async (actions: any[]) => {
+        for (const action of actions) {
+          if (action.imageUrl && isBlobUrl(action.imageUrl)) {
+            const file = getPendingUpload(action.imageUrl);
+            if (file) {
+              const permanentUrl = await uploadAutomationAsset(file);
+              clearPendingUpload(action.imageUrl);
+              action.imageUrl = permanentUrl;
+            }
+          }
+
+          if (action.carouselCards && Array.isArray(action.carouselCards)) {
+            for (const card of action.carouselCards) {
+              if (card.imageUrl && isBlobUrl(card.imageUrl)) {
+                const file = getPendingUpload(card.imageUrl);
+                if (file) {
+                  const permanentUrl = await uploadAutomationAsset(file);
+                  clearPendingUpload(card.imageUrl);
+                  card.imageUrl = permanentUrl;
+                }
+              }
+            }
+          }
+          
+          if (action.conversationCards && Array.isArray(action.conversationCards)) {
+            for (const card of action.conversationCards) {
+              if (card.imageUrl && isBlobUrl(card.imageUrl)) {
+                const file = getPendingUpload(card.imageUrl);
+                if (file) {
+                  const permanentUrl = await uploadAutomationAsset(file);
+                  clearPendingUpload(card.imageUrl);
+                  card.imageUrl = permanentUrl;
+                }
+              }
+            }
+          }
+        }
+      };
+
+      await processActions(finalActions);
+      // --- End Upload Phase ---
+
       let automationData: { id: string };
       if (id) {
         const { data, error } = await supabase
@@ -233,7 +285,7 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
             name: formData.name.trim(),
             trigger_type: formData.triggerType,
             trigger_config: formData.triggerConfig,
-            actions: formData.actions,
+            actions: finalActions,
           })
           .eq('id', id)
           .select('id')
@@ -248,8 +300,8 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
             name: formData.name.trim(),
             trigger_type: formData.triggerType,
             trigger_config: formData.triggerConfig,
-            actions: formData.actions,
-            status: 'inactive',
+            actions: finalActions,
+            status: 'active',
           })
           .select('id')
           .single();
@@ -268,8 +320,8 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
           .maybeSingle();
 
         if (igAccount) {
-          const replyAction = formData.actions.find(a => a.type === 'reply_to_comment') as any;
-          const dmAction = formData.actions.find(a => a.type === 'send_dm') as any;
+          const replyAction = finalActions.find((a: any) => a.type === 'reply_to_comment') as any;
+          const dmAction = finalActions.find((a: any) => a.type === 'send_dm') as any;
 
           await N8nWorkflowService.createWorkflow({
             template: 'instagram_automation_v1',
@@ -282,7 +334,7 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
               dmTitle: dmAction?.title || 'Hi there!',
               dmImageUrl: (dmAction?.showImage && dmAction?.imageUrl) ? dmAction.imageUrl : '',
             },
-            autoActivate: false,
+            autoActivate: true,
           }, user.id);
         }
       } catch (n8nErr: any) {
@@ -291,7 +343,7 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
 
       // Clear draft on successful save
       if (!id) localStorage.removeItem(LOCAL_STORAGE_KEY);
-      
+
       toast.success('🎉 Automation saved successfully!');
       navigate('/automation');
     } catch (err: any) {
@@ -302,7 +354,7 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
   }
 
   const step0Valid = formData.name.trim().length > 0 && formData.triggerType !== null;
-  
+
   const handleNextStep0 = () => {
     if (!formData.name.trim()) {
       toast.error("Please enter a name first");
@@ -312,50 +364,53 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
       toast.error("Please select a trigger type");
       return;
     }
-    // Initialize default trigger config if not set
-    if (!formData.triggerConfig) {
-       let defaultConfig: TriggerConfig;
-       let defaultActions = formData.actions;
-       if (formData.triggerType === 'post_comment') {
-          defaultConfig = { postsType: 'all', commentsType: 'all' } as PostCommentTriggerConfig;
-          if (defaultActions.length === 0) {
-              defaultActions = [{
-                type: 'reply_to_comment',
-                replyTemplates: [
-                  'Ayyy check your DMs 👀✨',
-                  'Just dropped you a message 💌🔥',
-                  'Doneee, sent you the details 🫶📩',
-                  'You got a lil surprise in your inbox 😌💫'
-                ],
-                actionButtons: []
-              } as any];
-          }
-       }
-       else if (formData.triggerType === 'story_reply') {
-          defaultConfig = { storiesType: 'all', replyType: 'all' } as StoryReplyTriggerConfig;
-       }
-       else {
-          defaultConfig = { messageType: 'all' } as UserDirectMessageTriggerConfig;
-       }
-       setFormData({ ...formData, triggerConfig: defaultConfig, actions: defaultActions });
-    }
+    // If the trigger type hasn't changed, just move to the next step
+    // This prevents resetting the configuration when just browsing steps
     setStep(1);
+    
+    // Initialize default trigger config only if it's missing
+    if (!formData.triggerConfig) {
+      let defaultConfig: TriggerConfig;
+      let defaultActions = formData.actions;
+      if (formData.triggerType === 'post_comment') {
+        defaultConfig = { postsType: 'specific', commentsType: 'all' } as PostCommentTriggerConfig;
+        if (defaultActions.length === 0) {
+          defaultActions = [{
+            type: 'reply_to_comment',
+            replyTemplates: [
+              'Ayyy check your DMs 👀✨',
+              'Just dropped you a message 💌🔥',
+              'Doneee, sent you the details 🫶📩',
+              'You got a lil surprise in your inbox 😌💫'
+            ],
+            actionButtons: []
+          } as any];
+        }
+      }
+      else if (formData.triggerType === 'story_reply') {
+        defaultConfig = { storiesType: 'specific', replyType: 'all' } as StoryReplyTriggerConfig;
+      }
+      else {
+        defaultConfig = { messageType: 'all' } as UserDirectMessageTriggerConfig;
+      }
+      setFormData({ ...formData, triggerConfig: defaultConfig, actions: defaultActions });
+    }
   };
 
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-black' : 'bg-white'} flex flex-col font-sans pb-20 md:pb-0 w-full relative transition-colors duration-500`}>
       <div className="w-full min-h-screen relative flex flex-col pt-safe overflow-x-hidden">
-        
+
         {/* Fixed Header */}
         <div className={`flex items-center gap-2 p-4 md:px-8 md:py-6 ${darkMode ? 'bg-black' : 'bg-white/90 border-gray-100 border-b'} backdrop-blur-xl sticky top-0 z-20 w-full transition-colors duration-500`}>
           <button onClick={() => { if (step > 0) navigate(-1); else navigate('/automation'); }} className={`p-2 md:p-3 ${darkMode ? 'bg-transparent border border-white/10 text-white/60 hover:border-white/20 hover:text-white' : 'bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-900'} rounded-full transition-all`}>
             <ArrowLeft className="w-5 h-5 md:w-6 md:h-6" strokeWidth={2.5} />
           </button>
-          
+
           <div className="flex flex-1 justify-center items-center gap-2 md:gap-6">
             {[0, 1, 2].map((i) => {
               const labels = ['⚡️ What triggers it?', '🎯 Set the details', '💬 What to reply?'];
-              
+
               if (i === step) {
                 return (
                   <motion.div layoutId="pill" key={i} className={`flex items-center px-4 md:px-6 py-2 md:py-2.5 ${darkMode ? 'bg-transparent border-purple-500' : 'bg-purple-50 border-purple-100 shadow-sm'} border rounded-full cursor-default`}>
@@ -374,11 +429,11 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
                 // Future step - clickable if previous steps are valid
                 const isClickable = (i === 1 && step0Valid) || (i === 2 && step0Valid && formData.triggerConfig !== null);
                 return (
-                  <button 
-                    key={i} 
+                  <button
+                    key={i}
                     onClick={() => {
-                        if (i === 1 && step0Valid && step === 0) handleNextStep0();
-                        else if (isClickable) setStep(i as WizardStep);
+                      if (i === 1 && step0Valid && step === 0) handleNextStep0();
+                      else if (isClickable) setStep(i as WizardStep);
                     }}
                     disabled={!isClickable}
                     className={`h-8 w-8 md:h-10 md:px-4 md:w-auto rounded-full border-2 flex items-center justify-center transition-all 
@@ -398,11 +453,11 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
         <div className="flex-1 w-full mx-auto max-w-7xl overflow-y-auto px-5 md:px-8 py-4 md:py-8 pb-12">
           <div ref={topRef} className="h-0 w-0 opacity-0 pointer-events-none" />
           <AnimatePresence mode="wait">
-            
+
             {/* STEP 0: Selection */}
             {step === 0 && (
               <motion.div key="step0" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-8 md:space-y-10 max-w-5xl mx-auto">
-                
+
                 {/* Name Card */}
                 <div>
                   <div className="flex items-start gap-4 md:gap-5 mb-4 md:mb-5">
@@ -446,7 +501,7 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
                       )}
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2.5 md:space-y-3">
                     {TRIGGER_OPTIONS.map((opt) => {
                       const Icon = opt.icon;
@@ -458,10 +513,16 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
                           disabled={isDisabled}
                           onClick={() => {
                             if (isDisabled) return;
-                            
+
+                            // 🔥 UX: If the same trigger is selected, just advance without resetting the config
+                            if (formData.triggerType === opt.type) {
+                              setStep(1);
+                              return;
+                            }
+
                             setFormData(prev => {
                               const newFormData = { ...prev, triggerType: opt.type };
-                              
+
                               let defaultConfig: TriggerConfig | null = null;
                               if (opt.type === 'post_comment') {
                                 defaultConfig = { postsType: 'specific', commentsType: 'all', keywords: [] } as PostCommentTriggerConfig;
@@ -483,11 +544,11 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
                               } else if (opt.type === 'user_directed_messages') {
                                 defaultConfig = { messageType: 'all', keywords: [], cooldownEnabled: true, cooldownDuration: 3600000 } as UserDirectMessageTriggerConfig;
                               }
-                              
+
                               newFormData.triggerConfig = defaultConfig;
                               return newFormData;
                             });
-                            
+
                             // Auto-advance
                             setTimeout(() => setStep(1), 150);
                           }}
@@ -511,6 +572,19 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
                     })}
                   </div>
                 </div>
+
+                {/* View Mode Navigation for Step 0 */}
+                {readOnly && step0Valid && (
+                  <div className="flex justify-center pt-4">
+                    <button
+                      onClick={() => setStep(1)}
+                      className="w-full max-w-xl py-4 rounded-full font-bold text-lg flex justify-center items-center gap-2 transition-all shadow-lg hover:-translate-y-1 bg-blue-600 text-white hover:bg-blue-700 shadow-blue-100"
+                    >
+                      View Template Details
+                      <ChevronRight size={20} />
+                    </button>
+                  </div>
+                )}
               </motion.div>
             )}
 
@@ -525,20 +599,21 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
                 />
                 <div className="mt-8 flex justify-center pb-8 md:pb-0">
                   <button
-                     onClick={() => {
-                        const error = validateTriggerConfig(formData.triggerType!, formData.triggerConfig!);
-                        if (error) {
-                          toast.error(error.message);
-                          const el = document.getElementById(error.sectionId);
-                          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                          else topRef.current?.scrollIntoView({ behavior: 'smooth' });
-                          return;
-                        }
-                        setStep(2);
-                     }}
-                     className="w-full max-w-xl py-4 rounded-full font-bold text-lg flex justify-center items-center gap-2 transition-all shadow-lg hover:-translate-y-1 bg-purple-600 text-white hover:bg-purple-700 shadow-purple-200"
+                    onClick={() => {
+                      const error = validateTriggerConfig(formData.triggerType!, formData.triggerConfig!);
+                      if (error) {
+                        toast.error(error.message);
+                        const el = document.getElementById(error.sectionId);
+                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        else topRef.current?.scrollIntoView({ behavior: 'smooth' });
+                        return;
+                      }
+                      setStep(2);
+                    }}
+                    className="w-full max-w-xl py-4 rounded-full font-bold text-lg flex justify-center items-center gap-2 transition-all shadow-lg hover:-translate-y-1 bg-purple-600 text-white hover:bg-purple-700 shadow-purple-200"
                   >
-                    Continue to Final Step <ArrowLeft className="rotate-180 w-5 h-5" />
+                    {readOnly ? 'View Reply Setup' : 'Continue to Next Step'}
+                    <ChevronRight size={20} />
                   </button>
                 </div>
               </motion.div>

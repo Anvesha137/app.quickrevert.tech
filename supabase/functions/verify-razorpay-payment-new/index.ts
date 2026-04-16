@@ -168,7 +168,17 @@ serve(async (req) => {
     }
 
     // Default base price before discount (in Paise for consistency with Razorpay)
-    const baseAmountPaise = planType === 'annual' ? (599 * 12 * 100) : (899 * 3 * 100);
+    let baseAmountPaise = 0;
+    if (planTier === 'try_me_out') {
+      baseAmountPaise = 199 * 100;
+    } else if (planTier === 'premium') {
+      baseAmountPaise = planType === 'annual' ? 4199 * 100 : 1199 * 100;
+    } else if (planTier === 'professional') {
+      baseAmountPaise = planType === 'annual' ? 5999 * 100 : 1799 * 100;
+    } else {
+      baseAmountPaise = planType === 'annual' ? (599 * 12 * 100) : (899 * 3 * 100);
+    }
+    
     let expectedPaise = baseAmountPaise;
     let serverCalculatedDiscountPaise = 0;
 
@@ -180,14 +190,45 @@ serve(async (req) => {
         try {
           await couponClient.connect();
           const couponResult = await couponClient.queryObject(`
-            SELECT discount_percentage FROM promo_codes
-            WHERE LOWER(code) = LOWER($1) AND (expires_at >= NOW()) AND (used_count < usage_limit)
+            SELECT id, promo_code, discount_percentage, discount_amount, package, 
+                   max_usage, total_usage_tilldate, expiry_date
+            FROM promo_codes
+            WHERE LOWER(TRIM(promo_code)) = LOWER(TRIM($1)) AND (expiry_date >= NOW()) AND (total_usage_tilldate < max_usage)
             LIMIT 1
           `, [couponCode.trim()]);
           
           if (couponResult.rows.length > 0) {
-            const pct = (couponResult.rows[0] as any).discount_percentage || 0;
-            serverCalculatedDiscountPaise = Math.floor(baseAmountPaise * (pct / 100));
+            const coupon = couponResult.rows[0] as any;
+            const packType = coupon.package || '';
+            
+            // 🔒 RE-ENFORCE RESTRICTIONS ON VERIFY
+            if (packType) {
+              const pkg = packType.toLowerCase();
+              const plan = (planType || '').toLowerCase();
+              const tier = (planTier || '').toLowerCase();
+
+              // 1. Cycle Verification
+              if ((pkg.includes('quarter') && plan !== 'quarterly') || (pkg.includes('annual') && plan !== 'annual')) {
+                 throw new Error(`Integrity Error: Coupon valid for ${pkg.includes('quarter') ? 'Quarterly' : 'Annual'} only.`);
+              }
+
+              // 2. Tier Verification
+              const possibleTiers = ['try_me_out', 'premium', 'professional', 'enterprise', 'starter'];
+              const restrictedTier = possibleTiers.find(t => pkg.includes(t));
+              if (restrictedTier && tier !== restrictedTier && !(restrictedTier === 'starter' && tier === 'try_me_out')) {
+                 throw new Error(`Integrity Error: Coupon valid for ${restrictedTier.toUpperCase()} only.`);
+              }
+            }
+
+            const pct = coupon.discount_percentage || 0;
+            const amt = coupon.discount_amount || 0;
+
+            if (pct > 0) {
+              serverCalculatedDiscountPaise = Math.floor(baseAmountPaise * (pct / 100));
+            } else if (amt > 0) {
+              serverCalculatedDiscountPaise = amt * 100;
+            }
+            
             expectedPaise = Math.max(0, baseAmountPaise - serverCalculatedDiscountPaise);
           }
         } finally {
@@ -235,7 +276,9 @@ serve(async (req) => {
     }
 
     const periodEnd = new Date(startDate);
-    if (planType === 'annual') {
+    if (planTier === 'try_me_out') {
+      periodEnd.setMonth(startDate.getMonth() + 1);
+    } else if (planType === 'annual') {
       periodEnd.setFullYear(startDate.getFullYear() + 1);
     } else {
       periodEnd.setMonth(startDate.getMonth() + 3);
@@ -293,7 +336,9 @@ serve(async (req) => {
         const istDate = new Date(now.getTime() + istOffsetMs);
 
         const expiryDate = new Date(istDate);
-        if (planType === 'annual') {
+        if (planTier === 'try_me_out') {
+          expiryDate.setMonth(expiryDate.getMonth() + 1);
+        } else if (planType === 'annual') {
           expiryDate.setFullYear(expiryDate.getFullYear() + 1);
         } else {
           expiryDate.setMonth(expiryDate.getMonth() + 3);
@@ -349,11 +394,13 @@ serve(async (req) => {
         ]);
 
         // 2. Fetch or Create Plan
-        let packageName = 'Premium';
-        if (planType === 'quarterly') packageName = 'Premium Quarterly';
-        if (planType === 'annual') packageName = 'Premium Annual';
+        let packageName = planTier === 'try_me_out' ? 'Monthly Sampler' : planTier ? planTier.charAt(0).toUpperCase() + planTier.slice(1).replace(/_/g, ' ') : 'Premium';
+        if (planTier !== 'try_me_out') {
+            if (planType === 'quarterly') packageName += ' (Quarterly)';
+            if (planType === 'annual') packageName += ' (Annual)';
+        }
 
-        const baseAmountRsCalculated = planType === 'annual' ? (599 * 12) : (899 * 3);
+        const baseAmountRsCalculated = Math.floor(baseAmountPaise / 100);
         const planResult = await neonClient.queryObject(`
           INSERT INTO plans (name, billing_cycle, price, is_active)
           VALUES ($1, $2, $3, true)

@@ -163,3 +163,48 @@ entrypoint = "./functions/get-user-neon-plan/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/get-user-neon-plan/*.html" ]
+
+[functions."delete-workflow"]
+verify_jwt = false
+
+[functions."manage-instagram-webhook"]
+verify_jwt = false
+
+[functions."setup-instagram-webhooks"]
+verify_jwt = false
+
+[functions."sweep-inactive-webhooks"]
+verify_jwt = false
+
+[functions."sync-cloudflare-kv"]
+verify_jwt = false
+
+[functions."validate-coupon"]
+verify_jwt = false
+
+[functions."execute-automation"]
+verify_jwt = false
+
+[functions."auth-google-init"]
+verify_jwt = false
+
+[functions."auth-google-callback"]
+verify_jwt = false
+
+[functions."debug-n8n"]
+verify_jwt = false
+
+[functions."debug-neon-gifted"]
+verify_jwt = false
+
+[functions."debug-workflows"]
+verify_jwt = false
+
+[functions."diagnose-webhook"]
+verify_jwt = false
+
+[functions."fix-ig-id"]
+verify_jwt = false
+
+[functions."verify-razorpay-payment-new"]
+verify_jwt = false

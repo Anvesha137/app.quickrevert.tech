@@ -1,12 +1,4 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
-};
-
+import { validateUser, corsHeaders } from "../_shared/auth.ts";
 Deno.serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -25,40 +17,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // Get authentication token from Authorization header
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized: Missing or invalid authorization header" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const jwt = authHeader.replace("Bearer ", "");
-
-    // Get Supabase configuration
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return new Response(JSON.stringify({ error: "Supabase configuration missing" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Create Supabase client and validate user authentication
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
-
-    if (authError || !user) {
-      console.error("Authentication error:", authError);
-      return new Response(JSON.stringify({ error: "Unauthorized: Invalid or expired token" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const { user, supabase } = await validateUser(req);
 
     // Parse request body
     const body = await req.json();
@@ -101,50 +60,41 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Delete workflow from n8n
-    const deleteResponse = await fetch(`${n8nBaseUrl}/api/v1/workflows/${workflowId}`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-        "X-N8N-API-KEY": n8nApiKey,
-      },
-    });
+    // 🔥 PERFORMANCE: Immediate success response
+    // Background the n8n deletion and DB cleanup
+    const finalizationTask = (async () => {
+      try {
+        console.log(`[BACKGROUND] Deleting workflow ${workflowId} from n8n...`);
+        const delRes = await fetch(`${n8nBaseUrl}/api/v1/workflows/${workflowId}`, {
+          method: "DELETE",
+          headers: { "X-N8N-API-KEY": n8nApiKey },
+        });
 
-    if (!deleteResponse.ok) {
-      const errorText = await deleteResponse.text();
-      console.error("Failed to delete workflow from n8n:", errorText);
-      return new Response(JSON.stringify({
-        error: `Failed to delete workflow from n8n: ${deleteResponse.status} ${deleteResponse.statusText}`,
-        details: errorText,
-      }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+        if (!delRes.ok) {
+          console.error(`[BACKGROUND] n8n delete failed:`, await delRes.text());
+        }
 
-    // Delete workflow from database
-    const { error: dbError } = await supabase
-      .from("n8n_workflows")
-      .delete()
-      .eq("n8n_workflow_id", workflowId)
-      .eq("user_id", user.id);
+        // Cleanup workflow record
+        const { error: dbError } = await supabase
+          .from("n8n_workflows")
+          .delete()
+          .eq("n8n_workflow_id", workflowId);
 
-    if (dbError) {
-      console.error("Failed to delete workflow from database:", dbError);
-      // Still return success since n8n deletion worked
-      return new Response(JSON.stringify({
-        success: true,
-        message: "Workflow deleted from n8n, but database cleanup failed",
-        warning: dbError.message,
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+        if (dbError) console.error("[BACKGROUND] n8n_workflows cleanup failed:", dbError);
+      } catch (err) {
+        console.error("[BACKGROUND] Deletion error:", err.message);
+      }
+    })();
+
+    // @ts-ignore
+    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(finalizationTask);
     }
 
     return new Response(JSON.stringify({
       success: true,
-      message: "Workflow deleted successfully",
+      message: "Deletion initiated in the background",
     }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

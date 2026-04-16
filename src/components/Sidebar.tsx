@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   Bot,
-  Users,
+  ClipboardCheck,
   CreditCard,
   LogOut,
   User
@@ -20,7 +20,7 @@ import { supabase } from '../lib/supabase';
 export const navigation = [
   { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
   { id: 'automations', name: 'Automations', icon: Bot, path: '/automation' },
-  { id: 'contacts', name: 'Contacts', icon: Users, path: '/contacts' },
+  { id: 'contacts', name: 'Lead Manager', icon: ClipboardCheck, path: '/lead-manager' },
   { id: 'billing', name: 'Billing', icon: CreditCard, path: '/billing' },
   { id: 'account', name: 'My Account', icon: User, path: '/account' },
 ];

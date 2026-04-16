@@ -65,8 +65,36 @@ serve(async (req) => {
       );
     }
 
-    // Base amount in paise: Premium Annual = 599*12, Quarterly = 899*3
-    let amount = planType === 'annual' ? (599 * 12 * 100) : (899 * 3 * 100);
+    // Base amount in paise
+    let amount = 0;
+    if (planTier === 'try_me_out') {
+      // Check for previous purchase (One-time only per account)
+      const { data: existingSub, error: subError } = await supabaseClient
+          .from('subscriptions')
+          .select('id')
+          .ilike('plan_id', '%try_me_out%')
+          .limit(1)
+          .maybeSingle();
+
+      if (existingSub) {
+          return new Response(
+              JSON.stringify({ error: "You have already used the 'Try Me Out' plan. This offer is available only once per unique account." }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+          );
+      }
+
+      amount = 199 * 100;
+    } else if (planTier === 'premium') {
+      amount = planType === 'annual' ? (4199 * 100) : (1199 * 100);
+    } else if (planTier === 'professional') {
+      amount = planType === 'annual' ? (5999 * 100) : (1799 * 100);
+    } else {
+      return new Response(
+        JSON.stringify({ error: "Invalid plan tier selected." }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      );
+    }
+
     const currency = 'INR';
 
     // Coupon Logic — check Neon DB using actual column names
@@ -78,21 +106,56 @@ serve(async (req) => {
           await client.connect();
 
           const result = await client.queryObject(`
-            SELECT id, code, discount_percentage, discount_amount,
-                   usage_limit, used_count, expires_at, pack_type, status
+            SELECT id, promo_code, discount_percentage, discount_amount,
+                   max_usage, total_usage_tilldate, expiry_date, package
             FROM promo_codes
-            WHERE LOWER(code) = LOWER($1)
+            WHERE LOWER(TRIM(promo_code)) = LOWER(TRIM($1))
             LIMIT 1
           `, [couponCode.trim()]);
 
           if (result.rows.length > 0) {
             const coupon = result.rows[0] as any;
             const now = new Date();
-            const expiresAt = new Date(coupon.expires_at);
+            const expiresAt = new Date(coupon.expiry_date);
+            const usageCount = coupon.total_usage_tilldate ?? 0;
+            const usageLimit = coupon.max_usage ?? 999;
 
-            if (expiresAt >= now && coupon.used_count < coupon.usage_limit) {
+            if (expiresAt >= now && usageCount < usageLimit) {
+              const packType = coupon.package || '';
+              if (packType) {
+                const pkg = packType.toLowerCase();
+                const plan = (planType || '').toLowerCase();
+                const tier = (planTier || '').toLowerCase();
+
+                // 1. Check Cycle (Annual/Quarterly)
+                if ((pkg.includes('quarter') && plan !== 'quarterly') || (pkg.includes('annual') && plan !== 'annual')) {
+                  return new Response(
+                    JSON.stringify({ error: `Coupon is only valid for ${pkg.includes('quarter') ? 'Quarterly' : 'Annual'} plans.` }),
+                    { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+                  );
+                }
+
+                // 2. Check Tier (Professional/Premium etc)
+                const possibleTiers = ['try_me_out', 'premium', 'professional', 'enterprise', 'starter'];
+                const restrictedTier = possibleTiers.find(t => pkg.includes(t));
+                if (restrictedTier && tier !== restrictedTier && !(restrictedTier === 'starter' && tier === 'try_me_out')) {
+                  return new Response(
+                    JSON.stringify({ error: `Coupon is only valid for the ${restrictedTier.toUpperCase()} tier.` }),
+                    { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+                  );
+                }
+              }
+
               const discountPct = coupon.discount_percentage || 0;
-              const discountPaise = Math.floor(amount * (discountPct / 100));
+              const discountAmt = coupon.discount_amount || 0;
+              
+              let discountPaise = 0;
+              if (discountPct > 0) {
+                discountPaise = Math.floor(amount * (discountPct / 100));
+              } else if (discountAmt > 0) {
+                discountPaise = discountAmt * 100;
+              }
+
               const finalAmount = amount - discountPaise;
 
               if (finalAmount <= 0) {

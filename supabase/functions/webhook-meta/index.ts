@@ -7,6 +7,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 serve(async (req) => {
     const url = new URL(req.url);
+    console.log(`[WEBHOOK] Incoming Request: ${req.method} ${url.pathname}${url.search}`);
 
     if (req.method === "GET") {
         const META_VERIFY_TOKEN = Deno.env.get("META_VERIFY_TOKEN");
@@ -19,9 +20,11 @@ serve(async (req) => {
         const token = url.searchParams.get("hub.verify_token");
         const challenge = url.searchParams.get("hub.challenge");
 
-        console.log(`[VERIFY DEBUG] Mode: '${mode}', Token: '${token}', Secret: '${META_VERIFY_TOKEN}'`);
+        // 🔥 ROBURSTNESS FIX: Trim values to avoid hidden space/newline issues
+        const trimmedSecret = META_VERIFY_TOKEN?.trim();
+        const trimmedToken = token?.trim();
 
-        if (mode === "subscribe" && token === META_VERIFY_TOKEN) {
+        if (mode === "subscribe" && trimmedToken === trimmedSecret) {
             console.log("[VERIFY SUCCESS] Returning challenge");
             return new Response(challenge, { status: 200 });
         }
@@ -41,21 +44,25 @@ serve(async (req) => {
             }
 
             if (!await verifySignature(signature, body, META_APP_SECRET)) {
-               console.error("Invalid Signature");
-               return new Response("Unauthorized", { status: 403 });
+                console.error("Invalid Signature");
+                return new Response("Unauthorized", { status: 403 });
             }
             console.log("Signature Verified Successfully");
 
             const json = JSON.parse(body);
 
-            // Async processing to allow immediate 200 OK
-            // @ts-ignore
-            if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
-                // @ts-ignore
-                EdgeRuntime.waitUntil(processEvent(json));
-            } else {
-                processEvent(json);
+            // ⚡ FAST-TRACK: drop junk traffic immediately before doing ANY DB work
+            const firstEntry = json?.entry?.[0];
+            const firstMsg = firstEntry?.messaging?.[0];
+            if (firstMsg?.delivery || firstMsg?.read) {
+                console.log("[BOUNCER] Dropped Receipt/Read event");
+                return new Response("EVENT_RECEIVED", { status: 200 });
             }
+
+            // Async processing to allow immediate 200 OK
+            // We do NOT await processEvent here so Meta gets 200 OK immediately
+            processEvent(json).catch(err => console.error("Background processing error:", err));
+            
             return new Response("EVENT_RECEIVED", { status: 200 });
         } catch (e) {
             console.error("Error in ingestion:", e);
@@ -82,425 +89,205 @@ function hexToBytes(hex: string) {
 }
 
 async function processEvent(body: any) {
-    // Early-exit: skip delivery receipts, read receipts, and pure echo events
-    // before touching Supabase or doing any heavy work.
-    const firstEntry = body?.entry?.[0];
-    if (firstEntry?.messaging) {
-        const firstMsg = firstEntry.messaging[0];
-        if (firstMsg?.delivery || firstMsg?.read) {
-            console.log("[SKIP] Delivery/read receipt — no processing needed.");
-            return;
-        }
-    }
-
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const object = body.object;
+    
     const entries = body.entry || [];
-
-    // DEBUG: Log basic webhook metadata only
-    console.log(`[WEBHOOK EVENT] Processing ${entries.length} entries for object: ${object}`);
+    const object = body.object || 'instagram';
+    console.log(`[BOUNCER] Processing ${entries.length} entries for ${object}`);
 
     for (const entry of entries) {
-        const account_id = String(entry.id); // ✅ CRITICAL: Convert to string for DB comparison!
+        const account_id = String(entry.id);
 
-        // FETCH ALL ACCOUNT DETAILS (access_token, user_id)
-        // ✅ CRITICAL: Webhooks send IGBA ID in entry.id, so check BOTH fields!
-        // ✅ CRITICAL FIX: Look up by instagram_business_id (Page-scoped IGBA ID)
-        console.log(`[ACCOUNT LOOKUP] Searching for account with IGBA ID: ${account_id}`);
-
-        // 🔥 CRITICAL FIX: Handle type mismatch - convert both to text for comparison
-        // The webhook sends a string, but the DB column might be bigint
-        // 🔥 NEW SELF-HEALING LOOKUP LOGIC
-        // 1. Initial Lookup handling type mismatches
-        let { data: accountsData, error: accountsError } = await supabaseClient
+        // 1. FAST ACCOUNT LOOKUP
+        const { data: accountsData } = await supabaseClient
             .from('instagram_accounts')
-            .select('id, access_token, user_id, instagram_user_id, instagram_business_id, username')
+            .select('id, access_token, user_id, username, active_automations_count')
             .or(`instagram_business_id.eq.${account_id},instagram_user_id.eq.${account_id}`)
             .eq('status', 'active');
 
-        // 2. Self-Healing: If lookup failed, try to find by USERNAME via Graph API
-        if (!accountsData || accountsData.length === 0) {
-            console.log(`❌ Initial Lookup Failed for ${account_id}. Attempting Advanced Self-Healing via Candidate Tokens...`);
-
-            try {
-                // Fetch potential candidates (accounts where ID might be wrong)
-                // We check active accounts. We can't check ALL if there are 500+, 
-                // so maybe we order by created_at desc (newest first)?
-                const { data: candidates } = await supabaseClient
-                    .from('instagram_accounts')
-                    .select('id, username, access_token')
-                    .eq('status', 'active')
-                    .not('access_token', 'is', null)
-                    .order('created_at', { ascending: false })
-                    .limit(20); // Check 20 most recent accounts to avoid timeout
-
-                if (candidates && candidates.length > 0) {
-                    for (const candidate of candidates) {
-                        // Try to query the unknown ID using THIS candidate's token
-                        // If this token owns the ID, it should work (or at least return data)
-                        const graphUrl = `https://graph.instagram.com/${account_id}?fields=username&access_token=${candidate.access_token}`;
-                        // console.log(`🔍 Probe ${candidate.username}...`); 
-
-                        try {
-                            const graphRes = await fetch(graphUrl);
-                            const graphData = await graphRes.json();
-
-                            if (graphData.username) {
-                                console.log(`✅ Token for candidate [${candidate.username}] successfully resolved ID ${account_id} to username: ${graphData.username}`);
-
-                                // Check if it matches the candidate
-                                if (graphData.username === candidate.username) {
-                                    console.log(`🎯 MATCH CONFIRMED! Updating ID for ${candidate.username}...`);
-
-                                    await supabaseClient
-                                        .from('instagram_accounts')
-                                        .update({ instagram_business_id: account_id })
-                                        .eq('id', candidate.id);
-
-                                    // Success! Fetch the updated record
-                                    const { data: healedData } = await supabaseClient
-                                        .from('instagram_accounts')
-                                        .select('id, access_token, user_id, instagram_user_id, instagram_business_id, username')
-                                        .eq('id', candidate.id);
-
-                                    if (healedData) {
-                                        accountsData = healedData;
-                                        console.log(`✅ Self-Healing Successful. Proceeding with account.`);
-                                    }
-                                    break; // Stop looking
-                                } else {
-                                    console.warn(`⚠️ Token worked but username mismatch: Candidate=${candidate.username}, Res=${graphData.username}`);
-                                }
-                            }
-                        } catch (err) {
-                            // Ignore errors for wrong tokens
-                        }
-                    }
-                } else {
-                    console.warn(`⚠️ No candidate tokens available for self-healing.`);
-                }
-            } catch (healErr) {
-                console.error("Advanced self-healing exception:", healErr);
-            }
-        }
-
-        console.log(`[QUERY RESULT] Found ${accountsData?.length || 0} potential accounts`);
-
-        if (!accountsData || accountsData.length === 0) {
-            console.error(`❌ Final Account Lookup Failed for ${account_id} (even after self-healing)`);
-            // We can't fetch profile without token, but we should still try to route?
-            // Without account data, we can't upsert contacts or enrich with confident username.
-
-            // Log failure
-            await logFailedEvent(supabaseClient, {
-                event_id: "unknown",
-                payload: entry
-            }, "No Internal Account ID found (accountsData empty)");
-            continue;
-        } else {
-            console.log(`✅ Found ${accountsData.length} account(s) for execution.`);
-
-            // Auto-Correction for existing accounts if ID was matched via user_id but business_id is wrong
-            for (const account of accountsData) {
-                if (String(account.instagram_business_id) !== account_id) {
-                    console.log(`🔄 Auto-correcting stored Business ID for ${account.username} to ${account_id}`);
-                    await supabaseClient
-                        .from('instagram_accounts')
-                        .update({ instagram_business_id: account_id })
-                        .eq('id', account.id);
-                }
-            }
-        }
-
-        // RATE LIMITING CHECK
-        if (await checkRateLimit(supabaseClient, account_id)) {
-            console.warn(`Rate Limit Exceeded for account ${account_id}`);
+        if (!accountsData || accountsData.length === 0 || accountsData[0].active_automations_count === 0) {
+            console.log(`[BOUNCER] Skipping account ${account_id}: No active automations found.`);
             continue;
         }
 
+        const internalAccountId = accountsData[0].id;
+        const userId = accountsData[0].user_id;
+
+        // 2. PROCESS MESSAGES (DMs)
         if (entry.messaging) {
             for (const msg of entry.messaging) {
-                // Ignore Delivery/Read receipts
-                if (msg.delivery || msg.read) {
-                    continue;
-                }
+                if (msg.delivery || msg.read) continue;
 
                 const isEcho = msg.message?.is_echo || false;
                 const targetUserId = isEcho ? msg.recipient?.id : msg.sender?.id;
-
                 const eventId = msg.message?.mid || msg.postback?.mid || await hashPayload(msg);
 
-                if (await isDuplicate(supabaseClient, eventId, account_id)) {
-                    console.log("Duplicate Event Skipped:", eventId);
-                    continue;
-                }
+                if (await isDuplicate(supabaseClient, eventId, account_id)) continue;
 
-                let sub_type = 'other';
-                if (msg.postback || msg.message?.quick_reply) sub_type = 'postback';
-                else if (msg.message) sub_type = 'message';
+                const sub_type = (msg.postback || msg.message?.quick_reply) ? 'postback' : (msg.message ? 'message' : 'other');
 
-                // 1. RESOLVE ROUTES FIRST (Saving 1 DB Call later)
-                const internalAccountId = accountsData?.[0]?.id;
-                let matchedAutomationId = null;
-                let activeRoutes: { routes: any[]; workflows: any[] } = { routes: [], workflows: [] };
-
-                if (internalAccountId) {
-                    activeRoutes = await resolveRoutes(supabaseClient, internalAccountId, 'messaging', sub_type);
-                    const matchedWf = activeRoutes.workflows.find((w: any) => w.automation_id && activeRoutes.routes.some((r: any) => r.n8n_workflow_id === w.n8n_workflow_id));
-                    if (matchedWf) matchedAutomationId = matchedWf.automation_id;
-                }
-
-                // 2. IDENTITY RESOLUTION & CONTACT UPSERT
-                let contactIds: string[] = [];
-                let resolvedUsername: string | null = null;
-                let profileName: string | null = null;
-                let profilePic: string | null = null;
-                let primaryActivityId: string | null = null;
-
-                // Try to fetch profile using the FIRST available token
-                const primaryAccount = accountsData?.[0];
-                if (primaryAccount && targetUserId) {
-                    // console.log(`Fetching profile for ${targetUserId} (isEcho: ${isEcho})`);
-                    const profile = await fetchInstagramProfile(targetUserId, primaryAccount.access_token);
-
-                    if (profile) {
-                        resolvedUsername = profile.username;
-                        profileName = profile.name || profile.username;
-                        profilePic = profile.profile_pic; // Fixed property name mapping
-                    } else {
-                        console.warn(`Profile Fetch Failed for ${targetUserId}, continuing with null username.`);
-                    }
-                }
-
-                // Upsert Contact for ALL related dashboard users
-                if (accountsData && accountsData.length > 0) {
-                    for (const account of accountsData) {
-                        const contact = await upsertContact(supabaseClient, {
-                            user_id: account.user_id,
-                            instagram_account_id: account.id,
-                            instagram_user_id: targetUserId,
-                            username: resolvedUsername, // Can be null
-                            full_name: profileName,
-                            avatar_url: profilePic,
-                            platform: 'instagram'
-                        });
-                        if (contact) contactIds.push(contact.id);
-                    }
-                }
-
-                // 2. ACTIVITY LOGGING (Source of Truth for Events)
-                // Log immediately linked to the contact(s)
-                const activityMsg = msg.message?.text || (msg.message?.attachments ? 'Sent an attachment' : 'Interaction');
-
-                // If we have contactIds, log properly. If Upsert failed entirely, we might skip logging or log with null?
-                // Logic: accountsData loop again to ensure alignment
-                for (let i = 0; i < accountsData.length; i++) {
-                    const account = accountsData[i];
-                    // contactIds might be partial if some upserts failed. 
-                    // Best effort: Try to find the contactId for this user.
-                    // Since we pushed in order, logic holds IF strict order maintained. 
-                    // Safer: Do upsert and log in same loop? OR trust index.
-                    // Let's trust index matching for now or just use contactIds[i] if valid.
-
-                    const contactId = contactIds[i] || null;
-
-                    // ALWAYS LOG ACTIVITY (Source of Truth for Dashboard)
-                    const { data: loggedActivity } = await supabaseClient.from('automation_activities').insert({
-                        user_id: account.user_id,
-                        instagram_account_id: account.id,
-                        contact_id: contactId,
-                        automation_id: matchedAutomationId, // Included right from the start
-                        activity_type: sub_type === 'postback' ? 'interaction' : (isEcho ? 'send_dm' : 'dm'),
-                        target_username: resolvedUsername || 'Instagram User',
-                        message: activityMsg,
-                        status: 'success',
-                        metadata: {
-                            direction: isEcho ? 'outbound' : 'inbound',
-                            raw_id: targetUserId,
-                            resolved: !!resolvedUsername,
-                            sub_type: sub_type,
-                            mid: msg.message?.mid || msg.postback?.mid
-                        }
-                    }).select('id').single();
-
-                    if (i === 0 && loggedActivity) primaryActivityId = loggedActivity.id;
-                }
-
-                // STOP INFINITE LOOPS: Do NOT route bot echoes to n8n
-                if (isEcho) {
-                    console.log("Activity logged, but ignoring bot echo for routing");
-                    continue;
-                }
-
-                // 3. TRIGGER AUTOMATION
-                // Enrich payload with contact_id for N8n (so it can use it if needed)
-                msg.contact_ids = contactIds;
-                if (resolvedUsername) msg.sender_name = resolvedUsername; // Legacy compat
-
-                // FLAGGING BASIC DISPLAY TOKEN
-                // This informs N8n to NOT try to use the Graph API for replies if not supported.
-                msg.is_basic_display = true;
-
-                const legacyEntry = { id: account_id, time: Date.now(), messaging: [msg] };
-
-                // FIX: Use the Internal UUID (accountsData[0].id) for routing, NOT the Instagram ID (entry.id)
-                if (internalAccountId) {
-                    // 🔒 DM LIMIT ENFORCEMENT — check before triggering any workflow
-                    const dmUserId = accountsData[0].user_id;
-                    const dmLimitExceeded = await checkUserDmLimit(supabaseClient, dmUserId);
-                    if (dmLimitExceeded) {
-                        console.warn(`[DM LIMIT] User ${dmUserId} has exceeded their DM limit. Skipping workflow trigger.`);
-                        // Log a limit_exceeded activity so it's visible in the dashboard
-                        await supabaseClient.from('automation_activities').insert({
-                            user_id: dmUserId,
-                            instagram_account_id: internalAccountId,
-                            automation_id: matchedAutomationId,
-                            activity_type: 'limit_exceeded',
-                            target_username: resolvedUsername || 'Instagram User',
-                            message: 'DM limit exceeded — automation skipped',
-                            status: 'blocked',
-                            metadata: { reason: 'dm_limit_exceeded', mid: msg.message?.mid }
-                        });
+                // 🚀 SPEED: RESOLVE & TRIGGER FIRST
+                const activeRoutes = await resolveRoutes(supabaseClient, internalAccountId, 'messaging', sub_type);
+                
+                if (activeRoutes.routes.length > 0 && !isEcho) {
+                    // Pre-trigger limit check
+                    const limitExceeded = await checkUserDmLimit(supabaseClient, userId);
+                    if (limitExceeded) {
+                        console.warn(`[LIMIT] User ${userId} exceeded limit. Skipping trigger.`);
                         continue;
                     }
 
-                    if (activeRoutes.routes.length > 0) {
-                        const payloadData = {
-                            platform: object,
-                            account_id: internalAccountId,
-                            event_type: 'messaging',
-                            sub_type,
-                            payload: msg,
-                            entry: [legacyEntry],
-                            event_id: eventId,
-                            is_basic_display: true,
-                            activity_id: primaryActivityId
-                        };
-                        await triggerWorkflows(payloadData, activeRoutes.routes, activeRoutes.workflows);
-                    }
-                } else {
-                    console.error("No Internal Account ID found for routing.");
-                    await logFailedEvent(supabaseClient, { event_id: eventId, payload: msg }, "No Internal Account ID found (accountsData empty)");
+                    const normalized = { object, entry: [{ id: account_id, time: entry.time, messaging: [msg] }] };
+                    triggerWorkflows(normalized, activeRoutes.routes, activeRoutes.workflows).catch(e => console.error("Trigger Err:", e));
+                    console.log(`[BOUNCER] Fast-triggered DMs for account ${account_id}`);
                 }
+
+                // 📥 BACKGROUND: Dashboard, Identity, Contacts
+                (async () => {
+                    try {
+                        const targetAcc = accountsData[0];
+                        if (!targetAcc || !targetUserId) return;
+
+                        // Identity Caching
+                        const { data: contactCache } = await supabaseClient
+                            .from('contacts')
+                            .select('id, username, full_name, avatar_url')
+                            .eq('instagram_user_id', targetUserId)
+                            .eq('user_id', userId)
+                            .maybeSingle();
+                        
+                        let username = contactCache?.username;
+                        let fullName = contactCache?.full_name;
+                        let avatar = contactCache?.avatar_url;
+
+                        if (!username || !avatar) {
+                            const profile = await fetchInstagramProfile(targetUserId, targetAcc.access_token);
+                            if (profile) {
+                                username = profile.username;
+                                fullName = profile.name;
+                                avatar = profile.profile_pic;
+                            }
+                        }
+
+                        const activityMsg = msg.message?.text || (msg.message?.attachments ? 'Sent an attachment' : 'Interaction');
+
+                        await Promise.all(accountsData.map(async (acc) => {
+                            const contact = await upsertContact(supabaseClient, {
+                                user_id: acc.user_id,
+                                instagram_account_id: acc.id,
+                                instagram_user_id: targetUserId,
+                                username: username,
+                                full_name: fullName,
+                                avatar_url: avatar,
+                                platform: 'instagram'
+                            });
+
+                            if (contact) {
+                                await supabaseClient.from('automation_activities').insert({
+                                    user_id: acc.user_id,
+                                    instagram_account_id: acc.id,
+                                    contact_id: contact.id,
+                                    activity_type: isEcho ? 'send_dm' : 'incoming_message',
+                                    content: activityMsg,
+                                    metadata: { mid: eventId, sub_type, is_echo: isEcho }
+                                });
+                            }
+                        }));
+                    } catch (e) {
+                        console.error("DM Background task critical fail:", e);
+                    }
+                })();
             }
         }
+
+        // 3. PROCESS CHANGES (Comments)
         if (entry.changes) {
             for (const change of entry.changes) {
-                // IDEMPOTENCY CHECK (For changes/comments)
+                if (change.field !== 'comments') continue;
+
                 const eventId = change.value?.id || await hashPayload(change);
+                if (await isDuplicate(supabaseClient, eventId, account_id)) continue;
 
-                if (await isDuplicate(supabaseClient, eventId, account_id)) {
-                    console.log("Duplicate Change Skipped:", eventId);
-                    continue;
-                }
-
-                const legacyEntry = { id: account_id, time: Date.now(), changes: [change] };
-
-                // FIX: Use internal UUID (same as DM routing)
-                const internalAccountId = accountsData?.[0]?.id;
-
-                if (!internalAccountId) {
-                    console.error("No Internal Account ID found for comment routing.");
-                    await logFailedEvent(supabaseClient, { event_id: eventId, payload: change }, "No Internal Account ID found for changes");
-                    continue;
-                }
-
-                // 1. RESOLVE ROUTES FIRST
                 const mediaId = change.value?.media?.id || change.value?.media_id;
-                let activeRoutes: { routes: any[]; workflows: any[] } = { routes: [], workflows: [] };
-                let matchedAutomationId = null;
+                
+                // 🚀 SPEED: RESOLVE & TRIGGER FIRST
+                const activeRoutes = await resolveRoutes(supabaseClient, internalAccountId, 'changes', 'comments', mediaId);
+                
+                if (activeRoutes.routes.length > 0) {
+                    const limitExceeded = await checkUserDmLimit(supabaseClient, userId);
+                    if (limitExceeded) continue;
 
-                if (internalAccountId) {
-                    activeRoutes = await resolveRoutes(supabaseClient, internalAccountId, 'changes', change.field, mediaId);
-                    const matchedWf = activeRoutes.workflows.find((w: any) => w.automation_id && activeRoutes.routes.some((r: any) => r.n8n_workflow_id === w.n8n_workflow_id));
-                    if (matchedWf) matchedAutomationId = matchedWf.automation_id;
+                    const payloadData = {
+                        platform: 'instagram',
+                        account_id: internalAccountId,
+                        event_type: 'changes',
+                        sub_type: 'comments',
+                        payload: change,
+                        entry: [{ id: account_id, time: Date.now(), changes: [change] }],
+                        event_id: eventId
+                    };
+
+                    triggerWorkflows(payloadData, activeRoutes.routes, activeRoutes.workflows).catch(e => console.error("Comment Trigger Err:", e));
+                    console.log(`[BOUNCER] Fast-triggered Comment for media ${mediaId} on account ${account_id}`);
                 }
 
-                // 2. CONTACT UPSERT & LOG ACTIVITY
-                let primaryActivityId: string | null = null; 
-                if (change.field === 'comments' && accountsData && accountsData.length > 0) {
-                    // RESOLVE IDENTITY for comments too
-                    let resolvedUsername = change.value?.from?.username;
-                    let profileName = null;
-                    let profilePic = null;
+                // 📥 BACKGROUND: Identity Resolution & Dashboard Sync
+                (async () => {
+                    try {
+                        const commenterId = change.value?.from?.id;
+                        if (!commenterId) return;
 
-                    const primaryAccount = accountsData[0];
-                    if (primaryAccount && change.value?.from?.id) {
-                        const profile = await fetchInstagramProfile(change.value.from.id, primaryAccount.access_token);
-                        if (profile) {
-                            resolvedUsername = profile.username || resolvedUsername;
-                            profileName = profile.name;
-                            profilePic = profile.profile_pic;
-                        }
-                    }
+                        // Identity Caching
+                        const { data: contactCache } = await supabaseClient
+                            .from('contacts')
+                            .select('id, username, avatar_url')
+                            .eq('instagram_user_id', commenterId)
+                            .eq('user_id', userId)
+                            .maybeSingle();
+                        
+                        let username = contactCache?.username || change.value?.from?.username;
+                        let avatar = contactCache?.avatar_url;
 
-                    for (const account of accountsData) {
-                        // Upsert Contact for comments
-                        const contact = await upsertContact(supabaseClient, {
-                            user_id: account.user_id,
-                            instagram_account_id: account.id,
-                            instagram_user_id: change.value?.from?.id,
-                            username: resolvedUsername,
-                            full_name: profileName,
-                            avatar_url: profilePic,
-                            platform: 'instagram'
-                        });
-
-                        // 🔥 LOG COMMENT AS ACTIVITY WITH AUTOMATION ID
-                        const { data: loggedActivity } = await supabaseClient.from('automation_activities').insert({
-                            user_id: account.user_id,
-                            instagram_account_id: account.id,
-                            contact_id: contact?.id || null,
-                            automation_id: matchedAutomationId, // Included to save a DB string
-                            activity_type: 'comment',
-                            target_username: resolvedUsername || 'Instagram User',
-                            message: change.value?.text || 'Post comment',
-                            status: 'success',
-                            metadata: {
-                                direction: 'inbound',
-                                field: change.field,
-                                verb: change.value?.verb,
-                                media_id: change.value?.media?.id,
-                                resolved: !!resolvedUsername
+                        if (!avatar) {
+                            const profile = await fetchInstagramProfile(commenterId, accountsData[0].access_token);
+                            if (profile) {
+                                username = profile.username || username;
+                                avatar = profile.profile_pic;
                             }
-                        }).select('id').single();
+                        }
 
-                        if (account.id === internalAccountId && loggedActivity) primaryActivityId = loggedActivity.id;
-                    }
-                }
+                        await Promise.all(accountsData.map(async (acc) => {
+                            const contact = await upsertContact(supabaseClient, {
+                                user_id: acc.user_id,
+                                instagram_account_id: acc.id,
+                                instagram_user_id: commenterId,
+                                username: username,
+                                platform: 'instagram',
+                                avatar_url: avatar
+                            });
 
-                if (internalAccountId && activeRoutes.routes.length > 0) {
-                    // 🔒 DM LIMIT ENFORCEMENT for comment-triggered automations too
-                    const commentUserId = accountsData[0].user_id;
-                    const commentLimitExceeded = await checkUserDmLimit(supabaseClient, commentUserId);
-                    if (commentLimitExceeded) {
-                        console.warn(`[DM LIMIT] User ${commentUserId} has exceeded their DM limit. Skipping comment workflow trigger.`);
-                        await supabaseClient.from('automation_activities').insert({
-                            user_id: commentUserId,
-                            instagram_account_id: internalAccountId,
-                            automation_id: matchedAutomationId,
-                            activity_type: 'limit_exceeded',
-                            target_username: change.value?.from?.username || 'Instagram User',
-                            message: 'DM limit exceeded — comment automation skipped',
-                            status: 'blocked',
-                            metadata: { reason: 'dm_limit_exceeded', field: change.field }
-                        });
-                    } else {
-                        const payloadData = {
-                            platform: object,
-                            account_id: internalAccountId,
-                            event_type: 'changes',
-                            sub_type: change.field,
-                            payload: change,
-                            entry: [legacyEntry],
-                            event_id: eventId,
-                            activity_id: primaryActivityId
-                        };
-                        await triggerWorkflows(payloadData, activeRoutes.routes, activeRoutes.workflows);
+                            if (contact) {
+                                await supabaseClient.from('automation_activities').insert({
+                                    user_id: acc.user_id,
+                                    instagram_account_id: acc.id,
+                                    contact_id: contact.id,
+                                    activity_type: 'comment',
+                                    content: change.value?.text || 'Post comment',
+                                    metadata: { 
+                                        direction: 'inbound', 
+                                        media_id: mediaId, 
+                                        field: change.field, 
+                                        mid: eventId 
+                                    }
+                                });
+                            }
+                        }));
+                    } catch (e) {
+                        console.error("Comment background task fail:", e);
                     }
-                }
+                })();
             }
         }
     }
@@ -508,24 +295,35 @@ async function processEvent(body: any) {
 
 // Helpers
 async function fetchInstagramProfile(senderId: string, accessToken: string) {
-    try {
-        // Use graph.instagram.com for Instagram Business IDs (Messaging PSIDs)
-        // Fields for Instagram Messaging: name, profile_pic
-        const url = `https://graph.instagram.com/v21.0/${senderId}?fields=name,username,profile_pic&access_token=${accessToken}`;
-        const res = await fetch(url);
-        if (res.ok) {
-            const data = await res.json();
-            // Map profile_pic to profile_picture_url if needed for compatibility, 
-            // but let's keep it consistent with the API
-            return data;
+    // Stage 1: Try full profile (name, username, profile_pic)
+    const stages = [
+        `fields=name,username,profile_pic`,
+        `fields=name,username`,
+        `fields=username`
+    ];
+
+    for (const fields of stages) {
+        try {
+            const url = `https://graph.instagram.com/v21.0/${senderId}?${fields}&access_token=${accessToken}`;
+            const res = await fetch(url);
+            if (res.ok) {
+                const data = await res.json();
+                console.log(`✅ Profile Fetch Success using: ${fields}`);
+                return data;
+            }
+
+            const errData = await res.json();
+            console.warn(`⚠️ Profile Fetch Stage Failed (${fields}):`, errData.error?.message);
+
+            // If the error isn't about missing fields, don't bother with other stages
+            if (!errData.error?.message?.includes('field')) break;
+
+        } catch (e) {
+            console.error(`❌ Profile Fetch Exception (${fields}):`, e);
+            break;
         }
-        const errText = await res.text();
-        console.error(`Profile Fetch Failed (${res.status}):`, errText);
-        return null;
-    } catch (e) {
-        console.error("Profile Fetch Error:", e);
-        return null;
     }
+    return null;
 }
 
 async function upsertContact(supabase: any, contact: any) {
@@ -618,7 +416,7 @@ async function resolveRoutes(supabaseClient: any, account_id: string, event_type
             .select('n8n_workflow_id, sub_type')
             .eq('account_id', account_id).eq('event_type', event_type).eq('is_active', true)
             .or(`sub_type.eq.${sub_type},sub_type.is.null`);
-            
+
         if (globalRoutes && globalRoutes.length > 0) routes = globalRoutes;
     }
 
@@ -647,7 +445,8 @@ async function triggerWorkflows(normalized: any, routes: any[], workflows: any[]
     const pathMap = new Map();
     workflows.forEach((w: any) => { if (w.webhook_path) pathMap.set(w.n8n_workflow_id, w.webhook_path); });
 
-    for (const route of routes) {
+    // 🔥 PARALLEL PERFORMANCE FIX: Trigger all routes at once
+    await Promise.all(routes.map(async (route) => {
         try {
             const webhookPath = pathMap.get(route.n8n_workflow_id);
             let targetUrl = `${N8N_BASE_URL}/api/v1/workflows/${route.n8n_workflow_id}/execute`;
@@ -666,10 +465,11 @@ async function triggerWorkflows(normalized: any, routes: any[], workflows: any[]
             });
 
             if (!res.ok) throw new Error(`n8n responded with ${res.status}: ${await res.text()}`);
+            console.log(`[n8n] Successfully triggered workflow: ${route.n8n_workflow_id}`);
         } catch (err) {
             console.error(`Failed to trigger workflow ${route.n8n_workflow_id}`, err);
         }
-    }
+    }));
 }
 
 // 🔒 DM LIMIT CHECK — queries user's dm_limit from Supabase users table

@@ -1,4 +1,4 @@
-export type TriggerType = 'post_comment' | 'story_reply' | 'user_directed_messages';
+export type TriggerType = 'post_comment' | 'story_reply' | 'user_directed_messages' | 'conversation_flow';
 
 export type ActionType = 'reply_to_comment' | 'ask_to_follow' | 'send_dm';
 
@@ -23,15 +23,25 @@ export interface UserDirectMessageTriggerConfig {
   cooldownDuration?: number; // In milliseconds
 }
 
+export interface ConversationFlowTriggerConfig {
+  welcomeTitle?: string;
+  welcomeSubtitle?: string;
+  // L1 menu items (3 buttons)
+  l1Labels?: string[];
+}
+
+
 export type TriggerConfig =
   | PostCommentTriggerConfig
   | StoryReplyTriggerConfig
-  | UserDirectMessageTriggerConfig;
+  | UserDirectMessageTriggerConfig
+  | ConversationFlowTriggerConfig;
 
 export interface ActionButton {
   id: string;
   text: string;
   url?: string;
+  payload?: string;
   buttonType?: 'web_url' | 'postback';
 }
 
@@ -47,22 +57,88 @@ export interface AskToFollowAction {
   followButtonText: string;
 }
 
+export interface CarouselCard {
+  id: string;
+  imageUrl?: string;
+  title: string;
+  subtitle?: string;
+  buttons: ActionButton[];
+}
+
+export interface ConversationCard {
+  id: string;
+  title: string;
+  subtitle?: string;
+  messageTemplate?: string;
+  imageUrl?: string;
+  showImage?: boolean;
+  actionButtons: ActionButton[];
+}
+
 export interface SendDmAction {
   type: 'send_dm';
+  dmType?: 'simple' | 'carousel' | 'conversation_flow';
   title?: string;
   imageUrl?: string;
-  subtitle?: string; // Also keep messageTemplate for backward compatibility
-  messageTemplate?: string; // Keep for backward compatibility, but subtitle takes precedence
+  subtitle?: string;
+  messageTemplate?: string;
   actionButtons: ActionButton[];
+  carouselCards?: CarouselCard[];
+  conversationCards?: ConversationCard[]; // Flat store for recursive flows
   askToFollow?: boolean;
   askToFollowMessage?: string;
   askToFollowBtnText?: string;
   teaserMessage?: string;
   teaserBtnText?: string;
   showImage?: boolean;
+  childAction?: SendDmAction;
 }
 
-export type Action = ReplyToCommentAction | AskToFollowAction | SendDmAction;
+export interface LeadMessages {
+  askName?: string;
+  askEmail?: string;
+  askPhone?: string;
+  confirmName?: string;
+  confirmAll?: string;
+  finalMessage?: string;
+  askNameAgain?: string;
+  askEmailAgain?: string;
+  askPhoneAgain?: string;
+
+  // Button Labels
+  btnChangeName?: string;
+  btnChangeEmail?: string;
+  btnChangePhone?: string;
+  btnYesLooksGood?: string;
+}
+
+export const DEFAULT_LEAD_MESSAGES: LeadMessages = {
+  askName: "👋 Hey! Thanks for reaching out. What's your first name? 😊",
+  askEmail: "What email should we use to get in touch with you? 📧",
+  askPhone: "What's your phone number? 📱",
+  confirmName: "Awesome, {{name}}! 😊 If you typed your name wrong, fix it below.",
+  confirmAll: "Perfect! Just confirming ✅ Name: {{name}} Email: {{email}} Phone: {{phone}}",
+  finalMessage: "🎉 We've got you, {{name}}! Your details have been saved and our team will reach out soon. Thank you! 🙏",
+  askNameAgain: "No problem! What's your correct first name? ✏️",
+  askEmailAgain: "Sure! What's the correct email address? 📧",
+  askPhoneAgain: "What's the correct phone number? 📱",
+
+  // Default Button Labels
+  btnChangeName: "✏️ Change Name",
+  btnChangeEmail: "✏️ Change Email",
+  btnChangePhone: "✏️ Change Phone",
+  btnYesLooksGood: "✅ Yes, looks good!",
+};
+
+export interface SaveLeadAction {
+  type: 'save_lead';
+  enabled: boolean;
+  tags?: string[];
+  collectFields?: ('name' | 'email' | 'phone')[];
+  messages?: LeadMessages;
+}
+
+export type Action = ReplyToCommentAction | AskToFollowAction | SendDmAction | SaveLeadAction;
 
 export interface AutomationFormData {
   name: string;
