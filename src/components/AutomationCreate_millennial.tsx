@@ -427,18 +427,6 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
       let defaultActions = formData.actions;
       if (formData.triggerType === 'post_comment') {
         defaultConfig = { postsType: 'specific', commentsType: 'all' } as PostCommentTriggerConfig;
-        if (defaultActions.length === 0) {
-          defaultActions = [{
-            type: 'reply_to_comment',
-            replyTemplates: [
-              'Ayyy check your DMs 👀✨',
-              'Just dropped you a message 💌🔥',
-              'Doneee, sent you the details 🫶📩',
-              'You got a lil surprise in your inbox 😌💫'
-            ],
-            actionButtons: []
-          } as any];
-        }
       }
       else if (formData.triggerType === 'story_reply') {
         defaultConfig = { storiesType: 'specific', replyType: 'all' } as StoryReplyTriggerConfig;
@@ -579,19 +567,6 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
                               let defaultConfig: TriggerConfig | null = null;
                               if (opt.type === 'post_comment') {
                                 defaultConfig = { postsType: 'specific', commentsType: 'all', keywords: [] } as PostCommentTriggerConfig;
-                                // Add default reply action if missing
-                                if (!newFormData.actions.some(a => a.type === 'reply_to_comment')) {
-                                  newFormData.actions = [{
-                                    type: 'reply_to_comment',
-                                    replyTemplates: [
-                                      'Ayyy check your DMs 👀✨',
-                                      'Just dropped you a message 💌🔥',
-                                      'Doneee, sent you the details 🫶📩',
-                                      'You got a lil surprise in your inbox 😌💫'
-                                    ],
-                                    actionButtons: []
-                                  } as any, ...newFormData.actions];
-                                }
                               } else if (opt.type === 'story_reply') {
                                 defaultConfig = { storiesType: 'specific', replyType: 'all', keywords: [] } as StoryReplyTriggerConfig;
                               } else if (opt.type === 'user_directed_messages') {

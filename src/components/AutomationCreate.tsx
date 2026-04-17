@@ -628,16 +628,7 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
 
                           let defaultActions: any[] = [];
                           if (triggerType === 'post_comment') {
-                            defaultActions = [{
-                              type: 'reply_to_comment',
-                              replyTemplates: [
-                                'Ayyy check your DMs 👀✨',
-                                'Just dropped you a message 💌🔥',
-                                'Doneee, sent you the details 🫶📩',
-                                'You got a lil surprise in your inbox 😌💫'
-                              ],
-                              actionButtons: []
-                            }];
+                            // No default actions for post_comment, let user toggle them on
                           } else if (triggerType === 'conversation_flow' || triggerType === 'lead_manager') {
                             // These workflows are entirely template-driven, but we add a dummy
                             // action here to pass the "actions.length > 0" validation in the stepper.
