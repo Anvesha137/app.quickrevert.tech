@@ -134,6 +134,50 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
     }
   }, []);
 
+  // Proactive cleanup: Remove stale blob URLs from state if their File is no longer in memory (e.g. after refresh)
+  useEffect(() => {
+    if (!id && !readOnly) {
+      setFormData(prev => {
+        let changed = false;
+        const cleanedActions = (prev.actions || []).map(action => {
+          const newAction = { ...action };
+          
+          if (newAction.imageUrl && isBlobUrl(newAction.imageUrl) && !getPendingUpload(newAction.imageUrl)) {
+            newAction.imageUrl = '';
+            changed = true;
+          }
+
+          if (newAction.carouselCards) {
+            const newCards = newAction.carouselCards.map((c: any) => {
+              if (c.imageUrl && isBlobUrl(c.imageUrl) && !getPendingUpload(c.imageUrl)) {
+                changed = true;
+                return { ...c, imageUrl: '' };
+              }
+              return c;
+            });
+            if (changed) newAction.carouselCards = newCards;
+          }
+
+          if (newAction.conversationCards) {
+             const newCards = newAction.conversationCards.map((c: any) => {
+              if (c.imageUrl && isBlobUrl(c.imageUrl) && !getPendingUpload(c.imageUrl)) {
+                changed = true;
+                return { ...c, imageUrl: '' };
+              }
+              return c;
+            });
+            if (changed) newAction.conversationCards = newCards;
+          }
+
+          return newAction;
+        });
+
+        if (!changed) return prev;
+        return { ...prev, actions: cleanedActions };
+      });
+    }
+  }, [id, readOnly]);
+
   useEffect(() => {
     if (!subLoading && initialFetchDone && !hasInstagramConnected) {
       toast.error('Please connect an Instagram account before creating automations.');
@@ -280,6 +324,8 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
               const permanentUrl = await uploadAutomationAsset(file);
               clearPendingUpload(action.imageUrl);
               action.imageUrl = permanentUrl;
+            } else {
+              throw new Error('One of your images (Simple Message) is no longer available. Please select it again before saving.');
             }
           }
 
@@ -292,6 +338,8 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
                   const permanentUrl = await uploadAutomationAsset(file);
                   clearPendingUpload(card.imageUrl);
                   card.imageUrl = permanentUrl;
+                } else {
+                  throw new Error(`The image for carousel card "${card.title || 'Untitled'}" is no longer available. Please select it again.`);
                 }
               }
             }
@@ -306,6 +354,8 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
                   const permanentUrl = await uploadAutomationAsset(file);
                   clearPendingUpload(card.imageUrl);
                   card.imageUrl = permanentUrl;
+                } else {
+                  throw new Error(`The image for menu card "${card.title || card.messageTemplate?.substring(0, 10) || 'Untitled'}" is no longer available. Please select it again.`);
                 }
               }
             }

@@ -42,6 +42,15 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({
       setUploading(true);
       setUploaded(false);
       
+      // Immediate readability check - ensures the browser can actually read the bits
+      await new Promise((resolve, reject) => {
+        const checkReader = new FileReader();
+        checkReader.onload = () => resolve(true);
+        checkReader.onerror = () => reject(new Error("This file cannot be read by the browser. It might be locked or restricted."));
+        // Just read the first 100 bytes to verify access
+        checkReader.readAsArrayBuffer(file.slice(0, 100));
+      });
+
       // Register the file locally instead of uploading it to Supabase immediately
       const blobUrl = registerPendingUpload(file);
       
@@ -56,6 +65,7 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({
       // Reset input so the same file can be selected again
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+
   };
 
   const triggerUpload = () => {

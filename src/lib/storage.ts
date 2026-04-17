@@ -10,8 +10,10 @@ export const compressImage = async (file: File, maxSizeInBytes: number = 102400)
   if (file.size <= maxSizeInBytes) return file;
 
   return new Promise((resolve, reject) => {
+    if (!file) return reject(new Error('No file provided for compression'));
+
     const reader = new FileReader();
-    reader.readAsDataURL(file);
+    
     reader.onload = (event) => {
       const img = new Image();
       img.src = event.target?.result as string;
@@ -32,33 +34,48 @@ export const compressImage = async (file: File, maxSizeInBytes: number = 102400)
         canvas.height = height;
 
         const ctx = canvas.getContext('2d');
-        if (!ctx) return reject(new Error('Failed to get canvas context'));
+        if (!ctx) return reject(new Error('Failed to get canvas context (memory issue?)'));
         ctx.drawImage(img, 0, 0, width, height);
 
         // Iteratively reduce quality until under maxSize or quality is too low
         let quality = 0.9;
         const compress = () => {
-          canvas.toBlob(
-            (blob) => {
-              if (!blob) return reject(new Error('Compression failed'));
-              
-              if (blob.size <= maxSizeInBytes || quality <= 0.2) {
-                resolve(blob);
-              } else {
-                quality -= 0.1;
-                compress();
-              }
-            },
-            'image/jpeg',
-            quality
-          );
+          try {
+            canvas.toBlob(
+              (blob) => {
+                if (!blob) return reject(new Error('Compression failed: output is empty'));
+                
+                if (blob.size <= maxSizeInBytes || quality <= 0.2) {
+                  resolve(blob);
+                } else {
+                  quality -= 0.1;
+                  compress();
+                }
+              },
+              'image/jpeg',
+              quality
+            );
+          } catch (e) {
+            reject(new Error('Canvas compression failed: ' + (e as Error).message));
+          }
         };
         compress();
       };
-      img.onerror = () => reject(new Error('Failed to load image'));
+      img.onerror = () => reject(new Error('This image file is corrupted or not a valid image. Please try a different one.'));
     };
-    reader.onerror = () => reject(new Error('Failed to read file'));
+
+    reader.onerror = () => {
+      console.error('FileReader error:', reader.error);
+      reject(new Error('We couldn\'t access this file. It might have been moved, deleted, or blocked by browser security. Please re-select the image.'));
+    };
+
+    try {
+      reader.readAsDataURL(file);
+    } catch (e) {
+       reject(new Error('Initialization failed: ' + (e as Error).message));
+    }
   });
+
 };
 
 /**

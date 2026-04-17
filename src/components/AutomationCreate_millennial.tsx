@@ -132,6 +132,50 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
     }
   }, []);
 
+  // Proactive cleanup: Remove stale blob URLs from state if their File is no longer in memory (e.g. after refresh)
+  useEffect(() => {
+    if (!id && !readOnly) {
+      setFormData(prev => {
+        let changed = false;
+        const cleanedActions = prev.actions.map(action => {
+          const newAction = { ...action };
+          
+          if (newAction.imageUrl && isBlobUrl(newAction.imageUrl) && !getPendingUpload(newAction.imageUrl)) {
+            newAction.imageUrl = '';
+            changed = true;
+          }
+
+          if (newAction.carouselCards) {
+            const newCards = newAction.carouselCards.map((c: any) => {
+              if (c.imageUrl && isBlobUrl(c.imageUrl) && !getPendingUpload(c.imageUrl)) {
+                changed = true;
+                return { ...c, imageUrl: '' };
+              }
+              return c;
+            });
+            if (changed) newAction.carouselCards = newCards;
+          }
+
+          if (newAction.conversationCards) {
+             const newCards = newAction.conversationCards.map((c: any) => {
+              if (c.imageUrl && isBlobUrl(c.imageUrl) && !getPendingUpload(c.imageUrl)) {
+                changed = true;
+                return { ...c, imageUrl: '' };
+              }
+              return c;
+            });
+            if (changed) newAction.conversationCards = newCards;
+          }
+
+          return newAction;
+        });
+
+        if (!changed) return prev;
+        return { ...prev, actions: cleanedActions };
+      });
+    }
+  }, [id, readOnly]);
+
   useEffect(() => {
     if (!subLoading && initialFetchDone && !hasInstagramConnected) {
       toast.error('Please connect an Instagram account first.');
@@ -237,15 +281,19 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
 
       const processActions = async (actions: any[]) => {
         for (const action of actions) {
+          // 1. Simple Image
           if (action.imageUrl && isBlobUrl(action.imageUrl)) {
             const file = getPendingUpload(action.imageUrl);
             if (file) {
               const permanentUrl = await uploadAutomationAsset(file);
               clearPendingUpload(action.imageUrl);
               action.imageUrl = permanentUrl;
+            } else {
+              throw new Error('One of your images (Simple Message) is no longer available. Please select it again before saving.');
             }
           }
 
+          // 2. Carousel Cards
           if (action.carouselCards && Array.isArray(action.carouselCards)) {
             for (const card of action.carouselCards) {
               if (card.imageUrl && isBlobUrl(card.imageUrl)) {
@@ -254,11 +302,14 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
                   const permanentUrl = await uploadAutomationAsset(file);
                   clearPendingUpload(card.imageUrl);
                   card.imageUrl = permanentUrl;
+                } else {
+                  throw new Error(`The image for carousel card "${card.title || 'Untitled'}" is no longer available. Please select it again.`);
                 }
               }
             }
           }
           
+          // 3. Conversation Flow Cards
           if (action.conversationCards && Array.isArray(action.conversationCards)) {
             for (const card of action.conversationCards) {
               if (card.imageUrl && isBlobUrl(card.imageUrl)) {
@@ -267,6 +318,8 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
                   const permanentUrl = await uploadAutomationAsset(file);
                   clearPendingUpload(card.imageUrl);
                   card.imageUrl = permanentUrl;
+                } else {
+                  throw new Error(`The image for menu card "${card.title || card.messageTemplate?.substring(0, 10) || 'Untitled'}" is no longer available. Please select it again.`);
                 }
               }
             }
