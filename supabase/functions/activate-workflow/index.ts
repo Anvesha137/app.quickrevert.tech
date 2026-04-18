@@ -54,66 +54,27 @@ Deno.serve(async (req: Request) => {
     const hasLeadManager = automationActions.some((a: any) => a.type === 'save_lead');
     const specificPosts = triggerConfig.postsType === 'specific' ? (triggerConfig.specificPosts || []) : [];
 
-    // 3. ROUTE & TRACKING MANAGEMENT
+    // 3. ROUTE MANAGEMENT
     if (shouldActivate) {
-      // Fetch ALL active Instagram accounts for this user (for global routing)
-      const { data: userAccounts } = await supabase
-        .from('instagram_accounts')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('status', 'active');
+      console.log(`Activating routes for workflow: ${workflowId}`);
+      const { error: routeError } = await supabase.from('automation_routes')
+        .update({ is_active: true })
+        .eq('n8n_workflow_id', workflowId)
+        .eq('user_id', user.id);
 
-      const accountIds = (userAccounts || []).map(a => a.id);
-      
-      const globalRoutes = [];
-      const trackedPosts = [];
-
-      for (const accId of accountIds) {
-        if (triggerType === 'post_comment') {
-          globalRoutes.push({ account_id: accId, event_type: 'changes', sub_type: 'comments', is_active: true });
-          globalRoutes.push({ account_id: accId, event_type: 'messaging', sub_type: 'postback', is_active: true });
-          if (hasLeadManager) {
-            globalRoutes.push({ account_id: accId, event_type: 'messaging', sub_type: null, is_active: true });
-          }
-        } else if (triggerType === 'story_reply') {
-          globalRoutes.push({ account_id: accId, event_type: 'messaging', sub_type: null, is_active: true });
-        } else {
-          globalRoutes.push({ account_id: accId, event_type: 'messaging', sub_type: null, is_active: true });
-          globalRoutes.push({ account_id: accId, event_type: 'messaging', sub_type: 'postback', is_active: true });
-        }
-      }
-
-      // Populate tracked_posts if specific media is selected
-      if (triggerType === 'post_comment' && specificPosts.length > 0) {
-        for (const mediaId of specificPosts) {
-          trackedPosts.push({ platform: 'instagram', media_id: mediaId });
-        }
-      }
-
-      console.log(`Registering automation: ${workflowId}. Accounts: ${accountIds.length}, Tracked posts: ${trackedPosts.length}`);
-
-      // ATOMIC REGISTRATION via RPC
-      const { error: rpcError } = await supabase.rpc('register_automation', {
-        p_user_id: user.id,
-        p_n8n_id: workflowId,
-        p_n8n_name: 'Workflow ' + workflowId,
-        p_webhook_path: '', // For existing workflows, path is already in DB or not needed for execute
-        p_instagram_account_id: existingWf.instagram_account_id,
-        p_template: '',
-        p_variables: {},
-        p_automation_id: automationId,
-        p_global_routes: globalRoutes,
-        p_tracked_posts: trackedPosts
-      });
-
-      if (rpcError) {
-        console.error("RPC Registration Error:", rpcError);
-        throw new Error(`Failed to update automation routes: ${rpcError.message}`);
+      if (routeError) {
+        console.error("Failed to update active routes:", routeError);
       }
     } else {
-      // DEACTIVATE: Clean up routes and tracking
-      await supabase.from('automation_routes').delete().eq('n8n_workflow_id', workflowId);
-      await supabase.from('tracked_posts').delete().eq('workflow_id', workflowId);
+      console.log(`Deactivating routes for workflow: ${workflowId}`);
+      const { error: routeError } = await supabase.from('automation_routes')
+        .update({ is_active: false })
+        .eq('n8n_workflow_id', workflowId)
+        .eq('user_id', user.id);
+
+      if (routeError) {
+        console.error("Failed to deactivate routes:", routeError);
+      }
     }
 
     // 4. N8N ACTIVATION
@@ -128,30 +89,46 @@ Deno.serve(async (req: Request) => {
     console.log(`n8n ${action}: ${finalUrl}`);
     const n8nRes = await fetch(finalUrl, {
       method: "POST",
-      headers: { "X-N8N-API-KEY": n8nApiKey }
+      headers: { 
+        "X-N8N-API-KEY": n8nApiKey,
+        "Content-Type": "application/json"
+      }
     });
 
     if (!n8nRes.ok) {
       const errorText = await n8nRes.text();
+      console.error(`n8n ${action} failed:`, {
+        status: n8nRes.status,
+        statusText: n8nRes.statusText,
+        body: errorText
+      });
       throw new Error(`n8n ${action} failed: ${errorText || n8nRes.statusText}`);
     }
 
     // 5. Update Statuses
+    console.log(`Syncing database status for workflow: ${workflowId} to ${shouldActivate}`);
     await supabase.from('n8n_workflows').update({ is_active: shouldActivate }).eq('n8n_workflow_id', workflowId);
     if (automationId) {
-      await supabase.from('automations').update({ status: shouldActivate ? 'active' : 'inactive' }).eq('id', automationId);
+      const { error: autoError } = await supabase.from('automations').update({ status: shouldActivate ? 'active' : 'inactive' }).eq('id', automationId);
+      if (autoError) console.error("Failed to sync automation status:", autoError);
     }
 
-    return new Response(JSON.stringify({ success: true, active: shouldActivate }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" }
-    });
-
-    return new Response(JSON.stringify({ success: true, active: shouldActivate }), {
+    return new Response(JSON.stringify({ 
+      success: true, 
+      active: shouldActivate,
+      message: `Workflow ${shouldActivate ? 'activated' : 'deactivated'} successfully`
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
 
   } catch (err: any) {
-    console.error(err);
-    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
+    console.error(`[Error] activate-workflow:`, err);
+    return new Response(JSON.stringify({ 
+      error: err.message,
+      success: false 
+    }), { 
+      status: 500, 
+      headers: { ...corsHeaders, "Content-Type": "application/json" } 
+    });
   }
 });

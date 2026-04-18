@@ -2751,7 +2751,10 @@ return { json: { userId, username, isFollowing } };`
         console.log(`[BACKGROUND] Sending ${action} request to n8n: ${finalUrl}`);
         const n8nActRes = await fetch(finalUrl, {
           method: "POST",
-          headers: { "X-N8N-API-KEY": n8nApiKey }
+          headers: { 
+            "X-N8N-API-KEY": n8nApiKey,
+            "Content-Type": "application/json"
+          }
         });
 
         if (!n8nActRes.ok) {

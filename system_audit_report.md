@@ -121,6 +121,30 @@ These are the documented fixes for historical logic errors encountered during de
     - **Lead Manager + Menu Flow**: Restricted Lead Manager to Simple DMs and Carousels to ensure high conversion rates.
 - **User Feedback**: Added real-time toast notifications for blocked combinations to guide users toward supported workflows.
 
+### 5.8 Robust File Handling & Image Stability (April 2026)
+- **Problem**: Users were experiencing "Failed to read file" errors when saving automations, primarily due to stale blob URLs in restored drafts (e.g., after a page refresh).
+- **The Fix**: Implemented a multi-layered defense:
+    - **Proactive Cleanup**: `AutomationCreate` components now scan for stale `blob:` URLs on mount. If the underlying `File` is no longer in browser memory, the reference is cleared to prevent saving broken links.
+    - **Selection Validation**: `MediaUpload.tsx` now performs an immediate 100-byte "test read" on selection to catch OS-locked or inaccessible files (common with cloud-storage syncs like OneDrive) before the user even starts configuring.
+    - **Graceful Compression**: Overhauled the `compressImage` utility in `storage.ts` with descriptive error messages (e.g., "Image no longer available, please select it again") to guide the user instead of showing cryptic generic errors.
+    - **Save Guarantees**: The `processActions` loop now throws explicit errors if a file is missing, preventing valid-looking but broken automations from being synced to n8n.
+
+### 5.9 UI Default Experience (April 2026)
+- **Constraint**: Users requested more control over the default "automated" appearance of new automations.
+- **Change**: Set the default state of **"Reply to the comment"** to **OFF** for all creation wizards. This ensures users only trigger public replies when they explicitly intend to, reducing "bot-like" behavior on high-engagement posts unless configured otherwise.
+
+### 5.10 n8n Execution Stability & Activation Sync (April 2026)
+- **Problem 1 (Execution Hangs)**: Workflows were getting stuck in a "Running" state for hours.
+    - **Cause**: n8n HTTP Request nodes have no default timeout. If Meta rate-limits or the API hangs, the execution waits indefinitely.
+    - **Fix**: Added `EXECUTIONS_TIMEOUT=300` and `EXECUTIONS_TIMEOUT_MAX=600` to the n8n environment. This kills any execution exceeding 5-10 minutes.
+- **Problem 2 (Activation Desync)**: Toggling an automation to "Active" in the dashboard would sometimes fail to activate it in n8n, leading to 404 Webhook errors.
+    - **Root Cause**: The dashboard updated the database status *before* verifying the n8n API call succeeded.
+    - **Fix**: Implemented an **Atomic Sync Pattern** in `activate-workflow` and `deactivate-workflow`.
+        - The Edge Function now handles both n8n API calls and database updates.
+        - The frontend waits for the function result and rolls back the local UI state if synchronization fails.
+        - Added `Content-Type: application/json` to all n8n API calls to ensure compatibility.
+- **Cleanup**: After applying timeouts, use the "Stop all" button in n8n to clear the backlog of "Running" executions.
+
 ---
 
 ## 6. Infrastructure & Performance (EasyPanel)

@@ -328,53 +328,56 @@ export default function Automations() {
     setTogglingId(id);
 
     try {
-      // Update automation status in Supabase
-      const { error } = await supabase
-        .from('automations')
-        .update({ status: newStatus })
-        .eq('id', id);
-
-      if (error) throw error;
-
-      // Instant Subscribe: Prevent cold starts when activating
-      if (newStatus === 'active') {
-        try {
-          const { data: accountData } = await supabase
-            .from('instagram_accounts')
-            .select('id')
-            .eq('status', 'active')
-            .eq('user_id', user.id)
-            .maybeSingle();
-
-          if (accountData) {
-            await supabase.functions.invoke('manage-instagram-webhook', {
-              body: { accountId: accountData.id, action: 'subscribe' }
-            });
-          }
-        } catch (e) {
-          console.error('Instant subscribe trigger failed:', e);
-          // Do not throw, this is a progressive enhancement backing up the active state
-        }
-      }
-
-      // Update n8n workflow status if workflow exists
+      // 1. Trigger n8n sync if workflow exists (atomic update via Edge Function)
       if (n8nWorkflowId && user) {
-        try {
-          if (newStatus === 'active') {
-            await N8nWorkflowService.activateWorkflow(n8nWorkflowId, user.id);
-          } else {
-            await N8nWorkflowService.deactivateWorkflow(n8nWorkflowId, user.id);
-          }
-        } catch (n8nError) {
-          console.error('Error updating n8n workflow status:', n8nError);
-          // Optional: Revert if n8n fails? 
-          // For now, we'll keep the Supabase status as the source of truth, 
-          // but warn the user that n8n might not be in sync.
+        let result;
+        if (newStatus === 'active') {
+          result = await N8nWorkflowService.activateWorkflow(n8nWorkflowId, user.id);
+        } else {
+          result = await N8nWorkflowService.deactivateWorkflow(n8nWorkflowId, user.id);
         }
+        
+        if (!result.success) {
+          throw new Error(result.message || `Failed to ${newStatus} in n8n`);
+        }
+      } else {
+        // 2. Regular Supabase status update if no n8n workflow exists
+        const { error } = await supabase
+          .from('automations')
+          .update({ status: newStatus })
+          .eq('id', id);
+
+        if (error) throw error;
       }
-    } catch (error) {
+
+      // 3. Instant Subscribe: Prevent cold starts when activating (Background)
+      if (newStatus === 'active') {
+        (async () => {
+          try {
+            const { data: accounts } = await supabase
+              .from('instagram_accounts')
+              .select('id')
+              .eq('status', 'active')
+              .eq('user_id', user.id);
+
+            if (accounts && accounts.length > 0) {
+              await Promise.all(accounts.map(acc => 
+                supabase.functions.invoke('manage-instagram-webhook', {
+                  body: { accountId: acc.id, action: 'subscribe' }
+                })
+              ));
+            }
+          } catch (e) {
+            console.warn('Background webhook subscribe failed:', e);
+          }
+        })();
+      }
+
+      toast.success(`Automation ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully`);
+      
+    } catch (error: any) {
       console.error('Error updating automation status:', error);
-      toast.error('Failed to update automation status. Reverting changes.');
+      toast.error(`Failed to update status: ${error.message || 'Unknown error'}. Reverting changes.`);
 
       // Revert optimistic update on error
       setAutomations(automations.map(auto =>
@@ -382,6 +385,8 @@ export default function Automations() {
       ));
     } finally {
       setTogglingId(null);
+      // Final sync to ensure everything is correct
+      await fetchAutomations();
     }
   };
 
@@ -412,23 +417,28 @@ export default function Automations() {
     let successCount = 0;
     for (const auto of toToggle) {
       try {
-        // Update DB
-        const { error } = await supabase
-          .from('automations')
-          .update({ status: targetStatus })
-          .eq('id', auto.id);
-        if (error) throw error;
-
-        // Update n8n workflow
         if (auto.n8n_workflow_id && user) {
-          try {
-            if (targetStatus === 'active') {
-              await N8nWorkflowService.activateWorkflow(auto.n8n_workflow_id, user.id);
-            } else {
-              await N8nWorkflowService.deactivateWorkflow(auto.n8n_workflow_id, user.id);
-            }
-          } catch (_e) { /* n8n sync is best-effort */ }
+          // Atomic Edge Function Call
+          let result;
+          if (targetStatus === 'active') {
+            result = await N8nWorkflowService.activateWorkflow(auto.n8n_workflow_id, user.id);
+          } else {
+            result = await N8nWorkflowService.deactivateWorkflow(auto.n8n_workflow_id, user.id);
+          }
+          
+          if (!result.success) {
+            console.error(`Bulk toggle failed for ${auto.name}:`, result.message);
+            continue; // Skip if n8n failed for this one
+          }
+        } else {
+          // Fallback to simple DB update if no n8n workflow is linked
+          const { error } = await supabase
+            .from('automations')
+            .update({ status: targetStatus })
+            .eq('id', auto.id);
+          if (error) throw error;
         }
+
         successCount++;
         setBulkProgress(prev => prev + 1);
       } catch (e) {

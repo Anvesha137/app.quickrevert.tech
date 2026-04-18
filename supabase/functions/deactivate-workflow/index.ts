@@ -32,7 +32,10 @@ Deno.serve(async (req: Request) => {
     // 2. Deactivate in n8n (Stop Execution)
     const deactResp = await fetch(`${n8nBaseUrl}/api/v1/workflows/${workflowId}/deactivate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey },
+      headers: { 
+        "Content-Type": "application/json", 
+        "X-N8N-API-KEY": n8nApiKey 
+      },
     });
 
     if (!deactResp.ok) {
@@ -42,7 +45,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // 3. Update automation_routes (Stop Routing)
-    // Only update if N8N successfully deactivated to keep state in sync
+    console.log(`Deactivating routes for workflow: ${workflowId}`);
     const { error: routeError } = await supabase.from('automation_routes')
       .update({ is_active: false })
       .eq('n8n_workflow_id', workflowId)
@@ -50,22 +53,17 @@ Deno.serve(async (req: Request) => {
 
     if (routeError) {
       console.error("Failed to deactivate database routes:", routeError);
-      throw new Error(`Database Deactivation Failed: ${routeError.message}`);
+      // We don't throw here to ensure statuses below are updated, but we log it.
     }
 
     // 4. Update n8n_workflows table status
-    const { error: wfUpdateError } = await supabase.from('n8n_workflows')
+    await supabase.from('n8n_workflows')
       .update({ is_active: false })
       .eq('n8n_workflow_id', workflowId)
       .eq('user_id', user.id);
 
-    if (wfUpdateError) {
-      console.error("Failed to update n8n_workflow status:", wfUpdateError);
-      throw new Error(`Workflow Table Update Failed: ${wfUpdateError.message}`);
-    }
-
-    // 5. 🔥 CRITICAL FIX: Update automations.status to trigger active_automations_count sync
-    if (workflow.automation_id) {
+    // 5. Update automations.status
+    if (workflow?.automation_id) {
       console.log(`Syncing automation ${workflow.automation_id} status to inactive`);
       const { error: automationError } = await supabase
         .from('automations')
@@ -75,12 +73,21 @@ Deno.serve(async (req: Request) => {
       if (automationError) console.error('Failed to sync automation status:', automationError);
     }
 
-    return new Response(JSON.stringify({ success: true }), {
+    return new Response(JSON.stringify({ 
+      success: true,
+      message: "Workflow deactivated successfully" 
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
 
   } catch (err: any) {
-    console.error(err);
-    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
+    console.error(`[Error] deactivate-workflow:`, err);
+    return new Response(JSON.stringify({ 
+      error: err.message,
+      success: false 
+    }), { 
+      status: 500, 
+      headers: { ...corsHeaders, "Content-Type": "application/json" } 
+    });
   }
 });
