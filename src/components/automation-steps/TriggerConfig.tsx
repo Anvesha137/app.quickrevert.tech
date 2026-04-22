@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Grid, Globe, Target, Tag, Search, X, CheckCircle2, Clock, ChevronDown, Info, Image as ImageIcon, FileSpreadsheet } from 'lucide-react';
+import { Grid, Globe, Target, Tag, Search, X, CheckCircle2, Clock, ChevronDown, Info, Image as ImageIcon, FileSpreadsheet, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from "motion/react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -111,6 +111,8 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
   const [keyword, setKeyword] = useState('');
   const [posts, setPosts] = useState<InstagramMedia[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(false);
+  const [usedMediaIds, setUsedMediaIds] = useState<Set<string>>(new Set());
+  const { user } = useSubscription() as any; // Access user from context if available
   
   // 🔥 UX: Initialize selection states from the existing config if present
   const initialSavedPosts = (config as PostCommentTriggerConfig)?.specificPosts || [];
@@ -130,6 +132,38 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
   };
 
   const currentConfig = getConfig();
+
+  // 🔥 FETCH USED MEDIA: Prevent 2 automations for same post
+  useEffect(() => {
+    const fetchUsedMedia = async () => {
+      try {
+        const { data: automations, error } = await supabase
+          .from('automations')
+          .select('id, trigger_type, trigger_config, status')
+          .eq('status', 'active');
+        
+        if (error) throw error;
+        
+        const usedIds = new Set<string>();
+        automations?.forEach(auto => {
+          // If we are editing an automation, don't count its own posts as "used"
+          if (config && (config as any).id === auto.id) return;
+          
+          const tConfig = auto.trigger_config;
+          if (auto.trigger_type === 'post_comment' && tConfig?.postsType === 'specific') {
+            tConfig.specificPosts?.forEach((id: string) => usedIds.add(id));
+          } else if (auto.trigger_type === 'story_reply' && tConfig?.storiesType === 'specific') {
+            tConfig.specificStories?.forEach((id: string) => usedIds.add(id));
+          }
+        });
+        setUsedMediaIds(usedIds);
+      } catch (err) {
+        console.error("Error fetching used media:", err);
+      }
+    };
+
+    fetchUsedMedia();
+  }, [triggerType]);
 
   // 🔥 PERCEIVED PERFORMANCE: Synchronize state with config changes (e.g. after fetchAutomation)
   useEffect(() => {
@@ -324,20 +358,29 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
                     return (
                       <div
                         key={post.id}
-                        onClick={() => toggleMediaSelection(post.id)}
-                        className={`relative aspect-square min-w-0 min-h-0 w-full cursor-pointer rounded-xl overflow-hidden border-2 transition-all
-                          ${isSelected ? "border-purple-600 shadow-[0_0_15px_rgba(147,51,234,0.3)] ring-2 ring-purple-600/50 scale-[0.98]" : "border-transparent hover:border-purple-200"}`}
+                        onClick={() => !usedMediaIds.has(post.id) && toggleMediaSelection(post.id)}
+                        className={cn(
+                          "relative aspect-square min-w-0 min-h-0 w-full cursor-pointer rounded-xl overflow-hidden border-2 transition-all",
+                          post.id === pendingMediaId ? "border-purple-600 shadow-[0_0_15px_rgba(147,51,234,0.3)] ring-2 ring-purple-600/50 scale-[0.98]" : "border-transparent hover:border-purple-200",
+                          usedMediaIds.has(post.id) && "opacity-40 grayscale cursor-not-allowed"
+                        )}
                       >
                         {post.media_type === 'VIDEO' ? (
-                          <video src={post.media_url} poster={post.thumbnail_url} autoPlay loop muted playsInline className={`w-full h-full object-cover transition-transform ${isSelected ? 'scale-110' : ''}`} />
+                          <video src={post.media_url} poster={post.thumbnail_url} autoPlay loop muted playsInline className={`w-full h-full object-cover transition-transform ${post.id === pendingMediaId ? 'scale-110' : ''}`} />
                         ) : (
-                          <img src={post.media_url} alt={post.caption || 'Post'} className={`w-full h-full object-cover transition-transform ${isSelected ? 'scale-110' : ''}`} />
+                          <img src={post.media_url} alt={post.caption || 'Post'} className={`w-full h-full object-cover transition-transform ${post.id === pendingMediaId ? 'scale-110' : ''}`} />
                         )}
-                        {isSelected && (
+                        {post.id === pendingMediaId && (
                           <div className="absolute inset-0 bg-purple-600/20 backdrop-blur-[1px] flex items-center justify-center transition-all">
                             <div className="bg-purple-600 text-white p-1.5 rounded-full shadow-lg scale-110">
                               <CheckCircle2 size={16} strokeWidth={3} />
                             </div>
+                          </div>
+                        )}
+                        {usedMediaIds.has(post.id) && (
+                          <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center p-2 text-center">
+                            <Lock size={16} className="text-white/60 mb-1" />
+                            <span className="text-[8px] font-black uppercase text-white/80 leading-tight">Already<br/>Automated</span>
                           </div>
                         )}
                       </div>

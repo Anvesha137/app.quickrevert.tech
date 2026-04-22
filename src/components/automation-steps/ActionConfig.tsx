@@ -380,7 +380,9 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                 <div className="flex items-center gap-2 mb-0.5">
                   <h3 className={cn("font-bold text-[14px] md:text-[15px]", darkMode ? "text-white" : "text-gray-900")}>Ask to Follow First</h3>
                   {!canUseAskToFollow && (
-                    <span className="bg-purple-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider">PREMIUM</span>
+                    <span className="bg-purple-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider flex items-center gap-1">
+                      <Lock size={8} /> PREMIUM
+                    </span>
                   )}
                   <span className="bg-emerald-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-tight">Recommended</span>
                 </div>
@@ -466,25 +468,26 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                         <div className="flex flex-col md:flex-row gap-2">
                           {['simple', 'carousel', 'conversation_flow'].map((type) => {
                             const isSelected = (dmAction?.dmType || 'simple') === type;
-                            let isSupported = type === 'simple' ? caps.dm : (type === 'carousel' ? caps.carousel : caps.convFlow);
+                            const isSupported = type === 'simple' ? caps.dm : (type === 'carousel' ? caps.carousel : caps.convFlow);
                             
                             // Feature flag checks
-                            if (type === 'carousel' && !canUseCarousel) isSupported = false;
-                            if (type === 'conversation_flow' && !canUseMenuFlow) isSupported = false;
+                            const isLocked = (type === 'carousel' && !canUseCarousel) || (type === 'conversation_flow' && !canUseMenuFlow);
 
-                            if (!isSupported) return null;
+                            if (!isSupported && !isLocked) return null;
                             return (
                               <button
                                 key={type}
-                                onClick={() => updateDmAction({ dmType: type as any })}
+                                onClick={() => isLocked ? openModal() : updateDmAction({ dmType: type as any })}
                                 disabled={readOnly}
                                 className={cn(
-                                  "flex-1 py-2 px-3 rounded-xl border-2 font-bold text-[13px] transition-all",
+                                  "flex-1 py-2 px-3 rounded-xl border-2 font-bold text-[13px] transition-all flex items-center justify-center gap-2",
                                   isSelected
                                     ? (darkMode ? "border-purple-500 bg-purple-500/20 text-purple-300" : "border-purple-600 bg-purple-50 text-purple-700")
-                                    : (darkMode ? "border-white/10 bg-white/5 text-white/40 hover:bg-white/10" : "border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100")
+                                    : (darkMode ? "border-white/10 bg-white/5 text-white/40 hover:bg-white/10" : "border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100"),
+                                  isLocked && "opacity-80 grayscale-[0.5]"
                                 )}
                               >
+                                {isLocked && <Lock size={12} className="text-purple-500" />}
                                 {type === 'simple' && 'Simple Message'}
                                 {type === 'carousel' && 'Carousel Engine'}
                                 {type === 'conversation_flow' && 'Menu Flow'}
@@ -858,7 +861,10 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
 
                           <div className="space-y-3">
                             <div className="flex items-center justify-between">
-                              <label className={`text-[10px] font-bold uppercase tracking-wide ${darkMode ? 'text-white/40' : 'text-gray-500'}`}>Include Image</label>
+                              <div className="flex items-center gap-2">
+                                <ImageIcon className={cn("w-3.5 h-3.5", darkMode ? "text-white/40" : "text-gray-400")} />
+                                <label className={`text-[10px] font-bold uppercase tracking-wide ${darkMode ? 'text-white/40' : 'text-gray-500'}`}>Include Attachment (Image)</label>
+                              </div>
                               <label className="relative inline-flex items-center cursor-pointer">
                                 <input
                                   type="checkbox"
@@ -867,7 +873,10 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                                   onChange={(e) => updateDmAction({ showImage: e.target.checked })}
                                   disabled={readOnly}
                                 />
-                                <div className="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-purple-600 shadow-inner"></div>
+                                <div className={cn(
+                                  "w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600 shadow-inner",
+                                  darkMode && "bg-white/10"
+                                )}></div>
                               </label>
                             </div>
 
@@ -1183,7 +1192,7 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                                     updateDmAction({
                                       carouselCards: [
                                         ...(dmAction?.carouselCards || []),
-                                        { id: Date.now().toString(), title: '', imageUrl: '', buttons: [{ id: 'btn-' + Date.now(), text: 'Open', url: '', buttonType: 'web_url' }] }
+                                        { id: Date.now().toString(), title: '', imageUrl: '', buttons: [] }
                                       ]
                                     });
                                   }}
@@ -1205,7 +1214,7 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                           {(dmAction?.carouselCards?.length || 0) === 0 && !readOnly && (
                             <div className="flex justify-center py-4">
                               <button
-                                onClick={() => updateDmAction({ carouselCards: [{ id: Date.now().toString(), title: '', imageUrl: '', buttons: [{ id: 'btn1', text: 'Open', url: '', buttonType: 'web_url' }] }] })}
+                                onClick={() => updateDmAction({ carouselCards: [{ id: Date.now().toString(), title: '', imageUrl: '', buttons: [] }] })}
                                 className={cn(
                                   "w-[280px] aspect-square rounded-[2.5rem] border-2 border-dashed flex flex-col items-center justify-center gap-4 transition-all hover:bg-purple-500/5 hover:border-purple-500/50 group/add",
                                   darkMode ? "border-white/10 bg-white/[0.02] text-white/20" : "border-gray-200 bg-gray-50 text-gray-400"
@@ -1245,7 +1254,9 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                   <div className="flex items-center gap-2 mb-0.5">
                     <h3 className={`font-bold text-[14px] md:text-[15px] ${darkMode ? 'text-white' : 'text-gray-900'}`}>Lead Manager (CRM)</h3>
                     {!canUseLeadManager && (
-                      <span className="bg-purple-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider">PREMIUM</span>
+                      <span className="bg-purple-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider flex items-center gap-1">
+                        <Lock size={8} /> PREMIUM
+                      </span>
                     )}
                   </div>
                   <p className={`text-[11px] md:text-xs font-medium ${darkMode ? 'text-white/40' : 'text-gray-400'}`}>Automatically capture and store user details in your Lead Manager</p>
@@ -1563,7 +1574,9 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                   <div className="flex items-center gap-2 mb-0.5">
                     <h3 className={cn("font-bold text-[14px] md:text-[15px]", darkMode ? "text-white" : "text-gray-900")}>Automated Follow-up</h3>
                     {!canUseFollowUpMsgs && (
-                      <span className="bg-purple-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider">PROFESSIONAL</span>
+                      <span className="bg-purple-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider flex items-center gap-1">
+                        <Lock size={8} /> PROFESSIONAL
+                      </span>
                     )}
                   </div>
                   <p className={cn("text-[11px] md:text-xs font-medium leading-tight", darkMode ? "text-white/40" : "text-gray-400")}>Send a second message automatically after a delay to boost response rates</p>
