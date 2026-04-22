@@ -47,7 +47,7 @@ BEGIN
       INSERT INTO public.automation_routes (
         account_id, user_id, n8n_workflow_id, event_type, sub_type, is_active
       ) VALUES (
-        CAST(v_route->>'account_id' AS UUID), p_user_id, p_n8n_id, v_route->>'event_type', 
+        v_route->>'account_id', p_user_id, p_n8n_id, v_route->>'event_type', 
         NULLIF(v_route->>'sub_type', ''), CAST(v_route->>'is_active' AS BOOLEAN)
       );
     END LOOP;

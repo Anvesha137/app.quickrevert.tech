@@ -108,7 +108,7 @@ serve(async (req) => {
                                 }
                             ]
                         },
-                        "options": {}
+                        "options": { "timeout": 15000 }
                     },
                     "type": "n8n-nodes-base.httpRequest",
                     "typeVersion": 4.3,
@@ -137,7 +137,7 @@ serve(async (req) => {
                         "sendBody": true,
                         "specifyBody": "json",
                         "jsonBody": "={\n  \"initial_followers_count\": {{ $json.followers_count }},\n  \"followers_count\": {{ $json.followers_count }},\n  \"followers_last_updated\": \"{{ new Date().toISOString() }}\"\n}",
-                        "options": {}
+                        "options": { "timeout": 15000 }
                     },
                     "type": "n8n-nodes-base.httpRequest",
                     "typeVersion": 4.3,
@@ -170,7 +170,7 @@ serve(async (req) => {
                                 }
                             ]
                         },
-                        "options": {}
+                        "options": { "timeout": 15000 }
                     },
                     "type": "n8n-nodes-base.httpRequest",
                     "typeVersion": 4.3,
@@ -199,7 +199,7 @@ serve(async (req) => {
                         "sendBody": true,
                         "specifyBody": "json",
                         "jsonBody": "={\n  \"followers_count\": {{ $json.followers_count }},\n  \"followers_last_updated\": \"{{ new Date().toISOString() }}\"\n}",
-                        "options": {}
+                        "options": { "timeout": 15000 }
                     },
                     "type": "n8n-nodes-base.httpRequest",
                     "typeVersion": 4.3,
@@ -278,6 +278,9 @@ serve(async (req) => {
             },
             settings: {
                 saveExecutionProgress: true,
+                saveDataErrorExecution: "all",
+                saveManualExecutions: true,
+                executionTimeout: 300,
                 timezone: "Asia/Kolkata"
             }
         };

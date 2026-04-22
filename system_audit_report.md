@@ -165,6 +165,254 @@ The system is hosted via EasyPanel (Hostinger) with a **6GB RAM limit**.
 ---
 **This audit serves as the engineering manual for QuickRevert. Maintain it as the system evolves.**
 
+---
+
+## 8. Automation Lifecycle: Bug Fixes & Architecture (April 2026)
+
+This section documents all bugs found and fixed in the full automation lifecycle — **Create → Activate → Execute → Deactivate → Reactivate → Delete** — as part of an intensive debugging session.
+
+---
+
+### 8.1 Root Cause: `automation_routes.account_id` Type Mismatch (The Silent Killer)
+
+> [!CAUTION]
+> This was the **single biggest bug** causing 100% of execution failures for newly created automations.
+
+**Schema Definition** (`20260124150000_recreate_automation_routes_v2.sql`):
+```sql
+account_id TEXT NOT NULL, -- Meta ID (Instagram Business Account ID)
+```
+
+**What was happening in `create-workflow`:**
+```ts
+// ❌ WRONG — was inserting the internal Supabase UUID
+const userAccounts = [{ id: instagramAccountId }]; // UUID like "a1b2c3d4-..."
+globalRoutes.push({ account_id: account.id, ... });
+```
+
+**What `webhook-meta` receives from Meta:**
+```
+entry.id = "17841447024312179"  // Meta's numeric Instagram Business ID (TEXT)
+```
+
+**The query that always returned 0 results:**
+```sql
+SELECT * FROM automation_routes WHERE account_id = '17841447024312179'
+-- But we stored 'a1b2c3d4-...' (UUID) → 0 rows forever
+```
+
+**The Fix:**
+```ts
+// ✅ CORRECT — use instagram_business_id (the Meta numeric ID)
+const metaAccountId = String(instagramAccount.instagram_business_id);
+globalRoutes.push({ account_id: metaAccountId, ... }); 
+```
+
+**Key Rule**: `automation_routes.account_id` **must always be the Meta Instagram Business ID** (the number Meta sends in `entry.id`). Never the internal Supabase UUID.
+
+---
+
+### 8.2 Root Cause: RPC `register_automation` Overload Conflict (PGRST203)
+
+**Symptom in Supabase logs:**
+```
+[BACKGROUND] RPC Registration Failed: { code: "PGRST203", hint: "Try renaming the parameters 
+or the function itself so function overloading can be resolved" }
+```
+
+**Cause**: During earlier development, the `register_automation` function was modified multiple times (adding/removing `p_is_active` parameter). This left **two conflicting versions** of the function in the database. PostgREST couldn't determine which overload to call, so it crashed every single time.
+
+**Additional SQL Bug** in the original RPC:
+```sql
+-- ❌ WRONG — account_id is TEXT, not UUID
+CAST(v_route->>'account_id' AS UUID)
+
+-- ✅ CORRECT — insert as TEXT directly
+v_route->>'account_id'
+```
+
+**The Fix**: Completely removed the RPC call from `create-workflow`. Replaced with direct `supabase.from(...).upsert()` and `.insert()` calls which are more transparent, debuggable, and require no database migration to maintain.
+
+**New Registration Flow in `create-workflow`:**
+1. `supabase.from('n8n_workflows').upsert(...)` — creates or updates the workflow record
+2. `supabase.from('automation_routes').delete().eq('n8n_workflow_id', ...)` — clears old routes
+3. `supabase.from('automation_routes').insert(routesToInsert)` — inserts fresh routes with correct Meta ID
+4. `supabase.from('tracked_posts').insert(trackedPostsToInsert)` — inserts specific post filters (if applicable)
+
+---
+
+### 8.3 Execute / Trigger Flow: How a Comment Reaches n8n
+
+```
+Instagram User Comments on a Post
+         ↓
+Meta sends webhook → Cloudflare Bouncer (drops receipts/echoes)
+         ↓
+webhook-meta Edge Function receives POST
+         ↓
+Signature verified (HMAC SHA-256)
+         ↓
+processEvent() → loops through entries
+         ↓
+Account lookup: instagram_accounts WHERE instagram_business_id = entry.id
+         ↓
+resolveRoutes(internalAccountId, event_type, sub_type, mediaId)
+  ├─ [Specific Post] tracked_posts WHERE media_id = X → returns ONLY that workflow
+  └─ [All Posts]     automation_routes WHERE account_id = metaId AND is_active = true
+         ↓
+triggerWorkflows() → for each matched workflow:
+  - Fetch webhook_path from n8n_workflows
+  - POST to https://n8n.quickrevert.tech/webhook/{webhook_path}
+         ↓
+n8n workflow executes → DM/reply sent
+```
+
+**Critical Notes:**
+- `internalAccountId` (UUID) is used **only** to query `automation_routes` (the route lookup)
+- `instagram_business_id` (Meta's numeric ID as TEXT) is what's stored in `automation_routes.account_id`
+- If no route is found, `resolveRoutes` returns empty → `webhook-meta` logs `[EARLY EXIT]` and stops
+
+---
+
+### 8.4 Activation Flow (Dashboard Toggle ON)
+
+**Function**: `activate-workflow` Edge Function  
+**Called by**: `n8nService.ts → activateWorkflow(workflowId)`
+
+**Execution Steps:**
+1. Validate user owns the workflow
+2. Read automation's `trigger_type` and `trigger_config` from `automations` table
+3. Read `instagram_business_id` from `instagram_accounts` table (needed to build correct routes)
+4. **Try to update existing routes** → `automation_routes SET is_active = true WHERE n8n_workflow_id = X`
+5. **If 0 routes found** (routes were never created due to old RPC bug) → **rebuild routes from scratch** with correct Meta account ID
+6. Call `POST /api/v1/workflows/{id}/activate` on n8n
+7. Update `n8n_workflows SET is_active = true`
+8. Update `automations SET status = 'active'`
+
+> [!IMPORTANT]
+> Step 5 is the key resilience fix. Old automations created during the RPC bug era had zero routes in the database. Without the rebuild, re-activation appeared to succeed (n8n got activated) but webhook-meta would still receive 0 routes and never trigger the workflow.
+
+---
+
+### 8.5 Deactivation Flow (Dashboard Toggle OFF)
+
+**Function**: `deactivate-workflow` Edge Function  
+**Called by**: `n8nService.ts → deactivateWorkflow(workflowId)`
+
+**Execution Steps:**
+1. Validate user owns the workflow
+2. Call `POST /api/v1/workflows/{id}/deactivate` on n8n — **hard stop**
+3. Update `automation_routes SET is_active = false WHERE n8n_workflow_id = X` — **stops routing**
+4. Update `n8n_workflows SET is_active = false`
+5. Update `automations SET status = 'inactive'`
+
+> [!NOTE]
+> Deactivating routes at step 3 is the **primary** protection. Even if n8n somehow keeps running, webhook-meta checks `is_active = true` before forwarding, so no executions will happen.
+
+**Bug Fixed**: Previously, the deactivation function was doing a `GET` + `PUT` to visually flip the toggle in n8n's UI. This caused a **400 error** because n8n rejects `PUT` on an active workflow without calling `/deactivate` first. Fixed by calling `/deactivate` endpoint first, then syncing DB.
+
+---
+
+### 8.6 Deletion Flow (Dashboard Delete Button)
+
+**Function**: `delete-workflow` Edge Function  
+**Called by**: `n8nService.ts → deleteWorkflow(workflowId)`
+
+**Bug Fixed (Critical)**: The original implementation ran the n8n DELETE inside a fire-and-forget IIFE:
+```ts
+// ❌ OLD — background task gets killed when response is sent
+const task = (async () => {
+  await fetch(`${n8nBaseUrl}/api/v1/workflows/${id}`, { method: 'DELETE' });
+})();
+// Response sent here → Supabase kills the process → n8n DELETE never ran
+return new Response(JSON.stringify({ success: true }));
+```
+
+**The Fix**: Made all operations synchronous before returning the response:
+```ts
+// ✅ NEW — everything awaited before returning
+await fetch(`${n8nBaseUrl}/api/v1/workflows/${id}`, { method: 'DELETE' });
+await supabase.from('automation_routes').delete().eq('n8n_workflow_id', id);
+await supabase.from('tracked_posts').delete().eq('workflow_id', id);
+await supabase.from('n8n_workflows').delete().eq('n8n_workflow_id', id);
+await supabase.from('automations').update({ status: 'inactive' }).eq('id', automationId);
+return new Response(JSON.stringify({ success: true }));
+```
+
+> [!CAUTION]
+> **Supabase Edge Functions kill all background/async tasks the moment a Response is returned.** Never use fire-and-forget patterns for critical operations like n8n API calls, DB deletes, or route cleanup. Always `await` everything before returning.
+
+---
+
+### 8.7 Specific Post Routing (Tracked Posts System)
+
+For **Post Comment** automations with "Specific Posts" mode selected, the system uses a separate `tracked_posts` table instead of generic `automation_routes`.
+
+**Table Schema (`tracked_posts`)**:
+```sql
+workflow_id       TEXT     -- n8n workflow ID this post belongs to
+platform          TEXT     -- 'instagram'
+media_id          TEXT     -- Meta's media/post ID (numeric string)
+instagram_username TEXT    -- human-readable: which account
+automation_name   TEXT     -- human-readable: which automation
+webhook_path      TEXT     -- direct webhook path to call in n8n
+created_at        TIMESTAMPTZ
+```
+
+**How routing works for specific posts:**
+```
+Comment arrives on mediaId = "17665..."
+         ↓
+resolveRoutes() checks:
+  SELECT workflow_id FROM tracked_posts WHERE media_id = '17665...'
+         ↓
+  [FOUND]  → routes = [{ n8n_workflow_id: specificWorkflowId }]
+             ONLY that webhook fires. Global routes are NOT checked.
+  [NOT FOUND] → falls back to automation_routes (all-posts automations)
+```
+
+**Key property**: If a `media_id` is in `tracked_posts`, no other automation will fire for that comment, even if the same Instagram account has other active automations. This is exact-post-to-automation pinning.
+
+---
+
+### 8.8 Execution Visibility in n8n (saveDataSuccessExecution)
+
+**Problem**: Automations were executing (DMs were being sent) but the n8n dashboard showed no execution history, making debugging impossible.
+
+**Cause**: A previous performance optimization had disabled execution saving:
+```json
+{ "saveDataSuccessExecution": "none" }
+```
+
+**Fix**: Re-enabled in all workflow builds:
+```json
+{
+  "saveDataSuccessExecution": "all",
+  "saveDataErrorExecution": "all",
+  "saveManualExecutions": true,
+  "saveExecutionProgress": true,
+  "executionTimeout": 300
+}
+```
+
+> [!TIP]
+> If n8n performance degrades (slower dashboard, large DB), you can switch `saveDataSuccessExecution` back to `"none"` — but keep `saveDataErrorExecution: "all"` so errors are always visible.
+
+---
+
+### 8.9 Key Architecture Rules (Do Not Break)
+
+| Rule | Why |
+|---|---|
+| `automation_routes.account_id` = Meta Business ID (TEXT) | `webhook-meta` queries with `entry.id` from Meta, which is always the numeric string |
+| Never use Supabase UUID in `automation_routes.account_id` | UUIDs will never match Meta's numeric IDs → 0 routes → 0 executions |
+| All n8n API calls must be awaited before returning | Supabase kills background tasks on response |
+| Always call `/deactivate` before updating workflow via `PUT` | n8n rejects `PUT` on active workflows |
+| Route `is_active` = false stops execution even if n8n is active | `webhook-meta` is the gatekeeper, not n8n |
+| `tracked_posts` entries override `automation_routes` | Specific-post routing takes priority over generic account routing |
+
+
+
 ## invoations 
 # [Audit] Periodic Invocation Analysis: User X (Viral Reels)
 

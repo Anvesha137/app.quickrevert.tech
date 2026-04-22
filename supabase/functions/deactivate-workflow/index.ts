@@ -10,38 +10,38 @@ Deno.serve(async (req: Request) => {
     const { workflowId } = await req.json();
     if (!workflowId) throw new Error("Missing workflowId");
 
-    // 1. Verify owner (Strict)
     console.log(`Deactivate Request: User=${user.id}, WorkflowId=${workflowId}`);
 
+    // 1. Verify owner
     const { data: workflow, error: wfError } = await supabase
       .from("n8n_workflows")
       .select("user_id, automation_id")
       .eq("n8n_workflow_id", workflowId)
-      .eq("user_id", user.id) // STRICT
+      .eq("user_id", user.id)
       .single();
 
     if (wfError || !workflow) {
-      console.warn(`Workflow record not found for ID ${workflowId}. Proceeding with N8N deactivation attempt mostly as cleanup.`);
-      // Do NOT throw. We want to stop the n8n execution regardless of DB state.
+      console.warn(`Workflow record not found for ID ${workflowId}. Attempting n8n deactivation anyway.`);
     }
 
-    const n8nBaseUrl = Deno.env.get("N8N_BASE_URL");
+    const n8nBaseUrlRaw = Deno.env.get("N8N_BASE_URL");
     const n8nApiKey = Deno.env.get("X-N8N-API-KEY");
-    if (!n8nBaseUrl || !n8nApiKey) throw new Error("N8N Config missing");
+    if (!n8nBaseUrlRaw || !n8nApiKey) throw new Error("N8N Config missing");
 
-    // 2. Deactivate in n8n (Stop Execution)
+    const n8nBaseUrl = n8nBaseUrlRaw.endsWith('/') ? n8nBaseUrlRaw.slice(0, -1) : n8nBaseUrlRaw;
+
+    // 2. Call /deactivate endpoint first — this is the HARD stop
+    console.log(`Calling n8n /deactivate for workflow: ${workflowId}`);
     const deactResp = await fetch(`${n8nBaseUrl}/api/v1/workflows/${workflowId}/deactivate`, {
       method: "POST",
-      headers: { 
-        "Content-Type": "application/json", 
-        "X-N8N-API-KEY": n8nApiKey 
-      },
+      headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey },
     });
 
     if (!deactResp.ok) {
-      const errorText = await deactResp.text();
-      console.error(`n8n deactivation failed with status ${deactResp.status}:`, errorText);
-      throw new Error(`n8n deactivation failed: ${errorText || deactResp.statusText}`);
+      console.warn(`n8n /deactivate returned ${deactResp.status}: ${await deactResp.text()}`);
+      // Don't throw — continue to sync DB
+    } else {
+      console.log(`✅ n8n /deactivate succeeded`);
     }
 
     // 3. Update automation_routes (Stop Routing)
@@ -51,10 +51,7 @@ Deno.serve(async (req: Request) => {
       .eq('n8n_workflow_id', workflowId)
       .eq('user_id', user.id);
 
-    if (routeError) {
-      console.error("Failed to deactivate database routes:", routeError);
-      // We don't throw here to ensure statuses below are updated, but we log it.
-    }
+    if (routeError) console.error("Failed to deactivate database routes:", routeError);
 
     // 4. Update n8n_workflows table status
     await supabase.from('n8n_workflows')

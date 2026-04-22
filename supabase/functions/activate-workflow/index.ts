@@ -8,113 +8,133 @@ Deno.serve(async (req: Request) => {
     const { user, supabase } = await validateUser(req);
 
     const body = await req.json();
-    const { workflowId, active } = body; // Support 'active' flag if sent, default to true
+    const { workflowId, active } = body;
     const shouldActivate = active !== false; // Default true
 
     if (!workflowId) throw new Error("Missing workflowId");
-
     console.log(`Req: User=${user.id}, Workflow=${workflowId}, Active=${shouldActivate}`);
 
-    // 1. Verify workflow
+    // 1. Verify workflow & get instagram_account_id
     const { data: existingWf, error: findError } = await supabase
       .from('n8n_workflows')
       .select('id, user_id, automation_id, instagram_account_id')
       .eq('n8n_workflow_id', workflowId)
       .single();
 
-    if (findError || !existingWf) {
-      console.error("Workflow not found", findError);
-      throw new Error("Workflow not found in database");
-    }
-
+    if (findError || !existingWf) throw new Error("Workflow not found in database");
     if (existingWf.user_id !== user.id) throw new Error("Unauthorized");
 
-    const n8nBaseUrl = Deno.env.get("N8N_BASE_URL");
+    const n8nBaseUrlRaw = Deno.env.get("N8N_BASE_URL");
     const n8nApiKey = Deno.env.get("X-N8N-API-KEY");
+    if (!n8nBaseUrlRaw || !n8nApiKey) throw new Error("N8N Config missing");
+    const baseUrl = n8nBaseUrlRaw.endsWith('/') ? n8nBaseUrlRaw.slice(0, -1) : n8nBaseUrlRaw;
 
-    // 2. FETCH TRIGGER CONFIG & ACTIONS
+    // 2. Get automation config to rebuild routes correctly
     let triggerType = 'user_dm';
     let triggerConfig: any = {};
-    let automationActions: any[] = [];
-    let automationId = existingWf.automation_id;
+    const automationId = existingWf.automation_id;
 
     if (automationId) {
       const { data: autoData } = await supabase
         .from('automations')
-        .select('trigger_type, trigger_config, actions')
+        .select('trigger_type, trigger_config')
         .eq('id', automationId)
         .single();
       if (autoData) {
         triggerType = autoData.trigger_type || 'user_dm';
         triggerConfig = autoData.trigger_config || {};
-        automationActions = autoData.actions || [];
       }
     }
 
-    const hasLeadManager = automationActions.some((a: any) => a.type === 'save_lead');
-    const specificPosts = triggerConfig.postsType === 'specific' ? (triggerConfig.specificPosts || []) : [];
+    // 3. Get the Meta Instagram Business ID from the instagram account
+    const { data: igAccount } = await supabase
+      .from('instagram_accounts')
+      .select('instagram_business_id')
+      .eq('id', existingWf.instagram_account_id)
+      .single();
 
-    // 3. ROUTE MANAGEMENT
+    const metaAccountId = igAccount ? String(igAccount.instagram_business_id) : null;
+    console.log(`[ROUTES] Meta account ID: ${metaAccountId}, trigger: ${triggerType}`);
+
+    // 4. ROUTE MANAGEMENT
     if (shouldActivate) {
-      console.log(`Activating routes for workflow: ${workflowId}`);
-      const { error: routeError } = await supabase.from('automation_routes')
+      // Try updating existing routes first
+      const { data: updatedRoutes, error: updateErr } = await supabase
+        .from('automation_routes')
         .update({ is_active: true })
         .eq('n8n_workflow_id', workflowId)
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .select();
 
-      if (routeError) {
-        console.error("Failed to update active routes:", routeError);
+      if (updateErr) console.error("Failed to update routes:", updateErr);
+
+      // If no routes exist (were never created due to RPC bug), INSERT them now
+      const routeCount = updatedRoutes?.length || 0;
+      console.log(`[ROUTES] Updated ${routeCount} existing routes`);
+
+      if (routeCount === 0 && metaAccountId) {
+        console.log(`[ROUTES] No existing routes found — rebuilding from scratch`);
+
+        const isSpecificPosts = triggerConfig.postsType === 'specific';
+        const routesToInsert: any[] = [];
+
+        if (triggerType === 'post_comment') {
+          if (!isSpecificPosts) {
+            routesToInsert.push({ account_id: metaAccountId, user_id: user.id, n8n_workflow_id: workflowId, event_type: 'changes', sub_type: 'comments', is_active: true });
+          }
+          routesToInsert.push({ account_id: metaAccountId, user_id: user.id, n8n_workflow_id: workflowId, event_type: 'messaging', sub_type: 'postback', is_active: true });
+          routesToInsert.push({ account_id: metaAccountId, user_id: user.id, n8n_workflow_id: workflowId, event_type: 'messaging', sub_type: null, is_active: true });
+        } else if (triggerType === 'story_reply') {
+          routesToInsert.push({ account_id: metaAccountId, user_id: user.id, n8n_workflow_id: workflowId, event_type: 'messaging', sub_type: null, is_active: true });
+        } else {
+          routesToInsert.push({ account_id: metaAccountId, user_id: user.id, n8n_workflow_id: workflowId, event_type: 'messaging', sub_type: null, is_active: true });
+          routesToInsert.push({ account_id: metaAccountId, user_id: user.id, n8n_workflow_id: workflowId, event_type: 'messaging', sub_type: 'postback', is_active: true });
+        }
+
+        if (routesToInsert.length > 0) {
+          const { error: insertErr } = await supabase.from('automation_routes').insert(routesToInsert);
+          if (insertErr) console.error("[ROUTES] Failed to rebuild routes:", insertErr);
+          else console.log(`[ROUTES] ✅ Rebuilt ${routesToInsert.length} routes for ${workflowId}`);
+        }
       }
     } else {
-      console.log(`Deactivating routes for workflow: ${workflowId}`);
+      // Deactivating — just update flag
       const { error: routeError } = await supabase.from('automation_routes')
         .update({ is_active: false })
         .eq('n8n_workflow_id', workflowId)
         .eq('user_id', user.id);
-
-      if (routeError) {
-        console.error("Failed to deactivate routes:", routeError);
-      }
+      if (routeError) console.error("Failed to deactivate routes:", routeError);
     }
 
-    // 4. N8N ACTIVATION
-    if (!n8nBaseUrl || !n8nApiKey) {
-      throw new Error("N8N Configuration missing in secrets");
-    }
-
+    // 5. Call n8n to activate/deactivate
     const action = shouldActivate ? 'activate' : 'deactivate';
-    const baseUrl = n8nBaseUrl.endsWith('/') ? n8nBaseUrl.slice(0, -1) : n8nBaseUrl;
     const finalUrl = `${baseUrl}/api/v1/workflows/${workflowId}/${action}`;
-    
-    console.log(`n8n ${action}: ${finalUrl}`);
+    console.log(`[N8N] Calling ${action}: ${finalUrl}`);
+
     const n8nRes = await fetch(finalUrl, {
       method: "POST",
-      headers: { 
-        "X-N8N-API-KEY": n8nApiKey,
-        "Content-Type": "application/json"
-      }
+      headers: { "X-N8N-API-KEY": n8nApiKey, "Content-Type": "application/json" }
     });
 
     if (!n8nRes.ok) {
-      const errorText = await n8nRes.text();
-      console.error(`n8n ${action} failed:`, {
-        status: n8nRes.status,
-        statusText: n8nRes.statusText,
-        body: errorText
-      });
-      throw new Error(`n8n ${action} failed: ${errorText || n8nRes.statusText}`);
+      console.warn(`n8n /${action} returned ${n8nRes.status}: ${await n8nRes.text()}`);
+    } else {
+      console.log(`[N8N] ✅ ${action} succeeded`);
     }
 
-    // 5. Update Statuses
-    console.log(`Syncing database status for workflow: ${workflowId} to ${shouldActivate}`);
-    await supabase.from('n8n_workflows').update({ is_active: shouldActivate }).eq('n8n_workflow_id', workflowId);
+    // 6. Sync DB statuses
+    await supabase.from('n8n_workflows')
+      .update({ is_active: shouldActivate })
+      .eq('n8n_workflow_id', workflowId);
+
     if (automationId) {
-      const { error: autoError } = await supabase.from('automations').update({ status: shouldActivate ? 'active' : 'inactive' }).eq('id', automationId);
-      if (autoError) console.error("Failed to sync automation status:", autoError);
+      await supabase.from('automations')
+        .update({ status: shouldActivate ? 'active' : 'inactive' })
+        .eq('id', automationId);
     }
 
-    return new Response(JSON.stringify({ 
-      success: true, 
+    return new Response(JSON.stringify({
+      success: true,
       active: shouldActivate,
       message: `Workflow ${shouldActivate ? 'activated' : 'deactivated'} successfully`
     }), {
@@ -123,12 +143,12 @@ Deno.serve(async (req: Request) => {
 
   } catch (err: any) {
     console.error(`[Error] activate-workflow:`, err);
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       error: err.message,
-      success: false 
-    }), { 
-      status: 500, 
-      headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      success: false
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
   }
 });

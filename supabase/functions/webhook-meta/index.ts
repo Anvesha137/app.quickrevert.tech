@@ -62,7 +62,7 @@ serve(async (req) => {
             // Async processing to allow immediate 200 OK
             // We do NOT await processEvent here so Meta gets 200 OK immediately
             processEvent(json).catch(err => console.error("Background processing error:", err));
-            
+
             return new Response("EVENT_RECEIVED", { status: 200 });
         } catch (e) {
             console.error("Error in ingestion:", e);
@@ -118,13 +118,9 @@ async function processEvent(body: any) {
             .or(`instagram_business_id.eq.${account_id},instagram_user_id.eq.${account_id}`)
             .eq('status', 'active');
 
-        // 🔥 EARLY EXIT LOGIC 🔥
-        if (accountsData && accountsData.length > 0) {
-            if (accountsData[0].active_automations_count === 0) {
-                console.log(`[EARLY EXIT] Account ${accountsData[0].username} has 0 active automations. Skipping DB insert & processing.`);
-                continue;
-            }
-        }
+        // Removed Early Exit check for active_automations_count to prevent silent failures
+        // if the database trigger is slow or fails. Processing will now proceed to
+        // route resolution.
 
         // 2. Self-Healing: If lookup failed, try to find by USERNAME via Graph API
         if (!accountsData || accountsData.length === 0) {
@@ -144,7 +140,7 @@ async function processEvent(body: any) {
 
                 if (candidates && candidates.length > 0) {
                     console.log(`[SELF-HEALING] Racing ${candidates.length} candidate tokens in parallel...`);
-                    
+
                     const results = await Promise.all(candidates.map(async (candidate) => {
                         const graphUrl = `https://graph.instagram.com/${account_id}?fields=username&access_token=${candidate.access_token}`;
                         try {
@@ -247,9 +243,16 @@ async function processEvent(body: any) {
                 let activeRoutes: { routes: any[]; workflows: any[] } = { routes: [], workflows: [] };
 
                 if (internalAccountId) {
-                    activeRoutes = await resolveRoutes(supabaseClient, internalAccountId, 'messaging', sub_type);
+                    // ⚠️ CRITICAL: automation_routes.account_id stores Meta ID (account_id), NOT internal UUID
+                    console.log(`[ROUTING] Resolving routes for Meta account: ${account_id}, sub_type: ${sub_type}`);
+                    activeRoutes = await resolveRoutes(supabaseClient, account_id, 'messaging', sub_type);
+                    console.log(`[ROUTING] Found ${activeRoutes.routes.length} active routes for messaging`);
+                    
                     const matchedWf = activeRoutes.workflows.find((w: any) => w.automation_id && activeRoutes.routes.some((r: any) => r.n8n_workflow_id === w.n8n_workflow_id));
-                    if (matchedWf) matchedAutomationId = matchedWf.automation_id;
+                    if (matchedWf) {
+                        matchedAutomationId = matchedWf.automation_id;
+                        console.log(`[ROUTING] Matched Automation ID: ${matchedAutomationId}`);
+                    }
                 }
 
                 // 2. IDENTITY RESOLUTION & CONTACT UPSERT
@@ -633,7 +636,9 @@ async function resolveRoutes(supabaseClient: any, account_id: string, event_type
     } else {
         const { data: globalRoutes } = await supabaseClient.from('automation_routes')
             .select('n8n_workflow_id, sub_type')
-            .eq('account_id', account_id).eq('event_type', event_type).eq('is_active', true)
+            .eq('account_id', account_id)
+            .eq('event_type', event_type)
+            .eq('is_active', true)
             .or(`sub_type.eq.${sub_type},sub_type.is.null`);
 
         if (globalRoutes && globalRoutes.length > 0) routes = globalRoutes;
@@ -643,12 +648,19 @@ async function resolveRoutes(supabaseClient: any, account_id: string, event_type
     const uniqueRoutes = [];
     const seen = new Set();
     for (const r of routes) {
-        if (!seen.has(r.n8n_workflow_id)) { seen.add(r.n8n_workflow_id); uniqueRoutes.push(r); }
+        if (!seen.has(r.n8n_workflow_id)) { 
+            seen.add(r.n8n_workflow_id); 
+            uniqueRoutes.push(r); 
+        }
     }
 
-    if (uniqueRoutes.length === 0) return { routes: [], workflows: [] };
+    if (uniqueRoutes.length === 0) {
+        console.log(`[resolveRoutes] No active routes found for ${account_id} / ${event_type} / ${sub_type}`);
+        return { routes: [], workflows: [] };
+    }
 
     const workflowIds = uniqueRoutes.map((r: any) => r.n8n_workflow_id);
+    console.log(`[resolveRoutes] Found unique workflow IDs: ${workflowIds.join(', ')}`);
     const { data: workflows } = await supabaseClient.from('n8n_workflows')
         .select('n8n_workflow_id, webhook_path, automation_id').in('n8n_workflow_id', workflowIds);
 
@@ -677,11 +689,16 @@ async function triggerWorkflows(normalized: any, routes: any[], workflows: any[]
                 headers["X-N8N-API-KEY"] = N8N_API_KEY;
             }
 
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
             const res = await fetch(targetUrl, {
                 method: "POST",
                 headers: headers,
-                body: JSON.stringify(normalized)
+                body: JSON.stringify(normalized),
+                signal: controller.signal
             });
+            clearTimeout(timeoutId);
 
             if (!res.ok) throw new Error(`n8n responded with ${res.status}: ${await res.text()}`);
             console.log(`[n8n] Successfully triggered workflow: ${route.n8n_workflow_id}`);

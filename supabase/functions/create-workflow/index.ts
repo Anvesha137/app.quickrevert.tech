@@ -286,7 +286,7 @@ if (typeof $getWorkflowStaticData === 'function') {
             "sendBody": true,
             "specifyBody": "json",
             "jsonBody": "={\n  \"message\": \"{{ $json.chosenReply }}\"\n}",
-            "options": {}
+            "options": { "timeout": 15000 }
           },
           "id": "reply-node", "name": "Reply to Comment", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.3, "position": [-144, -512],
           "credentials": { "facebookGraphApi": { "id": credentialId } }
@@ -318,7 +318,7 @@ if (typeof $getWorkflowStaticData === 'function') {
             "sendBody": true,
             "specifyBody": "json",
             "jsonBody": `=${JSON.stringify(welcomeBody, null, 2)}`,
-            "options": {}
+            "options": { "timeout": 15000 }
           },
           "id": "welcome-dm", "name": "Send Welcome DM", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.3, "position": [-368, -320],
           "credentials": { "facebookGraphApi": { "id": credentialId } }
@@ -479,7 +479,7 @@ return [{ json: { senderId } }];`
           hybridConnections["Check Followup Status"] = { main: [[{ node: "Send Followup DM", type: "main", index: 0 }]] };
         }
 
-        return { name: finalWorkflowName, nodes: hybridNodes, connections: hybridConnections, settings: { saveExecutionProgress: true, timezone: "Asia/Kolkata" } };
+        return { name: finalWorkflowName, nodes: hybridNodes, connections: hybridConnections, settings: { saveExecutionProgress: true, saveDataErrorExecution: "all", saveManualExecutions: true, executionTimeout: 300, timezone: "Asia/Kolkata" } };
       }
 
       // Lead Manager Flow (Highest Priority for Lead collection)
@@ -503,7 +503,7 @@ return [{ json: { senderId } }];`
             "position": [700, 2800]
           },
           {
-            "parameters": { "url": "https://graph.instagram.com/v24.0/me?fields=id,username", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "options": {} },
+            "parameters": { "url": "https://graph.instagram.com/v24.0/me?fields=id,username", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "options": { "timeout": 15000 } },
             "name": "Fetch Usernames1",
             "type": "n8n-nodes-base.httpRequest",
             "typeVersion": 4.3,
@@ -635,7 +635,7 @@ return [{ json: { senderId } }];`
             "parameters": {
               "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
               "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [{\n          \"title\": \"" + (lmMessages.confirmName || "Awesome, {{name}}! 😊").split('\n')[0].replace('{{name}}', '{{ $json.name }}').replace(/"/g, '\\\"') + "\",\n          \"subtitle\": \"" + ((lmMessages.confirmName || "").includes('\n') ? lmMessages.confirmName.split('\n')[1].replace('{{name}}', '{{ $json.name }}') : "If you typed your name wrong, fix it below.").replace(/"/g, '\\\"') + "\",\n          \"buttons\": [\n            { \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeName || "✏️ Change First Name").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_NAME_" + uniqueId + "\" }\n          ]\n        }]\n      }\n    }\n  }\n}",
-              "options": {}
+              "options": { "timeout": 15000 }
             },
             "name": "Confirm Name + Ask Email",
             "type": "n8n-nodes-base.httpRequest",
@@ -647,7 +647,7 @@ return [{ json: { senderId } }];`
             "parameters": {
               "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
               "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $('Worker Webhook').first().json.body.entry[0].messaging[0].sender.id }}\" },\n  \"message\": { \"text\": \"" + (lmMessages.askEmail || "What email should we use to get in touch with you? 📧").replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\" }\n}",
-              "options": {}
+              "options": { "timeout": 15000 }
             },
             "name": "Ask Email",
             "type": "n8n-nodes-base.httpRequest",
@@ -685,7 +685,7 @@ return [{ json: { senderId } }];`
             "parameters": {
               "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
               "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [{\n          \"title\": \"" + (lmMessages.confirmAll ? lmMessages.confirmAll.split('\n')[0].replace('{{name}}', '{{ $json.name }}').replace('{{email}}', '{{ $json.email }}').replace('{{phone}}', '{{ $json.phone }}') : "Perfect! Just confirming ✅").replace(/"/g, '\\\"') + "\",\n          \"subtitle\": \"Powered by Quickrevert.tech\",\n          \"buttons\": [\n            { \"type\": \"postback\", \"title\": \"" + (lmMessages.btnYesLooksGood || "✅ Yes, looks good!").replace(/"/g, '\\\"') + "\", \"payload\": \"CONFIRM_SAVE_" + uniqueId + "\" },\n            { \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeEmail || "✏️ Change Email").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_EMAIL_" + uniqueId + "\" },\n            " + (hasPhone ? "{ \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangePhone || "✏️ Change Phone").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_PHONE_" + uniqueId + "\" }" : "{ \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeName || "✏️ Change Name").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_NAME_" + uniqueId + "\" }") + "\n          ]\n        }]\n      }\n    }\n  }\n}",
-              "options": {}
+              "options": { "timeout": 15000 }
             },
             "name": "Confirm Details",
             "type": "n8n-nodes-base.httpRequest",
@@ -697,7 +697,7 @@ return [{ json: { senderId } }];`
             "parameters": {
               "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
               "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": { \"text\": \"" + (lmMessages.askName || "👋 Hey! Thanks for reaching out. What's your first name? 😊").replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\" }\n}",
-              "options": {}
+              "options": { "timeout": 15000 }
             },
             "name": "Ask Name",
             "type": "n8n-nodes-base.httpRequest",
@@ -730,7 +730,7 @@ return [{ json: { senderId } }];`
             "parameters": {
               "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
               "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": { \"text\": \"" + (lmMessages.askNameAgain || "No problem! What's your correct first name? ✏️").replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\" }\n}",
-              "options": {}
+              "options": { "timeout": 15000 }
             },
             "name": "Ask Name Again",
             "type": "n8n-nodes-base.httpRequest",
@@ -742,7 +742,7 @@ return [{ json: { senderId } }];`
             "parameters": {
               "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
               "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": { \"text\": \"" + (lmMessages.askEmailAgain || "Sure! What's the correct email address? 📧").replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\" }\n}",
-              "options": {}
+              "options": { "timeout": 15000 }
             },
             "name": "Ask Email Again",
             "type": "n8n-nodes-base.httpRequest",
@@ -754,7 +754,7 @@ return [{ json: { senderId } }];`
             "parameters": {
               "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
               "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": { \"text\": \"" + (lmMessages.askPhoneAgain || "Sure! What's the correct phone number? 📱").replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\" }\n}",
-              "options": {}
+              "options": { "timeout": 15000 }
             },
             "name": "Ask Phone Again",
             "type": "n8n-nodes-base.httpRequest",
@@ -770,7 +770,7 @@ return [{ json: { senderId } }];`
             "position": [1950, 1800]
           },
           {
-            "parameters": { "url": "=https://graph.instagram.com/v24.0/{{ $json.senderId }}?fields=id,username", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "options": {} },
+            "parameters": { "url": "=https://graph.instagram.com/v24.0/{{ $json.senderId }}?fields=id,username", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "options": { "timeout": 15000 } },
             "name": "Fetch IG Profile",
             "type": "n8n-nodes-base.httpRequest",
             "typeVersion": 4.3,
@@ -788,7 +788,7 @@ return [{ json: { senderId } }];`
             "parameters": {
               "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
               "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $('Extract Postback').first().json.senderId }}\" },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [{\n          \"title\": \"👋 Hey! Ready to connect?\",\n          \"subtitle\": \"Tap below to get started!\",\n          \"buttons\": [\n            { \"type\": \"postback\", \"title\": \"🚀 Yes, let's go!\", \"payload\": \"START_FLOW\" }\n          ]\n        }]\n      }\n    }\n  }\n}",
-              "options": {}
+              "options": { "timeout": 15000 }
             },
             "name": "Send Start Message",
             "type": "n8n-nodes-base.httpRequest",
@@ -857,10 +857,10 @@ return [{ json: { senderId } }];`
           });
 
           const replyAction = (automationData?.actions || []).find((a: any) => a.type === 'reply_to_comment');
-          const replyTemplatesForLead = replyAction?.replyTemplates && replyAction.replyTemplates.length > 0 
-            ? replyAction.replyTemplates 
-            : ["Ayyy check your DMs 👀✨","Just dropped you a message 💌🔥","Doneee, sent you the details 🫶📩","You got a lil surprise in your inbox 😌💫"];
-          
+          const replyTemplatesForLead = replyAction?.replyTemplates && replyAction.replyTemplates.length > 0
+            ? replyAction.replyTemplates
+            : ["Ayyy check your DMs 👀✨", "Just dropped you a message 💌🔥", "Doneee, sent you the details 🫶📩", "You got a lil surprise in your inbox 😌💫"];
+
           lmNodes.push({
             "parameters": {
               "jsCode": "// Round Robin Picker\nconst replies = " + JSON.stringify(replyTemplatesForLead) + ";\nconst username = $('Worker Webhook').item.json.body.entry[0].changes[0].value.from.username;\n\nif (typeof $getWorkflowStaticData === 'function') {\n  const staticData = $getWorkflowStaticData('global');\n  if (staticData.replyIndex === undefined) staticData.replyIndex = 0;\n  const index = staticData.replyIndex;\n  staticData.replyIndex = (index + 1) % replies.length;\n  // User asked for exact snippet logic: replace {username}\n  const chosenReply = replies[index].replace('{username}', username).replace('@{username}', '@' + username);\n  return [{ json: { chosenReply, index } }];\n} else {\n  // Fallback if static data not available\n  const chosenReply = replies[0].replace('{username}', username).replace('@{username}', '@' + username);\n  return [{ json: { chosenReply, index: 0 } }];\n}"
@@ -1064,7 +1064,7 @@ return [{ json: { senderId } }];`
           lmConnections["Check Followup Status"] = { main: [[{ node: "Send Followup DM", type: "main", index: 0 }]] };
         }
 
-        return { name: finalWorkflowName, nodes: lmNodes, connections: lmConnections, settings: { saveExecutionProgress: true, timezone: "Asia/Kolkata" } };
+        return { name: finalWorkflowName, nodes: lmNodes, connections: lmConnections, settings: { saveExecutionProgress: true, saveDataErrorExecution: "all", saveManualExecutions: true, executionTimeout: 300, timezone: "Asia/Kolkata" } };
       }
 
       // 0. Conversation Flow (Priority)
@@ -1081,7 +1081,7 @@ return [{ json: { senderId } }];`
           },
           // 2. Fetch Usernames
           {
-            "parameters": { "url": "https://graph.instagram.com/v24.0/me?fields=id,username", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "options": {} },
+            "parameters": { "url": "https://graph.instagram.com/v24.0/me?fields=id,username", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "options": { "timeout": 15000 } },
             "id": "cf-fetch-user", "name": "Fetch Usernames", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.3,
             "position": [-80, 4048],
             "credentials": { "facebookGraphApi": { "id": credentialId } }
@@ -1134,7 +1134,7 @@ return [{ json: { senderId } }];`
           }
         };
         cfNodes.push({
-          "parameters": { "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json", "jsonBody": `=${JSON.stringify(level0Body, null, 2)}`, "options": {} },
+          "parameters": { "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json", "jsonBody": `=${JSON.stringify(level0Body, null, 2)}`, "options": { "timeout": 15000 } },
           "id": "cf-level-0", "name": "Send Level 0 Menu", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.3, "position": [368, 4144],
           "credentials": { "facebookGraphApi": { "id": credentialId } }
         });
@@ -1243,7 +1243,7 @@ return [{ json: { senderId } }];`
           cfConnections["Check Followup Status"] = { main: [[{ node: "Send Followup DM", type: "main", index: 0 }]] };
         }
 
-        return { name: finalWorkflowName, nodes: cfNodes, connections: cfConnections, settings: { saveExecutionProgress: true, timezone: "Asia/Kolkata" } };
+        return { name: finalWorkflowName, nodes: cfNodes, connections: cfConnections, settings: { saveExecutionProgress: true, saveDataErrorExecution: "all", saveManualExecutions: true, executionTimeout: 300, timezone: "Asia/Kolkata" } };
       }
 
       // 1. Analytics Workflow (Special Case)
@@ -1327,6 +1327,7 @@ return [{ json: { senderId } }];`
               "sendHeaders": true,
               "headerParameters": {
                 "parameters": [
+                  { "name": "Authorization", "value": `Bearer ${supabaseAnonKey}` },
                   { "name": "apikey", "value": supabaseAnonKey },
                   { "name": "x-quickrevert-secret", "value": internalSecret },
                   { "name": "Content-Type", "value": "application/json" }
@@ -1335,7 +1336,7 @@ return [{ json: { senderId } }];`
               "sendBody": true,
               "specifyBody": "json",
               "jsonBody": "={\n  \"id\": \"{{ $json.id }}\",\n  \"username\": \"{{ $json.username }}\",\n  \"followers_count\": {{ $json.followers_count }}\n}",
-              "options": {}
+              "options": { "timeout": 15000 }
             },
             "type": "n8n-nodes-base.httpRequest",
             "typeVersion": 4.1,
@@ -1406,7 +1407,7 @@ return [{ json: { senderId } }];`
           }
         };
 
-        return { name: `[Analytics] ${instagramAccount.username}`, nodes, connections, settings: { saveExecutionProgress: false, timezone: "Asia/Kolkata" } };
+        return { name: `[Analytics] ${instagramAccount.username}`, nodes, connections, settings: { saveExecutionProgress: true, executionTimeout: 300, timezone: "Asia/Kolkata" } };
       }
 
 
@@ -1470,7 +1471,7 @@ return [{ json: { senderId } }];`
             jsCode: "const entry = $('Worker Webhook').item.json.body.entry?.[0]?.messaging?.[0];\nconst senderId = entry?.sender?.id || '';\nconst staticData = $getWorkflowStaticData('global');\nconst lead = (staticData.leads || {})[senderId] || { state: 'new' };\n\nif (!lead.owner || lead.owner !== '" + uniqueId + "') {\n  return []; \n}\n\nreturn [{ json: { senderId } }];"
           }
         });
-        connections["Event Type Switch"] = { main: [ [], [{ node: "Ownership Guard", type: "main", index: 0 }] ] };
+        connections["Event Type Switch"] = { main: [[], [{ node: "Ownership Guard", type: "main", index: 0 }]] };
 
         // Initial Anchor
         let triggerChainAnchor = "Event Type Switch";
@@ -1874,7 +1875,7 @@ return [{ json: { senderId } }];`
           connections["Check Followup Status"] = { main: [[{ node: "Send Followup DM", type: "main", index: 0 }]] };
         }
 
-        return { name: finalWorkflowName, nodes, connections, settings: { saveExecutionProgress: true, timezone: "Asia/Kolkata" } };
+        return { name: finalWorkflowName, nodes, connections, settings: { saveExecutionProgress: false, saveDataErrorExecution: "all", saveManualExecutions: true, executionTimeout: 2400, timezone: "Asia/Kolkata" } };
       }
 
       // 1.52 Fetch Usernames + Switch (All DMs - user_dm / user_directed_messages with messageType !== 'keywords')
@@ -2710,7 +2711,7 @@ return { json: { userId, username, isFollowing } };`
         connections["Event Type Switch"].main = connections["Event Type Switch"].main.slice(0, 2);
       }
 
-      return { name: finalWorkflowName, nodes, connections, settings: { saveExecutionProgress: true, timezone: "Asia/Kolkata" } };
+      return { name: finalWorkflowName, nodes, connections, settings: { saveExecutionProgress: true, saveDataSuccessExecution: "all", saveDataErrorExecution: "all", saveManualExecutions: true, executionTimeout: 300, timezone: "Asia/Kolkata" } };
     };
 
     const n8nWorkflowJSON = buildWorkflow();
@@ -2742,7 +2743,7 @@ return { json: { userId, username, isFollowing } };`
 
     // 🔥 PERFORMANCE: Return response as soon as we have the workflow ID
     // Activation and Routes can happen in the background
-    const finalizationTask = (async () => {
+    const finalizationTask = async () => {
       try {
         const action = autoActivate ? 'activate' : 'deactivate';
         const baseUrl = n8nBaseUrl.endsWith('/') ? n8nBaseUrl.slice(0, -1) : n8nBaseUrl;
@@ -2751,7 +2752,7 @@ return { json: { userId, username, isFollowing } };`
         console.log(`[BACKGROUND] Sending ${action} request to n8n: ${finalUrl}`);
         const n8nActRes = await fetch(finalUrl, {
           method: "POST",
-          headers: { 
+          headers: {
             "X-N8N-API-KEY": n8nApiKey,
             "Content-Type": "application/json"
           }
@@ -2761,40 +2762,105 @@ return { json: { userId, username, isFollowing } };`
           console.error(`[BACKGROUND] n8n ${action} failed:`, await n8nActRes.text());
         }
 
-        // ALWAYS CREATE ROUTES (Inactive by default if autoActivate is false)
-        const userAccounts = instagramAccountId ? [{ id: instagramAccountId }] : [{ id: instagramAccount.id }];
-        if (userAccounts && userAccounts.length > 0) {
-          const newRoutes: any[] = [];
-          const finalTriggerType = bodyTriggerType || automationData?.trigger_type || 'user_dm';
+        // PREPARE ROUTES for Atomic Registration
+        // ⚠️ CRITICAL: account_id in automation_routes is the Meta Instagram Business ID (TEXT),
+        // NOT the internal Supabase UUID. webhook-meta receives entry.id = instagram_business_id.
+        const metaAccountId = String(instagramAccount.instagram_business_id);
+        const internalAccountUUID = instagramAccount.id;
 
-          for (const account of userAccounts) {
-            if (finalTriggerType === 'post_comment') {
-              newRoutes.push({ account_id: account.id, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'changes', sub_type: 'comments', is_active: autoActivate });
-              newRoutes.push({ account_id: account.id, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: 'postback', is_active: autoActivate });
-              const actions = automationData?.actions || body.actions || [];
-              if (actions.some((a: any) => a.type === 'save_lead')) {
-                newRoutes.push({ account_id: account.id, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: null, is_active: autoActivate });
-              }
-            } else if (finalTriggerType === 'story_reply') {
-              newRoutes.push({ account_id: account.id, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: null, is_active: autoActivate });
-            } else {
-              newRoutes.push({ account_id: account.id, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: null, is_active: autoActivate });
-              newRoutes.push({ account_id: account.id, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: 'postback', is_active: autoActivate });
-            }
+        console.log(`[ROUTING] Building routes for Meta ID: ${metaAccountId}, internal UUID: ${internalAccountUUID}`);
+        console.log(`[ROUTING] Trigger type: ${bodyTriggerType || automationData?.trigger_type || 'user_dm'}`);
+
+        const finalTriggerType = bodyTriggerType || automationData?.trigger_type || 'user_dm';
+        const triggerConfig = automationData?.trigger_config || body.triggerConfig || {};
+        const isSpecificPosts = triggerConfig.postsType === 'specific';
+        const specificPostIds = isSpecificPosts ? (triggerConfig.specificPosts || []) : [];
+
+        // Build routes list
+        const routesToInsert: any[] = [];
+        const trackedPostsToInsert: any[] = [];
+
+        if (isSpecificPosts && specificPostIds.length > 0) {
+          for (const mediaId of specificPostIds) {
+            trackedPostsToInsert.push({
+              workflow_id: n8nResult.id,
+              platform: 'instagram',
+              media_id: mediaId,
+              instagram_username: instagramAccount.username || null,
+              automation_name: automationData?.name || workflowName || null,
+              webhook_path: webhookPath || null
+            });
           }
-          const { error: routeError } = await supabase.from('automation_routes').insert(newRoutes);
-          if (routeError) console.error("[BACKGROUND] Failed to create routes:", routeError);
         }
+
+        if (finalTriggerType === 'post_comment') {
+          if (!isSpecificPosts) {
+            routesToInsert.push({ account_id: metaAccountId, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'changes', sub_type: 'comments', is_active: autoActivate });
+          }
+          routesToInsert.push({ account_id: metaAccountId, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: 'postback', is_active: autoActivate });
+          routesToInsert.push({ account_id: metaAccountId, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: null, is_active: autoActivate });
+        } else if (finalTriggerType === 'story_reply') {
+          routesToInsert.push({ account_id: metaAccountId, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: null, is_active: autoActivate });
+        } else {
+          // user_dm and all other types
+          routesToInsert.push({ account_id: metaAccountId, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: null, is_active: autoActivate });
+          routesToInsert.push({ account_id: metaAccountId, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: 'postback', is_active: autoActivate });
+        }
+
+        console.log(`[ROUTING] Routes to insert:`, JSON.stringify(routesToInsert));
+
+        // STEP 1: Upsert n8n_workflows record
+        const { error: wfUpsertErr } = await supabase.from('n8n_workflows').upsert({
+          n8n_workflow_id: n8nResult.id,
+          n8n_workflow_name: n8nResult.name,
+          user_id: user.id,
+          instagram_account_id: internalAccountUUID,
+          webhook_path: webhookPath,
+          template: template || 'instagram_automation_v1',
+          variables: variables || {},
+          automation_id: automationId || null,
+          is_active: autoActivate
+        }, { onConflict: 'n8n_workflow_id' });
+
+        if (wfUpsertErr) {
+          console.error("[ROUTING] Failed to upsert n8n_workflows:", wfUpsertErr);
+          return new Response(JSON.stringify({ error: "DB upsert failed: " + wfUpsertErr.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+        console.log(`[ROUTING] ✅ n8n_workflows upserted for ${n8nResult.id}`);
+
+        // STEP 2: Clear old routes + tracked posts for this workflow
+        await supabase.from('automation_routes').delete().eq('n8n_workflow_id', n8nResult.id);
+        await supabase.from('tracked_posts').delete().eq('workflow_id', n8nResult.id);
+        console.log(`[ROUTING] ✅ Cleared old routes for ${n8nResult.id}`);
+
+        // STEP 3: Insert new routes
+        if (routesToInsert.length > 0) {
+          const { error: routeErr } = await supabase.from('automation_routes').insert(routesToInsert);
+          if (routeErr) {
+            console.error("[ROUTING] Failed to insert routes:", routeErr);
+            return new Response(JSON.stringify({ error: "Route insert failed: " + routeErr.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          }
+          console.log(`[ROUTING] ✅ Inserted ${routesToInsert.length} routes for ${n8nResult.id}`);
+        }
+
+        // STEP 4: Insert tracked posts (if any)
+        if (trackedPostsToInsert.length > 0) {
+          const { error: tpErr } = await supabase.from('tracked_posts').insert(trackedPostsToInsert);
+          if (tpErr) console.error("[ROUTING] Failed to insert tracked_posts:", tpErr);
+          else console.log(`[ROUTING] ✅ Inserted ${trackedPostsToInsert.length} tracked posts`);
+        }
+
       } catch (err) {
         console.error("[BACKGROUND] Finalization error:", err.message);
+        return new Response(JSON.stringify({ error: "Finalization failed: " + err.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
-    })();
+    };
 
-    // @ts-ignore
-    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
-      // @ts-ignore
-      EdgeRuntime.waitUntil(finalizationTask);
-    }
+
+    // Run SYNCHRONOUSLY for diagnostics:
+    const diagRes = await finalizationTask();
+    if (diagRes) return diagRes;
+
 
     // ATOMIC DATABASE REGISTRATION & CLEANUP
     if (automationId) {
@@ -2842,23 +2908,7 @@ return { json: { userId, username, isFollowing } };`
       }
     }
 
-    // UPSERT NEW WORKFLOW RECORD (Using upsert to handle updates gracefully)
-    const { error: insertError } = await supabase.from("n8n_workflows").upsert({
-      n8n_workflow_id: n8nResult.id,
-      user_id: user.id,
-      n8n_workflow_name: n8nResult.name,
-      webhook_path: webhookPath,
-      instagram_account_id: instagramAccount.id,
-      template: template || 'instagram_automation_v1',
-      variables: variables || {},
-      automation_id: automationId || null,
-      is_active: autoActivate
-    }, { onConflict: 'n8n_workflow_id' });
-
-    if (insertError) {
-      console.error("Failed to upsert n8n_workflow record:", insertError);
-      throw new Error("Database Upsert Failed: " + insertError.message);
-    }
+    // No-op: Registration handled by RPC in finalizationTask above
 
 
     return new Response(JSON.stringify({
