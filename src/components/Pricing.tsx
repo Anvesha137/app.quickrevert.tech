@@ -22,7 +22,7 @@ export default function Pricing() {
             price: '₹0',
             period: '',
             cta: 'Start Free',
-            features: ['1 Instagram Account', '5 Automations', '2000 DMs / month', 'Keyword triggers'],
+            features: ['1 Instagram Account', '5 Automations', '2,000 DMs / month', 'Keyword triggers'],
             icon: <Bot className="w-5 h-5 text-gray-400" />,
             buttonStyle: 'bg-gray-100 text-gray-900 hover:bg-gray-200 font-bold',
             type: 'free'
@@ -232,7 +232,7 @@ export default function Pricing() {
                                     ) : (
                                         <button
                                             onClick={() => {
-                                                if (plan.id === 'enterprise') window.open('https://wa.me/91XXXXXXXXXX', '_blank');
+                                                if (plan.id === 'enterprise') window.open('https://quickrevert.tech/contact', '_blank');
                                                 else openModal(billingCycle as any, undefined, plan.id as any);
                                             }}
                                             className={`w-full py-3 rounded-xl text-[9px] font-black transition-all uppercase tracking-widest ${plan.buttonStyle} ${plan.highlighted ? 'hover:scale-105 shadow-md shadow-purple-600/20' : ''}`}

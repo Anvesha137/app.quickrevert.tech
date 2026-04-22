@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Instagram, Trash2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Instagram, Trash2, AlertCircle, RefreshCw, Crown } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useSubscription } from '../contexts/SubscriptionContext';
 import InstagramConnectModal from './InstagramConnectModal';
 import ConfirmationModal from './ui/ConfirmationModal';
 import { toast } from 'sonner';
@@ -20,6 +21,7 @@ interface InstagramAccount {
 export default function ConnectedAccounts({ isNested = false }: { isNested?: boolean }) {
   const { user } = useAuth();
   const { darkMode } = useTheme();
+  const { accountLimit, accountLimitExceeded, subscription } = useSubscription();
   const [accounts, setAccounts] = useState<InstagramAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -98,6 +100,10 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
 
   const handleConnectInstagram = () => {
     if (!user) return;
+    if (accountLimitExceeded) {
+      toast.error(`Account Limit Reached: Your current plan supports up to ${accountLimit} account${accountLimit > 1 ? 's' : ''}. Please upgrade to link more.`);
+      return;
+    }
     setShowConnectModal(true);
   };
 
@@ -242,6 +248,7 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
              <div className="flex-1 text-sm font-medium text-red-700">{error}</div>
            </div>
         )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           {accounts.map((account) => (
             <div 
@@ -296,19 +303,24 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
             </div>
           ))}
           
-          {/* Empty State / Add New Card - Only show if no account connected */}
-          {accounts.length === 0 && (
+          {/* Add New Card - Only show if they have not reached their limit */}
+          {!accountLimitExceeded && (
             <button
               onClick={handleConnectInstagram}
-              className="group relative flex flex-col items-center justify-center p-8 rounded-3xl transition-all duration-300 hover:scale-[1.02] min-h-[350px] overflow-hidden shadow-xl hover:shadow-2xl bg-gradient-to-br from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white"
+              className={`group relative flex flex-col items-center justify-center p-8 rounded-3xl transition-all duration-300 min-h-[350px] overflow-hidden shadow-xl
+                hover:scale-[1.02] hover:shadow-2xl bg-gradient-to-br from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white`}
             >
               {/* Animated shimmer overlay */}
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
-              <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-5 bg-white/20 backdrop-blur-sm border border-white/30 shadow-lg relative z-10">
+              <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-5 backdrop-blur-sm shadow-lg relative z-10 bg-white/20 border border-white/30">
                 <Instagram size={40} className="text-white" />
               </div>
-              <p className="text-xl font-black mb-2 relative z-10">Connect Instagram</p>
-              <p className="text-sm font-semibold text-white/80 relative z-10 mb-4">Required to use QuickRevert</p>
+              <p className="text-xl font-black mb-2 relative z-10 text-white">
+                Connect Instagram
+              </p>
+              <p className="text-sm font-semibold relative z-10 mb-4 text-white/80">
+                Required to use QuickRevert
+              </p>
               <div className="px-6 py-2.5 bg-white/20 backdrop-blur-sm rounded-xl border border-white/30 text-white text-sm font-black uppercase tracking-wider relative z-10 group-hover:bg-white/30 transition-colors">
                 Connect Now →
               </div>
@@ -377,6 +389,8 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
               </button>
             </div>
           )}
+
+
 
           {accounts.length === 0 ? (
             <div className="text-center py-12">
@@ -452,6 +466,17 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
                   </div>
                 </div>
               ))}
+              
+              {/* Only show Add Account button if limit is not reached */}
+              {!accountLimitExceeded && (
+                <button
+                  onClick={handleConnectInstagram}
+                  className="w-full py-4 mt-6 rounded-2xl border-2 border-dashed flex justify-center items-center gap-2 font-bold transition-all border-pink-300 text-pink-600 hover:bg-pink-50 cursor-pointer"
+                >
+                    <Instagram size={20} />
+                    Connect Another Account
+                </button>
+              )}
             </div>
           )}
         </div>

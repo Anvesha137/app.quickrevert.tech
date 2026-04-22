@@ -73,7 +73,16 @@ const GradientLine = () => {
 };
 
 export default function AutomationConfigureGenz({ formData, setFormData, onSave, saving, readOnly, onBack }: AutomationConfigureGenzProps) {
-  const { isPremium, canUseAskToFollow } = useSubscription();
+  const { 
+    isPremium, 
+    canUseAskToFollow,
+    canUseCarousel,
+    canUseMenuFlow,
+    canUseLeadManager,
+    canUseFollowUpMsgs,
+    maxCarouselCards,
+    maxMenuFlowCards 
+  } = useSubscription();
   const { openModal } = useUpgradeModal();
   const { darkMode } = useTheme();
 
@@ -293,6 +302,11 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
   const toggleLeadManager = () => {
     if (readOnly) return;
 
+    if (!canUseLeadManager) {
+      openModal();
+      return;
+    }
+
     if (!hasLeadManager) {
       if (triggerType === 'post_comment') {
         if (hasFollowGate) {
@@ -324,6 +338,11 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
 
   const toggleFollowUp = () => {
     if (readOnly) return;
+    
+    if (!canUseFollowUpMsgs) {
+      openModal();
+      return;
+    }
     
     if (!hasLeadManager) {
       toast.error("Follow Up messages can only be enabled when Lead Manager is ON");
@@ -909,7 +928,12 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                       <div className="flex gap-2">
                         {['simple', 'carousel', 'conversation_flow'].map((type) => {
                           const isSelected = (dmAction?.dmType || 'simple') === type;
-                          const isSupported = type === 'simple' ? caps?.dm : (type === 'carousel' ? caps?.carousel : caps?.convFlow);
+                          let isSupported = type === 'simple' ? caps?.dm : (type === 'carousel' ? caps?.carousel : caps?.convFlow);
+                          
+                          // Feature flag checks
+                          if (type === 'carousel' && !canUseCarousel) isSupported = false;
+                          if (type === 'conversation_flow' && !canUseMenuFlow) isSupported = false;
+
                           if (!isSupported) return null;
                           return (
                             <button
@@ -1040,9 +1064,9 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                       <div className="space-y-6">
                         <div className="flex items-center justify-between">
                           <label className={cn("text-[10px] font-bold uppercase tracking-wide", darkMode ? "text-white/40" : "text-gray-500")}>
-                            Carousel Cards ({(dmAction?.carouselCards?.length || 0)}/10)
+                            Carousel Cards ({(dmAction?.carouselCards?.length || 0)}/{maxCarouselCards})
                           </label>
-                          {!readOnly && (dmAction?.carouselCards?.length || 0) < 10 && (
+                          {!readOnly && (dmAction?.carouselCards?.length || 0) < maxCarouselCards && (
                             <button
                               onClick={() => {
                                 const currentCards = dmAction?.carouselCards || [];
@@ -1227,7 +1251,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                             ))}
 
                             {/* Add Slot */}
-                            {!readOnly && (dmAction?.carouselCards?.length || 0) < 10 && (
+                            {!readOnly && (dmAction?.carouselCards?.length || 0) < maxCarouselCards && (
                               <button
                                 onClick={() => {
                                   const currentCards = dmAction?.carouselCards || [];
@@ -1272,8 +1296,8 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                           <div className="flex items-center gap-3 bg-gray-50 dark:bg-white/5 p-2 rounded-2xl border border-gray-100 dark:border-white/5">
                             <div className="px-4 text-center border-r border-gray-200 dark:border-white/10">
                               <p className="text-[9px] font-black uppercase text-gray-400">Total Cards</p>
-                              <p className={cn("text-sm font-black", (1 + (dmAction.conversationCards?.length || 0)) >= 11 ? "text-red-500" : "text-purple-600")}>
-                                {1 + (dmAction.conversationCards?.length || 0)} <span className="opacity-30">/ 11</span>
+                              <p className={cn("text-sm font-black", (1 + (dmAction.conversationCards?.length || 0)) >= (maxMenuFlowCards + 1) ? "text-red-500" : "text-purple-600")}>
+                                {1 + (dmAction.conversationCards?.length || 0)} <span className="opacity-30">/ {maxMenuFlowCards + 1}</span>
                               </p>
                             </div>
                             <div className="px-4 text-center">
@@ -1516,7 +1540,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                                               </button>
 
                                               <button
-                                                disabled={!canBePostback || (dmAction.conversationCards?.length || 0) >= 10}
+                                                disabled={!canBePostback || (dmAction.conversationCards?.length || 0) >= maxMenuFlowCards}
                                                 onClick={() => {
                                                   const newCards = [...(dmAction.conversationCards || [])];
                                                   const pbId = `PB_SUB_${cardIndex}_${btnIdx}_${Date.now()}`;
@@ -1588,9 +1612,9 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                           })}
 
                           {/* Global Message for capacity */}
-                          {(dmAction.conversationCards?.length || 0) >= 10 && (
+                          {(dmAction.conversationCards?.length || 0) >= maxMenuFlowCards && (
                             <div className="col-span-full p-6 rounded-3xl bg-red-500/10 border border-red-500/20 text-center">
-                              <p className="text-xs font-black text-red-500 uppercase tracking-widest italic">11 Card Limit Active</p>
+                              <p className="text-xs font-black text-red-500 uppercase tracking-widest italic">{maxMenuFlowCards + 1} Card Limit Active</p>
                               <p className="text-[10px] font-bold text-red-400/80">Remaining buttons must be Links to save space.</p>
                             </div>
                           )}
@@ -1620,8 +1644,13 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                 <FileSpreadsheet className={cn("w-5 h-5", darkMode ? "text-white/60" : "text-gray-500")} />
               </div>
               <div className="flex-1 text-left">
-                <h3 className={cn("font-bold text-[14px] mb-0.5", darkMode ? "text-white" : "text-gray-900")}>Save to Lead Manager</h3>
-                <p className={cn("text-[11px] font-medium leading-relaxed", darkMode ? "text-white/40" : "text-gray-400")}>Automatically capture and store user details in your Lead Manager</p>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <h3 className={cn("font-bold text-[14px]", darkMode ? "text-white" : "text-gray-900")}>Lead Manager (CRM)</h3>
+                  {!canUseLeadManager && (
+                    <span className="bg-purple-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider">PREMIUM</span>
+                  )}
+                </div>
+                <p className={cn("text-[11px] font-medium leading-relaxed", darkMode ? "text-white/40" : "text-gray-400")}>Capture names and emails into a lead table automatically</p>
               </div>
               <label className={cn("relative inline-flex items-center transition-opacity", (readOnly || (!hasLeadManager && (hasFollowGate || (hasDm && dmAction?.dmType === 'conversation_flow')))) ? "cursor-not-allowed opacity-50" : "cursor-pointer")}>
                 <input 
@@ -1948,8 +1977,13 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                 <RotateCcw className={cn("w-5 h-5", darkMode ? "text-white/60" : "text-gray-500")} />
               </div>
               <div className="flex-1 text-left">
-                <h3 className={cn("font-bold text-[14px] mb-0.5", darkMode ? "text-white" : "text-gray-900")}>Follow Up Message</h3>
-                <p className={cn("text-[11px] font-medium leading-relaxed", darkMode ? "text-white/40" : "text-gray-400")}>Send a second message automatically after a delay to boost response rates</p>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <h3 className={cn("font-bold text-[14px]", darkMode ? "text-white" : "text-gray-900")}>Automated Follow-up</h3>
+                  {!canUseFollowUpMsgs && (
+                    <span className="bg-purple-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider">PROFESSIONAL</span>
+                  )}
+                </div>
+                <p className={cn("text-[11px] font-medium leading-relaxed", darkMode ? "text-white/40" : "text-gray-400")}>Send a second message automatically after a delay</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer pointer-events-none">
                 <input type="checkbox" className="sr-only peer" checked={hasFollowUp} readOnly />

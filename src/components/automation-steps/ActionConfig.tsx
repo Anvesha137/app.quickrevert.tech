@@ -38,7 +38,13 @@ const NEW_DEFAULT_TITLE = 'Hey! Thanks so much for your comment ðŸ’Œ Everythingâ
 
 export default function ActionConfig({ triggerType, triggerConfig, onTriggerConfigChange, actions, onActionsChange, onSave, saving, readOnly }: ActionConfigProps) {
   const { darkMode } = useTheme();
-  const { canUseAskToFollow } = useSubscription();
+  const { 
+    canUseAskToFollow, 
+    canUseLeadManager,
+    canUseFollowUpMsgs,
+    maxCarouselCards,
+    maxMenuFlowCards 
+  } = useSubscription();
   const { openModal } = useUpgradeModal();
 
   const replyAction = actions.find(a => a.type === 'reply_to_comment') as ReplyToCommentAction | undefined;
@@ -173,6 +179,11 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
   const toggleLeadManager = () => {
     if (readOnly) return;
     
+    if (!canUseLeadManager) {
+      openModal();
+      return;
+    }
+
     if (!hasLeadManager) {
       if (triggerType === 'post_comment') {
         if (hasFollowGate) {
@@ -203,6 +214,11 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
 
   const toggleFollowUp = () => {
     if (readOnly) return;
+    
+    if (!canUseFollowUpMsgs) {
+      openModal();
+      return;
+    }
     
     if (!hasLeadManager) {
       toast.error("Follow Up messages can only be enabled when Lead Manager is ON");
@@ -448,7 +464,12 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                         <div className="flex flex-col md:flex-row gap-2">
                           {['simple', 'carousel', 'conversation_flow'].map((type) => {
                             const isSelected = (dmAction?.dmType || 'simple') === type;
-                            const isSupported = type === 'simple' ? caps.dm : (type === 'carousel' ? caps.carousel : caps.convFlow);
+                            let isSupported = type === 'simple' ? caps.dm : (type === 'carousel' ? caps.carousel : caps.convFlow);
+                            
+                            // Feature flag checks
+                            if (type === 'carousel' && !canUseCarousel) isSupported = false;
+                            if (type === 'conversation_flow' && !canUseMenuFlow) isSupported = false;
+
                             if (!isSupported) return null;
                             return (
                               <button
@@ -492,8 +513,8 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                             <div className="flex items-center gap-3 bg-gray-50 dark:bg-white/5 p-2 rounded-2xl border border-gray-100 dark:border-white/5">
                               <div className="px-4 text-center border-r border-gray-200 dark:border-white/10">
                                 <p className="text-[9px] font-black uppercase text-gray-400">Total Cards</p>
-                                <p className={cn("text-sm font-black", (1 + (dmAction.conversationCards?.length || 0)) >= 11 ? "text-red-500" : "text-purple-600")}>
-                                  {1 + (dmAction.conversationCards?.length || 0)} <span className="opacity-30">/ 11</span>
+                                <p className={cn("text-sm font-black", (1 + (dmAction.conversationCards?.length || 0)) >= (maxMenuFlowCards + 1) ? "text-red-500" : "text-purple-600")}>
+                                  {1 + (dmAction.conversationCards?.length || 0)} <span className="opacity-30">/ {maxMenuFlowCards + 1}</span>
                                 </p>
                               </div>
                               <div className="px-4 text-center">
@@ -807,9 +828,9 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                             })}
 
                             {/* Global Message for capacity */}
-                            {(dmAction.conversationCards?.length || 0) >= 10 && (
+                            {(dmAction.conversationCards?.length || 0) >= maxMenuFlowCards && (
                               <div className="col-span-full p-6 rounded-3xl bg-red-500/10 border border-red-500/20 text-center">
-                                <p className="text-xs font-black text-red-500 uppercase tracking-widest italic">11 Card Limit Active</p>
+                                <p className="text-xs font-black text-red-500 uppercase tracking-widest italic">{maxMenuFlowCards + 1} Card Limit Active</p>
                                 <p className="text-[10px] font-bold text-red-400/80">Remaining buttons must be Links to save space.</p>
                               </div>
                             )}
@@ -968,9 +989,9 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                         <div className="space-y-6">
                           <div className="flex items-center justify-between">
                             <label className={`text-[10px] font-bold uppercase tracking-wide ${darkMode ? 'text-white/40' : 'text-gray-500'}`}>
-                              Carousel Cards ({(dmAction?.carouselCards?.length || 0)}/10)
+                              Carousel Cards ({(dmAction?.carouselCards?.length || 0)}/{maxCarouselCards})
                             </label>
-                            {!readOnly && (dmAction?.carouselCards?.length || 0) < 10 && (
+                            {!readOnly && (dmAction?.carouselCards?.length || 0) < maxCarouselCards && (
                               <button
                                 onClick={() => {
                                   updateDmAction({
@@ -1154,7 +1175,7 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                               ))}
 
                               {/* Card Addition Slot at the end of the scroll */}
-                              {!readOnly && (dmAction?.carouselCards?.length || 0) < 10 && (dmAction?.carouselCards?.length || 0) > 0 && (
+                              {!readOnly && (dmAction?.carouselCards?.length || 0) < maxCarouselCards && (dmAction?.carouselCards?.length || 0) > 0 && (
                                 <button
                                   onClick={() => {
                                     updateDmAction({
@@ -1208,13 +1229,23 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
         {/* CARD 4: Save Leads */}
         {caps.leadManager && (
           <div className={`p-1.5 md:p-2 mb-4 space-y-1.5 md:space-y-2 transition-colors duration-300 ${darkMode ? '' : 'bg-white border-2 border-purple-100 rounded-[1.5rem]'}`}>
-            <div className={`rounded-2xl border-2 transition-all overflow-hidden ${hasLeadManager ? (darkMode ? 'border-orange-500/30 bg-transparent' : 'border-orange-200 bg-orange-50/30') : (darkMode ? 'border-transparent bg-transparent hover:bg-white/[0.04]' : 'border-transparent bg-white hover:bg-gray-50')}`}>
+            <div className={cn(
+              "rounded-2xl border-2 transition-all overflow-hidden",
+              hasLeadManager
+                ? (darkMode ? "border-orange-500/30 bg-transparent" : "border-orange-200 bg-orange-50/30")
+                : (darkMode ? "border-transparent bg-transparent hover:bg-white/[0.04]" : "border-transparent bg-white hover:bg-gray-50")
+            )}>
               <div className="p-3 md:p-4 flex items-center gap-3 md:gap-4 cursor-pointer" onClick={toggleLeadManager}>
                 <div className={`w-10 h-10 md:w-12 md:h-12 rounded-[14px] md:rounded-xl flex items-center justify-center shrink-0 border ${darkMode ? 'bg-white/10 border-white/10' : 'bg-gray-50 border-gray-100'}`}>
                   <FileSpreadsheet className={`w-4 h-4 md:w-5 md:h-5 ${darkMode ? 'text-white/60' : 'text-gray-500'}`} />
                 </div>
                 <div className="flex-1">
-                  <h3 className={`font-bold text-[14px] md:text-[15px] mb-0.5 md:mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Save to Lead Manager</h3>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <h3 className={`font-bold text-[14px] md:text-[15px] ${darkMode ? 'text-white' : 'text-gray-900'}`}>Lead Manager (CRM)</h3>
+                    {!canUseLeadManager && (
+                      <span className="bg-purple-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider">PREMIUM</span>
+                    )}
+                  </div>
                   <p className={`text-[11px] md:text-xs font-medium ${darkMode ? 'text-white/40' : 'text-gray-400'}`}>Automatically capture and store user details in your Lead Manager</p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer pointer-events-none">
@@ -1527,7 +1558,12 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                   <RotateCcw className={cn("w-4 h-4 md:w-5 md:h-5", darkMode ? "text-white/60" : "text-gray-500")} />
                 </div>
                 <div className="flex-1">
-                  <h3 className={cn("font-bold text-[14px] md:text-[15px] mb-0.5 md:mb-1", darkMode ? "text-white" : "text-gray-900")}>Follow Up Message</h3>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <h3 className={cn("font-bold text-[14px] md:text-[15px]", darkMode ? "text-white" : "text-gray-900")}>Automated Follow-up</h3>
+                    {!canUseFollowUpMsgs && (
+                      <span className="bg-purple-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider">PROFESSIONAL</span>
+                    )}
+                  </div>
                   <p className={cn("text-[11px] md:text-xs font-medium leading-tight", darkMode ? "text-white/40" : "text-gray-400")}>Send a second message automatically after a delay to boost response rates</p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer pointer-events-none">

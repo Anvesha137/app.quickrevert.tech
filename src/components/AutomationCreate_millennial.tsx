@@ -55,7 +55,7 @@ const TRIGGER_OPTIONS: {
 export default function AutomationCreateMillennial({ readOnly = false }: AutomationCreateMillennialProps) {
   const { user } = useAuth();
   const { darkMode } = useTheme();
-  const { hasInstagramConnected, loading: subLoading, initialFetchDone } = useSubscription();
+  const { hasInstagramConnected, loading: subLoading, initialFetchDone, automationLimit, automationLimitExceeded } = useSubscription();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
 
@@ -255,7 +255,11 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
   };
 
   async function handleSave() {
-    if (!user) return;
+    if (!id && !readOnly && automationLimitExceeded) {
+      toast.error(`Automation Limit Reached: Your current plan supports up to ${automationLimit} automations. Please delete an old one or upgrade to create more.`);
+      return;
+    }
+
     if (!formData.name.trim()) { toast.error('Please give your automation a name.'); return; }
     if (!formData.triggerType) { toast.error('Please choose what triggers this automation.'); return; }
     if (!formData.triggerConfig) { toast.error('Please finish setting up the trigger.'); return; }
@@ -650,14 +654,31 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
             {/* STEP 2: Action */}
             {step === 2 && formData.triggerConfig && (
               <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="max-w-5xl mx-auto">
-                <ActionConfig
-                  triggerType={formData.triggerType!}
-                  actions={formData.actions}
-                  onActionsChange={(actions) => setFormData({ ...formData, actions })}
-                  readOnly={readOnly}
-                  saving={saving}
-                  onSave={handleSave}
-                />
+                 <ActionConfig
+                   triggerType={formData.triggerType!}
+                   actions={formData.actions}
+                   onActionsChange={(actions) => setFormData({ ...formData, actions })}
+                   readOnly={readOnly}
+                   saving={saving || (!id && automationLimitExceeded)}
+                   onSave={handleSave}
+                 />
+                 {!id && !readOnly && automationLimitExceeded && (
+                    <div className="mt-6 p-6 bg-amber-50 border-2 border-amber-200 rounded-3xl flex items-center gap-4 shadow-lg">
+                        <div className="w-12 h-12 bg-amber-500 rounded-2xl flex items-center justify-center shadow-md shrink-0">
+                            <Zap className="text-white" size={24} />
+                        </div>
+                        <div className="flex-1">
+                            <p className="text-base font-black text-amber-900 mb-0.5 uppercase tracking-tight leading-none">Limit Reached</p>
+                            <p className="text-sm font-bold text-amber-700">You've hit your limit of {automationLimit} automations. Upgrade or delete an inactive one to launch this.</p>
+                        </div>
+                        <button 
+                            onClick={() => navigate('/pricing')}
+                            className="px-6 py-3 bg-amber-600 text-white text-[11px] font-black uppercase tracking-widest rounded-xl hover:bg-amber-700 transition-all active:scale-95 shadow-md"
+                        >
+                            Upgrade →
+                        </button>
+                    </div>
+                 )}
               </motion.div>
             )}
 

@@ -67,74 +67,112 @@ serve(async (req) => {
 
     if (match) {
       const u = match as any;
-      // Step 1: Check for plain text match across all columns
-      for (const col of Object.keys(u)) {
-        if (u[col] && String(u[col]).trim() === typedPass) {
-          matchedCol = col;
-          neonUserFound = true;
-          break;
-        }
-      }
+      let overrideExists = false;
+      let overrideMatched = false;
 
-      // Step 2: If no plain text match, check password_hash with bcrypt
-      if (!neonUserFound && u.password_hash) {
-        const storedHash = String(u.password_hash).trim();
-        console.log(`[sync-neon-auth] password_hash format: starts_with=${storedHash.substring(0, 4)}, length=${storedHash.length}`);
-        
-        if (storedHash.startsWith('$2a$') || storedHash.startsWith('$2b$') || storedHash.startsWith('$2y$')) {
-          // It's a bcrypt hash — use bcrypt comparison
-          try {
-            const { compare } = await import("https://deno.land/x/bcrypt@v0.4.1/mod.ts");
-            const isMatch = await compare(typedPass, storedHash);
-            if (isMatch) {
-              matchedCol = 'password_hash (bcrypt)';
-              neonUserFound = true;
-            } else {
-              console.log(`[sync-neon-auth] bcrypt compare returned false for ${cleanEmail}`);
-            }
-          } catch (bcryptErr) {
-            console.error(`[sync-neon-auth] bcrypt compare error:`, bcryptErr);
-          }
-        } else {
-          // Not a bcrypt hash — might be some other format, log it
-          console.log(`[sync-neon-auth] password_hash is not bcrypt format. Plain comparison also failed.`);
-        }
-      }
-
-      if (neonUserFound) {
-        detailMsg = `Verified match in column '${matchedCol}'`;
-      } else {
-        const hashInfo = u.password_hash 
-          ? `password_hash exists (len=${String(u.password_hash).length}, format=${String(u.password_hash).substring(0, 4)}...)` 
-          : 'no password_hash column';
-        detailMsg = `Found user record but password does not match. ${hashInfo}`;
-      }
-    } else {
-      detailMsg = "No user found with that email/username";
-      emailSample = allUsers.slice(0, 5).map((u: any) => u.email);
-    }
-
-    // Check gifted_premium as a fallback for the password
-    const { rows: giftedColsRows } = await neonClient.queryObject(
-      `SELECT column_name FROM information_schema.columns WHERE table_name = 'gifted_premium' AND table_schema = 'public'`
-    ).catch(() => ({ rows: [] }));
-    const availableGiftedCols = giftedColsRows.map((c: any) => (c as any).column_name);
-
-    if (match && !neonUserFound) {
+      // 1. Check for gifted_premium override
       const { rows: giftedRows } = await neonClient.queryObject(
         `SELECT * FROM gifted_premium WHERE user_id = $1`, [match.id]
       ).catch(() => ({ rows: [] }));
 
       if (giftedRows.length > 0) {
         const g = giftedRows[0] as any;
-        for (const col of Object.keys(g)) {
-          if (g[col] && String(g[col]).trim() === typedPass) {
-            matchedCol = `gifted_premium.${col}`;
-            neonUserFound = true;
-            break;
+        // Search for any password-related override columns in gifted_premium
+        const gCols = Object.keys(g).filter(k => k.toLowerCase().includes('pass'));
+        for (const col of gCols) {
+          if (g[col] && String(g[col]).trim() !== '') {
+            overrideExists = true;
+            if (String(g[col]).trim() === typedPass) {
+              overrideMatched = true;
+              matchedCol = `gifted_premium.${col}`;
+              neonUserFound = true;
+              break;
+            }
           }
         }
-        if (neonUserFound) detailMsg = `Verified match in column '${matchedCol}'`;
+      }
+
+      // 2. Check for users table override (if no gifted override was found)
+      if (!overrideExists) {
+        const uCols = Object.keys(u).filter(k => 
+          k.toLowerCase().includes('pass') && !k.toLowerCase().includes('hash')
+        );
+        for (const col of uCols) {
+          if (u[col] && String(u[col]).trim() !== '') {
+            overrideExists = true;
+            if (String(u[col]).trim() === typedPass) {
+              overrideMatched = true;
+              matchedCol = col;
+              neonUserFound = true;
+              break;
+            }
+          }
+        }
+      }
+
+      // If an override is set in the DB, it acts as the ONLY valid password.
+      if (overrideExists) {
+        if (!overrideMatched) {
+          detailMsg = "Invalid password. Updated dashboard password override is required.";
+        } else {
+          detailMsg = `Verified match in override column '${matchedCol}'`;
+        }
+      } else {
+        // 3. Fallback to sha512 hash
+        if (u.password_hash && String(u.password_hash).includes(':')) {
+          const storedHash = String(u.password_hash).trim();
+          try {
+            const verifySha512Hash = async (password: string, hashWithSalt: string) => {
+              const [saltHex, originalHashHex] = hashWithSalt.split(':');
+              const salt = new Uint8Array(saltHex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
+              const encoder = new TextEncoder();
+              const keyMaterial = await crypto.subtle.importKey(
+                "raw", encoder.encode(password), { name: "PBKDF2" }, false, ["deriveBits"]
+              );
+              const derivedBits = await crypto.subtle.deriveBits(
+                { name: "PBKDF2", salt, iterations: 1000, hash: "SHA-512" },
+                keyMaterial, 64 * 8
+              );
+              const derivedHex = Array.from(new Uint8Array(derivedBits))
+                .map(b => b.toString(16).padStart(2, "0")).join("");
+              return derivedHex === originalHashHex;
+            };
+
+            const isMatch = await verifySha512Hash(typedPass, storedHash);
+            if (isMatch) {
+              matchedCol = 'password_hash (sha512-salt)';
+              neonUserFound = true;
+            }
+          } catch (shaErr) {
+            console.error(`[sync-neon-auth] SHA512 check error:`, shaErr);
+          }
+        }
+
+        // 4. Fallback to bcrypt hash
+        if (!neonUserFound && u.password_hash) {
+          const storedHash = String(u.password_hash).trim();
+          if (storedHash.startsWith('$2a$') || storedHash.startsWith('$2b$') || storedHash.startsWith('$2y$')) {
+            try {
+              const { compare } = await import("https://deno.land/x/bcrypt@v0.4.1/mod.ts");
+              const isMatch = await compare(typedPass, storedHash);
+              if (isMatch) {
+                matchedCol = 'password_hash (bcrypt)';
+                neonUserFound = true;
+              }
+            } catch (bcryptErr) {
+              console.error(`[sync-neon-auth] bcrypt compare error:`, bcryptErr);
+            }
+          }
+        }
+
+        if (neonUserFound) {
+          detailMsg = `Verified match in hash column '${matchedCol}'`;
+        } else {
+          const hashInfo = u.password_hash 
+            ? `password_hash exists (len=${String(u.password_hash).length})` 
+            : 'no password_hash column';
+          detailMsg = `Found normal user but password does not match hashes. ${hashInfo}`;
+        }
       }
     }
 
@@ -181,6 +219,13 @@ serve(async (req) => {
         { password: password, email_confirm: true }
       );
       if (updateError) throw updateError;
+      
+      // Revoke all existing sessions to satisfy "old password/sessions become invalid"
+      console.log(`[sync-neon-auth] Revoking sessions for user: ${existingAuthUser.id}`);
+      const { error: signOutError } = await supabaseAdmin.auth.admin.signOut(existingAuthUser.id);
+      if (signOutError) {
+        console.warn(`[sync-neon-auth] Sign out failed (usually because no active sessions):`, signOutError.message);
+      }
     } else {
       console.log(`[sync-neon-auth] Creating new auth user: ${email}`);
       const { error: createError } = await supabaseAdmin.auth.admin.createUser({

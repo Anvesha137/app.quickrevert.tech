@@ -20,6 +20,7 @@ interface Usage {
     dms: number;
     contacts: number;
     automations: number;
+    accounts: number;
 }
 
 interface SubscriptionContextType {
@@ -36,10 +37,17 @@ interface SubscriptionContextType {
     canUseAskToFollow: boolean;
     canUseCarousel: boolean;
     canUseLeadManager: boolean;
+    canUseMenuFlow: boolean;
     canUseFollowUpMsgs: boolean;
     canUseAppointmentManager: boolean;
     dmLimit: number | 'Unlimited';
     automationLimit: number | 'Unlimited';
+    maxCarouselCards: number;
+    maxMenuFlowCards: number;
+    accountLimit: number;
+    accountLimitExceeded: boolean;
+    automationLimitExceeded: boolean;
+    dmLimitExceeded: boolean;
     hasInstagramConnected: boolean;
     hasUsedSampler: boolean;
     initialFetchDone: boolean;
@@ -84,16 +92,16 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     });
 
     const [usage, setUsage] = useState<Usage>(() => {
-        if (typeof window === 'undefined') return { dms: 0, contacts: 0, automations: 0 };
+        if (typeof window === 'undefined') return { dms: 0, contacts: 0, automations: 0, accounts: 0 };
         try {
             const cached = localStorage.getItem(CACHE_KEY);
             if (cached) {
                 const parsed = JSON.parse(cached);
-                if (Date.now() - parsed.timestamp > 3600_000) return { dms: 0, contacts: 0, automations: 0 };
-                return parsed.usage || { dms: 0, contacts: 0, automations: 0 };
+                if (Date.now() - parsed.timestamp > 3600_000) return { dms: 0, contacts: 0, automations: 0, accounts: 0 };
+                return parsed.usage || { dms: 0, contacts: 0, automations: 0, accounts: 0 };
             }
         } catch (e) { console.error('Cache read error:', e); }
-        return { dms: 0, contacts: 0, automations: 0 };
+        return { dms: 0, contacts: 0, automations: 0, accounts: 0 };
     });
 
     const [loading, setLoading] = useState(() => {
@@ -180,22 +188,22 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
                     .eq('status', 'active'),
                 supabase
                     .from('instagram_accounts')
-                    .select('id')
+                    .select('id', { count: 'exact', head: false })
                     .eq('user_id', user.id)
                     .eq('status', 'active')
-                    .maybeSingle()
             ]);
 
             if (subResult.error) throw subResult.error;
             const subData = subResult.data as Subscription[];
             setInvoices(subData);
             setSubscription(subData[0] || null);
-            setHasInstagramConnected(!!instagramAccountResult.data);
+            setHasInstagramConnected((instagramAccountResult.count || 0) > 0);
 
             setUsage({
                 dms: dmCountResult.count || 0,
                 contacts: contactCountResult.count || 0,
                 automations: automationCountResult.count || 0,
+                accounts: instagramAccountResult.count || 0
             });
 
             try {
@@ -228,10 +236,11 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
                         dms: dmCountResult.count || 0,
                         contacts: contactCountResult.count || 0,
                         automations: automationCountResult.count || 0,
+                        accounts: instagramAccountResult.count || 0
                     },
                     isGifted: updatedIsGifted,
                     giftedSettings: updatedGiftedSettings,
-                    hasInstagramConnected: !!instagramAccountResult.data,
+                    hasInstagramConnected: (instagramAccountResult.count || 0) > 0,
                     timestamp: Date.now()
                 }));
             } catch (syncErr) {
@@ -244,10 +253,11 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
                         dms: dmCountResult.count || 0,
                         contacts: contactCountResult.count || 0,
                         automations: automationCountResult.count || 0,
+                        accounts: instagramAccountResult.count || 0
                     },
                     isGifted, // fallback to state if sync failed
                     giftedSettings,
-                    hasInstagramConnected: !!instagramAccountResult.data,
+                    hasInstagramConnected: (instagramAccountResult.count || 0) > 0,
                     timestamp: Date.now()
                 }));
             }
@@ -301,10 +311,16 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     const canUseAskToFollow = isGiftedActive ? (giftedSettings?.ask_to_follow_enabled ?? true) : (planId !== 'basic' && !!isPlanActive);
     const advancedPlanIds: PlanId[] = ['try_me_out', 'professional', 'enterprise'];
     const hasAdvancedFeatures = isGiftedActive || (advancedPlanIds.includes(planId) && !!isPlanActive);
-    const canUseCarousel = hasAdvancedFeatures;
-    const canUseLeadManager = hasAdvancedFeatures;
+    
+    // Feature flags - Gifted users respect their specific configuration
+    const canUseCarousel = isGiftedActive ? (giftedSettings?.carousel_enabled ?? true) : hasAdvancedFeatures;
+    const canUseLeadManager = isGiftedActive ? (giftedSettings?.lead_manager ?? true) : hasAdvancedFeatures;
+    const canUseMenuFlow = isGiftedActive ? (giftedSettings?.menu_flow_enabled ?? true) : hasAdvancedFeatures;
     const canUseFollowUpMsgs = hasAdvancedFeatures;
     const canUseAppointmentManager = hasAdvancedFeatures;
+    
+    const maxCarouselCards = isGiftedActive ? (giftedSettings?.carousel_count ?? 10) : 10;
+    const maxMenuFlowCards = isGiftedActive ? (giftedSettings?.menu_flow_count ?? 10) : 10;
 
     // Limits
     const dmLimit = isGiftedActive
@@ -319,10 +335,19 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         : planId === 'try_me_out' && isPlanActive ? 10
         : isPlanActive ? 'Unlimited' : 5;
 
+    const accountLimit = isGiftedActive
+        ? (giftedSettings?.account_limit ?? 1)
+        : planId === 'enterprise' ? 10
+        : planId === 'professional' ? 2
+        : 1;
+
     const isExpired = !isPremium && (isGifted || (subscription !== null && planId !== 'basic'));
     
     const dmLimitExceeded = (dmLimit !== 'Unlimited') && (usage.dms >= dmLimit);
     const automationLimitExceeded = (automationLimit !== 'Unlimited') && (usage.automations >= automationLimit);
+    const accountLimitExceeded = (accountLimit !== 'Unlimited') && (usage.accounts >= accountLimit);
+    
+    // Connected accounts limit should NOT trigger the global "Limit Reached" banner
     const isAtLimit = dmLimitExceeded || automationLimitExceeded;
 
     const hasUsedSampler = invoices.some(inv => 
@@ -346,10 +371,17 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
             canUseAskToFollow,
             canUseCarousel,
             canUseLeadManager,
+            canUseMenuFlow,
             canUseFollowUpMsgs,
             canUseAppointmentManager,
             dmLimit,
             automationLimit,
+            maxCarouselCards,
+            maxMenuFlowCards,
+            accountLimit,
+            accountLimitExceeded,
+            automationLimitExceeded,
+            dmLimitExceeded,
             hasInstagramConnected,
             hasUsedSampler,
             initialFetchDone,

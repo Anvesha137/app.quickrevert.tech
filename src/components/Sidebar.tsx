@@ -33,10 +33,15 @@ export default function Sidebar({ millennial = false }: SidebarProps) {
   const location = useLocation();
   const { user, signOut } = useAuth();
   const { displayName, darkMode } = useTheme();
-  const { isPremium, dmLimit, automationLimit, usage, loading, isGifted } = useSubscription();
+  const { isPremium, dmLimit, automationLimit, usage, loading, isGifted, canUseLeadManager } = useSubscription();
   const { openModal } = useUpgradeModal();
   const { uiStyle, toggleUIStyle } = useUIStyle();
   const isGenZ = uiStyle === 'genz';
+
+  const filteredNavigation = navigation.filter(item => {
+    if (item.id === 'contacts' && !canUseLeadManager) return false;
+    return true;
+  });
 
   const getUserName = () => {
     return displayName || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
@@ -80,7 +85,7 @@ export default function Sidebar({ millennial = false }: SidebarProps) {
 
         {/* Navigation */}
         <nav className="space-y-1 flex-1">
-          {navigation.map((item) => {
+          {filteredNavigation.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path ||
               location.pathname.startsWith(item.path + '/') ||
@@ -225,7 +230,7 @@ export default function Sidebar({ millennial = false }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="space-y-2 flex-1 overflow-y-auto custom-scrollbar">
-        {navigation.map((item) => {
+        {filteredNavigation.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.path ||
             location.pathname.startsWith(item.path + '/') ||

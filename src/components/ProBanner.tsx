@@ -9,14 +9,38 @@ interface ProBannerProps {
 
 export default function ProBanner({ isCompact }: ProBannerProps) {
     const { openModal } = useUpgradeModal();
-    const { isPremium, isExpired, isGifted, isAtLimit } = useSubscription();
+    const { isPremium, isExpired, isGifted, isAtLimit, dmLimitExceeded, automationLimitExceeded } = useSubscription();
     const { darkMode } = useTheme();
 
     // Show banner if not premium OR if gifted and at limit
     const shouldShow = !isPremium || (isGifted && isAtLimit);
     if (!shouldShow) return null;
 
-    const customMessage = (isGifted && isAtLimit) ? "you have reached the limit - please upgrade to continue using" : undefined;
+    let limitTitle = "Limit Reached!";
+    let compactLimitTitle = "Limit Reached";
+    let limitDesc = "Please upgrade to continue using.";
+    let compactLimitDesc = "Upgrade to keep usage";
+    
+    if (isAtLimit) {
+        if (dmLimitExceeded && automationLimitExceeded) {
+            limitTitle = "Limits Reached!";
+            compactLimitTitle = "Limits Reached";
+            compactLimitDesc = "DMs & Automations full";
+            limitDesc = "DM & Automation limits reached. Upgrade to continue.";
+        } else if (dmLimitExceeded) {
+            limitTitle = "DM Limit Reached!";
+            compactLimitTitle = "DM Limit Reached";
+            compactLimitDesc = "Upgrade for more DMs";
+            limitDesc = "Reach more contacts by upgrading your plan.";
+        } else if (automationLimitExceeded) {
+            limitTitle = "Automation Limit!";
+            compactLimitTitle = "Automation Limit";
+            compactLimitDesc = "Need more automations?";
+            limitDesc = "Build more automations by upgrading your plan.";
+        }
+    }
+
+    const customMessage = (isGifted && isAtLimit) ? limitDesc : undefined;
 
     if (isCompact) {
         return (
@@ -28,10 +52,10 @@ export default function ProBanner({ isCompact }: ProBannerProps) {
                         </div>
                         <div className="min-w-0">
                             <h3 className="text-white font-bold text-base truncate">
-                                {isAtLimit ? 'Limit Reached' : (isExpired ? 'Plan Expired' : 'Unlock Pro')}
+                                {isAtLimit ? compactLimitTitle : (isExpired ? 'Plan Expired' : 'Unlock Pro')}
                             </h3>
                             <p className="text-white/80 text-xs text-balance">
-                                {isAtLimit ? 'Upgrade to keep usage' : (isExpired ? 'Renew to keep features' : 'Advanced features')}
+                                {isAtLimit ? compactLimitDesc : (isExpired ? 'Renew to keep features' : 'Advanced features')}
                             </p>
                         </div>
                     </div>
@@ -59,10 +83,10 @@ export default function ProBanner({ isCompact }: ProBannerProps) {
                     </div>
                     <div className="min-w-0">
                         <h3 className="text-white font-bold text-sm md:text-base flex items-center gap-2 truncate">
-                            {isAtLimit ? 'Limit Reached!' : (isExpired ? 'Plan Expired!' : 'Unlock Pro!')} <Sparkles className="hidden md:block w-4 h-4" />
+                            {isAtLimit ? limitTitle : (isExpired ? 'Plan Expired!' : 'Unlock Pro!')} <Sparkles className="hidden md:block w-4 h-4" />
                         </h3>
                         <p className="text-white/90 text-[10px] md:text-xs truncate">
-                          {isAtLimit ? 'Please upgrade to continue using.' : 
+                          {isAtLimit ? limitDesc : 
                            (isExpired ? 'Renew now to restore features' : 'Get unlimited automations')}
                         </p>
                     </div>
