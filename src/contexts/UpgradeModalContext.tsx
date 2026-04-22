@@ -31,7 +31,7 @@ export function UpgradeModalProvider({ children }: { children: ReactNode }) {
         else setDefaultBillingCycle(null);
         
         if (planId) setSelectedPlanId(planId);
-        else setSelectedPlanId('premium'); // Default to premium
+        else setSelectedPlanId('professional'); // Default to professional
         
         setMessage(customMessage || null);
         setIsOpen(true);

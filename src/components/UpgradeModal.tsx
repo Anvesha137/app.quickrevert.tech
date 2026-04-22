@@ -27,7 +27,7 @@ export default function UpgradeModal() {
     const { isOpen, closeModal, openCelebration, defaultBillingCycle, selectedPlanId, message } = useUpgradeModal();
     const { user, session } = useAuth();
     const { isPremium, isGifted } = useSubscription();
-    const [planTier, setPlanTier] = useState<PlanTier>((selectedPlanId as PlanTier) || 'premium');
+    const [planTier, setPlanTier] = useState<PlanTier>((selectedPlanId as PlanTier) || 'professional');
     const [billingCycle, setBillingCycle] = useState<'annual' | 'quarterly'>(defaultBillingCycle || 'annual');
     const [loading, setLoading] = useState(false);
     const [step, setStep] = useState<1 | 2>(1);
@@ -46,7 +46,7 @@ export default function UpgradeModal() {
         if (isOpen) {
             setStep(1);
             setBillingCycle(defaultBillingCycle || 'annual');
-            setPlanTier((selectedPlanId as PlanTier) || 'premium');
+            setPlanTier((selectedPlanId as PlanTier) || 'professional');
             setCouponCode('');
             setCoupon({ status: 'idle', message: '', discountAmount: 0, finalAmount: 0, isFree: false });
         }

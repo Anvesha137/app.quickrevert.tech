@@ -309,14 +309,14 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     const isGold = isPremium && planId.includes('enterprise');
 
     // Feature flags
-    const canUseAskToFollow = isGiftedActive ? (giftedSettings?.ask_to_follow_enabled ?? true) : (planId !== 'basic' && !!isPlanActive);
+    const canUseAskToFollow = isGiftedActive ? (giftedSettings?.ask_to_follow_enabled ?? false) : (planId !== 'basic' && !!isPlanActive);
     const advancedPlanIds: PlanId[] = ['try_me_out', 'professional', 'enterprise'];
     const hasAdvancedFeatures = isGiftedActive || (advancedPlanIds.includes(planId) && !!isPlanActive);
     
     // Feature flags - Gifted users respect their specific configuration
-    const canUseCarousel = isGiftedActive ? (giftedSettings?.carousel_enabled ?? true) : hasAdvancedFeatures;
-    const canUseLeadManager = isGiftedActive ? (giftedSettings?.lead_manager ?? true) : hasAdvancedFeatures;
-    const canUseMenuFlow = isGiftedActive ? (giftedSettings?.menu_flow_enabled ?? true) : hasAdvancedFeatures;
+    const canUseCarousel = isGiftedActive ? (giftedSettings?.carousel_enabled ?? false) : hasAdvancedFeatures;
+    const canUseLeadManager = isGiftedActive ? (giftedSettings?.lead_manager ?? false) : hasAdvancedFeatures;
+    const canUseMenuFlow = isGiftedActive ? (giftedSettings?.menu_flow_enabled ?? false) : hasAdvancedFeatures;
     const canUseFollowUpMsgs = hasAdvancedFeatures;
     const canUseAppointmentManager = hasAdvancedFeatures;
     

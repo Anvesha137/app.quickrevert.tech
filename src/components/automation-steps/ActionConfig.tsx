@@ -1263,7 +1263,12 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer pointer-events-none">
                   <input type="checkbox" className="sr-only peer" checked={hasLeadManager} readOnly />
-                  <div className={`w-10 h-6 md:w-12 md:h-7 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 md:after:h-6 md:after:w-6 after:transition-all peer-checked:bg-orange-500 shadow-inner ${darkMode ? 'bg-white/10' : ''}`}></div>
+                  <div className={`w-10 h-6 md:w-12 md:h-7 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 md:after:h-6 md:after:w-6 after:transition-all peer-checked:bg-orange-500 shadow-inner ${darkMode ? 'bg-white/10' : ''} ${(!canUseLeadManager && !hasLeadManager) ? 'opacity-50 grayscale' : ''}`}></div>
+                  {(!canUseLeadManager && !hasLeadManager) && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Lock size={10} className="text-white" />
+                    </div>
+                  )}
                 </label>
               </div>
 
@@ -1585,8 +1590,14 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                   <input type="checkbox" className="sr-only peer" checked={hasFollowUp} readOnly />
                   <div className={cn(
                     "w-10 h-6 md:w-12 md:h-7 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 md:after:h-6 md:after:w-6 after:transition-all peer-checked:bg-emerald-500 shadow-inner",
-                    darkMode && "bg-white/10"
+                    darkMode && "bg-white/10",
+                    (!canUseFollowUpMsgs && !hasFollowUp) && "opacity-50 grayscale"
                   )}></div>
+                  {(!canUseFollowUpMsgs && !hasFollowUp) && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Lock size={10} className="text-white" />
+                    </div>
+                  )}
                 </label>
               </div>
 
