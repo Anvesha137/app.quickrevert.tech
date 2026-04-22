@@ -243,9 +243,11 @@ async function processEvent(body: any) {
                 let activeRoutes: { routes: any[]; workflows: any[] } = { routes: [], workflows: [] };
 
                 if (internalAccountId) {
+                    // Extract the postback payload so resolveRoutes can do a direct lookup via tracked_payloads
+                    const postbackPayload = msg.postback?.payload || msg.message?.quick_reply?.payload || undefined;
                     // ⚠️ CRITICAL: automation_routes.account_id stores Meta ID (account_id), NOT internal UUID
-                    console.log(`[ROUTING] Resolving routes for Meta account: ${account_id}, sub_type: ${sub_type}`);
-                    activeRoutes = await resolveRoutes(supabaseClient, account_id, 'messaging', sub_type);
+                    console.log(`[ROUTING] Resolving routes for Meta account: ${account_id}, sub_type: ${sub_type}, payload: ${postbackPayload || 'none'}`);
+                    activeRoutes = await resolveRoutes(supabaseClient, account_id, 'messaging', sub_type, undefined, postbackPayload);
                     console.log(`[ROUTING] Found ${activeRoutes.routes.length} active routes for messaging`);
                     
                     const matchedWf = activeRoutes.workflows.find((w: any) => w.automation_id && activeRoutes.routes.some((r: any) => r.n8n_workflow_id === w.n8n_workflow_id));
@@ -621,19 +623,35 @@ async function checkRateLimit(supabaseClient: any, accountId: string): Promise<b
     return (count || 0) > 600; // Limit: 600 requests per minute
 }
 
-async function resolveRoutes(supabaseClient: any, account_id: string, event_type: string, sub_type: string, mediaId?: string) {
+async function resolveRoutes(supabaseClient: any, account_id: string, event_type: string, sub_type: string, mediaId?: string, postbackPayload?: string) {
     let routes = [];
     let specificWorkflowId = null;
 
+    // Priority 1: tracked_posts — specific post comment → specific workflow
     if (mediaId && mediaId !== 'undefined') {
         const { data: trackedData } = await supabaseClient.from('tracked_posts')
             .select('workflow_id').eq('media_id', mediaId).eq('platform', 'instagram').maybeSingle();
         if (trackedData) specificWorkflowId = trackedData.workflow_id;
     }
 
+    // Priority 2: tracked_payloads — postback button tap → specific workflow
+    // This replaces the n8n ownership-guard pattern: only the workflow that SENT the button gets triggered.
+    if (!specificWorkflowId && sub_type === 'postback' && postbackPayload) {
+        const { data: payloadData } = await supabaseClient.from('tracked_payloads')
+            .select('n8n_workflow_id')
+            .eq('payload', postbackPayload)
+            .eq('account_id', account_id)
+            .maybeSingle();
+        if (payloadData) {
+            specificWorkflowId = payloadData.n8n_workflow_id;
+            console.log(`[ROUTING] tracked_payloads hit for payload "${postbackPayload}" → workflow ${specificWorkflowId}`);
+        }
+    }
+
     if (specificWorkflowId) {
         routes = [{ n8n_workflow_id: specificWorkflowId }];
     } else {
+        // Fallback: global automation_routes (old behaviour — covers plain DMs with no buttons)
         const { data: globalRoutes } = await supabaseClient.from('automation_routes')
             .select('n8n_workflow_id, sub_type')
             .eq('account_id', account_id)

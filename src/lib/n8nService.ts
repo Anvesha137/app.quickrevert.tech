@@ -13,6 +13,8 @@ interface WorkflowCreationData {
   instagramAccountId?: string;
   workflowName?: string;
   automationId?: string;
+  actions?: any[];
+  triggerType?: string;
 }
 
 interface WorkflowCreationResponse {
@@ -54,6 +56,8 @@ export class N8nWorkflowService {
           instagramAccountId: data.instagramAccountId,
           workflowName: data.workflowName,
           automationId: data.automationId,
+          actions: data.actions,
+          triggerType: data.triggerType,
         }
       });
 

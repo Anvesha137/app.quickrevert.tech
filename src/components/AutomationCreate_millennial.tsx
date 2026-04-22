@@ -385,6 +385,8 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
             instagramAccountId: igAccount.id,
             workflowName: `${formData.name.trim()} - ${new Date().toISOString().split('T')[0]}`,
             automationId: automationData.id,
+            actions: finalActions,
+            triggerType: formData.triggerType,
             variables: {
               brandName: 'QuickRevert',
               replyMessage: replyAction?.replyTemplates?.[0] || 'Thanks for your comment!',

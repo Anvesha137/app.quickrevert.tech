@@ -2743,11 +2743,9 @@ return { json: { userId, username, isFollowing } };`
 
     // 🔥 PERFORMANCE: Return response as soon as we have the workflow ID
     // Activation and Routes can happen in the background
-    const finalizationTask = async () => {
-      try {
-        const action = autoActivate ? 'activate' : 'deactivate';
-        const baseUrl = n8nBaseUrl.endsWith('/') ? n8nBaseUrl.slice(0, -1) : n8nBaseUrl;
-        const finalUrl = `${baseUrl}/api/v1/workflows/${n8nResult.id}/${action}`;
+    const action = autoActivate ? 'activate' : 'deactivate';
+    const baseUrl = n8nBaseUrl.endsWith('/') ? n8nBaseUrl.slice(0, -1) : n8nBaseUrl;
+    const finalUrl = `${baseUrl}/api/v1/workflows/${n8nResult.id}/${action}`;
 
         console.log(`[BACKGROUND] Sending ${action} request to n8n: ${finalUrl}`);
         const n8nActRes = await fetch(finalUrl, {
@@ -2761,11 +2759,13 @@ return { json: { userId, username, isFollowing } };`
         if (!n8nActRes.ok) {
           console.error(`[BACKGROUND] n8n ${action} failed:`, await n8nActRes.text());
         }
+        
+        console.log(`[BACKGROUND] Starting finalization for automation ${automationId}. Actions received: ${Array.isArray(body.actions) ? body.actions.length : 'none'}`);
 
         // PREPARE ROUTES for Atomic Registration
         // ⚠️ CRITICAL: account_id in automation_routes is the Meta Instagram Business ID (TEXT),
         // NOT the internal Supabase UUID. webhook-meta receives entry.id = instagram_business_id.
-        const metaAccountId = String(instagramAccount.instagram_business_id);
+        const metaAccountId = String(instagramAccount.instagram_business_id || instagramAccount.instagram_user_id || '');
         const internalAccountUUID = instagramAccount.id;
 
         console.log(`[ROUTING] Building routes for Meta ID: ${metaAccountId}, internal UUID: ${internalAccountUUID}`);
@@ -2828,9 +2828,10 @@ return { json: { userId, username, isFollowing } };`
         }
         console.log(`[ROUTING] ✅ n8n_workflows upserted for ${n8nResult.id}`);
 
-        // STEP 2: Clear old routes + tracked posts for this workflow
+        // STEP 2: Clear old routes + tracked posts + tracked payloads for this workflow
         await supabase.from('automation_routes').delete().eq('n8n_workflow_id', n8nResult.id);
         await supabase.from('tracked_posts').delete().eq('workflow_id', n8nResult.id);
+        await supabase.from('tracked_payloads').delete().eq('n8n_workflow_id', n8nResult.id);
         console.log(`[ROUTING] ✅ Cleared old routes for ${n8nResult.id}`);
 
         // STEP 3: Insert new routes
@@ -2850,17 +2851,59 @@ return { json: { userId, username, isFollowing } };`
           else console.log(`[ROUTING] ✅ Inserted ${trackedPostsToInsert.length} tracked posts`);
         }
 
-      } catch (err) {
-        console.error("[BACKGROUND] Finalization error:", err.message);
-        return new Response(JSON.stringify({ error: "Finalization failed: " + err.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
-    };
+        // STEP 5: Register all postback payloads into tracked_payloads
+        // This allows webhook-meta to fire ONLY this workflow when a user taps a button,
+        // instead of waking up ALL active workflows and relying on the n8n ownership guard.
+        const trackedPayloadsToInsert: any[] = [];
+        
+        // 🧪 DEBUG: Force a canary payload to prove the table works
+        const debugUid = automationId ? String(automationId).replace(/-/g, '') : 'NO_AUTO_ID';
+        trackedPayloadsToInsert.push(`FORCE_DEBUG_${debugUid}`);
+        
+        // Collect ALL cards from ALL possible fields
+        const allActions = body.actions || automationData?.actions || [];
+        const dmAct = allActions.find((a: any) => a.type === 'send_dm') || {};
+        const followUpAction = allActions.find((a: any) => a.type === 'follow_up');
 
+        const allCards = [
+          ...(dmAct.conversationCards || []),
+          ...(dmAct.carouselCards || []),
+          ...(dmAct.conversationFlowCards || [])
+        ];
 
-    // Run SYNCHRONOUSLY for diagnostics:
-    const diagRes = await finalizationTask();
-    if (diagRes) return diagRes;
+        // 1. Collect all user-defined postback payloads from button configs
+        const allBtns = [...(dmAct.actionButtons || [])];
+        allCards.forEach((c: any) => { if (c.actionButtons) allBtns.push(...c.actionButtons); });
+        if (followUpAction && followUpAction.actionButtons) allBtns.push(...followUpAction.actionButtons);
 
+        const userPayloads = Array.from(new Set(
+          allBtns.filter((b: any) => (b.buttonType === 'postback' || b.action === 'postback') && (b.payload || b.id)).map((b: any) => b.payload || b.id)
+        )) as string[];
+        for (const p of userPayloads) trackedPayloadsToInsert.push(p);
+
+        // 2. Collect system payloads
+        if (debugUid && debugUid !== 'NO_AUTO_ID') {
+          const systemPayloads = [`START_FLOW_${debugUid}`, `CONFIRM_SAVE_${debugUid}`, `SEND_ACCESS_${debugUid}`, `SEND_LINK_${debugUid}`, `CHECK_FOLLOW_${debugUid}`];
+          for (const p of systemPayloads) trackedPayloadsToInsert.push(p);
+          for (const b of allBtns) { if (b.text) trackedPayloadsToInsert.push(`${b.text}_${debugUid}`); }
+        }
+
+        if (trackedPayloadsToInsert.length > 0) {
+          const payloadRows = trackedPayloadsToInsert.map((p: string) => ({
+            payload: p,
+            n8n_workflow_id: n8nResult.id,
+            automation_id: (automationId && automationId.length === 36) ? automationId : null,
+            account_id: metaAccountId
+          }));
+          
+          console.log(`[ROUTING] Attempting to register ${payloadRows.length} payloads...`);
+          const { error: payloadErr } = await supabase.from('tracked_payloads').insert(payloadRows);
+          if (payloadErr) {
+            console.error("[ROUTING] Failed to insert tracked_payloads:", payloadErr);
+            return new Response(JSON.stringify({ error: "Payload registration failed: " + payloadErr.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          }
+          console.log(`[ROUTING] ✅ Registered ${payloadRows.length} tracked payloads`);
+        }
 
     // ATOMIC DATABASE REGISTRATION & CLEANUP
     if (automationId) {

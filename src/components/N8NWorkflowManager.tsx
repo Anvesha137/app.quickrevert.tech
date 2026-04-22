@@ -110,6 +110,8 @@ export default function N8NWorkflowManager() {
         workflowName: formData.workflowName || undefined,
         variables: formData.variables,
         autoActivate: formData.autoActivate,
+        actions: [], 
+        triggerType: 'user_dm',
       }, user.id);
       
       setSuccess(result.message);

@@ -450,6 +450,8 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
           instagramAccountId: instagramAccount.id,
           workflowName: workflowName,
           automationId: automationData.id,
+          actions: finalActions,
+          triggerType: formData.triggerType,
           variables: {
             brandName: 'QuickRevert',
             replyMessage: replyMessage,
