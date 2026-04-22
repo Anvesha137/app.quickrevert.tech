@@ -31,6 +31,7 @@ interface SubscriptionContextType {
     isProfessional: boolean;
     isGold: boolean;
     isGifted: boolean;
+    isGiftedActive: boolean;
     isExpired: boolean;
     isAtLimit: boolean;
     giftedSettings: any | null;
@@ -365,6 +366,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
             isProfessional,
             isGold,
             isGifted,
+            isGiftedActive,
             isExpired,
             isAtLimit,
             giftedSettings,
