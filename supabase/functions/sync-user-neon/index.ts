@@ -98,7 +98,7 @@ serve(async (req) => {
     // Combined Banned and Gifted Check
     const [{ rows: bannedRows }, { rows: giftedRows }, { rows: existingNeonUsers }] = await Promise.all([
       neonClient.queryObject(`SELECT id FROM banned_users WHERE LOWER(email) = $1`, [cleanEmail]),
-      neonClient.queryObject(`SELECT gp.dm_limit, gp.automation_limit, gp.ask_to_follow_enabled, gp.expiry_date FROM gifted_premium gp LEFT JOIN users u ON u.id = gp.user_id WHERE LOWER(u.email) = $1 OR LOWER(u.username) = $1 OR gp.user_id = $2`, [cleanEmail, userId]),
+      neonClient.queryObject(`SELECT gp.dm_limit, gp.automation_limit, gp.ask_to_follow_enabled, gp.expiry_date, gp.lead_manager, gp.carousel_enabled, gp.carousel_count, gp.menu_flow_enabled, gp.menu_flow_count, gp.account_limit FROM gifted_premium gp LEFT JOIN users u ON u.id = gp.user_id WHERE LOWER(u.email) = $1 OR LOWER(u.username) = $1 OR gp.user_id = $2`, [cleanEmail, userId]),
       neonClient.queryObject(`SELECT id, deleted FROM users WHERE email = $1`, [email])
     ]);
 
