@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Bot, Calendar, ChevronRight, Crown } from 'lucide-react';
 import { useUpgradeModal } from '../contexts/UpgradeModalContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
@@ -17,6 +18,7 @@ const Billing = () => {
   } = useSubscription();
 
   const { openModal: openUpgradeModal } = useUpgradeModal();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'overview' | 'invoices'>('overview');
 
   const formatDate = (dateString?: string) => {
@@ -129,7 +131,7 @@ const Billing = () => {
             <div className="mt-auto flex flex-col gap-4">
               {(!isPremium || (!subscription?.plan_id?.toLowerCase().includes('professional') && !subscription?.plan_id?.toLowerCase().includes('enterprise') && !isGifted)) ? (
                 <button
-                  onClick={() => openUpgradeModal()}
+                  onClick={() => navigate('/pricing')}
                   className="w-full py-4 bg-white text-black font-black text-xs tracking-widest rounded-xl hover:bg-gray-100 transition-all uppercase flex items-center justify-center gap-2"
                 >
                   Upgrade Plan
