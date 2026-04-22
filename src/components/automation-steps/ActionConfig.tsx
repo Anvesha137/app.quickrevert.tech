@@ -40,6 +40,8 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
   const { darkMode } = useTheme();
   const { 
     canUseAskToFollow, 
+    canUseCarousel,
+    canUseMenuFlow,
     canUseLeadManager,
     canUseFollowUpMsgs,
     maxCarouselCards,
