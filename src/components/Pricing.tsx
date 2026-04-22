@@ -288,18 +288,25 @@ export default function Pricing() {
                                         <button onClick={() => navigate('/dashboard')} className="w-full py-2 rounded-xl text-[8px] font-black transition-all uppercase tracking-widest bg-blue-600 text-white hover:bg-blue-700">
                                             Go to Dashboard
                                         </button>
-                                    ) : (
-                                        <button
-                                            disabled={isPremium}
-                                            onClick={() => {
-                                                if (plan.id === 'enterprise') window.open('https://quickrevert.tech/contact', '_blank');
-                                                else openModal(billingCycle as any, undefined, plan.id as any);
-                                            }}
-                                            className={`w-full py-2 rounded-xl text-[8px] font-black transition-all uppercase tracking-widest ${plan.buttonStyle} ${plan.highlighted ? 'hover:scale-105 shadow-md shadow-purple-600/20' : ''} ${isPremium ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
-                                        >
-                                            {isPremium ? 'Subscription Active' : plan.cta}
-                                        </button>
-                                    )}
+                                    ) : (() => {
+                                        const planHierarchy = ['basic', 'try_me_out', 'premium', 'professional', 'enterprise'];
+                                        const currentLevel = planHierarchy.indexOf(activePlan.id);
+                                        const targetLevel = planHierarchy.indexOf(plan.id);
+                                        const isUpgrade = targetLevel > currentLevel;
+
+                                        return (
+                                            <button
+                                                disabled={isPremium && !isUpgrade}
+                                                onClick={() => {
+                                                    if (plan.id === 'enterprise') window.open('https://quickrevert.tech/contact', '_blank');
+                                                    else openModal(billingCycle as any, undefined, plan.id as any);
+                                                }}
+                                                className={`w-full py-2 rounded-xl text-[8px] font-black transition-all uppercase tracking-widest ${plan.buttonStyle} ${plan.highlighted ? 'hover:scale-105 shadow-md shadow-purple-600/20' : ''} ${isPremium && !isUpgrade ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
+                                            >
+                                                {isPremium && !isUpgrade ? 'Subscription Active' : isUpgrade && isPremium ? `Upgrade to ${plan.name} →` : plan.cta}
+                                            </button>
+                                        );
+                                    })()}
                                 </div>
                             );
                         })}
