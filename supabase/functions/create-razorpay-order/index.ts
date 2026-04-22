@@ -98,7 +98,10 @@ serve(async (req) => {
     const currency = 'INR';
 
     // Coupon Logic — check Neon DB using actual column names
-    if (couponCode) {
+    if (couponCode && couponCode.trim()) {
+      const code = couponCode.trim();
+      console.log(`[COUPON] Validating: ${code} for user ${user.id}`);
+      
       const neonDbUrl = Deno.env.get('NEON_DB_URL');
       if (neonDbUrl) {
         const client = new Client(neonDbUrl);
@@ -106,12 +109,12 @@ serve(async (req) => {
           await client.connect();
 
           const result = await client.queryObject(`
-            SELECT id, promo_code, discount_percentage, discount_amount,
+            SELECT id, promo_code, discount_percentage,
                    max_usage, total_usage_tilldate, expiry_date, package
             FROM promo_codes
             WHERE LOWER(TRIM(promo_code)) = LOWER(TRIM($1))
             LIMIT 1
-          `, [couponCode.trim()]);
+          `, [code]);
 
           if (result.rows.length > 0) {
             const coupon = result.rows[0] as any;
@@ -120,65 +123,84 @@ serve(async (req) => {
             const usageCount = coupon.total_usage_tilldate ?? 0;
             const usageLimit = coupon.max_usage ?? 999;
 
-            if (expiresAt >= now && usageCount < usageLimit) {
-              const packType = coupon.package || '';
-              if (packType) {
-                const pkg = packType.toLowerCase();
-                const plan = (planType || '').toLowerCase();
-                const tier = (planTier || '').toLowerCase();
+            if (expiresAt < now) {
+               return new Response(
+                JSON.stringify({ error: `Coupon '${code}' has expired.` }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+              );
+            }
 
-                // 1. Check Cycle (Annual/Quarterly)
-                if ((pkg.includes('quarter') && plan !== 'quarterly') || (pkg.includes('annual') && plan !== 'annual')) {
-                  return new Response(
-                    JSON.stringify({ error: `Coupon is only valid for ${pkg.includes('quarter') ? 'Quarterly' : 'Annual'} plans.` }),
-                    { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
-                  );
-                }
+            if (usageCount >= usageLimit) {
+               return new Response(
+                JSON.stringify({ error: `Coupon '${code}' has reached its usage limit.` }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+              );
+            }
 
-                // 2. Check Tier (Professional/Premium etc)
-                const possibleTiers = ['try_me_out', 'premium', 'professional', 'enterprise', 'starter'];
-                const restrictedTier = possibleTiers.find(t => pkg.includes(t));
-                if (restrictedTier && tier !== restrictedTier && !(restrictedTier === 'starter' && tier === 'try_me_out')) {
-                  return new Response(
-                    JSON.stringify({ error: `Coupon is only valid for the ${restrictedTier.toUpperCase()} tier.` }),
-                    { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
-                  );
-                }
-              }
+            const packType = (coupon.package || '').toLowerCase();
+            if (packType) {
+              const plan = (planType || '').toLowerCase();
+              const tier = (planTier || '').toLowerCase();
 
-              const discountPct = coupon.discount_percentage || 0;
-              const discountAmt = coupon.discount_amount || 0;
-              
-              let discountPaise = 0;
-              if (discountPct > 0) {
-                discountPaise = Math.floor(amount * (discountPct / 100));
-              } else if (discountAmt > 0) {
-                discountPaise = discountAmt * 100;
-              }
-
-              const finalAmount = amount - discountPaise;
-
-              if (finalAmount <= 0) {
-                console.log(`Coupon ${couponCode}: 100% OFF → free`);
+              // 1. Check Cycle (Annual/Quarterly)
+              if ((packType.includes('quarter') && plan !== 'quarterly') || (packType.includes('annual') && plan !== 'annual')) {
                 return new Response(
-                  JSON.stringify({ free: true, amount: 0 }),
+                  JSON.stringify({ error: `Coupon is only valid for ${packType.includes('quarter') ? 'Quarterly' : 'Annual'} plans.` }),
                   { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
                 );
               }
 
-              amount = Math.max(100, finalAmount);
-              console.log(`Coupon ${couponCode}: ${discountPct}% off, final=${amount} paise`);
-            } else {
-              console.log(`Coupon ${couponCode}: expired or max usage reached`);
+              // 2. Check Tier (Professional/Premium etc)
+              const possibleTiers = ['try_me_out', 'premium', 'professional', 'enterprise', 'starter'];
+              const restrictedRestricted = possibleTiers.find(t => packType.includes(t));
+              if (restrictedRestricted && tier !== restrictedRestricted && !(restrictedRestricted === 'starter' && tier === 'try_me_out')) {
+                return new Response(
+                  JSON.stringify({ error: `Coupon is only valid for the ${restrictedRestricted.toUpperCase()} tier.` }),
+                  { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+                );
+              }
             }
+
+            const discountPct = coupon.discount_percentage || 0;
+            
+            // Calculate in RUPEES first to match frontend rounding (floor)
+            const baseRupees = amount / 100;
+            let discountRupees = 0;
+            
+            if (discountPct > 0) {
+              discountRupees = Math.floor(baseRupees * (discountPct / 100));
+            }
+
+            const finalRupees = Math.max(0, baseRupees - discountRupees);
+            
+            if (finalRupees <= 0) {
+              console.log(`[COUPON] ${code}: 100% OFF realized.`);
+              return new Response(
+                JSON.stringify({ free: true, amount: 0 }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+              );
+            }
+
+            amount = Math.max(100, finalRupees * 100); // Back to paise, min ₹1
+            console.log(`[COUPON] ${code} Applied. Discount: ₹${discountRupees}. Final Amount: ₹${finalRupees} (${amount} paise)`);
           } else {
-            console.log(`Coupon ${couponCode}: not found in Neon DB`);
+            console.warn(`[COUPON] Not found: ${code}`);
+            return new Response(
+              JSON.stringify({ error: `Invalid coupon code: '${code}'` }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+            );
           }
-        } catch (neonError) {
-          console.error("Neon DB Coupon Check Error:", neonError);
+        } catch (neonError: any) {
+          console.error("[COUPON] DB Error:", neonError);
+          return new Response(
+            JSON.stringify({ error: "Coupon validation failed due to a database error. Please try again or remove the coupon." }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+          );
         } finally {
           await client.end();
         }
+      } else {
+         console.error("[COUPON] NEON_DB_URL missing");
       }
     }
 
