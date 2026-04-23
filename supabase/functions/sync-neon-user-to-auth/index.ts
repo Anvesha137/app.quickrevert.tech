@@ -59,6 +59,12 @@ serve(async (req) => {
     );
     const availableUserCols = userColsRows.map((c: any) => c.column_name);
 
+    // Also get gifted_premium columns for debug
+    const { rows: giftedColsRows } = await neonClient.queryObject(
+      `SELECT column_name FROM information_schema.columns WHERE table_name = 'gifted_premium' AND table_schema = 'public'`
+    ).catch(() => ({ rows: [] }));
+    const availableGiftedCols = giftedColsRows.map((c: any) => c.column_name);
+
     match = allUsers.find((u: any) => {
       const dbEmail = String(u.email || '').trim().toLowerCase();
       const dbUser = String(u.username || '').trim().toLowerCase();
