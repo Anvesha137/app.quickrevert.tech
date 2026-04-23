@@ -31,6 +31,7 @@ interface TriggerConfigProps {
   config: TriggerConfig | null;
   onConfigChange: (config: TriggerConfig) => void;
   readOnly?: boolean;
+  automationId?: string;
 }
 
 function OptionCard({ icon: Icon, title, description, selected, onClick, disabled }: any) {
@@ -105,7 +106,7 @@ function ConnectGoogleButton({ isConnected, email, onConnect, onDisconnect, read
   );
 }
 
-export default function TriggerConfigStep({ triggerType, config, onConfigChange, readOnly }: TriggerConfigProps) {
+export default function TriggerConfigStep({ triggerType, config, onConfigChange, readOnly, automationId }: TriggerConfigProps) {
   const { darkMode } = useTheme();
   const { isPremium } = useSubscription();
   const [keyword, setKeyword] = useState('');
@@ -139,15 +140,14 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
       try {
         const { data: automations, error } = await supabase
           .from('automations')
-          .select('id, trigger_type, trigger_config, status')
-          .eq('status', 'active');
+          .select('id, trigger_type, trigger_config, status');
         
         if (error) throw error;
         
         const usedIds = new Set<string>();
         automations?.forEach(auto => {
           // If we are editing an automation, don't count its own posts as "used"
-          if (config && (config as any).id === auto.id) return;
+          if (automationId && auto.id === automationId) return;
           
           const tConfig = auto.trigger_config;
           if (auto.trigger_type === 'post_comment' && tConfig?.postsType === 'specific') {

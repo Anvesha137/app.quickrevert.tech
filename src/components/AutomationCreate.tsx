@@ -668,6 +668,7 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
                     onSave={executeSave}
                     saving={saving}
                     readOnly={readOnly}
+                    automationId={id}
                     onBack={() => {
                       navigate(-1);
                       window.scrollTo({ top: 0, behavior: 'smooth' });

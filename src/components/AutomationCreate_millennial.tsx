@@ -630,6 +630,7 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
                   config={formData.triggerConfig}
                   onConfigChange={(config) => setFormData({ ...formData, triggerConfig: config })}
                   readOnly={readOnly}
+                  automationId={id}
                 />
                 <div className="mt-8 flex justify-center pb-8 md:pb-0">
                   <button

@@ -47,6 +47,7 @@ interface AutomationConfigureGenzProps {
   saving: boolean;
   readOnly?: boolean;
   onBack?: () => void;
+  automationId?: string;
 }
 
 const COOLDOWN_OPTIONS = [
@@ -93,6 +94,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
   const [posts, setPosts] = useState<InstagramMedia[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(false);
   const [pendingMediaId, setPendingMediaId] = useState<string | null>(null);
+  const [usedMediaIds, setUsedMediaIds] = useState<Set<string>>(new Set());
 
   const triggerType = formData.triggerType!;
   const triggerConfig = formData.triggerConfig;
@@ -108,6 +110,39 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
       setEditingPosts(false);
     }
   }, [triggerType, JSON.stringify((triggerConfig as PostCommentTriggerConfig)?.specificPosts), JSON.stringify((triggerConfig as StoryReplyTriggerConfig)?.specificStories)]);
+
+  // Fetch used media to prevent duplicates
+  useEffect(() => {
+    const fetchUsedMedia = async () => {
+      try {
+        const { data: automations, error } = await supabase
+          .from('automations')
+          .select('id, trigger_type, trigger_config');
+        
+        if (error) throw error;
+        
+        const usedIds = new Set<string>();
+        automations?.forEach(auto => {
+          // If editing, don't block current automation's posts
+          if (automationId && auto.id === automationId) return;
+          
+          const tConfig = auto.trigger_config;
+          if (auto.trigger_type === 'post_comment' && tConfig?.postsType === 'specific') {
+            tConfig.specificPosts?.forEach((id: string) => usedIds.add(id));
+          } else if (auto.trigger_type === 'story_reply' && tConfig?.storiesType === 'specific') {
+            tConfig.specificStories?.forEach((id: string) => usedIds.add(id));
+          }
+        });
+        setUsedMediaIds(usedIds);
+      } catch (err) {
+        console.error("Error fetching used media:", err);
+      }
+    };
+
+    if (triggerType === 'post_comment' || triggerType === 'story_reply') {
+      fetchUsedMedia();
+    }
+  }, [triggerType, automationId]);
 
 
 
@@ -208,7 +243,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
   };
 
   const toggleMediaSelection = (mediaId: string) => {
-    if (readOnly) return;
+    if (readOnly || usedMediaIds.has(mediaId)) return;
     setPendingMediaId(prev => prev === mediaId ? null : mediaId);
   };
 
@@ -536,12 +571,14 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                     <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
                       {posts.map(post => {
                         const isSelected = post.id === pendingMediaId;
+                        const isUsed = usedMediaIds.has(post.id);
                         return (
                           <div key={post.id} onClick={() => toggleMediaSelection(post.id)} className={cn(
                             "relative aspect-square min-w-0 min-h-0 w-full cursor-pointer rounded-xl overflow-hidden border-2 transition-all",
                             isSelected
                               ? (darkMode ? "border-white ring-2 ring-white/20 scale-[0.98]" : "border-purple-600 ring-2 ring-purple-600/50 shadow-[0_0_15px_rgba(147,51,234,0.3)] scale-[0.98]")
-                              : (darkMode ? "border-transparent hover:border-white/20" : "border-transparent hover:border-purple-200")
+                              : (darkMode ? "border-transparent hover:border-white/20" : "border-transparent hover:border-purple-200"),
+                            isUsed && "opacity-40 grayscale cursor-not-allowed"
                           )}>
                             {post.media_type === 'VIDEO' ? <video src={post.media_url} poster={post.thumbnail_url} autoPlay loop muted playsInline className={`w-full h-full object-cover transition-transform ${isSelected ? 'scale-110' : ''}`} /> : <img src={post.media_url} alt="" className={`w-full h-full object-cover transition-transform ${isSelected ? 'scale-110' : ''}`} />}
                             {isSelected && (
@@ -549,6 +586,12 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                                 <div className={cn("text-white p-1.5 rounded-full shadow-lg scale-110", darkMode ? "bg-white/20" : "bg-purple-600")}>
                                   <CheckCircle2 size={16} strokeWidth={3} />
                                 </div>
+                              </div>
+                            )}
+                            {isUsed && (
+                              <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center p-2 text-center">
+                                <Lock size={16} className="text-white/60 mb-1" />
+                                <span className="text-[8px] font-black uppercase text-white/80 leading-tight">Already<br/>Automated</span>
                               </div>
                             )}
                           </div>
