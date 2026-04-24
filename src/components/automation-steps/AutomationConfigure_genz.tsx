@@ -73,7 +73,7 @@ const GradientLine = () => {
   );
 };
 
-export default function AutomationConfigureGenz({ formData, setFormData, onSave, saving, readOnly, onBack }: AutomationConfigureGenzProps) {
+export default function AutomationConfigureGenz({ formData, setFormData, onSave, saving, readOnly, onBack, automationId }: AutomationConfigureGenzProps) {
   const { 
     isPremium, 
     canUseAskToFollow,
