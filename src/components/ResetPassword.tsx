@@ -38,6 +38,10 @@ export default function ResetPassword() {
       setLoading(true);
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
+      
+      // Sign out immediately so they have to log in manually with the new password
+      await supabase.auth.signOut();
+      
       setSuccess(true);
       setTimeout(() => navigate('/'), 3000);
     } catch (err: any) {
@@ -61,7 +65,7 @@ export default function ResetPassword() {
                   </svg>
                 </div>
                 <h1 className="text-2xl font-black text-slate-900 mb-2">Password Updated!</h1>
-                <p className="text-sm text-slate-500 font-medium">Your password has been reset successfully. Redirecting you to the dashboard...</p>
+                <p className="text-sm text-slate-500 font-medium">Your password has been reset successfully. Redirecting you to the login page...</p>
               </>
             ) : (
               <>
