@@ -15,7 +15,7 @@ export default function ResetPassword() {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
-        sessionStorage.setItem('is_recovering_password', 'true');
+        localStorage.setItem('is_recovering_password', 'true');
       }
     });
     return () => subscription.unsubscribe();
@@ -41,7 +41,7 @@ export default function ResetPassword() {
       
       // Sign out immediately so they have to log in manually with the new password
       await supabase.auth.signOut();
-      sessionStorage.removeItem('is_recovering_password');
+      localStorage.removeItem('is_recovering_password');
       
       setSuccess(true);
       setTimeout(() => navigate('/'), 3000);

@@ -32,11 +32,11 @@ function AppContent() {
   const location = useLocation();
 
   // 1. Detect if we are in a recovery flow (clicked an email link)
-  // We check the hash AND a session flag to prevent auto-login in other tabs
+  // We check the hash AND a global flag to prevent auto-login in ALL tabs
   const isRecoveryFlow = 
     location.pathname === '/reset-password' || 
     location.hash.includes('type=recovery') ||
-    sessionStorage.getItem('is_recovering_password') === 'true';
+    localStorage.getItem('is_recovering_password') === 'true';
   
   // Public routes — accessible without auth (required by Meta policy)
   if (location.pathname === '/deletion-status' || location.pathname === '/reset-password') {
@@ -58,7 +58,7 @@ function AppContent() {
     return <PageSkeleton />;
   }
 
-  if (!user) {
+  if (!user || isRecoveryFlow) {
     return <Login />;
   }
 
