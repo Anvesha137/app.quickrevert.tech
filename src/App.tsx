@@ -31,6 +31,13 @@ function AppContent() {
   const { isPremium, loading: subLoading } = useSubscription();
   const location = useLocation();
 
+  // 1. Detect if we are in a recovery flow (clicked an email link)
+  // We check the hash AND a session flag to prevent auto-login in other tabs
+  const isRecoveryFlow = 
+    location.pathname === '/reset-password' || 
+    location.hash.includes('type=recovery') ||
+    sessionStorage.getItem('is_recovering_password') === 'true';
+  
   // Public routes — accessible without auth (required by Meta policy)
   if (location.pathname === '/deletion-status' || location.pathname === '/reset-password') {
     return (
@@ -39,6 +46,12 @@ function AppContent() {
         <Route path="/reset-password" element={<ResetPassword />} />
       </Routes>
     );
+  }
+
+  // 2. If the user is technically "logged in" but is in a recovery flow, 
+  // do NOT let them see the dashboard. Force them back to reset-password.
+  if (user && isRecoveryFlow) {
+    return <Navigate to="/reset-password" replace />;
   }
 
   if (loading || (user && subLoading)) {
