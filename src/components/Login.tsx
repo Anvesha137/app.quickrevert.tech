@@ -65,12 +65,41 @@ export default function Login() {
       setError('Please enter your email address.');
       return;
     }
+
+    // 1. Block temp email domains (Comprehensive check)
+    const domain = email.split('@')[1]?.toLowerCase() || '';
+    const suspiciousKeywords = ['temp', 'trash', 'disposable', 'fake', 'guerrilla', 'sharklasers', '10minutemail', 'pertok.com', 'temp-mail', 'mailinator'];
+    const safeDomains = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'icloud.com'];
+    
+    const isSuspicious = !safeDomains.includes(domain) && suspiciousKeywords.some(kw => domain.includes(kw));
+    
+    if (isSuspicious) {
+      setError('Temp email are not allowed');
+      return;
+    }
+
     try {
       setLoading('email');
       setError(null);
+
+      // 2. Check if the email is registered via our new Edge Function
+      const { data: checkData, error: checkError } = await supabase.functions.invoke('check-user-exists', {
+        body: { email }
+      });
+
+      if (checkError) throw checkError;
+      
+      if (!checkData?.exists) {
+        setError('This email is not registered in our system.');
+        setLoading(null);
+        return;
+      }
+
+      // 3. Proceed with password reset
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
+      
       if (error) throw error;
       setResetSent(true);
     } catch (err: any) {

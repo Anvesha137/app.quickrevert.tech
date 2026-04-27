@@ -220,7 +220,7 @@ Deno.serve(async (req: Request) => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          subscribed_fields: 'messages,messaging_postbacks',
+          subscribed_fields: 'messages,messaging_postbacks,comments',
           access_token: accessToken
         })
       });
