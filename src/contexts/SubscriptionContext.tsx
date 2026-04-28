@@ -327,13 +327,13 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     const dmLimit = isGiftedActive
         ? (giftedSettings?.dm_limit ?? 'Unlimited')
         : planId === 'basic' ? 2000
-        : planId === 'try_me_out' && isPlanActive ? 10000
+        : planId.includes('try_me_out') && isPlanActive ? 10000
         : isPlanActive ? 'Unlimited' : 2000;
 
     const automationLimit = isGiftedActive
         ? (giftedSettings?.automation_limit ?? 'Unlimited')
         : planId === 'basic' ? 5
-        : planId === 'try_me_out' && isPlanActive ? 10
+        : planId.includes('try_me_out') && isPlanActive ? 10
         : isPlanActive ? 'Unlimited' : 5;
 
     const accountLimit = isGiftedActive

@@ -73,10 +73,10 @@ serve(async (req) => {
       try {
         await freeClient.connect();
         const freeResult = await freeClient.queryObject(`
-          SELECT id, code, discount_percentage, discount_amount,
-                 usage_limit, used_count, expires_at, pack_type, status
+          SELECT id, promo_code, discount_percentage,
+                 max_usage, total_usage_tilldate, expiry_date, package
           FROM promo_codes
-          WHERE LOWER(code) = LOWER($1)
+          WHERE LOWER(TRIM(promo_code)) = LOWER(TRIM($1))
           LIMIT 1
         `, [couponCode.trim()]);
 
@@ -90,7 +90,7 @@ serve(async (req) => {
         const coupon = freeResult.rows[0] as any;
 
         // Check expiry
-        if (new Date(coupon.expires_at) < new Date()) {
+        if (new Date(coupon.expiry_date) < new Date()) {
           return new Response(
             JSON.stringify({ error: 'Coupon has expired' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -107,7 +107,7 @@ serve(async (req) => {
 
         // Increment total_usage_tilldate in Neon DB
         await freeClient.queryObject(
-          `UPDATE promo_codes SET used_count = used_count + 1 WHERE id = $1`,
+          `UPDATE promo_codes SET total_usage_tilldate = total_usage_tilldate + 1 WHERE id = $1`,
           [coupon.id]
         );
         console.log(`Coupon ${couponCode} usage incremented in Neon DB (free flow).`);
@@ -190,7 +190,7 @@ serve(async (req) => {
         try {
           await couponClient.connect();
           const couponResult = await couponClient.queryObject(`
-            SELECT id, promo_code, discount_percentage, discount_amount, package, 
+            SELECT id, promo_code, discount_percentage, package, 
                    max_usage, total_usage_tilldate, expiry_date
             FROM promo_codes
             WHERE LOWER(TRIM(promo_code)) = LOWER(TRIM($1)) AND (expiry_date >= NOW()) AND (total_usage_tilldate < max_usage)
@@ -214,14 +214,18 @@ serve(async (req) => {
 
               // 2. Tier Verification
               const possibleTiers = ['try_me_out', 'premium', 'professional', 'enterprise', 'starter'];
-              const restrictedTier = possibleTiers.find(t => pkg.includes(t));
+              const restrictedTier = possibleTiers.find(t => 
+                pkg.includes(t) || 
+                pkg.includes(t.replace(/_/g, ' '))
+              );
+
               if (restrictedTier && tier !== restrictedTier && !(restrictedTier === 'starter' && tier === 'try_me_out')) {
-                 throw new Error(`Integrity Error: Coupon valid for ${restrictedTier.toUpperCase()} only.`);
+                 throw new Error(`Integrity Error: Coupon valid for ${restrictedTier.toUpperCase().replace(/_/g, ' ')} only.`);
               }
             }
 
             const pct = coupon.discount_percentage || 0;
-            const amt = coupon.discount_amount || 0;
+            const amt = 0; // discount_amount column does not exist in DB
 
             if (pct > 0) {
               serverCalculatedDiscountPaise = Math.floor(baseAmountPaise * (pct / 100));
@@ -438,7 +442,7 @@ serve(async (req) => {
         if (couponCode && !isFree) {
           try {
             await neonClient.queryObject(
-              `UPDATE promo_codes SET used_count = used_count + 1 WHERE LOWER(code) = LOWER($1)`,
+              `UPDATE promo_codes SET total_usage_tilldate = total_usage_tilldate + 1 WHERE LOWER(TRIM(promo_code)) = LOWER(TRIM($1))`,
               [couponCode.trim()]
             );
             console.log(`Paid Coupon ${couponCode} usage incremented in Neon DB.`);

@@ -75,10 +75,14 @@ serve(async (req) => {
 
         // Tier Check
         const tiers = ['try_me_out', 'premium', 'professional', 'enterprise', 'starter'];
-        const restrictedTo = tiers.find(t => packType.includes(t));
+        const restrictedTo = tiers.find(t => 
+          packType.includes(t) || 
+          packType.includes(t.replace(/_/g, ' '))
+        );
+
         if (restrictedTo && selectedTier !== restrictedTo && !(restrictedTo === 'starter' && selectedTier === 'try_me_out')) {
            return new Response(
-            JSON.stringify({ valid: false, message: `Only valid for ${restrictedTo.toUpperCase()} tier.` }),
+            JSON.stringify({ valid: false, message: `Only valid for ${restrictedTo.toUpperCase().replace(/_/g, ' ')} tier.` }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
@@ -86,14 +90,14 @@ serve(async (req) => {
 
       // 6. Final Calculations
       let baseAmount = 0;
-      if (planTier === 'try_me_out') {
+      if (selectedTier === 'try_me_out') {
         baseAmount = 199;
-      } else if (planTier === 'premium') {
-        baseAmount = planType === 'annual' ? 4199 : 1199;
-      } else if (planTier === 'professional') {
-        baseAmount = planType === 'annual' ? 5999 : 1799;
+      } else if (selectedTier === 'premium') {
+        baseAmount = selectedPlan === 'annual' ? 4199 : 1199;
+      } else if (selectedTier === 'professional') {
+        baseAmount = selectedPlan === 'annual' ? 5999 : 1799;
       } else {
-        baseAmount = (planType === 'annual') ? (599 * 12) : (899 * 3);
+        baseAmount = (selectedPlan === 'annual') ? (599 * 12) : (899 * 3);
       }
 
       const pct = coupon.discount_percentage || 0;

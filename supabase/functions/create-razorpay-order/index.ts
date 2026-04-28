@@ -152,10 +152,14 @@ serve(async (req) => {
 
               // 2. Check Tier (Professional/Premium etc)
               const possibleTiers = ['try_me_out', 'premium', 'professional', 'enterprise', 'starter'];
-              const restrictedRestricted = possibleTiers.find(t => packType.includes(t));
+              const restrictedRestricted = possibleTiers.find(t => 
+                packType.includes(t) || 
+                packType.includes(t.replace(/_/g, ' '))
+              );
+
               if (restrictedRestricted && tier !== restrictedRestricted && !(restrictedRestricted === 'starter' && tier === 'try_me_out')) {
                 return new Response(
-                  JSON.stringify({ error: `Coupon is only valid for the ${restrictedRestricted.toUpperCase()} tier.` }),
+                  JSON.stringify({ error: `Coupon is only valid for the ${restrictedRestricted.toUpperCase().replace(/_/g, ' ')} tier.` }),
                   { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
                 );
               }
