@@ -200,12 +200,38 @@ async function processEvent(body: any) {
 
             // Auto-Correction for existing accounts if ID was matched via user_id but business_id is wrong
             for (const account of accountsData) {
-                if (String(account.instagram_business_id) !== account_id) {
-                    console.log(`🔄 Auto-correcting stored Business ID for ${account.username} to ${account_id}`);
+                const oldBusinessId = String(account.instagram_business_id);
+                if (oldBusinessId !== account_id) {
+                    console.log(`🔄 Auto-correcting stored Business ID for ${account.username}: ${oldBusinessId} → ${account_id}`);
                     await supabaseClient
                         .from('instagram_accounts')
                         .update({ instagram_business_id: account_id })
                         .eq('id', account.id);
+
+                    // 🔥 CRITICAL FIX: Propagate the corrected ID to automation_routes and tracked_payloads.
+                    // Without this, existing automations registered with the OLD account_id will never
+                    // match incoming webhook events that carry the NEW (corrected) account_id.
+                    // This is why "Send Access" postback didn't trigger — the payload was registered
+                    // against the old ID, so resolveRoutes couldn't find it.
+                    const { error: routeUpdateErr } = await supabaseClient
+                        .from('automation_routes')
+                        .update({ account_id: account_id })
+                        .eq('account_id', oldBusinessId);
+                    if (routeUpdateErr) {
+                        console.error(`[ID-FIX] Failed to update automation_routes for ${oldBusinessId}:`, routeUpdateErr.message);
+                    } else {
+                        console.log(`[ID-FIX] ✅ Updated automation_routes: ${oldBusinessId} → ${account_id}`);
+                    }
+
+                    const { error: payloadUpdateErr } = await supabaseClient
+                        .from('tracked_payloads')
+                        .update({ account_id: account_id })
+                        .eq('account_id', oldBusinessId);
+                    if (payloadUpdateErr) {
+                        console.error(`[ID-FIX] Failed to update tracked_payloads for ${oldBusinessId}:`, payloadUpdateErr.message);
+                    } else {
+                        console.log(`[ID-FIX] ✅ Updated tracked_payloads: ${oldBusinessId} → ${account_id}`);
+                    }
                 }
             }
         }
@@ -244,7 +270,7 @@ async function processEvent(body: any) {
 
                 if (internalAccountId) {
                     // Extract the postback payload so resolveRoutes can do a direct lookup via tracked_payloads
-                    const postbackPayload = msg.postback?.payload || msg.message?.quick_reply?.payload || undefined;
+                    const postbackPayload = msg.postback?.payload || msg.message?.quick_reply?.payload || msg.message?.text?.trim()?.toLowerCase() || undefined;
                     // ⚠️ CRITICAL: automation_routes.account_id stores Meta ID (account_id), NOT internal UUID
                     console.log(`[ROUTING] Resolving routes for Meta account: ${account_id}, sub_type: ${sub_type}, payload: ${postbackPayload || 'none'}`);
                     activeRoutes = await resolveRoutes(supabaseClient, account_id, 'messaging', sub_type, undefined, postbackPayload);
@@ -634,9 +660,9 @@ async function resolveRoutes(supabaseClient: any, account_id: string, event_type
         if (trackedData) specificWorkflowId = trackedData.workflow_id;
     }
 
-    // Priority 2: tracked_payloads — postback button tap → specific workflow
-    // This replaces the n8n ownership-guard pattern: only the workflow that SENT the button gets triggered.
-    if (!specificWorkflowId && sub_type === 'postback' && postbackPayload) {
+    // Priority 2: tracked_payloads — postback button tap OR keyword match → specific workflow
+    if (!specificWorkflowId && postbackPayload) {
+        // Pass 1: Fast lookup by account_id (correct path)
         const { data: payloadData } = await supabaseClient.from('tracked_payloads')
             .select('n8n_workflow_id')
             .eq('payload', postbackPayload)
@@ -645,6 +671,37 @@ async function resolveRoutes(supabaseClient: any, account_id: string, event_type
         if (payloadData) {
             specificWorkflowId = payloadData.n8n_workflow_id;
             console.log(`[ROUTING] tracked_payloads hit for payload "${postbackPayload}" → workflow ${specificWorkflowId}`);
+        } else {
+            // Pass 2: Stale-ID fallback — look up via workflow IDs from automation_routes.
+            // This handles the case where tracked_payloads was registered with an OLD account_id
+            // (before self-healing corrected instagram_accounts.instagram_business_id).
+            // We know automation_routes.account_id IS correct (updated by our fix or originally correct),
+            // so we use those workflow IDs to cross-reference tracked_payloads by payload value alone.
+            console.log(`[ROUTING] tracked_payloads miss for "${postbackPayload}" with account_id ${account_id} — trying stale-ID fallback`);
+            const { data: accountRoutes } = await supabaseClient.from('automation_routes')
+                .select('n8n_workflow_id')
+                .eq('account_id', account_id)
+                .eq('is_active', true);
+            if (accountRoutes && accountRoutes.length > 0) {
+                const wfIds = accountRoutes.map((r: any) => r.n8n_workflow_id);
+                const { data: fallbackData } = await supabaseClient.from('tracked_payloads')
+                    .select('n8n_workflow_id')
+                    .eq('payload', postbackPayload)
+                    .in('n8n_workflow_id', wfIds)
+                    .maybeSingle();
+                if (fallbackData) {
+                    specificWorkflowId = fallbackData.n8n_workflow_id;
+                    console.log(`[ROUTING] ✅ Stale-ID fallback resolved "${postbackPayload}" → workflow ${specificWorkflowId}. Auto-healing tracked_payloads...`);
+                    // Auto-heal: correct the stale account_id so next lookup is fast
+                    supabaseClient.from('tracked_payloads')
+                        .update({ account_id: account_id })
+                        .eq('n8n_workflow_id', fallbackData.n8n_workflow_id)
+                        .then(() => console.log(`[ROUTING] ✅ tracked_payloads account_id healed for workflow ${fallbackData.n8n_workflow_id}`))
+                        .catch((e: any) => console.error(`[ROUTING] Failed to heal tracked_payloads:`, e));
+                } else {
+                    console.log(`[ROUTING] Stale-ID fallback also missed for "${postbackPayload}" across ${wfIds.length} workflows`);
+                }
+            }
         }
     }
 

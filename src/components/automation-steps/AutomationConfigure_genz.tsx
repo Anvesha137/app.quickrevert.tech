@@ -477,6 +477,42 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
     } as any);
   };
 
+  const characterLimitExceeded = ((): { exceeded: boolean, reason?: string } => {
+    // 1. Reply templates (1000 chars)
+    if (replyAction) {
+      for (const t of replyAction.replyTemplates) {
+        if (t.length > 1000) return { exceeded: true, reason: 'Comment reply limit exceeded (1000)' };
+      }
+    }
+
+    // 2. DM Message / Flow Opener (1000 chars)
+    if (dmAction) {
+      if ((dmAction.title || '').length > 1000) return { exceeded: true, reason: 'DM message limit exceeded (1000)' };
+
+      // 3. Carousel Cards (400 chars for title/subtitle)
+      if (dmAction.dmType === 'carousel' && dmAction.carouselCards) {
+        for (const card of dmAction.carouselCards) {
+          if ((card.title || '').length > 400) return { exceeded: true, reason: 'Carousel headline limit exceeded (400)' };
+          if ((card.subtitle || '').length > 400) return { exceeded: true, reason: 'Carousel description limit exceeded (400)' };
+        }
+      }
+
+      // 4. Conversation Flow (1000 chars for branch messages)
+      if (dmAction.dmType === 'conversation_flow' && dmAction.conversationCards) {
+        for (const card of dmAction.conversationCards) {
+          if ((card.messageTemplate || '').length > 1000) return { exceeded: true, reason: 'Flow message limit exceeded (1000)' };
+        }
+      }
+    }
+
+    // 5. Follow Up (1000 chars)
+    if (followUpAction && followUpAction.enabled) {
+      if ((followUpAction.message || '').length > 1000) return { exceeded: true, reason: 'Follow-up message limit exceeded (1000)' };
+    }
+
+    return { exceeded: false };
+  })();
+
   const isReplyValid = replyAction ? replyAction.replyTemplates.some(t => t.trim().length > 0) : true;
   const isDmValid = dmAction
     ? (dmAction.dmType === 'conversation_flow'
@@ -502,8 +538,9 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
     : true;
   const isFollowUpValid = !hasFollowUp || (!!followUpAction && !!followUpAction.message && (followUpAction.delayValue || 0) > 0);
   const isLeadValid = true;
-  const canSave = (hasReply || hasDm || hasLeadManager) && isReplyValid && isDmValid && isFollowUpValid && isLeadValid;
+  const canSave = (hasReply || hasDm || hasLeadManager) && isReplyValid && isDmValid && isFollowUpValid && isLeadValid && !characterLimitExceeded.exceeded;
   const TriggerIcon = getTriggerIcon();
+
 
   return (
     <div className="max-w-4xl mx-auto pb-32 transition-colors duration-500">
@@ -2220,16 +2257,18 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
         {!canSave && !saving && !readOnly && (
           <div className="flex justify-center -mt-4 mb-20">
             <p className={cn(
-              "text-[10px] font-black uppercase tracking-[0.2em] animate-pulse px-4 py-1.5 rounded-full border shadow-sm",
+              "text-[10px] font-black uppercase tracking-[0.2em] animate-pulse px-4 py-1.5 rounded-full border shadow-sm text-center",
               darkMode
                 ? "bg-orange-500/10 text-orange-400 border-orange-500/20"
                 : "bg-orange-50 text-orange-600 border-orange-200"
             )}>
-              {!isReplyValid ? 'Add a reply template' :
+              {characterLimitExceeded.exceeded ? characterLimitExceeded.reason :
+                !isReplyValid ? 'Add a reply template' :
                 !isDmValid ? 'Finish DM configuration' :
                   !isFollowUpValid ? 'Complete follow up message' :
                     'Check action settings'}
             </p>
+
           </div>
         )}
       </div>

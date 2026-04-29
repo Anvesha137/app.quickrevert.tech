@@ -267,6 +267,42 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
     }
   };
 
+  const characterLimitExceeded = ((): { exceeded: boolean, reason?: string } => {
+    // 1. Reply templates (1000 chars)
+    if (replyAction) {
+      for (const t of replyAction.replyTemplates) {
+        if (t.length > 1000) return { exceeded: true, reason: 'Comment reply limit exceeded (1000)' };
+      }
+    }
+
+    // 2. DM Message / Flow Opener (1000 chars)
+    if (dmAction) {
+      if ((dmAction.title || '').length > 1000) return { exceeded: true, reason: 'DM message limit exceeded (1000)' };
+
+      // 3. Carousel Cards (400 chars for title/subtitle)
+      if (dmAction.dmType === 'carousel' && dmAction.carouselCards) {
+        for (const card of dmAction.carouselCards) {
+          if ((card.title || '').length > 400) return { exceeded: true, reason: 'Carousel headline limit exceeded (400)' };
+          if ((card.subtitle || '').length > 400) return { exceeded: true, reason: 'Carousel description limit exceeded (400)' };
+        }
+      }
+
+      // 4. Conversation Flow (1000 chars for branch messages)
+      if (dmAction.dmType === 'conversation_flow' && dmAction.conversationCards) {
+        for (const card of dmAction.conversationCards) {
+          if ((card.messageTemplate || '').length > 1000) return { exceeded: true, reason: 'Flow message limit exceeded (1000)' };
+        }
+      }
+    }
+
+    // 5. Follow Up (1000 chars)
+    if (followUpAction && followUpAction.enabled) {
+      if ((followUpAction.message || '').length > 1000) return { exceeded: true, reason: 'Follow-up message limit exceeded (1000)' };
+    }
+
+    return { exceeded: false };
+  })();
+
   const isReplyValid = replyAction ? replyAction.replyTemplates.some(t => t.trim().length > 0) : true;
   const isDmValid = dmAction
     ? (dmAction.dmType === 'conversation_flow'
@@ -288,7 +324,8 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
     )
     : true;
   const isFollowUpValid = hasFollowUp ? (followUpAction?.message || '').trim().length > 0 : true;
-  const canSave = actions.length > 0 && isReplyValid && isDmValid && isFollowUpValid;
+  const canSave = actions.length > 0 && isReplyValid && isDmValid && isFollowUpValid && !characterLimitExceeded.exceeded;
+
 
   return (
     <div className="space-y-5 md:space-y-6 pb-24 w-full">
@@ -1804,14 +1841,16 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
       {!canSave && !saving && !readOnly && (
         <div className="flex justify-center -mt-4 mb-8">
           <p className={cn(
-            "text-[10px] font-black uppercase tracking-[0.2em] animate-pulse px-4 py-1.5 rounded-full",
+            "text-[10px] font-black uppercase tracking-[0.2em] animate-pulse px-4 py-1.5 rounded-full text-center",
             darkMode ? "bg-orange-500/10 text-orange-400" : "bg-orange-50 text-orange-600"
           )}>
-            {!isReplyValid ? 'Add a reply template' :
+            {characterLimitExceeded.exceeded ? characterLimitExceeded.reason :
+              !isReplyValid ? 'Add a reply template' :
               !isDmValid ? 'Finish DM configuration' :
                 !isFollowUpValid ? 'Complete follow up message' :
                   'Check action settings'}
           </p>
+
         </div>
       )}
 

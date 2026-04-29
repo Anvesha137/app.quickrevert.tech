@@ -73,6 +73,7 @@ serve(async (req) => {
           .from('subscriptions')
           .select('id')
           .ilike('plan_id', '%try_me_out%')
+          .in('status', ['active', 'trialing', 'past_due'])
           .limit(1)
           .maybeSingle();
 

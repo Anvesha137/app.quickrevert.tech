@@ -14,9 +14,6 @@ Deno.serve(async (req: Request) => {
 
   try {
     console.log("--- CREATE WORKFLOW FUNCTION INVOKED [VERIFICATION ID: " + Date.now() + "] ---");
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    const jwt = authHeader.replace("Bearer ", "");
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -24,6 +21,23 @@ Deno.serve(async (req: Request) => {
     const n8nBaseUrl = Deno.env.get("N8N_BASE_URL")!;
     const n8nApiKey = Deno.env.get("X-N8N-API-KEY")!;
     const internalSecret = Deno.env.get("QUICKREVERT_INTERNAL_SECRET") || "";
+
+    const incomingSecret = req.headers.get("x-quickrevert-secret");
+
+    let user: any = null;
+
+    if (incomingSecret && internalSecret && incomingSecret === internalSecret) {
+      console.log("[ADMIN] Auth bypassed via internal secret");
+    } else {
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader?.startsWith("Bearer ")) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      const jwt = authHeader.replace("Bearer ", "");
+      const authClient = createClient(supabaseUrl, supabaseAnonKey);
+      const { data, error: authError } = await authClient.auth.getUser(jwt);
+      if (authError || !data.user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+      user = data.user;
+    }
+
 
     console.log("--- CONFIG DIAGNOSTICS ---");
     console.log(`SUPABASE_URL: ${supabaseUrl?.substring(0, 10)}...`);
@@ -33,13 +47,20 @@ Deno.serve(async (req: Request) => {
 
     if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey || !n8nBaseUrl || !n8nApiKey) return new Response(JSON.stringify({ error: "Config missing" }), { status: 500 });
 
-    const authClient = createClient(supabaseUrl, supabaseAnonKey);
-    const { data: { user }, error: authError } = await authClient.auth.getUser(jwt);
-    if (authError || !user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
-
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const body = await req.json();
     const { userId, template, variables, instagramAccountId, workflowName, automationId, autoActivate = false, triggerType: bodyTriggerType } = body;
+
+    // If admin bypass was used, populate a "fake" user object so downstream checks work
+    if (!user && incomingSecret && internalSecret && incomingSecret === internalSecret) {
+      user = { id: userId };
+    }
+
+    // Ownership check (skipped for admin since user.id === userId now)
+    if (!user || userId !== user.id) throw new Error("User mismatch");
+
+    // 🆔 Consistently handle unique IDs for payloads and tracking
+    const uniqueId = automationId ? String(automationId).replace(/-/g, '') : Date.now().toString();
 
     let automationData: any = null;
     if (automationId) {
@@ -47,7 +68,6 @@ Deno.serve(async (req: Request) => {
       if (data) automationData = data;
     }
 
-    if (!userId || userId !== user.id) throw new Error("User mismatch");
 
     // 🔒 AUTOMATION LIMIT ENFORCEMENT — server-side check
     if (autoActivate && bodyTriggerType !== 'enable_analytics') {
@@ -137,7 +157,7 @@ Deno.serve(async (req: Request) => {
       const hasFollowUp = !!followUpAction && followUpAction.enabled;
       const dataToCollect = leadAction?.collectFields || leadAction?.dataToCollect || ['name', 'email'];
       const hasPhone = dataToCollect.includes('phone');
-      const uniqueId = automationId ? automationId.replace(/-/g, '') : Date.now().toString();
+
 
       // --- COMMON VARIABLES ---
       const instagramUsername = instagramAccount.username;
@@ -822,8 +842,6 @@ return [{ json: { senderId } }];`
               "sendHeaders": true,
               "headerParameters": {
                 "parameters": [
-                  { "name": "apikey", "value": supabaseAnonKey },
-                  { "name": "Authorization", "value": "Bearer " + supabaseAnonKey },
                   { "name": "x-quickrevert-secret", "value": internalSecret },
                   { "name": "Content-Type", "value": "application/json" }
                 ]
@@ -1327,8 +1345,6 @@ return [{ json: { senderId } }];`
               "sendHeaders": true,
               "headerParameters": {
                 "parameters": [
-                  { "name": "Authorization", "value": `Bearer ${supabaseAnonKey}` },
-                  { "name": "apikey", "value": supabaseAnonKey },
                   { "name": "x-quickrevert-secret", "value": internalSecret },
                   { "name": "Content-Type", "value": "application/json" }
                 ]
@@ -2857,8 +2873,7 @@ return { json: { userId, username, isFollowing } };`
         const trackedPayloadsToInsert: any[] = [];
         
         // 🧪 DEBUG: Force a canary payload to prove the table works
-        const debugUid = automationId ? String(automationId).replace(/-/g, '') : 'NO_AUTO_ID';
-        trackedPayloadsToInsert.push(`FORCE_DEBUG_${debugUid}`);
+        trackedPayloadsToInsert.push(`FORCE_DEBUG_${uniqueId}`);
         
         // Collect ALL cards from ALL possible fields
         const allActions = body.actions || automationData?.actions || [];
@@ -2882,10 +2897,19 @@ return { json: { userId, username, isFollowing } };`
         for (const p of userPayloads) trackedPayloadsToInsert.push(p);
 
         // 2. Collect system payloads
-        if (debugUid && debugUid !== 'NO_AUTO_ID') {
-          const systemPayloads = [`START_FLOW_${debugUid}`, `CONFIRM_SAVE_${debugUid}`, `SEND_ACCESS_${debugUid}`, `SEND_LINK_${debugUid}`, `CHECK_FOLLOW_${debugUid}`];
-          for (const p of systemPayloads) trackedPayloadsToInsert.push(p);
-          for (const b of allBtns) { if (b.text) trackedPayloadsToInsert.push(`${b.text}_${debugUid}`); }
+        const systemPayloads = [`START_FLOW_${uniqueId}`, `CONFIRM_SAVE_${uniqueId}`, `SEND_ACCESS_${uniqueId}`, `SEND_LINK_${uniqueId}`, `CHECK_FOLLOW_${uniqueId}`];
+        for (const p of systemPayloads) trackedPayloadsToInsert.push(p);
+        for (const b of allBtns) { if (b.text) trackedPayloadsToInsert.push(`${b.text}_${uniqueId}`); }
+
+
+        // 3. Collect Keywords for Direct Routing (Exclusive Triggers)
+        if (triggerConfig.keywords && Array.isArray(triggerConfig.keywords)) {
+          console.log(`[ROUTING] Registering ${triggerConfig.keywords.length} keywords for exclusive routing`);
+          for (const kw of triggerConfig.keywords) {
+            if (kw && typeof kw === 'string') {
+              trackedPayloadsToInsert.push(kw.trim().toLowerCase());
+            }
+          }
         }
 
         if (trackedPayloadsToInsert.length > 0) {
