@@ -228,7 +228,7 @@ export default function Pricing() {
                         </button>
                         <div className="flex items-center gap-2">
                             <span className={`text-[10px] font-black transition-colors uppercase tracking-widest ${billingCycle === 'annual' ? 'text-gray-900' : 'text-gray-400'}`}>Yearly</span>
-                            <span className="bg-green-100 text-green-700 text-[8px] font-black px-2 py-0.5 rounded-full border border-green-200 uppercase">Save 40%</span>
+
                         </div>
                     </div>
 

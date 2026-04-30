@@ -402,7 +402,7 @@ export default function UpgradeModal() {
                                             : 'text-gray-400 hover:text-gray-600'
                                             }`}
                                     >
-                                        Annual (Save ~40%)
+                                        Annual
                                         <span className="text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">BEST VALUE</span>
                                     </button>
                                     <button
@@ -425,7 +425,7 @@ export default function UpgradeModal() {
                             }`}>
                                 <p className="text-gray-400 font-black text-[10px] mb-2 uppercase tracking-widest">
                                     {planTier === 'try_me_out' ? 'SINGLE SAMPLER PACK' : 
-                                     billingCycle === 'annual' ? 'ANNUAL SAVINGS' : 'QUARTERLY ACCESS'}
+                                     billingCycle === 'annual' ? 'ANNUAL PLAN' : 'QUARTERLY ACCESS'}
                                 </p>
                                 <div className="flex items-center justify-center gap-2">
                                     <span className="text-5xl font-black text-gray-900 tracking-tighter">
