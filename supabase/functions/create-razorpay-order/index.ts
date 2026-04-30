@@ -72,14 +72,15 @@ serve(async (req) => {
       const { data: existingSub, error: subError } = await supabaseClient
           .from('subscriptions')
           .select('id')
+          .eq('user_id', user.id)
           .ilike('plan_id', '%try_me_out%')
-          .in('status', ['active', 'trialing', 'past_due'])
+          .neq('status', 'canceled')
           .limit(1)
           .maybeSingle();
 
       if (existingSub) {
           return new Response(
-              JSON.stringify({ error: "You have already used the 'Try Me Out' plan. This offer is available only once per unique account." }),
+              JSON.stringify({ error: "You have already used the 'Try Me Out' plan. This offer is available only once per unique email account." }),
               { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
           );
       }

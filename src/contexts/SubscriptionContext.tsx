@@ -304,14 +304,14 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     ) && new Date(subscription.current_period_end) > new Date();
 
     const isGiftedActive = isGifted && giftedSettings?.expiry_date && new Date(giftedSettings.expiry_date) > new Date();
-    const isPremium = isGiftedActive || (planId !== 'basic' && isPlanActive);
-    const isProfessional = isGiftedActive || (['professional', 'enterprise'].includes(planId) && !!isPlanActive);
+    const isPremium = isGiftedActive || (!planId.includes('basic') && isPlanActive);
+    const isProfessional = isGiftedActive || (['professional', 'enterprise'].some(p => planId.includes(p)) && !!isPlanActive);
     const isGold = isPremium && planId.includes('enterprise');
 
     // Feature flags
-    const canUseAskToFollow = isGiftedActive ? (giftedSettings?.ask_to_follow_enabled ?? false) : (planId !== 'basic' && !!isPlanActive);
+    const canUseAskToFollow = isGiftedActive ? (giftedSettings?.ask_to_follow_enabled ?? false) : (!planId.includes('basic') && !!isPlanActive);
     const advancedPlanIds: PlanId[] = ['try_me_out', 'professional', 'enterprise'];
-    const hasAdvancedFeatures = isGiftedActive || (advancedPlanIds.includes(planId) && !!isPlanActive);
+    const hasAdvancedFeatures = isGiftedActive || (advancedPlanIds.some(p => planId.includes(p)) && !!isPlanActive);
     
     // Feature flags - Gifted users respect their specific configuration
     const canUseCarousel = isGiftedActive ? (giftedSettings?.carousel_enabled ?? false) : hasAdvancedFeatures;
@@ -338,8 +338,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
     const accountLimit = isGiftedActive
         ? (giftedSettings?.account_limit ?? 1)
-        : planId === 'enterprise' ? 10
-        : planId === 'professional' ? 2
+        : planId.includes('enterprise') ? 10
+        : planId.includes('professional') ? 2
         : 1;
 
     const isExpired = !isPremium && (isGifted || (subscription !== null && planId !== 'basic'));
