@@ -435,10 +435,6 @@ if (typeof $getWorkflowStaticData === 'function') {
         };
 
         if (hasFollowUp) {
-          hybridNodes.push({
-            id: "act-wait-followup", name: "Wait for Followup", type: "n8n-nodes-base.wait", typeVersion: 1, position: [0, -1000],
-            parameters: { amount: followUpAction.delayValue || 30, unit: followUpAction.delayUnit || "minutes" }
-          });
           const followUpButtons = (followUpAction.actionButtons || []).slice(0, 3).map((b: any) => ({
             type: "web_url",
             url: b.url,
@@ -446,7 +442,6 @@ if (typeof $getWorkflowStaticData === 'function') {
           }));
 
           const followUpPayload = followUpButtons.length > 0 ? {
-            recipient: { id: "{{ $('Worker Webhook').first().json.body.entry?.[0]?.messaging?.[0]?.sender?.id || $('Worker Webhook').first().json.body.entry?.[0]?.changes?.[0]?.value?.from?.id || $('Worker Webhook').first().json.body.payload?.sender?.id }}" },
             message: {
               attachment: {
                 type: "template",
@@ -461,42 +456,55 @@ if (typeof $getWorkflowStaticData === 'function') {
               }
             }
           } : {
-            recipient: { id: "{{ $('Worker Webhook').first().json.body.entry?.[0]?.messaging?.[0]?.sender?.id || $('Worker Webhook').first().json.body.entry?.[0]?.changes?.[0]?.value?.from?.id || $('Worker Webhook').first().json.body.payload?.sender?.id }}" },
-            message: { text: followUpAction.message || "" }
+            message: { text: (followUpAction.message || "").substring(0, 1000) }
           };
 
-          hybridNodes.push({
-            id: "act-check-followup-status", name: "Check Followup Status", type: "n8n-nodes-base.code", typeVersion: 2, position: [100, -1000],
-            parameters: {
-              jsCode: `const senderId = $('Worker Webhook').first().json.body.entry?.[0]?.messaging?.[0]?.sender?.id || $('Worker Webhook').first().json.body.entry?.[0]?.changes?.[0]?.value?.from?.id || $('Worker Webhook').first().json.body.payload?.sender?.id;
-const staticData = $getWorkflowStaticData('global');
-const leads = staticData.leads || {};
-const lead = leads[senderId];
-
-// 1. Ownership Guard
-if (!lead || lead.owner !== '${uniqueId}') return [];
-
-// 2. Completion Guard: Stop if lead is already 'saved'
-if (lead.state === 'saved') return [];
-
-return [{ json: { senderId } }];`
-            }
-          });
+          const delayValue = followUpAction.delayValue || 1;
+          const delayUnit = (followUpAction.delayUnit || 'hours').toLowerCase();
+          const intervalKey = delayUnit === 'minutes' ? 'minutesInterval' : delayUnit === 'hours' ? 'hoursInterval' : 'daysInterval';
 
           hybridNodes.push({
-            id: "act-send-followup", name: "Send Followup DM", type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [300, -1000],
-            parameters: {
-              method: "POST", url: `=https://graph.instagram.com/v24.0/me/messages`,
-              authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
-              sendBody: true, specifyBody: "json",
-              jsonBody: `=${JSON.stringify(followUpPayload, null, 2)}`,
-              options: {}
+            "parameters": {
+              "rule": { "interval": [{ "field": delayUnit, [intervalKey]: delayValue }] }
             },
-            credentials: { facebookGraphApi: { id: credentialId } }
+            "id": "followup-schedule", "name": "Followup Schedule", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [0, -1000]
           });
-          hybridConnections["Event Type Router"].main[0].push({ node: "Wait for Followup", type: "main", index: 0 });
-          hybridConnections["Wait for Followup"] = { main: [[{ node: "Check Followup Status", type: "main", index: 0 }]] };
-          hybridConnections["Check Followup Status"] = { main: [[{ node: "Send Followup DM", type: "main", index: 0 }]] };
+
+          hybridNodes.push({
+            "parameters": {
+              "jsCode": `const staticData = $getWorkflowStaticData('global');
+const leads = staticData.leads || {};
+const results = [];
+
+for (const senderId in leads) {
+  const lead = leads[senderId];
+  if (lead.owner !== '${uniqueId}') continue;
+  if (lead.state === 'saved') continue;
+  
+  if (!lead.followup_sent) {
+    lead.followup_sent = true;
+    results.push({ json: { senderId } });
+  }
+}
+return results;`
+            },
+            "id": "check-incomplete-leads", "name": "Check Incomplete Leads", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [250, -1000]
+          });
+
+          hybridNodes.push({
+            "parameters": {
+              "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages",
+              "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi",
+              "sendBody": true, "specifyBody": "json",
+              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": " + JSON.stringify(followUpPayload.message) + "\n}",
+              "options": {}
+            },
+            "id": "act-send-followup", "name": "Send Followup DM", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.3, "position": [500, -1000],
+            "credentials": { "facebookGraphApi": { "id": credentialId } }
+          });
+
+          hybridConnections["Followup Schedule"] = { "main": [[{ "node": "Check Incomplete Leads", "type": "main", "index": 0 }]] };
+          hybridConnections["Check Incomplete Leads"] = { "main": [[{ "node": "Send Followup DM", "type": "main", "index": 0 }]] };
         }
 
         return { name: finalWorkflowName, nodes: hybridNodes, connections: hybridConnections, settings: { saveExecutionProgress: true, saveDataErrorExecution: "all", saveManualExecutions: true, executionTimeout: 300, timezone: "Asia/Kolkata" } };
@@ -713,18 +721,7 @@ return [{ json: { senderId } }];`
             "position": [2200, 3200],
             "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
           },
-          {
-            "parameters": {
-              "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
-              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": { \"text\": \"" + (lmMessages.askName || "👋 Hey! Thanks for reaching out. What's your first name? 😊").replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\" }\n}",
-              "options": { "timeout": 15000 }
-            },
-            "name": "Ask Name",
-            "type": "n8n-nodes-base.httpRequest",
-            "typeVersion": 4.3,
-            "position": [2200, 3400],
-            "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
-          },
+
           {
             "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst existing = staticData.leads[senderId] || {};\nstaticData.leads[senderId] = { state: 'waiting_name', name: '', email: existing.email || '', phone: existing.phone || '' };\nreturn [{ json: { senderId } }];" },
             "name": "Reset Name State",
@@ -989,7 +986,7 @@ return [{ json: { senderId } }];`
           "Save Name": { "main": [[{ "node": "Confirm Name + Ask Email", "type": "main", "index": 0 }]] },
           "Save Email": { "main": [[{ "node": hasPhone ? "Confirm Email + Ask Phone" : "Confirm Details", "type": "main", "index": 0 }]] },
           "Save Phone": { "main": [[{ "node": "Confirm Details", "type": "main", "index": 0 }]] },
-          "Init Lead": { "main": [[{ "node": "Ask Name", "type": "main", "index": 0 }]] },
+          "Init Lead": { "main": [[]] },
           "Confirm Name + Ask Email": { "main": [[{ "node": "Ask Email", "type": "main", "index": 0 }]] },
           "Confirm Email + Ask Phone": { "main": [[{ "node": "Ask Phone", "type": "main", "index": 0 }]] },
           "Confirm Details": { "main": [[{ "node": "Confirm Save", "type": "main", "index": 0 }]] },
@@ -1002,7 +999,7 @@ return [{ json: { senderId } }];`
           "Prepare Row": { "main": [[{ "node": "Final Confirmation DM", "type": "main", "index": 0 }]] },
           "Final Confirmation DM": { "main": (hasLeadManager && hasAutomatedDM) ? [[{ "node": "Lead Follow-up Message", "type": "main", "index": 0 }]] : [] },
           "Init From Start": { "main": [[{ "node": "Send Start Message", "type": "main", "index": 0 }]] },
-          "Send Start Message": { "main": [[{ "node": "Ask Name", "type": "main", "index": 0 }]] }
+          "Send Start Message": { "main": [[]] }
         };
 
         if (isPostCommentLeadManager) {
@@ -1017,10 +1014,6 @@ return [{ json: { senderId } }];`
         }
 
         if (hasFollowUp) {
-          lmNodes.push({
-            id: "act-wait-followup", name: "Wait for Followup", type: "n8n-nodes-base.wait", typeVersion: 1, position: [3000, 2800],
-            parameters: { amount: followUpAction.delayValue || 30, unit: followUpAction.delayUnit || "minutes" }
-          });
           const followUpButtons = (followUpAction.actionButtons || []).slice(0, 3).map((b: any) => ({
             type: "web_url",
             url: b.url,
@@ -1028,7 +1021,6 @@ return [{ json: { senderId } }];`
           }));
 
           const followUpPayload = followUpButtons.length > 0 ? {
-            recipient: { id: "{{ $('Worker Webhook').first().json.body.entry?.[0]?.messaging?.[0]?.sender?.id || $('Worker Webhook').first().json.body.entry?.[0]?.changes?.[0]?.value?.from?.id || $('Worker Webhook').first().json.body.payload?.sender?.id }}" },
             message: {
               attachment: {
                 type: "template",
@@ -1043,43 +1035,55 @@ return [{ json: { senderId } }];`
               }
             }
           } : {
-            recipient: { id: "{{ $('Worker Webhook').first().json.body.entry?.[0]?.messaging?.[0]?.sender?.id || $('Worker Webhook').first().json.body.entry?.[0]?.changes?.[0]?.value?.from?.id || $('Worker Webhook').first().json.body.payload?.sender?.id }}" },
-            message: { text: followUpAction.message || "" }
+            message: { text: (followUpAction.message || "").substring(0, 1000) }
           };
 
-          lmNodes.push({
-            id: "act-check-followup-status", name: "Check Followup Status", type: "n8n-nodes-base.code", typeVersion: 2, position: [100, 300],
-            parameters: {
-              jsCode: `const senderId = $('Worker Webhook').first().json.body.entry?.[0]?.messaging?.[0]?.sender?.id || $('Worker Webhook').first().json.body.entry?.[0]?.changes?.[0]?.value?.from?.id || $('Worker Webhook').first().json.body.payload?.sender?.id;
-const staticData = $getWorkflowStaticData('global');
-const leads = staticData.leads || {};
-const lead = leads[senderId];
-
-// 1. Ownership Guard
-if (!lead || lead.owner !== '${uniqueId}') return [];
-
-// 2. Completion Guard: Stop if lead is already 'saved'
-if (lead.state === 'saved') return [];
-
-return [{ json: { senderId } }];`
-            }
-          });
+          const delayValue = followUpAction.delayValue || 1;
+          const delayUnit = (followUpAction.delayUnit || 'hours').toLowerCase();
+          const intervalKey = delayUnit === 'minutes' ? 'minutesInterval' : delayUnit === 'hours' ? 'hoursInterval' : 'daysInterval';
 
           lmNodes.push({
-            id: "act-send-followup", name: "Send Followup DM", type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [300, 300],
-            parameters: {
-              method: "POST", url: `=https://graph.instagram.com/v24.0/me/messages`,
-              authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
-              sendBody: true, specifyBody: "json",
-              jsonBody: `=${JSON.stringify(followUpPayload, null, 2)}`,
-              options: {}
+            "parameters": {
+              "rule": { "interval": [{ "field": delayUnit, [intervalKey]: delayValue }] }
             },
-            credentials: { facebookGraphApi: { id: credentialId, name: lmCredName } }
+            "id": "followup-schedule", "name": "Followup Schedule", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [3000, 2400]
           });
-          // Connect to Init Lead as a parallel branch
-          lmConnections["Fetch Usernames1"].main[0].push({ node: "Wait for Followup", type: "main", index: 0 });
-          lmConnections["Wait for Followup"] = { main: [[{ node: "Check Followup Status", type: "main", index: 0 }]] };
-          lmConnections["Check Followup Status"] = { main: [[{ node: "Send Followup DM", type: "main", index: 0 }]] };
+
+          lmNodes.push({
+            "parameters": {
+              "jsCode": `const staticData = $getWorkflowStaticData('global');
+const leads = staticData.leads || {};
+const results = [];
+
+for (const senderId in leads) {
+  const lead = leads[senderId];
+  if (lead.owner !== '${uniqueId}') continue;
+  if (lead.state === 'saved') continue;
+  
+  if (!lead.followup_sent) {
+    lead.followup_sent = true;
+    results.push({ json: { senderId } });
+  }
+}
+return results;`
+            },
+            "id": "check-incomplete-leads", "name": "Check Incomplete Leads", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [3250, 2400]
+          });
+
+          lmNodes.push({
+            "parameters": {
+              "method": "POST", "url": "=https://graph.instagram.com/v24.0/me/messages",
+              "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi",
+              "sendBody": true, "specifyBody": "json",
+              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": " + JSON.stringify(followUpPayload.message) + "\n}",
+              "options": {}
+            },
+            "id": "act-send-followup", "name": "Send Followup DM", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.3, "position": [3500, 2400],
+            "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
+          });
+
+          lmConnections["Followup Schedule"] = { "main": [[{ "node": "Check Incomplete Leads", "type": "main", "index": 0 }]] };
+          lmConnections["Check Incomplete Leads"] = { "main": [[{ "node": "Send Followup DM", "type": "main", "index": 0 }]] };
         }
 
         return { name: finalWorkflowName, nodes: lmNodes, connections: lmConnections, settings: { saveExecutionProgress: true, saveDataErrorExecution: "all", saveManualExecutions: true, executionTimeout: 300, timezone: "Asia/Kolkata" } };
@@ -1223,42 +1227,53 @@ return [{ json: { senderId } }];`
         };
 
         if (hasFollowUp) {
-          const waitMinutes = followUpAction.delayUnit === 'minutes' ? followUpAction.delayValue : followUpAction.delayUnit === 'hours' ? followUpAction.delayValue * 60 : followUpAction.delayValue * 1440;
-          cfNodes.push({
-            id: "act-wait-followup", name: "Wait for Followup", type: "n8n-nodes-base.wait", typeVersion: 1, position: [nodeX + 800, 200],
-            parameters: { amount: followUpAction.delayValue || 30, unit: followUpAction.delayUnit || "minutes" }
-          });
-          cfNodes.push({
-            id: "act-check-followup-status", name: "Check Followup Status", type: "n8n-nodes-base.code", typeVersion: 2, position: [nodeX + 900, 200],
-            parameters: {
-              jsCode: `const senderId = $('Worker Webhook').first().json.body.entry?.[0]?.messaging?.[0]?.sender?.id || $('Worker Webhook').first().json.body.entry?.[0]?.changes?.[0]?.value?.from?.id || $('Worker Webhook').first().json.body.payload?.sender?.id;
-const staticData = $getWorkflowStaticData('global');
-const leads = staticData.leads || {};
-const lead = leads[senderId];
+          const delayValue = followUpAction.delayValue || 1;
+          const delayUnit = (followUpAction.delayUnit || 'hours').toLowerCase();
+          const intervalKey = delayUnit === 'minutes' ? 'minutesInterval' : delayUnit === 'hours' ? 'hoursInterval' : 'daysInterval';
 
-// 1. Ownership Guard
-if (!lead || lead.owner !== '${uniqueId}') return [];
-
-// 2. Completion Guard: Stop if lead is already 'saved'
-if (lead.state === 'saved') return [];
-
-return [{ json: { senderId } }];`
-            }
-          });
           cfNodes.push({
-            id: "act-send-followup", name: "Send Followup DM", type: "n8n-nodes-base.httpRequest", typeVersion: 4.3, position: [nodeX + 1100, 200],
-            parameters: {
-              method: "POST", url: `=https://graph.instagram.com/v24.0/me/messages`,
-              authentication: "predefinedCredentialType", nodeCredentialType: "facebookGraphApi",
-              sendBody: true, specifyBody: "json",
-              jsonBody: `={\n  \"recipient\": { \"id\": \"{{ $('Worker Webhook').item.json.body.entry?.[0]?.messaging?.[0]?.sender?.id || $('Worker Webhook').item.json.body.payload?.sender?.id }}\" },\n  \"message\": { \"text\": \"${(followUpAction.message || "").replace(/"/g, '\\"').replace(/\n/g, '\\n')}\" }\n}`,
-              options: {}
+            "parameters": {
+              "rule": { "interval": [{ "field": delayUnit, [intervalKey]: delayValue }] }
             },
-            credentials: { facebookGraphApi: { id: credentialId } }
+            "id": "followup-schedule", "name": "Followup Schedule", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [nodeX + 800, 200]
           });
-          cfConnections["Send Level 0 Menu"] = { main: [[{ node: "Wait for Followup", type: "main", index: 0 }]] };
-          cfConnections["Wait for Followup"] = { main: [[{ node: "Check Followup Status", type: "main", index: 0 }]] };
-          cfConnections["Check Followup Status"] = { main: [[{ node: "Send Followup DM", type: "main", index: 0 }]] };
+
+          cfNodes.push({
+            "parameters": {
+              "jsCode": `const staticData = $getWorkflowStaticData('global');
+const leads = staticData.leads || {};
+const results = [];
+
+for (const senderId in leads) {
+  const lead = leads[senderId];
+  if (lead.owner !== '${uniqueId}') continue;
+  if (lead.state === 'saved') continue;
+  
+  if (!lead.followup_sent) {
+    lead.followup_sent = true;
+    results.push({ json: { senderId } });
+  }
+}
+return results;`
+            },
+            "id": "check-incomplete-leads", "name": "Check Incomplete Leads", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [nodeX + 1050, 200]
+          });
+
+          const followUpMsg = (followUpAction.message || "").replace(/"/g, '\\"').replace(/\n/g, '\\n');
+          cfNodes.push({
+            "parameters": {
+              "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages",
+              "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi",
+              "sendBody": true, "specifyBody": "json",
+              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": { \"text\": \"" + followUpMsg + "\" }\n}",
+              "options": {}
+            },
+            "id": "act-send-followup", "name": "Send Followup DM", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.3, "position": [nodeX + 1300, 200],
+            "credentials": { "facebookGraphApi": { "id": credentialId } }
+          });
+
+          cfConnections["Followup Schedule"] = { "main": [[{ "node": "Check Incomplete Leads", "type": "main", "index": 0 }]] };
+          cfConnections["Check Incomplete Leads"] = { "main": [[{ "node": "Send Followup DM", "type": "main", "index": 0 }]] };
         }
 
         return { name: finalWorkflowName, nodes: cfNodes, connections: cfConnections, settings: { saveExecutionProgress: true, saveDataErrorExecution: "all", saveManualExecutions: true, executionTimeout: 300, timezone: "Asia/Kolkata" } };
