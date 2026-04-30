@@ -105,7 +105,11 @@ const Billing = () => {
                   </span>
                   {!isGifted && (
                     <span className="text-sm text-gray-500 font-medium uppercase">
-                      {subscription?.plan_id?.includes('annual') ? '/ annual' : '/ quarterly'}
+                      {subscription?.plan_id?.toLowerCase().includes('try_me_out') 
+                        ? '/ ONE-TIME' 
+                        : subscription?.plan_id?.includes('annual') 
+                          ? '/ annual' 
+                          : '/ quarterly'}
                     </span>
                   )}
                 </div>

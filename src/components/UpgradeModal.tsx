@@ -431,7 +431,7 @@ export default function UpgradeModal() {
                                     <span className="text-5xl font-black text-gray-900 tracking-tighter">
                                         ₹{getMonthlyPrice().toFixed(0)}
                                     </span>
-                                    <span className="text-lg text-gray-400 font-bold uppercase tracking-tight">/mo*</span>
+                                    {planTier !== 'try_me_out' && <span className="text-lg text-gray-400 font-bold uppercase tracking-tight">/mo*</span>}
                                 </div>
                                 <div className={`inline-block mt-4 px-6 py-1.5 rounded-full font-black text-xs uppercase tracking-widest ${
                                     planTier === 'professional' ? 'bg-purple-600 text-white' : 
@@ -441,7 +441,7 @@ export default function UpgradeModal() {
                                     Total Payable: ₹{getBaseTotal().toLocaleString()}
                                 </div>
                                 <p className="text-[10px] text-gray-400 mt-3 font-bold uppercase tracking-tighter">
-                                    *Effective monthly price. Billed {planTier === 'try_me_out' ? 'Monthly' : billingCycle === 'quarterly' ? 'Quarterly' : 'Annually'}.
+                                    {planTier === 'try_me_out' ? '*EFFECTIVE MONTHLY PRICE. BILLED ONCE.' : `*Effective monthly price. Billed ${billingCycle === 'quarterly' ? 'Quarterly' : 'Annually'}.`}
                                 </p>
                             </div>
 
