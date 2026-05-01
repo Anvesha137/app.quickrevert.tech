@@ -2955,7 +2955,8 @@ return { json: { userId, username, isFollowing } };`
             payload: p,
             n8n_workflow_id: n8nResult.id,
             automation_id: (automationId && automationId.length === 36) ? automationId : null,
-            account_id: metaAccountId
+            account_id: metaAccountId,
+            webhook_path: webhookPath
           }));
           
           console.log(`[ROUTING] Attempting to register ${payloadRows.length} payloads...`);

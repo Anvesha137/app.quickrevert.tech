@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS public.tracked_payloads (
     n8n_workflow_id TEXT NOT NULL,
     automation_id UUID REFERENCES public.automations(id) ON DELETE CASCADE,
     account_id TEXT NOT NULL,  -- Meta Instagram Business ID (same as automation_routes.account_id)
+    webhook_path TEXT,         -- Specific webhook path for this payload
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

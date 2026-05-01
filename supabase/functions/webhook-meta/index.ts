@@ -444,7 +444,8 @@ async function processEvent(body: any) {
                 let matchedAutomationId = null;
 
                 if (internalAccountId) {
-                    activeRoutes = await resolveRoutes(supabaseClient, internalAccountId, 'changes', change.field, mediaId);
+                    const commentText = change.value?.text?.trim()?.toLowerCase();
+                    activeRoutes = await resolveRoutes(supabaseClient, internalAccountId, 'changes', change.field, mediaId, commentText);
                     const matchedWf = activeRoutes.workflows.find((w: any) => w.automation_id && activeRoutes.routes.some((r: any) => r.n8n_workflow_id === w.n8n_workflow_id));
                     if (matchedWf) matchedAutomationId = matchedWf.automation_id;
                 }
@@ -651,72 +652,80 @@ async function checkRateLimit(supabaseClient: any, accountId: string): Promise<b
 
 async function resolveRoutes(supabaseClient: any, account_id: string, event_type: string, sub_type: string, mediaId?: string, postbackPayload?: string) {
     let routes = [];
-    let specificWorkflowId = null;
 
     // Priority 1: tracked_posts — specific post comment → specific workflow
     if (mediaId && mediaId !== 'undefined') {
         const { data: trackedData } = await supabaseClient.from('tracked_posts')
-            .select('workflow_id').eq('media_id', mediaId).eq('platform', 'instagram').maybeSingle();
-        if (trackedData) specificWorkflowId = trackedData.workflow_id;
+            .select('workflow_id, webhook_path').eq('media_id', mediaId).eq('platform', 'instagram');
+        
+        if (trackedData && trackedData.length > 0) {
+            console.log(`[ROUTING] tracked_posts hit for media ${mediaId} → ${trackedData.length} workflows`);
+            routes = trackedData.map(d => ({ n8n_workflow_id: d.workflow_id, webhook_path: d.webhook_path }));
+        }
     }
 
     // Priority 2: tracked_payloads — postback button tap OR keyword match → specific workflow
-    if (!specificWorkflowId && postbackPayload) {
+    if (routes.length === 0 && postbackPayload) {
         // Pass 1: Fast lookup by account_id (correct path)
         const { data: payloadData } = await supabaseClient.from('tracked_payloads')
-            .select('n8n_workflow_id')
+            .select('n8n_workflow_id, webhook_path')
             .eq('payload', postbackPayload)
-            .eq('account_id', account_id)
-            .maybeSingle();
-        if (payloadData) {
-            specificWorkflowId = payloadData.n8n_workflow_id;
-            console.log(`[ROUTING] tracked_payloads hit for payload "${postbackPayload}" → workflow ${specificWorkflowId}`);
+            .eq('account_id', account_id);
+
+        if (payloadData && payloadData.length > 0) {
+            console.log(`[ROUTING] tracked_payloads hit for payload "${postbackPayload}" → ${payloadData.length} workflows`);
+            routes = payloadData.map(d => ({ n8n_workflow_id: d.n8n_workflow_id, webhook_path: d.webhook_path }));
         } else {
-            // Pass 2: Stale-ID fallback — look up via workflow IDs from automation_routes.
-            // This handles the case where tracked_payloads was registered with an OLD account_id
-            // (before self-healing corrected instagram_accounts.instagram_business_id).
-            // We know automation_routes.account_id IS correct (updated by our fix or originally correct),
-            // so we use those workflow IDs to cross-reference tracked_payloads by payload value alone.
+            // Pass 2: Stale-ID fallback
             console.log(`[ROUTING] tracked_payloads miss for "${postbackPayload}" with account_id ${account_id} — trying stale-ID fallback`);
             const { data: accountRoutes } = await supabaseClient.from('automation_routes')
                 .select('n8n_workflow_id')
                 .eq('account_id', account_id)
                 .eq('is_active', true);
+            
             if (accountRoutes && accountRoutes.length > 0) {
                 const wfIds = accountRoutes.map((r: any) => r.n8n_workflow_id);
                 const { data: fallbackData } = await supabaseClient.from('tracked_payloads')
-                    .select('n8n_workflow_id')
+                    .select('n8n_workflow_id, webhook_path')
                     .eq('payload', postbackPayload)
-                    .in('n8n_workflow_id', wfIds)
-                    .maybeSingle();
-                if (fallbackData) {
-                    specificWorkflowId = fallbackData.n8n_workflow_id;
-                    console.log(`[ROUTING] ✅ Stale-ID fallback resolved "${postbackPayload}" → workflow ${specificWorkflowId}. Auto-healing tracked_payloads...`);
-                    // Auto-heal: correct the stale account_id so next lookup is fast
-                    supabaseClient.from('tracked_payloads')
-                        .update({ account_id: account_id })
-                        .eq('n8n_workflow_id', fallbackData.n8n_workflow_id)
-                        .then(() => console.log(`[ROUTING] ✅ tracked_payloads account_id healed for workflow ${fallbackData.n8n_workflow_id}`))
-                        .catch((e: any) => console.error(`[ROUTING] Failed to heal tracked_payloads:`, e));
-                } else {
-                    console.log(`[ROUTING] Stale-ID fallback also missed for "${postbackPayload}" across ${wfIds.length} workflows`);
+                    .in('n8n_workflow_id', wfIds);
+
+                if (fallbackData && fallbackData.length > 0) {
+                    console.log(`[ROUTING] ✅ Stale-ID fallback resolved "${postbackPayload}" → ${fallbackData.length} workflows`);
+                    routes = fallbackData.map(d => ({ n8n_workflow_id: d.n8n_workflow_id, webhook_path: d.webhook_path }));
+                    
+                    // Auto-heal (background)
+                    payloadData?.forEach(d => {
+                        supabaseClient.from('tracked_payloads')
+                            .update({ account_id: account_id })
+                            .eq('n8n_workflow_id', d.n8n_workflow_id)
+                            .catch((e: any) => console.error(`[ROUTING] Failed to heal tracked_payloads:`, e));
+                    });
                 }
             }
         }
     }
 
-    if (specificWorkflowId) {
-        routes = [{ n8n_workflow_id: specificWorkflowId }];
-    } else {
-        // Fallback: global automation_routes (old behaviour — covers plain DMs with no buttons)
-        const { data: globalRoutes } = await supabaseClient.from('automation_routes')
-            .select('n8n_workflow_id, sub_type')
-            .eq('account_id', account_id)
-            .eq('event_type', event_type)
-            .eq('is_active', true)
-            .or(`sub_type.eq.${sub_type},sub_type.is.null`);
+    if (routes.length === 0) {
+        // Fallback ONLY if it's NOT a specific button click or post comment we were looking for
+        // (i.e. this covers plain DMs or untracked events)
+        const isButtonOrSpecific = !!postbackPayload || (mediaId && mediaId !== 'undefined');
+        
+        if (!isButtonOrSpecific) {
+            const { data: globalRoutes } = await supabaseClient.from('automation_routes')
+                .select('n8n_workflow_id, sub_type')
+                .eq('account_id', account_id)
+                .eq('event_type', event_type)
+                .eq('is_active', true)
+                .or(`sub_type.eq.${sub_type},sub_type.is.null`);
 
-        if (globalRoutes && globalRoutes.length > 0) routes = globalRoutes;
+            if (globalRoutes && globalRoutes.length > 0) {
+                console.log(`[ROUTING] Falling back to global routes for ${event_type}/${sub_type} → ${globalRoutes.length} workflows`);
+                routes = globalRoutes;
+            }
+        } else {
+            console.log(`[ROUTING] Specific trigger miss - ignoring global fallback to prevent duplicate firing`);
+        }
     }
 
     // Deduplicate
@@ -754,7 +763,9 @@ async function triggerWorkflows(normalized: any, routes: any[], workflows: any[]
     // 🔥 PARALLEL PERFORMANCE FIX: Trigger all routes at once
     await Promise.all(routes.map(async (route) => {
         try {
-            const webhookPath = pathMap.get(route.n8n_workflow_id);
+            // Priority: use specific webhook_path from route (from tracked_payloads/posts)
+            // otherwise fallback to the default one for the workflow
+            const webhookPath = route.webhook_path || pathMap.get(route.n8n_workflow_id);
             let targetUrl = `${N8N_BASE_URL}/api/v1/workflows/${route.n8n_workflow_id}/execute`;
             const headers: any = { "Content-Type": "application/json" };
 
