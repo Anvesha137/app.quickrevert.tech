@@ -24,6 +24,7 @@ import CelebrationModal from './components/CelebrationModal';
 import PlanBanner from './components/PlanBanner';
 import { SubscriptionProvider, useSubscription } from './contexts/SubscriptionContext';
 import { PageSkeleton } from './components/ui/PageSkeleton';
+import UserNotificationPopup from './components/UserNotificationPopup';
 
 
 function AppContent() {
@@ -198,6 +199,7 @@ function App() {
                 <TooltipProvider>
                   <AppContent />
 
+                  <UserNotificationPopup />
                   <UpgradeModal />
                   <CelebrationModal />
                   <Toaster richColors position="top-right" />
