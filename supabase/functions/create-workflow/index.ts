@@ -2901,20 +2901,72 @@ return { json: { userId, username, isFollowing } };`
           ...(dmAct.conversationFlowCards || [])
         ];
 
-        // 1. Collect all user-defined postback payloads from button configs
-        const allBtns = [...(dmAct.actionButtons || [])];
-        allCards.forEach((c: any) => { if (c.actionButtons) allBtns.push(...c.actionButtons); });
-        if (followUpAction && followUpAction.actionButtons) allBtns.push(...followUpAction.actionButtons);
+        // 1. Collect all postback payloads recursively from all actions
+        const collectedPayloads = new Set<string>();
+        const collectedButtonTexts = new Set<string>();
+        
+        function recursivelyCollectPayloads(obj: any) {
+          if (!obj || typeof obj !== 'object') return;
+          if (Array.isArray(obj)) {
+            obj.forEach(recursivelyCollectPayloads);
+          } else {
+            // Collect 'payload' field
+            if (obj.payload && typeof obj.payload === 'string') {
+              collectedPayloads.add(obj.payload);
+            }
+            // Collect 'id' field if it looks like a button/card ID
+            if (obj.id && typeof obj.id === 'string' && (obj.buttonType || obj.type === 'postback' || obj.action === 'postback' || obj.messageTemplate)) {
+              collectedPayloads.add(obj.id);
+            }
+            // Collect button titles/texts for fallback routing
+            if ((obj.title || obj.text) && (obj.buttonType || obj.type === 'postback' || obj.action === 'postback')) {
+              const txt = obj.title || obj.text;
+              if (typeof txt === 'string') {
+                collectedButtonTexts.add(txt);
+              }
+            }
+            // Scan nested objects
+            for (const key in obj) {
+              if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                recursivelyCollectPayloads(obj[key]);
+              }
+            }
+          }
+        }
 
-        const userPayloads = Array.from(new Set(
-          allBtns.filter((b: any) => (b.buttonType === 'postback' || b.action === 'postback') && (b.payload || b.id)).map((b: any) => b.payload || b.id)
-        )) as string[];
-        for (const p of userPayloads) trackedPayloadsToInsert.push(p);
+        recursivelyCollectPayloads(allActions);
+        
+        // Add collected payloads
+        collectedPayloads.forEach(p => {
+          trackedPayloadsToInsert.push(p);
+          // If it looks like a system payload without ID, add version WITH ID
+          if (!p.includes(uniqueId) && (p.startsWith('SEND_') || p.startsWith('CHECK_') || p.startsWith('START_') || p.startsWith('CONFIRM_'))) {
+            trackedPayloadsToInsert.push(`${p}_${uniqueId}`);
+          }
+        });
 
-        // 2. Collect system payloads
-        const systemPayloads = [`START_FLOW_${uniqueId}`, `CONFIRM_SAVE_${uniqueId}`, `SEND_ACCESS_${uniqueId}`, `SEND_LINK_${uniqueId}`, `CHECK_FOLLOW_${uniqueId}`];
-        for (const p of systemPayloads) trackedPayloadsToInsert.push(p);
-        for (const b of allBtns) { if (b.text) trackedPayloadsToInsert.push(`${b.text}_${uniqueId}`); }
+        // Add button text fallbacks
+        collectedButtonTexts.forEach(txt => {
+          trackedPayloadsToInsert.push(txt);
+          trackedPayloadsToInsert.push(`${txt}_${uniqueId}`);
+        });
+
+        // 2. Add standard system payloads (Guaranteed)
+        const systemPayloads = [
+          `START_FLOW_${uniqueId}`, 
+          `CONFIRM_SAVE_${uniqueId}`, 
+          `SEND_ACCESS_${uniqueId}`, 
+          `SEND_LINK_${uniqueId}`, 
+          `CHECK_FOLLOW_${uniqueId}`,
+          `CHANGE_NAME_${uniqueId}`,
+          `CHANGE_EMAIL_${uniqueId}`,
+          `CHANGE_PHONE_${uniqueId}`
+        ];
+        for (const p of systemPayloads) {
+          if (!collectedPayloads.has(p)) trackedPayloadsToInsert.push(p);
+          const plain = p.replace(`_${uniqueId}`, '');
+          if (!collectedPayloads.has(plain)) trackedPayloadsToInsert.push(plain);
+        }
 
 
         // 3. Collect Keywords for Direct Routing (Exclusive Triggers)
