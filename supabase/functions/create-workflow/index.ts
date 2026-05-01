@@ -109,6 +109,24 @@ Deno.serve(async (req: Request) => {
     // --- CREDENTIAL MANAGEMENT ---
     const credentialId = await syncN8nCredential(supabase, instagramAccount);
 
+    // 🔍 AUTO-DISCOVERY: If Business ID is missing, resolve it NOW so payloads work immediately
+    if (!instagramAccount.instagram_business_id && instagramAccount.access_token) {
+      console.log(`[AUTO-DISCOVERY] Business ID missing for ${instagramAccount.username}. Resolving...`);
+      try {
+        const fbRes = await fetch(`https://graph.instagram.com/v21.0/me?fields=id&access_token=${instagramAccount.access_token}`);
+        if (fbRes.ok) {
+          const fbData = await fbRes.json();
+          const resolvedId = String(fbData.id);
+          console.log(`[AUTO-DISCOVERY] ✅ Resolved ID: ${resolvedId}. Updating database...`);
+          
+          await supabase.from('instagram_accounts').update({ instagram_business_id: resolvedId }).eq('id', instagramAccount.id);
+          instagramAccount.instagram_business_id = resolvedId; // Update local object for downstream logic
+        }
+      } catch (e) {
+        console.error(`[AUTO-DISCOVERY] Failed to resolve Business ID:`, e.message);
+      }
+    }
+
     const userProvidedName = workflowName || `Instagram Automation - ${new Date().toISOString().split('T')[0]}`;
     const finalWorkflowName = `[${instagramAccount.username}] ${userProvidedName}`;
     // --- CHECK FOR EXISTING WORKFLOW ---

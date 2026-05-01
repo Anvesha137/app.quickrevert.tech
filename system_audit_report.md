@@ -490,3 +490,39 @@ To bring your Supabase invocations down from **800k** to **400k** (saving 50%), 
 if (messaging?.message?.is_echo) {
     return new Response('EVENT_RECEIVED', { status: 200 }); // Drops the 400k echo events
 }
+```
+
+---
+
+## 6. Targeted Notification System (May 2026)
+
+### 6.1 The ID Mismatch Problem
+The dashboard popup was failing for targeted users because the **Supabase Auth UUID** often differs from the **Neon Database User ID**. 
+- **The Solution**: Migrated to **Email-based targeting**. Since email is the primary identifier for both auth and database records, it acts as a stable bridge.
+
+### 6.2 The "Smarter Backend" Auto-Resolver
+To prevent manual data entry errors, the `admin-notifications.cjs` backend now includes an **Automatic Email Resolver**. If an admin selects a user by ID but misses the email, the server automatically looks up the email in the `users` table before saving the notification.
+
+### 6.3 UX: Refresh-Persistence
+User feedback indicated that notifications should only show up on **manual page refreshes (F5)** to avoid annoying users during internal navigation.
+- **Implementation**: Removed `localStorage` persistence. The notification state is held in React memory, which is wiped on refresh but preserved during client-side routing.
+
+---
+
+## 7. Exclusive Automation Routing & Tracking
+
+### 7.1 Tracked Payloads & Posts
+To ensure that a specific button click or post comment triggers **only one** specific workflow, we implemented `tracked_payloads` and `tracked_posts` tables.
+- **The Bug (May 2026)**: Buttons weren't being saved because the `postbackMap` in `create-workflow` was declared in the wrong scope.
+- **The Fix**: Moved the "Postback Collector" to a higher scope in the Edge Function, ensuring every button created in the builder is registered in the database for targeted routing.
+
+### 7.2 Webhook Routing Logic
+The `webhook-meta` function uses the following priority for routing:
+1.  **Tracked Posts**: If a comment arrives on a `media_id` registered in `tracked_posts`, it triggers that specific workflow exclusively.
+2.  **Tracked Payloads**: If a postback payload matches an entry in `tracked_payloads` for that `account_id`, it triggers only that workflow.
+3.  **Global Fallback**: Global routes are only used if the event doesn't match any specific tracking entry, preventing duplicate triggers for targeted posts.
+
+### 7.3 Auto-Discovery for New Accounts
+To eliminate the need for manual "Syncing" from the admin panel, the `create-workflow` function now includes an **Auto-Discovery** block.
+- **How it works**: When an automation is saved, the function checks if the `instagram_business_id` is null. If it is, it performs an immediate Graph API call to `/me` using the account's access token to resolve the correct ID before registering payloads.
+- **Benefit**: This ensures that all `tracked_payloads` are saved with the correct Meta ID from the very first save, allowing buttons to work instantly for newly connected accounts.
