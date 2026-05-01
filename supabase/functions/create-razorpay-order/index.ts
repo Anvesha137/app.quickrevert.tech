@@ -111,7 +111,7 @@ serve(async (req) => {
           await client.connect();
 
           const result = await client.queryObject(`
-            SELECT id, promo_code, discount_percentage,
+            SELECT id, promo_code, discount_percentage, discount_amount, discount_type,
                    max_usage, total_usage_tilldate, expiry_date, package
             FROM promo_codes
             WHERE LOWER(TRIM(promo_code)) = LOWER(TRIM($1))
@@ -168,12 +168,16 @@ serve(async (req) => {
             }
 
             const discountPct = coupon.discount_percentage || 0;
+            const discountAmt = coupon.discount_amount || 0;
+            const discountType = coupon.discount_type || 'percentage';
             
             // Calculate in RUPEES first to match frontend rounding (floor)
             const baseRupees = amount / 100;
             let discountRupees = 0;
             
-            if (discountPct > 0) {
+            if (discountType === 'flat') {
+              discountRupees = discountAmt;
+            } else if (discountPct > 0) {
               discountRupees = Math.floor(baseRupees * (discountPct / 100));
             }
 

@@ -142,6 +142,29 @@ Deno.serve(async (req: Request) => {
       const dbCards = dmAction.conversationCards || [];
       const cards = bodyCards.length > 0 ? bodyCards : dbCards;
 
+      // --- RECURSIVE POSTBACK COLLECTOR (Scope: buildWorkflow) ---
+      const postbackMap = new Map<string, { text: string, cardId?: string }>();
+      function collectPostbacks(obj: any) {
+        if (!obj || typeof obj !== 'object') return;
+        if (Array.isArray(obj)) {
+          obj.forEach(collectPostbacks);
+        } else {
+          if (obj.payload && typeof obj.payload === 'string') {
+            const text = obj.text || obj.title || obj.payload;
+            if (!postbackMap.has(obj.payload)) postbackMap.set(obj.payload, { text, cardId: obj.id });
+          }
+          if (obj.id && typeof obj.id === 'string' && (obj.messageTemplate || obj.conversationCards)) {
+             // Card identification logic
+          }
+          for (const key in obj) {
+            if (Object.prototype.hasOwnProperty.call(obj, key)) collectPostbacks(obj[key]);
+          }
+        }
+      }
+      collectPostbacks(actions);
+      // Also collect from system fields if they were missed
+      collectPostbacks(automationData?.trigger_config || {});
+
       // Detection for Hybrid: Post Comment trigger + Menu Flow message
       const isPostCommentMenuFlow = (bodyTriggerType === 'post_comment' || automationData?.trigger_type === 'post_comment') &&
         (dmAction?.dmType === 'conversation_flow' || (cards && cards.length > 0));
@@ -171,21 +194,13 @@ Deno.serve(async (req: Request) => {
         return { type: "postback", title: b.text.substring(0, 20), payload: b.payload || b.id };
       }).slice(0, 3);
 
-      const getCardName = (cardId: string): string => {
-        const l0Btn = level0Buttons.find((b: any) => b.payload === cardId);
-        if (l0Btn?.text) return `Card: ${l0Btn.text}`;
-        for (const c of cards) {
-          const btn = (c.actionButtons || []).find((b: any) => b.payload === cardId);
-          if (btn?.text) return `Card: ${btn.text}`;
-        }
-        return `Card: ${cardId}`;
+      const getCardName = (payload: string): string => {
+        const info = postbackMap.get(payload);
+        if (info?.text) return `Card: ${info.text.substring(0, 30)}`;
+        return `Card: ${payload.substring(0, 30)}`;
       };
 
-      const allPostbackButtons = [...(dmAction.actionButtons || [])];
-      cards.forEach((c: any) => { if (c.actionButtons) allPostbackButtons.push(...c.actionButtons); });
-      const uniquePayloads = Array.from(new Set(
-        allPostbackButtons.filter((b: any) => b.buttonType === 'postback' && b.payload).map((b: any) => b.payload)
-      ));
+      const uniquePayloads = Array.from(postbackMap.keys());
 
       // --- HYBRID POST COMMENT + MENU FLOW TEMPLATE ---
       if (isPostCommentMenuFlow) {
@@ -420,11 +435,13 @@ if (typeof $getWorkflowStaticData === 'function') {
           "Loop Protection Switch": {
             "main": [[
               { "node": "Round Robin Picker", "type": "main", "index": 0 },
-              { "node": "Send Welcome DM", "type": "main", "index": 0 }
+              { "node": "Send Welcome DM", "type": "main", "index": 0 },
+              { "node": "Init Hybrid State", "type": "main", "index": 0 }
             ]]
           },
           "Round Robin Picker": { "main": [[{ "node": "Reply to Comment", "type": "main", "index": 0 }]] },
-          "Reply to Comment": { "main": [[{ "node": "Init Hybrid State", "type": "main", "index": 0 }]] },
+          "Reply to Comment": { "main": [[]] },
+          "Init Hybrid State": { "main": [[]] },
           "Extract Payload": { "main": [[{ "node": "Payload Router", "type": "main", "index": 0 }]] },
           "Payload Router": {
             "main": uniquePayloads.map((p: string) => {
@@ -608,7 +625,7 @@ return results;`
             "position": [1700, 2600]
           },
           {
-            "parameters": { "jsCode": "const msg = $('Worker Webhook').first().json.body.entry?.[0]?.messaging?.[0]?.message?.text?.trim() || '';\nconst senderId = $('Worker Webhook').first().json.body.entry?.[0]?.messaging?.[0]?.sender?.id || '';\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst lead = staticData.leads[senderId] || { state: 'new', name: '', email: '', phone: '' };\n\n// 🔒 Ownership Guard: Only respond if this workflow owns the lead\nif (!lead.owner || lead.owner !== '" + uniqueId + "') {\n  return []; \n}\n\nreturn [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead.email, phone: lead.phone } }];" },
+            "parameters": { "jsCode": "const msg = $('Worker Webhook').first().json.body.entry?.[0]?.messaging?.[0]?.message?.text?.trim() || '';\nconst senderId = $('Worker Webhook').first().json.body.entry?.[0]?.messaging?.[0]?.sender?.id || '';\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst lead = staticData.leads[senderId] || { state: 'new', name: '', email: '', phone: '' };\n\n// 🔒 Ownership Guard: Only respond if this workflow owns the lead OR it's a brand new lead\nif (lead.owner && lead.owner !== '" + uniqueId + "') {\n  return []; \n}\n\nreturn [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead.email, phone: lead.phone } }];" },
             "name": "Read State",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
@@ -1135,6 +1152,11 @@ return results;`
               }, "options": { "ignoreCase": true }
             },
             "id": "cf-payload-router", "name": "Payload Router", "type": "n8n-nodes-base.switch", "typeVersion": 3.3, "position": [592, 3360]
+          },
+          // 5.1 Init Flow State (CLAIM OWNERSHIP)
+          {
+            "parameters": { "jsCode": "const senderId = $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nstaticData.leads[senderId] = { state: 'waiting_payload', owner: '" + uniqueId + "' };\nreturn [{ json: { senderId } }];" },
+            "id": "cf-init-state", "name": "Init Flow State", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [144, 4240]
           }
         ];
 
@@ -1214,9 +1236,10 @@ return results;`
           "Entry Switch": {
             "main": [
               [{ "node": "Extract Payload", "type": "main", "index": 0 }],
-              [{ "node": "Send Level 0 Menu", "type": "main", "index": 0 }]
+              [{ "node": "Init Flow State", "type": "main", "index": 0 }]
             ]
           },
+          "Init Flow State": { "main": [[{ "node": "Send Level 0 Menu", "type": "main", "index": 0 }]] },
           "Extract Payload": { "main": [[{ "node": "Payload Router", "type": "main", "index": 0 }]] },
           "Payload Router": {
             "main": uniquePayloads.map((p: string) => {
@@ -2883,72 +2906,17 @@ return { json: { userId, username, isFollowing } };`
         }
 
         // STEP 5: Register all postback payloads into tracked_payloads
-        // This allows webhook-meta to fire ONLY this workflow when a user taps a button,
-        // instead of waking up ALL active workflows and relying on the n8n ownership guard.
         const trackedPayloadsToInsert: any[] = [];
         
-        // 🧪 DEBUG: Force a canary payload to prove the table works
-        trackedPayloadsToInsert.push(`FORCE_DEBUG_${uniqueId}`);
-        
-        // Collect ALL cards from ALL possible fields
-        const allActions = body.actions || automationData?.actions || [];
-        const dmAct = allActions.find((a: any) => a.type === 'send_dm') || {};
-        const followUpAction = allActions.find((a: any) => a.type === 'follow_up');
-
-        const allCards = [
-          ...(dmAct.conversationCards || []),
-          ...(dmAct.carouselCards || []),
-          ...(dmAct.conversationFlowCards || [])
-        ];
-
-        // 1. Collect all postback payloads recursively from all actions
-        const collectedPayloads = new Set<string>();
-        const collectedButtonTexts = new Set<string>();
-        
-        function recursivelyCollectPayloads(obj: any) {
-          if (!obj || typeof obj !== 'object') return;
-          if (Array.isArray(obj)) {
-            obj.forEach(recursivelyCollectPayloads);
-          } else {
-            // Collect 'payload' field
-            if (obj.payload && typeof obj.payload === 'string') {
-              collectedPayloads.add(obj.payload);
-            }
-            // Collect 'id' field if it looks like a button/card ID
-            if (obj.id && typeof obj.id === 'string' && (obj.buttonType || obj.type === 'postback' || obj.action === 'postback' || obj.messageTemplate)) {
-              collectedPayloads.add(obj.id);
-            }
-            // Collect button titles/texts for fallback routing
-            if ((obj.title || obj.text) && (obj.buttonType || obj.type === 'postback' || obj.action === 'postback')) {
-              const txt = obj.title || obj.text;
-              if (typeof txt === 'string') {
-                collectedButtonTexts.add(txt);
-              }
-            }
-            // Scan nested objects
-            for (const key in obj) {
-              if (Object.prototype.hasOwnProperty.call(obj, key)) {
-                recursivelyCollectPayloads(obj[key]);
-              }
-            }
+        // Add collected payloads and their variants
+        postbackMap.forEach((info, payload) => {
+          trackedPayloadsToInsert.push(payload);
+          if (info.text && info.text !== payload) trackedPayloadsToInsert.push(info.text);
+          
+          // Add system variants
+          if (!payload.includes(uniqueId) && (payload.startsWith('SEND_') || payload.startsWith('CHECK_') || payload.startsWith('START_') || payload.startsWith('CONFIRM_'))) {
+            trackedPayloadsToInsert.push(`${payload}_${uniqueId}`);
           }
-        }
-
-        recursivelyCollectPayloads(allActions);
-        
-        // Add collected payloads
-        collectedPayloads.forEach(p => {
-          trackedPayloadsToInsert.push(p);
-          // If it looks like a system payload without ID, add version WITH ID
-          if (!p.includes(uniqueId) && (p.startsWith('SEND_') || p.startsWith('CHECK_') || p.startsWith('START_') || p.startsWith('CONFIRM_'))) {
-            trackedPayloadsToInsert.push(`${p}_${uniqueId}`);
-          }
-        });
-
-        // Add button text fallbacks
-        collectedButtonTexts.forEach(txt => {
-          trackedPayloadsToInsert.push(txt);
-          trackedPayloadsToInsert.push(`${txt}_${uniqueId}`);
         });
 
         // 2. Add standard system payloads (Guaranteed)
@@ -2963,10 +2931,13 @@ return { json: { userId, username, isFollowing } };`
           `CHANGE_PHONE_${uniqueId}`
         ];
         for (const p of systemPayloads) {
-          if (!collectedPayloads.has(p)) trackedPayloadsToInsert.push(p);
+          trackedPayloadsToInsert.push(p);
           const plain = p.replace(`_${uniqueId}`, '');
-          if (!collectedPayloads.has(plain)) trackedPayloadsToInsert.push(plain);
+          trackedPayloadsToInsert.push(plain);
         }
+        
+        // 🧪 DEBUG: Canary
+        trackedPayloadsToInsert.push(`FORCE_DEBUG_${uniqueId}`);
 
 
         // 3. Collect Keywords for Direct Routing (Exclusive Triggers)

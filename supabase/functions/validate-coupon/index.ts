@@ -31,7 +31,7 @@ serve(async (req) => {
 
       // 3. Simple, Hardcoded Column Query
       const result = await neonClient.queryObject(`
-        SELECT id, promo_code, discount_percentage, package, 
+        SELECT id, promo_code, discount_percentage, discount_amount, discount_type, package, 
                max_usage, total_usage_tilldate, expiry_date
         FROM promo_codes 
         WHERE LOWER(TRIM(promo_code)) = LOWER(TRIM($1))
@@ -101,18 +101,19 @@ serve(async (req) => {
       }
 
       const pct = coupon.discount_percentage || 0;
-      const amt = coupon.discount_amount || 0; // Keeping as fallback if added later
+      const amt = coupon.discount_amount || 0;
+      const type = coupon.discount_type || 'percentage';
       
       let discountVal = 0;
-      if (pct > 0) {
-        discountVal = Math.floor(baseAmount * (pct / 100));
-      } else if (amt > 0) {
+      if (type === 'flat') {
         discountVal = amt;
+      } else if (pct > 0) {
+        discountVal = Math.floor(baseAmount * (pct / 100));
       }
 
       const finalAmount = Math.max(0, baseAmount - discountVal);
       const isFree = finalAmount === 0;
-      const label = pct > 0 ? `${pct}% OFF` : `₹${amt} OFF`;
+      const label = type === 'flat' ? `₹${amt} OFF` : `${pct}% OFF`;
 
       return new Response(
         JSON.stringify({
