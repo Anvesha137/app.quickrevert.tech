@@ -134,16 +134,16 @@ Deno.serve(async (req: Request) => {
 
     // --- BUILDERS ---
     // --- BUILDERS ---
-    const buildWorkflow = () => {
+    // --- RECURSIVE POSTBACK COLLECTOR ---
+    const postbackMap = new Map<string, { text: string, cardId?: string }>();
 
+    // --- BUILDERS ---
+    const buildWorkflow = () => {
       const actions = automationData?.actions || body.actions || [];
       const dmAction = actions.find((a: any) => a.type === 'send_dm') || {};
       const bodyCards = body.actions?.find((a: any) => a.type === 'send_dm')?.conversationCards || [];
       const dbCards = dmAction.conversationCards || [];
       const cards = bodyCards.length > 0 ? bodyCards : dbCards;
-
-      // --- RECURSIVE POSTBACK COLLECTOR (Scope: buildWorkflow) ---
-      const postbackMap = new Map<string, { text: string, cardId?: string }>();
       function collectPostbacks(obj: any) {
         if (!obj || typeof obj !== 'object') return;
         if (Array.isArray(obj)) {
@@ -2819,6 +2819,7 @@ return { json: { userId, username, isFollowing } };`
         // PREPARE ROUTES for Atomic Registration
         // ⚠️ CRITICAL: account_id in automation_routes is the Meta Instagram Business ID (TEXT),
         // NOT the internal Supabase UUID. webhook-meta receives entry.id = instagram_business_id.
+        // We prioritize instagram_business_id as it's the source of truth for webhooks.
         const metaAccountId = String(instagramAccount.instagram_business_id || instagramAccount.instagram_user_id || '');
         const internalAccountUUID = instagramAccount.id;
 
