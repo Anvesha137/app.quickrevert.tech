@@ -18,10 +18,11 @@ const UserNotificationPopup: React.FC = () => {
     const [isFetching, setIsFetching] = useState(false);
 
     useEffect(() => {
-        if (user && !isFetching) {
+        // This only runs ONCE when the user is first available after a page load
+        if (user && !isFetching && activeNotifications.length === 0) {
             fetchNotifications();
         }
-    }, [user]);
+    }, [user]); // Strictly dependent on user auth state
 
     const fetchNotifications = async () => {
         setIsFetching(true);
