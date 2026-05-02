@@ -2901,10 +2901,11 @@ return { json: { userId, username, isFollowing } };`
         }
         console.log(`[ROUTING] ✅ n8n_workflows upserted for ${n8nResult.id}`);
 
-        // STEP 2: Clear old routes + tracked posts + tracked payloads for this workflow
+        // STEP 2: Clear old routes + tracked posts + tracked payloads + tracked messages for this workflow
         await supabase.from('automation_routes').delete().eq('n8n_workflow_id', n8nResult.id);
         await supabase.from('tracked_posts').delete().eq('workflow_id', n8nResult.id);
         await supabase.from('tracked_payloads').delete().eq('n8n_workflow_id', n8nResult.id);
+        await supabase.from('tracked_messages').delete().eq('n8n_workflow_id', n8nResult.id);
         console.log(`[ROUTING] ✅ Cleared old routes for ${n8nResult.id}`);
 
         // STEP 3: Insert new routes
@@ -2958,17 +2959,6 @@ return { json: { userId, username, isFollowing } };`
         // 🧪 DEBUG: Canary
         trackedPayloadsToInsert.push(`FORCE_DEBUG_${uniqueId}`);
 
-
-        // 3. Collect Keywords for Direct Routing (Exclusive Triggers)
-        if (triggerConfig.keywords && Array.isArray(triggerConfig.keywords)) {
-          console.log(`[ROUTING] Registering ${triggerConfig.keywords.length} keywords for exclusive routing`);
-          for (const kw of triggerConfig.keywords) {
-            if (kw && typeof kw === 'string') {
-              trackedPayloadsToInsert.push(kw.trim().toLowerCase());
-            }
-          }
-        }
-
         if (trackedPayloadsToInsert.length > 0) {
           const payloadRows = trackedPayloadsToInsert.map((p: string) => ({
             payload: p,
@@ -2980,11 +2970,31 @@ return { json: { userId, username, isFollowing } };`
           
           console.log(`[ROUTING] Attempting to register ${payloadRows.length} payloads...`);
           const { error: payloadErr } = await supabase.from('tracked_payloads').insert(payloadRows);
-          if (payloadErr) {
-            console.error("[ROUTING] Failed to insert tracked_payloads:", payloadErr);
-            return new Response(JSON.stringify({ error: "Payload registration failed: " + payloadErr.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          if (payloadErr) console.error("[ROUTING] Failed to insert tracked_payloads:", payloadErr);
+          else console.log(`[ROUTING] ✅ Registered ${payloadRows.length} tracked payloads`);
+        }
+
+        // STEP 6: Register all Keywords into tracked_messages
+        const trackedMessagesToInsert: any[] = [];
+        if (triggerConfig.keywords && Array.isArray(triggerConfig.keywords)) {
+          console.log(`[ROUTING] Collecting ${triggerConfig.keywords.length} keywords for tracked_messages`);
+          for (const kw of triggerConfig.keywords) {
+            if (kw && typeof kw === 'string') {
+              trackedMessagesToInsert.push({
+                message: kw.trim().toLowerCase(),
+                n8n_workflow_id: n8nResult.id,
+                automation_id: (automationId && automationId.length === 36) ? automationId : null,
+                account_id: metaAccountId,
+                webhook_path: webhookPath
+              });
+            }
           }
-          console.log(`[ROUTING] ✅ Registered ${payloadRows.length} tracked payloads`);
+        }
+
+        if (trackedMessagesToInsert.length > 0) {
+          const { error: msgErr } = await supabase.from('tracked_messages').insert(trackedMessagesToInsert);
+          if (msgErr) console.error("[ROUTING] Failed to insert tracked_messages:", msgErr);
+          else console.log(`[ROUTING] ✅ Registered ${trackedMessagesToInsert.length} tracked messages`);
         }
 
     // ATOMIC DATABASE REGISTRATION & CLEANUP

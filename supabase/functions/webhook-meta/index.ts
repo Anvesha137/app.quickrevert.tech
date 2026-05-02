@@ -269,11 +269,12 @@ async function processEvent(body: any) {
                 let activeRoutes: { routes: any[]; workflows: any[] } = { routes: [], workflows: [] };
 
                 if (internalAccountId) {
-                    // Extract the postback payload so resolveRoutes can do a direct lookup via tracked_payloads
-                    const postbackPayload = msg.postback?.payload || msg.message?.quick_reply?.payload || msg.message?.text?.trim()?.toLowerCase() || undefined;
+                    // Fix: Separate button payloads from plain text messages
+                    const postbackPayload = msg.postback?.payload || msg.message?.quick_reply?.payload || undefined;
+                    const messageText = msg.message?.text?.trim()?.toLowerCase() || undefined;
                     // ⚠️ CRITICAL: automation_routes.account_id stores Meta ID (account_id), NOT internal UUID
-                    console.log(`[ROUTING] Resolving routes for Meta account: ${account_id}, sub_type: ${sub_type}, payload: ${postbackPayload || 'none'}`);
-                    activeRoutes = await resolveRoutes(supabaseClient, account_id, 'messaging', sub_type, undefined, postbackPayload);
+                    console.log(`[ROUTING] Resolving routes for Meta account: ${account_id}, sub_type: ${sub_type}, payload: ${postbackPayload || 'none'}, messageText: ${messageText || 'none'}`);
+                    activeRoutes = await resolveRoutes(supabaseClient, account_id, 'messaging', sub_type, undefined, postbackPayload, messageText, internalAccountId);
                     console.log(`[ROUTING] Found ${activeRoutes.routes.length} active routes for messaging`);
                     
                     const matchedWf = activeRoutes.workflows.find((w: any) => w.automation_id && activeRoutes.routes.some((r: any) => r.n8n_workflow_id === w.n8n_workflow_id));
@@ -650,7 +651,7 @@ async function checkRateLimit(supabaseClient: any, accountId: string): Promise<b
     return (count || 0) > 600; // Limit: 600 requests per minute
 }
 
-async function resolveRoutes(supabaseClient: any, account_id: string, event_type: string, sub_type: string, mediaId?: string, postbackPayload?: string) {
+async function resolveRoutes(supabaseClient: any, account_id: string, event_type: string, sub_type: string, mediaId?: string, postbackPayload?: string, messageText?: string, internalAccountId?: string) {
     let routes = [];
 
     // Priority 1: tracked_posts — specific post comment → specific workflow
@@ -706,25 +707,73 @@ async function resolveRoutes(supabaseClient: any, account_id: string, event_type
         }
     }
 
+    // Priority 3: tracked_messages — plain text keyword match (DMs) → specific workflow
+    if (routes.length === 0 && messageText && event_type === 'messaging') {
+        const { data: messageData } = await supabaseClient.from('tracked_messages')
+            .select('n8n_workflow_id, webhook_path')
+            .eq('message', messageText)
+            .eq('account_id', account_id);
+
+        if (messageData && messageData.length > 0) {
+            console.log(`[ROUTING] tracked_messages hit for "${messageText}" → ${messageData.length} workflows`);
+            routes = messageData.map(d => ({ n8n_workflow_id: d.n8n_workflow_id, webhook_path: d.webhook_path }));
+        }
+    }
+
     if (routes.length === 0) {
         // Fallback ONLY if it's NOT a specific button click or post comment we were looking for
-        // (i.e. this covers plain DMs or untracked events)
-        const isButtonOrSpecific = !!postbackPayload || (mediaId && mediaId !== 'undefined');
+        // Plain text messages SHOULD fall back. Only button clicks and post comments are blocked.
+        const isButton = event_type === 'messaging' && sub_type === 'postback';
+        const isComment = !!(mediaId && mediaId !== 'undefined');
         
-        if (!isButtonOrSpecific) {
-            const { data: globalRoutes } = await supabaseClient.from('automation_routes')
+        if (!isButton && !isComment) {
+            console.log(`[ROUTING] No specific match found. Falling back to global routes for account ${account_id}...`);
+            let { data: globalRoutes } = await supabaseClient.from('automation_routes')
                 .select('n8n_workflow_id, sub_type')
                 .eq('account_id', account_id)
                 .eq('event_type', event_type)
                 .eq('is_active', true)
                 .or(`sub_type.eq.${sub_type},sub_type.is.null`);
 
+            // 🔥 SELF-HEALING: If no routes found with Meta Business ID, try internal UUID
+            if ((!globalRoutes || globalRoutes.length === 0) && internalAccountId && internalAccountId !== account_id) {
+                console.log(`[ROUTING] Global fallback miss with Meta ID ${account_id}. Trying internal UUID: ${internalAccountId}...`);
+                const { data: uuidRoutes } = await supabaseClient.from('automation_routes')
+                    .select('n8n_workflow_id, sub_type')
+                    .eq('account_id', internalAccountId)
+                    .eq('event_type', event_type)
+                    .eq('is_active', true)
+                    .or(`sub_type.eq.${sub_type},sub_type.is.null`);
+
+                if (uuidRoutes && uuidRoutes.length > 0) {
+                    console.log(`[ROUTING] ✅ Self-healing: Found ${uuidRoutes.length} routes via internal UUID. Auto-correcting...`);
+                    globalRoutes = uuidRoutes;
+
+                    // Auto-heal: Correct the wrong account_id to the real Meta Business ID
+                    supabaseClient.from('automation_routes')
+                        .update({ account_id: account_id })
+                        .eq('account_id', internalAccountId)
+                        .then(() => console.log(`[ID-FIX] ✅ Healed automation_routes: ${internalAccountId} → ${account_id}`))
+                        .catch((e: any) => console.error(`[ID-FIX] Failed:`, e));
+                    supabaseClient.from('tracked_payloads')
+                        .update({ account_id: account_id })
+                        .eq('account_id', internalAccountId)
+                        .then(() => console.log(`[ID-FIX] ✅ Healed tracked_payloads`))
+                        .catch((e: any) => console.error(`[ID-FIX] Failed:`, e));
+                    supabaseClient.from('tracked_messages')
+                        .update({ account_id: account_id })
+                        .eq('account_id', internalAccountId)
+                        .then(() => console.log(`[ID-FIX] ✅ Healed tracked_messages`))
+                        .catch((e: any) => console.error(`[ID-FIX] Failed:`, e));
+                }
+            }
+
             if (globalRoutes && globalRoutes.length > 0) {
-                console.log(`[ROUTING] Falling back to global routes for ${event_type}/${sub_type} → ${globalRoutes.length} workflows`);
-                routes = globalRoutes;
+                console.log(`[ROUTING] Found ${globalRoutes.length} global routes for ${event_type}`);
+                routes = globalRoutes.map(r => ({ n8n_workflow_id: r.n8n_workflow_id }));
             }
         } else {
-            console.log(`[ROUTING] Specific trigger miss - ignoring global fallback to prevent duplicate firing`);
+            console.log(`[ROUTING] Specific trigger miss (Button/Comment) - ignoring global fallback to prevent accidental firing`);
         }
     }
 

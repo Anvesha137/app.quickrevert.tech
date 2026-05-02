@@ -526,3 +526,8 @@ The `webhook-meta` function uses the following priority for routing:
 To eliminate the need for manual "Syncing" from the admin panel, the `create-workflow` function now includes an **Auto-Discovery** block.
 - **How it works**: When an automation is saved, the function checks if the `instagram_business_id` is null. If it is, it performs an immediate Graph API call to `/me` using the account's access token to resolve the correct ID before registering payloads.
 - **Benefit**: This ensures that all `tracked_payloads` are saved with the correct Meta ID from the very first save, allowing buttons to work instantly for newly connected accounts.
+
+### 7.4 Exclusive Message Routing (tracked_messages)
+For automations triggered by plain-text DM keywords, we implemented the `tracked_messages` table (May 2026).
+- **Mechanism**: Similar to `tracked_payloads`, it maps case-insensitive keywords to specific `n8n_workflow_ids` and `webhook_paths`.
+- **Priority**: In `webhook-meta`, `tracked_messages` is checked immediately after `tracked_payloads`. This ensures that if a user sends a message that matches a specific keyword, only the intended workflow triggers, bypassing global fallback routes.
