@@ -50,7 +50,7 @@ Deno.serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const body = await req.json();
-    const { userId, template, variables, instagramAccountId, workflowName, automationId, autoActivate = false, triggerType: bodyTriggerType } = body;
+    const { userId, template, variables, instagramAccountId, workflowName, automationId, autoActivate = true, triggerType: bodyTriggerType } = body;
 
     // If admin bypass was used, populate a "fake" user object so downstream checks work
     if (!user && incomingSecret && internalSecret && incomingSecret === internalSecret) {
@@ -2914,16 +2914,16 @@ return { json: { userId, username, isFollowing } };`
 
         if (finalTriggerType === 'post_comment') {
           if (!isSpecificPosts) {
-            routesToInsert.push({ account_id: metaAccountId, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'changes', sub_type: 'comments', is_active: autoActivate });
+            routesToInsert.push({ account_id: metaAccountId, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'changes', sub_type: 'comments', is_active: autoActivate, webhook_path: webhookPath });
           }
-          routesToInsert.push({ account_id: metaAccountId, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: 'postback', is_active: autoActivate });
-          routesToInsert.push({ account_id: metaAccountId, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: null, is_active: autoActivate });
+          routesToInsert.push({ account_id: metaAccountId, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: 'postback', is_active: autoActivate, webhook_path: webhookPath });
+          routesToInsert.push({ account_id: metaAccountId, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: null, is_active: autoActivate, webhook_path: webhookPath });
         } else if (finalTriggerType === 'story_reply') {
-          routesToInsert.push({ account_id: metaAccountId, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: null, is_active: autoActivate });
+          routesToInsert.push({ account_id: metaAccountId, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: null, is_active: autoActivate, webhook_path: webhookPath });
         } else {
           // user_dm and all other types
-          routesToInsert.push({ account_id: metaAccountId, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: null, is_active: autoActivate });
-          routesToInsert.push({ account_id: metaAccountId, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: 'postback', is_active: autoActivate });
+          routesToInsert.push({ account_id: metaAccountId, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: null, is_active: autoActivate, webhook_path: webhookPath });
+          routesToInsert.push({ account_id: metaAccountId, user_id: user.id, n8n_workflow_id: n8nResult.id, event_type: 'messaging', sub_type: 'postback', is_active: autoActivate, webhook_path: webhookPath });
         }
 
         console.log(`[ROUTING] Routes to insert:`, JSON.stringify(routesToInsert));

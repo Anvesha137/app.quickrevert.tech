@@ -73,7 +73,7 @@ serve(async (req) => {
                 context: "webhook-meta",
                 details: `Meta webhook ingestion crashed.\nError: ${e.message}`,
                 data: { error: e.message }
-            }).catch(() => {});
+            }).catch(() => { });
             return new Response("Internal Server Error", { status: 500 });
         }
     }
@@ -167,7 +167,7 @@ async function processEvent(body: any) {
 
                         if (username === candidate.username) {
                             console.log(`🎯 MATCH CONFIRMED! Updating ID for ${candidate.username}...`);
-                            
+
                             // 1. Update the database record
                             await supabaseClient
                                 .from('instagram_accounts')
@@ -221,12 +221,12 @@ async function processEvent(body: any) {
             for (const account of accountsData) {
                 const currentStoredId = String(account.instagram_business_id);
                 const fallbackId = String(account.instagram_user_id);
-                
+
                 // If the incoming account_id (Meta) doesn't match what we have stored as business_id,
                 // we need to heal the record AND propagate this change to all routes/payloads.
                 if (currentStoredId !== account_id) {
                     console.log(`🔄 Auto-correcting stored Business ID for ${account.username}: ${currentStoredId} → ${account_id}`);
-                    
+
                     // 1. Update the account record itself
                     await supabaseClient
                         .from('instagram_accounts')
@@ -237,16 +237,16 @@ async function processEvent(body: any) {
                     // We must check for BOTH the old business_id AND the fallback user_id, 
                     // because create-workflow might have used the user_id as a fallback during registration.
                     const idsToUpdate = [currentStoredId, fallbackId].filter(id => id && id !== 'null' && id !== account_id);
-                    
+
                     if (idsToUpdate.length > 0) {
                         console.log(`[ID-FIX] Propagating ID change to routes/payloads for ${account.username}. Targets: ${idsToUpdate.join(', ')} → ${account_id}`);
-                        
+
                         for (const oldId of idsToUpdate) {
                             const { error: routeUpdateErr } = await supabaseClient
                                 .from('automation_routes')
                                 .update({ account_id: account_id })
                                 .eq('account_id', oldId);
-                            
+
                             if (routeUpdateErr) {
                                 console.error(`[ID-FIX] Failed to update automation_routes for ${oldId}:`, routeUpdateErr.message);
                             }
@@ -255,7 +255,7 @@ async function processEvent(body: any) {
                                 .from('tracked_payloads')
                                 .update({ account_id: account_id })
                                 .eq('account_id', oldId);
-                            
+
                             if (payloadUpdateErr) {
                                 console.error(`[ID-FIX] Failed to update tracked_payloads for ${oldId}:`, payloadUpdateErr.message);
                             }
@@ -305,7 +305,7 @@ async function processEvent(body: any) {
                     console.log(`[ROUTING] Resolving routes for Meta account: ${account_id}, sub_type: ${sub_type}, payload: ${postbackPayload || 'none'}, messageText: ${messageText || 'none'}`);
                     activeRoutes = await resolveRoutes(supabaseClient, account_id, 'messaging', sub_type, undefined, postbackPayload, messageText, internalAccountId);
                     console.log(`[ROUTING] Found ${activeRoutes.routes.length} active routes for messaging`);
-                    
+
                     const matchedWf = activeRoutes.workflows.find((w: any) => w.automation_id && activeRoutes.routes.some((r: any) => r.n8n_workflow_id === w.n8n_workflow_id));
                     if (matchedWf) {
                         matchedAutomationId = matchedWf.automation_id;
@@ -475,7 +475,7 @@ async function processEvent(body: any) {
 
                 if (internalAccountId) {
                     const commentText = change.value?.text?.trim()?.toLowerCase();
-                    activeRoutes = await resolveRoutes(supabaseClient, internalAccountId, 'changes', change.field, mediaId, commentText);
+                    activeRoutes = await resolveRoutes(supabaseClient, account_id, 'changes', change.field, mediaId, undefined, commentText, internalAccountId);
                     const matchedWf = activeRoutes.workflows.find((w: any) => w.automation_id && activeRoutes.routes.some((r: any) => r.n8n_workflow_id === w.n8n_workflow_id));
                     if (matchedWf) matchedAutomationId = matchedWf.automation_id;
                 }
@@ -686,8 +686,10 @@ async function resolveRoutes(supabaseClient: any, account_id: string, event_type
     // Priority 1: tracked_posts — specific post comment → specific workflow
     if (mediaId && mediaId !== 'undefined') {
         const { data: trackedData } = await supabaseClient.from('tracked_posts')
-            .select('workflow_id, webhook_path').eq('media_id', mediaId).eq('platform', 'instagram');
-        
+            .select('workflow_id, webhook_path')
+            .eq('media_id', mediaId)
+            .eq('platform', 'instagram');
+
         if (trackedData && trackedData.length > 0) {
             console.log(`[ROUTING] tracked_posts hit for media ${mediaId} → ${trackedData.length} workflows`);
             routes = trackedData.map(d => ({ n8n_workflow_id: d.workflow_id, webhook_path: d.webhook_path }));
@@ -712,7 +714,7 @@ async function resolveRoutes(supabaseClient: any, account_id: string, event_type
                 .select('n8n_workflow_id')
                 .eq('account_id', account_id)
                 .eq('is_active', true);
-            
+
             if (accountRoutes && accountRoutes.length > 0) {
                 const wfIds = accountRoutes.map((r: any) => r.n8n_workflow_id);
                 const { data: fallbackData } = await supabaseClient.from('tracked_payloads')
@@ -723,9 +725,9 @@ async function resolveRoutes(supabaseClient: any, account_id: string, event_type
                 if (fallbackData && fallbackData.length > 0) {
                     console.log(`[ROUTING] ✅ Stale-ID fallback resolved "${postbackPayload}" → ${fallbackData.length} workflows`);
                     routes = fallbackData.map(d => ({ n8n_workflow_id: d.n8n_workflow_id, webhook_path: d.webhook_path }));
-                    
+
                     // Auto-heal (background)
-                    payloadData?.forEach(d => {
+                    fallbackData?.forEach(d => {
                         supabaseClient.from('tracked_payloads')
                             .update({ account_id: account_id })
                             .eq('n8n_workflow_id', d.n8n_workflow_id)
@@ -754,11 +756,11 @@ async function resolveRoutes(supabaseClient: any, account_id: string, event_type
         // Plain text messages SHOULD fall back. Only button clicks and post comments are blocked.
         const isButton = event_type === 'messaging' && sub_type === 'postback';
         const isComment = !!(mediaId && mediaId !== 'undefined');
-        
+
         if (!isButton && !isComment) {
             console.log(`[ROUTING] No specific match found. Falling back to global routes for account ${account_id}...`);
             let { data: globalRoutes } = await supabaseClient.from('automation_routes')
-                .select('n8n_workflow_id, sub_type')
+                .select('n8n_workflow_id, sub_type, webhook_path')
                 .eq('account_id', account_id)
                 .eq('event_type', event_type)
                 .eq('is_active', true)
@@ -768,7 +770,7 @@ async function resolveRoutes(supabaseClient: any, account_id: string, event_type
             if ((!globalRoutes || globalRoutes.length === 0) && internalAccountId && internalAccountId !== account_id) {
                 console.log(`[ROUTING] Global fallback miss with Meta ID ${account_id}. Trying internal UUID: ${internalAccountId}...`);
                 const { data: uuidRoutes } = await supabaseClient.from('automation_routes')
-                    .select('n8n_workflow_id, sub_type')
+                    .select('n8n_workflow_id, sub_type, webhook_path')
                     .eq('account_id', internalAccountId)
                     .eq('event_type', event_type)
                     .eq('is_active', true)
@@ -799,7 +801,7 @@ async function resolveRoutes(supabaseClient: any, account_id: string, event_type
 
             if (globalRoutes && globalRoutes.length > 0) {
                 console.log(`[ROUTING] Found ${globalRoutes.length} global routes for ${event_type}`);
-                routes = globalRoutes.map(r => ({ n8n_workflow_id: r.n8n_workflow_id }));
+                routes = globalRoutes.map(r => ({ n8n_workflow_id: r.n8n_workflow_id, webhook_path: r.webhook_path }));
             }
         } else {
             console.log(`[ROUTING] Specific trigger miss (Button/Comment) - ignoring global fallback to prevent accidental firing`);
@@ -810,9 +812,9 @@ async function resolveRoutes(supabaseClient: any, account_id: string, event_type
     const uniqueRoutes = [];
     const seen = new Set();
     for (const r of routes) {
-        if (!seen.has(r.n8n_workflow_id)) { 
-            seen.add(r.n8n_workflow_id); 
-            uniqueRoutes.push(r); 
+        if (!seen.has(r.n8n_workflow_id)) {
+            seen.add(r.n8n_workflow_id);
+            uniqueRoutes.push(r);
         }
     }
 
@@ -941,5 +943,5 @@ async function logFailedEvent(supabaseClient: any, payload: any, errorMessage: s
         context: "webhook-meta",
         details: `An incoming Instagram event could not be routed to a workflow.\nError: ${errorMessage}`,
         data: { errorMessage, account_id: payload.account_id, event_id: payload.event_id }
-    }).catch(() => {});
+    }).catch(() => { });
 }

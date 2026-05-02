@@ -29,6 +29,7 @@ output
 # Local configuration files
 *.local
 *.txt
+*.md
 
 # IDE
 .vscode/*
@@ -81,6 +82,7 @@ bolt.json
 /*.json
 /*.cjs
 /*.ps1
+/*.md
 # Allowlist key configuration files
 !/eslint.config.js
 !/postcss.config.js
