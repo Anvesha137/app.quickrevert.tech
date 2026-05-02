@@ -379,14 +379,14 @@ if (typeof $getWorkflowStaticData === 'function') {
 
         // 1.5.1 Init Hybrid State (Tag Ownership)
         hybridNodes.push({
-          "parameters": { "jsCode": "const senderId = $('Worker Webhook').item.json.body.entry[0].changes[0].value.from.id;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nstaticData.leads[senderId] = { state: 'waiting_hybrid', owner: '" + uniqueId + "' };\nreturn [{ json: { senderId } }];" },
+          "parameters": { "jsCode": "const entry = $('Worker Webhook').item.json.body.entry[0].changes[0].value;\nconst senderId = entry.from.id;\nconst username = entry.from.username;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst stateObj = { state: 'waiting_hybrid', owner: '" + uniqueId + "' };\nstaticData.leads[senderId] = stateObj;\nif (username) staticData.leads[username] = stateObj;\nreturn [{ json: { senderId } }];" },
           "id": "init-hybrid-state", "name": "Init Hybrid State", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [-368, -150]
         });
 
         // --- BRANCH 2: POSTBACKS ---
         // 2.1 Extract Payload
         hybridNodes.push({
-          "parameters": { "jsCode": "const entry = $('Worker Webhook').item.json.body.entry?.[0]?.messaging?.[0];\nconst payload = entry?.postback?.payload || entry?.message?.quick_reply?.payload || entry?.message?.text || '';\nconst senderId = entry?.sender?.id || '';\nconst staticData = $getWorkflowStaticData('global');\nconst lead = (staticData.leads || {})[senderId] || { state: 'new' };\n\n// 🔒 Ownership Guard\nif (!lead.owner || lead.owner !== '" + uniqueId + "') {\n  return []; \n}\n\nreturn [{ json: { payload, senderId } }];" },
+          "parameters": { "jsCode": "const entry = $('Worker Webhook').item.json.body.entry?.[0]?.messaging?.[0];\nconst payload = entry?.postback?.payload || entry?.message?.quick_reply?.payload || entry?.message?.text || '';\nconst senderId = entry?.sender?.id || '';\nconst username = entry?.sender_name || '';\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nlet lead = staticData.leads[senderId] || staticData.leads[username] || { state: 'new' };\nif (username && staticData.leads[username] && !staticData.leads[senderId]) staticData.leads[senderId] = lead;\n\n// 🔒 Ownership Guard\nif (!lead.owner || lead.owner !== '" + uniqueId + "') {\n  return []; \n}\n\nreturn [{ json: { payload, senderId } }];" },
           "id": "extract-payload", "name": "Extract Payload", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [-816, -1952]
         });
 
@@ -549,6 +549,8 @@ return results;`
       if (hasLeadManager) {
         console.log(`[TEMPLATE] Building Lead Manager workflow`);
         const isPostCommentLeadManager = (bodyTriggerType === 'post_comment' || automationData?.trigger_type === 'post_comment') && hasLeadManager;
+        const isUserDmLeadManager = (bodyTriggerType === 'user_dm' || automationData?.trigger_type === 'user_dm' || bodyTriggerType === 'user_directed_messages' || automationData?.trigger_type === 'user_directed_messages') && hasLeadManager;
+
         const lmCredName = `Instagram - ${instagramAccount.username} (${instagramAccount.instagram_user_id})`;
         const lmSpreadsheetUrl = leadAction.spreadsheetUrl || '';
         const lmMessages = leadAction.messages || {};
@@ -643,7 +645,24 @@ return results;`
             "position": [1700, 2600]
           },
           {
-            "parameters": { "jsCode": "const msg = $('Worker Webhook').first().json.body.entry?.[0]?.messaging?.[0]?.message?.text?.trim() || '';\nconst senderId = $('Worker Webhook').first().json.body.entry?.[0]?.messaging?.[0]?.sender?.id || '';\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst lead = staticData.leads[senderId] || { state: 'new', name: '', email: '', phone: '' };\n\n// 🔒 Ownership Guard: Only respond if this workflow owns the lead OR it's a brand new lead\nif (lead.owner && lead.owner !== '" + uniqueId + "') {\n  return []; \n}\n\nreturn [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead.email, phone: lead.phone } }];" },
+            "parameters": { "jsCode": `const entry = $('Worker Webhook').first().json.body.entry?.[0]?.messaging?.[0];
+const msg = entry?.message?.text?.trim() || '';
+const senderId = entry?.sender?.id || '';
+const username = entry?.sender_name || '';
+const staticData = $getWorkflowStaticData('global');
+if (!staticData.leads) staticData.leads = {};
+let lead = staticData.leads[senderId] || staticData.leads[username] || { state: 'new', name: '', email: '', phone: '' };
+if (username && staticData.leads[username] && !staticData.leads[senderId]) staticData.leads[senderId] = lead;
+
+// 🔒 Ownership Guard: Only respond if this workflow explicitly owns the lead
+const allowNew = ${isUserDmLeadManager};
+if (lead.owner !== '${uniqueId}') {
+  if (!allowNew || lead.state !== 'new') {
+    return []; 
+  }
+}
+
+return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead.email, phone: lead.phone } }];` },
             "name": "Read State",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
@@ -839,7 +858,7 @@ return results;`
           {
             "parameters": {
               "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
-              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $('Extract Postback').first().json.senderId }}\" },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [{\n          \"title\": \"👋 Hey! Ready to connect?\",\n          \"subtitle\": \"Tap below to get started!\",\n          \"buttons\": [\n            { \"type\": \"postback\", \"title\": \"🚀 Yes, let's go!\", \"payload\": \"START_FLOW\" }\n          ]\n        }]\n      }\n    }\n  }\n}",
+              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $('Extract Postback').first().json.senderId }}\" },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [{\n          \"title\": \"👋 Hey! Ready to connect?\",\n          \"subtitle\": \"Tap below to get started!\",\n          \"buttons\": [\n            { \"type\": \"postback\", \"title\": \"🚀 Yes, let's go!\", \"payload\": \"START_FLOW_" + uniqueId + "\" }\n          ]\n        }]\n      }\n    }\n  }\n}",
               "options": { "timeout": 15000 }
             },
             "name": "Send Start Message",
@@ -887,6 +906,18 @@ return results;`
             "type": "n8n-nodes-base.httpRequest",
             "typeVersion": 4.3,
             "position": [2450, 2000]
+          },
+          {
+            "parameters": {
+              "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
+              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": { \n    \"text\": \"" + (lmMessages.askName || "👋 Hey! Thanks for reaching out.\\n\\nWhat's your first name? 😊").replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\"\n  }\n}",
+              "options": {}
+            },
+            "name": "Ask Name (From DM)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [2200, 3400],
+            "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
           }
         ];
 
@@ -930,7 +961,7 @@ return results;`
 
           lmNodes.push({
             "parameters": {
-              "jsCode": "const senderId = $('Worker Webhook').first().json.body.entry[0].changes[0].value.from.id;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nstaticData.leads[senderId] = { state: 'waiting_name', name: '', email: '', phone: '', owner: '" + uniqueId + "' };\nreturn [{ json: { senderId } }];"
+              "jsCode": "const entry = $('Worker Webhook').first().json.body.entry[0].changes[0].value;\nconst senderId = entry.from.id;\nconst username = entry.from.username;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst stateObj = { state: 'waiting_name', name: '', email: '', phone: '', owner: '" + uniqueId + "' };\nstaticData.leads[senderId] = stateObj;\nif (username) staticData.leads[username] = stateObj;\nreturn [{ json: { senderId } }];"
             },
             "name": "Init Lead (From Comment)", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1824, 3200], "id": "init-lead-comment-lm"
           });
@@ -1021,7 +1052,7 @@ return results;`
           "Save Name": { "main": [[{ "node": "Confirm Name + Ask Email", "type": "main", "index": 0 }]] },
           "Save Email": { "main": [[{ "node": hasPhone ? "Confirm Email + Ask Phone" : "Confirm Details", "type": "main", "index": 0 }]] },
           "Save Phone": { "main": [[{ "node": "Confirm Details", "type": "main", "index": 0 }]] },
-          "Init Lead": { "main": [[]] },
+          "Init Lead": { "main": [[{ "node": "Ask Name (From DM)", "type": "main", "index": 0 }]] },
           "Confirm Name + Ask Email": { "main": [[{ "node": "Ask Email", "type": "main", "index": 0 }]] },
           "Confirm Email + Ask Phone": { "main": [[{ "node": "Ask Phone", "type": "main", "index": 0 }]] },
           "Confirm Details": { "main": [[{ "node": "Confirm Save", "type": "main", "index": 0 }]] },
@@ -1034,7 +1065,8 @@ return results;`
           "Prepare Row": { "main": [[{ "node": "Final Confirmation DM", "type": "main", "index": 0 }]] },
           "Final Confirmation DM": { "main": (hasLeadManager && hasAutomatedDM) ? [[{ "node": "Lead Follow-up Message", "type": "main", "index": 0 }]] : [] },
           "Init From Start": { "main": [[{ "node": "Send Start Message", "type": "main", "index": 0 }]] },
-          "Send Start Message": { "main": [[]] }
+          "Send Start Message": { "main": [[]] },
+          "Ask Name (From DM)": { "main": [[]] }
         };
 
         if (isPostCommentLeadManager) {
@@ -1540,7 +1572,7 @@ return results;`
         nodes.push({
           id: "button-guard", name: "Ownership Guard", type: "n8n-nodes-base.code", typeVersion: 2, position: [-112, -700],
           parameters: {
-            jsCode: "const entry = $('Worker Webhook').item.json.body.entry?.[0]?.messaging?.[0];\nconst senderId = entry?.sender?.id || '';\nconst staticData = $getWorkflowStaticData('global');\nconst lead = (staticData.leads || {})[senderId] || { state: 'new' };\n\nif (!lead.owner || lead.owner !== '" + uniqueId + "') {\n  return []; \n}\n\nreturn [{ json: { senderId } }];"
+            jsCode: "const entry = $('Worker Webhook').item.json.body.entry?.[0]?.messaging?.[0];\nconst senderId = entry?.sender?.id || '';\nconst username = entry?.sender_name || '';\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nlet lead = staticData.leads[senderId] || staticData.leads[username] || { state: 'new' };\nif (username && staticData.leads[username] && !staticData.leads[senderId]) staticData.leads[senderId] = lead;\n\nif (!lead.owner || lead.owner !== '" + uniqueId + "') {\n  return []; \n}\n\nreturn [{ json: { senderId } }];"
           }
         });
         connections["Event Type Switch"] = { main: [[], [{ node: "Ownership Guard", type: "main", index: 0 }]] };

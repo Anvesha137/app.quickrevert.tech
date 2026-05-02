@@ -190,7 +190,7 @@ serve(async (req) => {
         try {
           await couponClient.connect();
           const couponResult = await couponClient.queryObject(`
-            SELECT id, promo_code, discount_percentage, package, 
+            SELECT id, promo_code, discount_percentage, discount_amount, discount_type, package, 
                    max_usage, total_usage_tilldate, expiry_date
             FROM promo_codes
             WHERE LOWER(TRIM(promo_code)) = LOWER(TRIM($1)) AND (expiry_date >= NOW()) AND (total_usage_tilldate < max_usage)
@@ -224,16 +224,24 @@ serve(async (req) => {
               }
             }
 
-            const pct = coupon.discount_percentage || 0;
-            const amt = 0; // discount_amount column does not exist in DB
-
-            if (pct > 0) {
-              serverCalculatedDiscountPaise = Math.floor(baseAmountPaise * (pct / 100));
-            } else if (amt > 0) {
-              serverCalculatedDiscountPaise = amt * 100;
-            }
+            const discountPct = coupon.discount_percentage || 0;
+            const discountAmt = coupon.discount_amount || 0;
+            const discountType = coupon.discount_type || 'percentage';
             
-            expectedPaise = Math.max(0, baseAmountPaise - serverCalculatedDiscountPaise);
+            // Calculate in RUPEES first to match frontend rounding (floor)
+            const baseRupees = baseAmountPaise / 100;
+            let discountRupees = 0;
+            
+            if (discountType === 'flat') {
+              discountRupees = discountAmt;
+            } else if (discountPct > 0) {
+              discountRupees = Math.floor(baseRupees * (discountPct / 100));
+            }
+
+            const finalRupees = Math.max(0, baseRupees - discountRupees);
+            
+            serverCalculatedDiscountPaise = discountRupees * 100;
+            expectedPaise = Math.max(100, finalRupees * 100); // Back to paise, min ₹1 for Razorpay
           }
         } finally {
           await couponClient.end();
@@ -266,8 +274,9 @@ serve(async (req) => {
     // Calculate Period End (Renewal Logic)
     const { data: existingSub } = await supabaseClient
       .from('subscriptions')
-      .select('current_period_end, status')
+      .select('id, current_period_end, status')
       .eq('user_id', userId)
+      .limit(1)
       .maybeSingle();
 
     const now = new Date();
@@ -288,9 +297,7 @@ serve(async (req) => {
       periodEnd.setMonth(startDate.getMonth() + 3);
     }
 
-    const { error: dbError } = await supabaseClient
-      .from('subscriptions')
-      .upsert({
+    const upsertData: any = {
         user_id: userId,
         user_email: email, // Added user_email column
         status: 'active',
@@ -303,7 +310,16 @@ serve(async (req) => {
         amount_paid: amountPaidRs,
         discount_amount: discountRs,
         updated_at: new Date().toISOString()
-      })
+    };
+
+    // If there's an existing subscription, update it instead of creating a duplicate
+    if (existingSub && existingSub.id) {
+        upsertData.id = existingSub.id;
+    }
+
+    const { error: dbError } = await supabaseClient
+      .from('subscriptions')
+      .upsert(upsertData)
 
     if (dbError) {
       console.error('Database Error:', dbError);
