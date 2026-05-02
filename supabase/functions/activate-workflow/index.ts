@@ -1,4 +1,5 @@
 import { validateUser, corsHeaders } from "../_shared/auth.ts";
+import { sendAlert } from "../_shared/alert.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -117,7 +118,15 @@ Deno.serve(async (req: Request) => {
     });
 
     if (!n8nRes.ok) {
-      console.warn(`n8n /${action} returned ${n8nRes.status}: ${await n8nRes.text()}`);
+      const n8nErr = await n8nRes.text();
+      console.warn(`n8n /${action} returned ${n8nRes.status}: ${n8nErr}`);
+      sendAlert({
+        level: "error",
+        subject: `Workflow ${shouldActivate ? 'Activation' : 'Deactivation'} Failed in n8n`,
+        context: "activate-workflow",
+        details: `n8n returned ${n8nRes.status} when trying to ${action} workflow ${workflowId}.\nThe DB was updated but n8n may be out of sync.`,
+        data: { workflowId, userId: user.id, action, n8nStatus: n8nRes.status, n8nResponse: n8nErr }
+      }).catch(() => {});
     } else {
       console.log(`[N8N] ✅ ${action} succeeded`);
     }
@@ -143,6 +152,13 @@ Deno.serve(async (req: Request) => {
 
   } catch (err: any) {
     console.error(`[Error] activate-workflow:`, err);
+    sendAlert({
+      level: "error",
+      subject: `Workflow ${"activate"} Error`,
+      context: "activate-workflow",
+      details: `Unhandled error in activate-workflow.\nError: ${err.message}`,
+      data: { error: err.message }
+    }).catch(() => {});
     return new Response(JSON.stringify({
       error: err.message,
       success: false

@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { syncN8nCredential } from "../_shared/n8n.ts";
+import { sendAlert } from "../_shared/alert.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -250,6 +251,13 @@ Deno.serve(async (req: Request) => {
 
   } catch (error: any) {
     console.error('Unexpected error:', error);
+    sendAlert({
+      level: "error",
+      subject: "Instagram OAuth Failed",
+      context: "instagram-oauth-callback",
+      details: `An Instagram OAuth connection attempt failed.\nError: ${error.message}`,
+      data: { error: error.message }
+    }).catch(() => {});
     const frontendUrl = (Deno.env.get("FRONTEND_URL") || "http://localhost:5173").replace(/\/$/, '');
     return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent(error.message || 'Unknown error')}`, 302);
   }

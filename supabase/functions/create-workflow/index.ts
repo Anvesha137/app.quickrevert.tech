@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 import { syncN8nCredential } from "../_shared/n8n.ts";
+import { sendAlert } from "../_shared/alert.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1205,8 +1206,21 @@ return results;`
           },
           // 5.1 Init Flow State (CLAIM OWNERSHIP)
           {
-            "parameters": { "jsCode": "const senderId = $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nstaticData.leads[senderId] = { state: 'waiting_payload', owner: '" + uniqueId + "' };\nreturn [{ json: { senderId } }];" },
-            "id": "cf-init-state", "name": "Init Flow State", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [144, 4240]
+            "parameters": { "jsCode": `const senderId = $('Worker Webhook').item.json.body.entry[0].messaging[0].sender.id;
+const text = $('Worker Webhook').item.json.body.entry[0].messaging[0].message?.text || '';
+const keywords = ${JSON.stringify(triggerConfig.messagesType === "specific" ? triggerConfig.keywords : [])};
+
+if (keywords.length > 0) {
+  const textLower = text.toLowerCase();
+  const hasKeyword = keywords.some(k => textLower.includes(k.toLowerCase()));
+  if (!hasKeyword) return []; // Stop execution if keyword doesn't match
+}
+
+const staticData = $getWorkflowStaticData('global');
+if (!staticData.leads) staticData.leads = {};
+staticData.leads[senderId] = { state: 'waiting_payload', owner: '${uniqueId}' };
+return [{ json: { senderId } }];` },
+            "id": "cf-init-state", "name": "Init Flow State", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [368, 4176]
           }
         ];
 
@@ -3089,6 +3103,14 @@ return { json: { userId, username, isFollowing } };`
 
   } catch (error: any) {
     console.error(error);
+    // Fire-and-forget alert email
+    sendAlert({
+      level: "error",
+      subject: "Automation Creation Failed",
+      context: "create-workflow",
+      details: `An automation failed to be created or registered.\nError: ${error.message}`,
+      data: { userId, automationId, instagramAccountId, workflowName, error: error.message }
+    }).catch(() => {});
     return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
-}); 
+});

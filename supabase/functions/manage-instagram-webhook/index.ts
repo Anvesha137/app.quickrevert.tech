@@ -28,13 +28,18 @@ Deno.serve(async (req: Request) => {
       throw new Error('Instagram account not found');
     }
 
-    const pageId = instagramAccount.page_id;
-    if (!pageId) {
-      throw new Error('Page ID not found for Instagram account');
+    const targetId = instagramAccount.instagram_business_id || instagramAccount.page_id;
+    if (!targetId) {
+      throw new Error('Neither Business ID nor Page ID found for Instagram account');
     }
 
     // Determine target URL for Meta Graph API
-    const graphUrl = `https://graph.facebook.com/v21.0/${pageId}/subscribed_apps`;
+    // If we have a business_id, we use the Instagram Graph API (new pattern)
+    // If we only have page_id, we use the Facebook Graph API (old pattern)
+    const isInstagramId = !!instagramAccount.instagram_business_id;
+    const graphUrl = isInstagramId 
+      ? `https://graph.instagram.com/v24.0/${targetId}/subscribed_apps`
+      : `https://graph.facebook.com/v24.0/${targetId}/subscribed_apps`;
 
     // Fast return if already correctly configured (unless force is true)
     if (action === 'subscribe' && instagramAccount.is_subscribed && !force) {
@@ -61,7 +66,7 @@ Deno.serve(async (req: Request) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          subscribed_fields: ['messages', 'messaging_postbacks', 'message_deliveries', 'message_reads', 'comments', 'story_insights'],
+          subscribed_fields: 'messages,messaging_postbacks,message_deliveries,message_reads,comments,story_insights',
           access_token: instagramAccount.access_token,
         }),
       });

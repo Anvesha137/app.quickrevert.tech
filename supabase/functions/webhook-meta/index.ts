@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendAlert } from "../_shared/alert.ts";
 
 
 // Lazy load config to prevents crash if secrets are missing
@@ -64,8 +65,15 @@ serve(async (req) => {
             processEvent(json).catch(err => console.error("Background processing error:", err));
 
             return new Response("EVENT_RECEIVED", { status: 200 });
-        } catch (e) {
+        } catch (e: any) {
             console.error("Error in ingestion:", e);
+            sendAlert({
+                level: "error",
+                subject: "Webhook Ingestion Failed",
+                context: "webhook-meta",
+                details: `Meta webhook ingestion crashed.\nError: ${e.message}`,
+                data: { error: e.message }
+            }).catch(() => {});
             return new Response("Internal Server Error", { status: 500 });
         }
     }
@@ -159,18 +167,29 @@ async function processEvent(body: any) {
 
                         if (username === candidate.username) {
                             console.log(`🎯 MATCH CONFIRMED! Updating ID for ${candidate.username}...`);
+                            
+                            // 1. Update the database record
                             await supabaseClient
                                 .from('instagram_accounts')
                                 .update({ instagram_business_id: account_id })
                                 .eq('id', candidate.id);
 
+                            // 2. Prepare accountsData for the propagation loop further down.
+                            // CRITICAL: We fetch the record but manually keep the OLD business_id 
+                            // in the local object so the propagation loop (line 210) detects the mismatch.
                             const { data: healedData } = await supabaseClient
                                 .from('instagram_accounts')
                                 .select('id, access_token, user_id, instagram_user_id, instagram_business_id, username, active_automations_count, is_subscribed')
                                 .eq('id', candidate.id);
 
                             if (healedData && healedData.length > 0) {
-                                accountsData = healedData;
+                                // Keep the NEW data but set business_id to something else 
+                                // so the loop on line 212 triggers propagation.
+                                // We use a special marker or just the candidate's old data.
+                                accountsData = healedData.map(h => ({
+                                    ...h,
+                                    instagram_business_id: 'HEAL_REQUIRED' // This will trigger the mismatch check
+                                }));
                             }
                         }
                     }
@@ -200,37 +219,47 @@ async function processEvent(body: any) {
 
             // Auto-Correction for existing accounts if ID was matched via user_id but business_id is wrong
             for (const account of accountsData) {
-                const oldBusinessId = String(account.instagram_business_id);
-                if (oldBusinessId !== account_id) {
-                    console.log(`🔄 Auto-correcting stored Business ID for ${account.username}: ${oldBusinessId} → ${account_id}`);
+                const currentStoredId = String(account.instagram_business_id);
+                const fallbackId = String(account.instagram_user_id);
+                
+                // If the incoming account_id (Meta) doesn't match what we have stored as business_id,
+                // we need to heal the record AND propagate this change to all routes/payloads.
+                if (currentStoredId !== account_id) {
+                    console.log(`🔄 Auto-correcting stored Business ID for ${account.username}: ${currentStoredId} → ${account_id}`);
+                    
+                    // 1. Update the account record itself
                     await supabaseClient
                         .from('instagram_accounts')
                         .update({ instagram_business_id: account_id })
                         .eq('id', account.id);
 
-                    // 🔥 CRITICAL FIX: Propagate the corrected ID to automation_routes and tracked_payloads.
-                    // Without this, existing automations registered with the OLD account_id will never
-                    // match incoming webhook events that carry the NEW (corrected) account_id.
-                    // This is why "Send Access" postback didn't trigger — the payload was registered
-                    // against the old ID, so resolveRoutes couldn't find it.
-                    const { error: routeUpdateErr } = await supabaseClient
-                        .from('automation_routes')
-                        .update({ account_id: account_id })
-                        .eq('account_id', oldBusinessId);
-                    if (routeUpdateErr) {
-                        console.error(`[ID-FIX] Failed to update automation_routes for ${oldBusinessId}:`, routeUpdateErr.message);
-                    } else {
-                        console.log(`[ID-FIX] ✅ Updated automation_routes: ${oldBusinessId} → ${account_id}`);
-                    }
+                    // 2. Propagate the change to automation_routes and tracked_payloads.
+                    // We must check for BOTH the old business_id AND the fallback user_id, 
+                    // because create-workflow might have used the user_id as a fallback during registration.
+                    const idsToUpdate = [currentStoredId, fallbackId].filter(id => id && id !== 'null' && id !== account_id);
+                    
+                    if (idsToUpdate.length > 0) {
+                        console.log(`[ID-FIX] Propagating ID change to routes/payloads for ${account.username}. Targets: ${idsToUpdate.join(', ')} → ${account_id}`);
+                        
+                        for (const oldId of idsToUpdate) {
+                            const { error: routeUpdateErr } = await supabaseClient
+                                .from('automation_routes')
+                                .update({ account_id: account_id })
+                                .eq('account_id', oldId);
+                            
+                            if (routeUpdateErr) {
+                                console.error(`[ID-FIX] Failed to update automation_routes for ${oldId}:`, routeUpdateErr.message);
+                            }
 
-                    const { error: payloadUpdateErr } = await supabaseClient
-                        .from('tracked_payloads')
-                        .update({ account_id: account_id })
-                        .eq('account_id', oldBusinessId);
-                    if (payloadUpdateErr) {
-                        console.error(`[ID-FIX] Failed to update tracked_payloads for ${oldBusinessId}:`, payloadUpdateErr.message);
-                    } else {
-                        console.log(`[ID-FIX] ✅ Updated tracked_payloads: ${oldBusinessId} → ${account_id}`);
+                            const { error: payloadUpdateErr } = await supabaseClient
+                                .from('tracked_payloads')
+                                .update({ account_id: account_id })
+                                .eq('account_id', oldId);
+                            
+                            if (payloadUpdateErr) {
+                                console.error(`[ID-FIX] Failed to update tracked_payloads for ${oldId}:`, payloadUpdateErr.message);
+                            }
+                        }
                     }
                 }
             }
@@ -904,4 +933,13 @@ async function logFailedEvent(supabaseClient: any, payload: any, errorMessage: s
         });
 
     if (error) console.error("Failed to log failed event:", error);
+
+    // Alert admin when an event fails to route
+    sendAlert({
+        level: "warning",
+        subject: "Webhook Event Routing Failed",
+        context: "webhook-meta",
+        details: `An incoming Instagram event could not be routed to a workflow.\nError: ${errorMessage}`,
+        data: { errorMessage, account_id: payload.account_id, event_id: payload.event_id }
+    }).catch(() => {});
 }

@@ -16,6 +16,7 @@ interface InstagramAccount {
   status: 'active' | 'expired' | 'revoked';
   connected_at: string;
   last_synced_at: string | null;
+  token_expires_at?: string | null;
 }
 
 export default function ConnectedAccounts({ isNested = false }: { isNested?: boolean }) {
@@ -84,7 +85,7 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
       // Select only the fields needed — exclude access_token and other sensitive data
       const { data, error } = await supabase
         .from('instagram_accounts')
-        .select('id, instagram_user_id, username, profile_picture_url, status, connected_at, last_synced_at')
+        .select('id, instagram_user_id, username, profile_picture_url, status, connected_at, last_synced_at, token_expires_at')
         .eq('user_id', user.id)
         .order('connected_at', { ascending: false });
 
@@ -107,37 +108,36 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
     setShowConnectModal(true);
   };
 
-  const handleRefreshToken = async () => {
+  const handleRefreshToken = async (accountId: string) => {
     if (!user) return;
 
+    const toastId = toast.loading('Refreshing token...');
     try {
-      const { data: activeAutomations, error } = await supabase
-        .from('automations')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('status', 'active');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('No active session');
 
-      if (error) {
-        console.error('Error checking active automations:', error);
-        toast.error('Failed to check automation status');
-        return;
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/instagram-refresh-token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ account_id: accountId })
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to refresh token');
+
+      const accResult = result.results?.[0];
+      if (accResult && accResult.success) {
+        toast.success(`Token refreshed! Valid until ${new Date(accResult.expires_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`, { id: toastId });
+        await fetchAccounts();
+      } else {
+        toast.error(accResult?.error || 'Refresh failed. Please click "Connect Another Account" to re-authenticate manually.', { id: toastId });
       }
-
-      if (activeAutomations && activeAutomations.length > 0) {
-        toast.error(
-          <div className="flex flex-col gap-1">
-            <span>Deactivate automation ⏸️, refresh your token 🔄, then activate it again ✅</span>
-            <span>Quick reset and you're good to go ✨</span>
-          </div>,
-          { duration: 5000 }
-        );
-        return;
-      }
-
-      setShowConnectModal(true);
-    } catch (err) {
-      console.error('Unexpected error checking automations:', err);
-      toast.error('Failed to process token refresh');
+    } catch (err: any) {
+      console.error('Error refreshing token:', err);
+      toast.error(err.message || 'Failed to process token refresh', { id: toastId });
     }
   };
 
@@ -278,11 +278,16 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
                  <p className={`text-xs font-bold uppercase tracking-wider ${darkMode ? 'text-white/40' : 'text-gray-500'}`}>
                    Since {formatDate(account.connected_at)}
                  </p>
+                 {account.token_expires_at && (
+                   <p className="text-[10px] mt-1 font-bold text-pink-500">
+                     Expires: {new Date(account.token_expires_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} (IST)
+                   </p>
+                 )}
               </div>
 
               <div className="w-full flex flex-col gap-3">
                 <button 
-                  onClick={handleRefreshToken} 
+                  onClick={() => handleRefreshToken(account.id)} 
                   className={`w-full py-3.5 px-4 flex items-center justify-center gap-2 text-sm font-black rounded-xl transition-all active:scale-95 ${
                     darkMode ? 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
                   }`}
@@ -443,12 +448,17 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
                         <span className="text-xs sm:text-sm text-gray-600 font-medium px-2 py-1 bg-gray-100 rounded-md whitespace-nowrap">
                           Connected {formatDate(account.connected_at)}
                         </span>
+                        {account.token_expires_at && (
+                          <span className="text-xs text-pink-600 font-bold px-2 py-1 bg-pink-50 rounded-md whitespace-nowrap">
+                            Expires: {new Date(account.token_expires_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} (IST)
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto mt-2 sm:mt-0 pt-3 sm:pt-0 border-t border-pink-100 sm:border-0 justify-end sm:justify-start">
                     <button
-                      onClick={handleRefreshToken}
+                      onClick={() => handleRefreshToken(account.id)}
                       className="flex-1 sm:flex-none justify-center px-3 sm:px-4 py-2 flex items-center gap-2 text-xs sm:text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors whitespace-nowrap"
                       title="Refresh access token"
                     >

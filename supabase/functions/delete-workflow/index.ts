@@ -1,4 +1,5 @@
 import { validateUser, corsHeaders } from "../_shared/auth.ts";
+import { sendAlert } from "../_shared/alert.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 200, headers: corsHeaders });
@@ -50,6 +51,13 @@ Deno.serve(async (req: Request) => {
     if (!delRes.ok) {
       const errText = await delRes.text();
       console.error(`n8n delete failed (${delRes.status}):`, errText);
+      sendAlert({
+        level: "warning",
+        subject: "Workflow Delete Failed in n8n",
+        context: "delete-workflow",
+        details: `n8n returned ${delRes.status} when trying to delete workflow ${workflowId}.\nDB records were cleaned up but the workflow may still exist in n8n.`,
+        data: { workflowId, userId: user.id, n8nStatus: delRes.status, n8nResponse: errText }
+      }).catch(() => {});
       // Continue anyway to cleanup DB — stale n8n workflows are better than stale DB
     } else {
       console.log(`✅ Successfully deleted workflow ${workflowId} from n8n`);
@@ -78,6 +86,13 @@ Deno.serve(async (req: Request) => {
 
   } catch (error: any) {
     console.error("Error in delete-workflow function:", error);
+    sendAlert({
+      level: "error",
+      subject: "Workflow Delete Function Crashed",
+      context: "delete-workflow",
+      details: `The delete-workflow function threw an unhandled error.\nError: ${error.message}`,
+      data: { error: error.message }
+    }).catch(() => {});
     return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });
