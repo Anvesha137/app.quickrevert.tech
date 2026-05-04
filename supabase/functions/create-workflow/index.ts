@@ -767,7 +767,7 @@ return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead
           {
             "parameters": {
               "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
-              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [{\n          \"title\": \"" + (lmMessages.confirmAll ? lmMessages.confirmAll.split('\n')[0].replace('{{name}}', '{{ $json.name }}').replace('{{email}}', '{{ $json.email }}').replace('{{phone}}', '{{ $json.phone }}') : "Perfect! Just confirming ✅").replace(/"/g, '\\\"') + "\",\n          \"subtitle\": \"Powered by Quickrevert.tech\",\n          \"buttons\": [\n            { \"type\": \"postback\", \"title\": \"" + (lmMessages.btnYesLooksGood || "✅ Yes, looks good!").replace(/"/g, '\\\"') + "\", \"payload\": \"CONFIRM_SAVE_" + uniqueId + "\" },\n            { \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeEmail || "✏️ Change Email").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_EMAIL_" + uniqueId + "\" },\n            " + (hasPhone ? "{ \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangePhone || "✏️ Change Phone").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_PHONE_" + uniqueId + "\" }" : "{ \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeName || "✏️ Change Name").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_NAME_" + uniqueId + "\" }") + "\n          ]\n        }]\n      }\n    }\n  }\n}",
+              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [{\n          \"title\": \"" + (lmMessages.confirmAll ? lmMessages.confirmAll.split('\n')[0].replace('{{name}}', '{{ $json.name }}').replace('{{email}}', '{{ $json.email }}').replace('{{phone}}', '{{ $json.phone }}') : "Perfect! Just confirming ✅").replace(/"/g, '\\\"') + "\",\n          \"subtitle\": \"Name: {{ $json.name }} | Email: {{ $json.email }} | Phone: {{ $json.phone }}\",\n          \"buttons\": [\n            { \"type\": \"postback\", \"title\": \"" + (lmMessages.btnYesLooksGood || "✅ Yes, looks good!").replace(/"/g, '\\\"') + "\", \"payload\": \"CONFIRM_SAVE_" + uniqueId + "\" },\n            { \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeEmail || "✏️ Change Email").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_EMAIL_" + uniqueId + "\" },\n            " + (hasPhone ? "{ \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangePhone || "✏️ Change Phone").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_PHONE_" + uniqueId + "\" }" : "{ \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeName || "✏️ Change Name").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_NAME_" + uniqueId + "\" }") + "\n          ]\n        }]\n      }\n    }\n  }\n}",
               "options": { "timeout": 15000 }
             },
             "name": "Confirm Details",
@@ -778,21 +778,21 @@ return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead
           },
 
           {
-            "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst existing = staticData.leads[senderId] || {};\nstaticData.leads[senderId] = { state: 'waiting_name', name: '', email: existing.email || '', phone: existing.phone || '' };\nreturn [{ json: { senderId } }];" },
+            "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst existing = staticData.leads[senderId] || {};\nstaticData.leads[senderId] = { state: 'waiting_name', name: '', email: existing.email || '', phone: existing.phone || '', owner: '" + uniqueId + "' };\nreturn [{ json: { senderId } }];" },
             "name": "Reset Name State",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
             "position": [1950, 2200]
           },
           {
-            "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst existing = staticData.leads[senderId] || {};\nstaticData.leads[senderId] = { state: 'waiting_email', name: existing.name || '', email: '', phone: existing.phone || '' };\nreturn [{ json: { senderId, name: existing.name || '' } }];" },
+            "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst existing = staticData.leads[senderId] || {};\nstaticData.leads[senderId] = { state: 'waiting_email', name: existing.name || '', email: '', phone: existing.phone || '', owner: '" + uniqueId + "' };\nreturn [{ json: { senderId, name: existing.name || '' } }];" },
             "name": "Reset Email State",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
             "position": [1950, 2400]
           },
           {
-            "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst existing = staticData.leads[senderId] || {};\nstaticData.leads[senderId] = { state: 'waiting_phone', name: existing.name || '', email: existing.email || '', phone: '' };\nreturn [{ json: { senderId, name: existing.name || '', email: existing.email || '' } }];" },
+            "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst existing = staticData.leads[senderId] || {};\nstaticData.leads[senderId] = { state: 'waiting_phone', name: existing.name || '', email: existing.email || '', phone: '', owner: '" + uniqueId + "' };\nreturn [{ json: { senderId, name: existing.name || '', email: existing.email || '' } }];" },
             "name": "Reset Phone State",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
@@ -835,7 +835,7 @@ return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead
             "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
           },
           {
-            "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst lead = staticData.leads[senderId] || {};\nstaticData.leads[senderId] = { state: 'saved', name: lead.name, email: lead.email, phone: lead.phone || '' };\nconst now = new Date();\nconst timestamp = now.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });\nreturn [{ json: { senderId, name: lead.name, email: lead.email, phone: lead.phone || '', timestamp } }];" },
+            "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst lead = staticData.leads[senderId] || {};\nstaticData.leads[senderId] = { state: 'saved', name: lead.name, email: lead.email, phone: lead.phone || '', owner: '" + uniqueId + "' };\nconst now = new Date();\nconst timestamp = now.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });\nreturn [{ json: { senderId, name: lead.name, email: lead.email, phone: lead.phone || '', timestamp } }];" },
             "name": "Confirm Save",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
@@ -878,7 +878,7 @@ return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead
           {
             "parameters": {
               "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
-              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $('Worker Webhook').first().json.body.entry?.[0]?.messaging?.[0]?.sender?.id || $json.senderId }}\" },\n  \"message\": { \n    \"text\": \"" + (lmMessages.finalMessage || dmAction.title || "🎉 We've got you, {{name}}!\\n\\nYour details have been saved.").replace('{{name}}', '{{ $json.name }}').replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\"\n  }\n}",
+              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $('Confirm Save').first().json.senderId }}\" },\n  \"message\": { \n    \"text\": \"" + (lmMessages.finalMessage || dmAction.title || "🎉 We've got you, {{name}}!\\n\\nYour details have been saved.").replace('{{name}}', "{{ $('Confirm Save').first().json.name }}").replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\"\n  }\n}",
               "options": {}
             },
             "name": "Final Confirmation DM",
@@ -900,7 +900,7 @@ return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead
               },
               "sendBody": true,
               "specifyBody": "json",
-              "jsonBody": "={\n  \"automation_id\": \"" + automationId + "\",\n  \"instagram_username\": \"{{ ($json.username || 'unknown') }}\",\n  \"full_name\": \"{{ $('Confirm Save').first().json.name }}\",\n  \"email\": \"{{ $('Confirm Save').first().json.email }}\",\n  \"phone\": \"{{ $('Confirm Save').first().json.phone || '' }}\",\n  \"metadata\": { \"source\": \"n8n_workflow\" }\n}",
+              "jsonBody": "={\n  \"automation_id\": \"" + automationId + "\",\n  \"instagram_username\": \"{{ ($('Fetch IG Profile').first().json.username || 'unknown') }}\",\n  \"full_name\": \"{{ $('Confirm Save').first().json.name }}\",\n  \"email\": \"{{ $('Confirm Save').first().json.email }}\",\n  \"phone\": \"{{ $('Confirm Save').first().json.phone || '' }}\",\n  \"metadata\": { \"source\": \"n8n_workflow\" }\n}",
               "options": {}
             },
             "name": "Save to Lead Manager DB",
@@ -1993,7 +1993,7 @@ return [{ json: { senderId } }];`
           connections["Check Followup Status"] = { main: [[{ node: "Send Followup DM", type: "main", index: 0 }]] };
         }
 
-        return { name: finalWorkflowName, nodes, connections, settings: { saveExecutionProgress: false, saveDataErrorExecution: "all", saveManualExecutions: true, executionTimeout: 2400, timezone: "Asia/Kolkata" } };
+        return { name: finalWorkflowName, nodes, connections, settings: { saveExecutionProgress: false, saveDataErrorExecution: "all", saveManualExecutions: true, executionTimeout: 300, timezone: "Asia/Kolkata" } };
       }
 
       // 1.52 Fetch Usernames + Switch (All DMs - user_dm / user_directed_messages with messageType !== 'keywords')
