@@ -38,10 +38,10 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
     const params = new URLSearchParams(window.location.search);
     if (params.get('instagram_connected') === 'true') {
       setCountdown(10);
-      
+
       // Clean up URL params
       window.history.replaceState({}, '', '/account');
-      
+
       setTimeout(async () => {
         await fetchAccounts();
       }, 500);
@@ -62,14 +62,14 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
     const params = new URLSearchParams(window.location.search);
     const username = params.get('username');
     const usernameText = username ? `@${username}` : 'Your Instagram account';
-    
+
     if (countdown === 0) {
       window.location.href = 'https://app.quickrevert.tech/automation';
       return;
     }
 
     setSuccessMessage(`🎉 Yay! ${usernameText} is now connected! Head over to the Automations page from the menu to set up your first automation. Redirecting in ${countdown} seconds...`);
-    
+
     const timer = setTimeout(() => {
       setCountdown(prev => (prev !== null ? prev - 1 : null));
     }, 1000);
@@ -133,7 +133,12 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
         toast.success(`Token refreshed! Next refresh: ${new Date(accResult.expires_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`, { id: toastId });
         await fetchAccounts();
       } else {
-        toast.error(accResult?.error || 'Refresh failed. Please click "Connect Another Account" to re-authenticate manually.', { id: toastId });
+        const errorMsg = accResult?.error || '';
+        if (errorMsg.toLowerCase().includes('expired')) {
+          toast.error('Your session has fully expired. Please disconnect and then reconnect the account.', { id: toastId, duration: 6000 });
+        } else {
+          toast.error(errorMsg || 'Refresh failed. Please disconnect and then reconnect the account.', { id: toastId });
+        }
       }
     } catch (err: any) {
       console.error('Error refreshing token:', err);
@@ -232,74 +237,71 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
     return (
       <div className="w-full">
         {successMessage && (
-           /* ... success message div ... */
-           <div className="mb-6 p-5 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl flex items-start gap-4 shadow-md">
-             <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-md">
-               <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-               </svg>
-             </div>
-             <div className="flex-1 text-sm font-medium text-green-700">{successMessage}</div>
-           </div>
+          /* ... success message div ... */
+          <div className="mb-6 p-5 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl flex items-start gap-4 shadow-md">
+            <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-md">
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div className="flex-1 text-sm font-medium text-green-700">{successMessage}</div>
+          </div>
         )}
         {error && (
-           <div className="mb-6 p-5 bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-200 rounded-xl flex items-start gap-4 shadow-md">
-             <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={22} />
-             <div className="flex-1 text-sm font-medium text-red-700">{error}</div>
-           </div>
+          <div className="mb-6 p-5 bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-200 rounded-xl flex items-start gap-4 shadow-md">
+            <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={22} />
+            <div className="flex-1 text-sm font-medium text-red-700">{error}</div>
+          </div>
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           {accounts.map((account) => (
-            <div 
-              key={account.id} 
-              className={`flex flex-col items-center p-8 border rounded-3xl transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${
-                darkMode ? 'bg-white/5 border-white/10 hover:bg-white/[0.08]' : 'bg-white border-gray-100/50 hover:bg-white hover:border-blue-200 shadow-sm'
-              }`}
+            <div
+              key={account.id}
+              className={`flex flex-col items-center p-8 border rounded-3xl transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${darkMode ? 'bg-white/5 border-white/10 hover:bg-white/[0.08]' : 'bg-white border-gray-100/50 hover:bg-white hover:border-blue-200 shadow-sm'
+                }`}
             >
               <div className="relative mb-6">
-                   {account.profile_picture_url ? (
-                     <img 
-                      src={account.profile_picture_url} 
-                      className={`w-24 h-24 rounded-3xl shadow-lg ring-4 ${darkMode ? 'ring-white/5' : 'ring-white'}`} 
-                     />
-                   ) : (
-                     <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-pink-500 to-rose-500 flex items-center justify-center text-white shadow-lg">
-                       <Instagram size={40} />
-                     </div>
-                   )}
-                   <div className="absolute -bottom-2 -right-2 px-3 py-1 bg-green-500 text-white text-[10px] font-black uppercase tracking-widest rounded-full shadow-lg border-2 border-white dark:border-gray-900">
-                     {account.status}
-                   </div>
+                {account.profile_picture_url ? (
+                  <img
+                    src={account.profile_picture_url}
+                    className={`w-24 h-24 rounded-3xl shadow-lg ring-4 ${darkMode ? 'ring-white/5' : 'ring-white'}`}
+                  />
+                ) : (
+                  <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-pink-500 to-rose-500 flex items-center justify-center text-white shadow-lg">
+                    <Instagram size={40} />
+                  </div>
+                )}
+                <div className="absolute -bottom-2 -right-2 px-3 py-1 bg-green-500 text-white text-[10px] font-black uppercase tracking-widest rounded-full shadow-lg border-2 border-white dark:border-gray-900">
+                  {account.status}
+                </div>
               </div>
 
               <div className="mb-8 text-center">
-                 <p className={`font-black text-xl mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>@{account.username}</p>
-                 <p className={`text-xs font-bold uppercase tracking-wider ${darkMode ? 'text-white/40' : 'text-gray-500'}`}>
-                   Since {formatDate(account.connected_at)}
-                 </p>
-                 {account.token_expires_at && (
-                   <p className="text-[10px] mt-1 font-bold text-pink-500">
-                     NEXT REFRESH : {new Date(account.token_expires_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} (IST)
-                   </p>
-                 )}
+                <p className={`font-black text-xl mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>@{account.username}</p>
+                <p className={`text-xs font-bold uppercase tracking-wider ${darkMode ? 'text-white/40' : 'text-gray-500'}`}>
+                  Since {formatDate(account.connected_at)}
+                </p>
+                {account.token_expires_at && (
+                  <p className="text-[10px] mt-1 font-bold text-pink-500">
+                    NEXT REFRESH : {new Date(account.token_expires_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} (IST)
+                  </p>
+                )}
               </div>
 
               <div className="w-full flex flex-col gap-3">
-                <button 
-                  onClick={() => handleRefreshToken(account.id)} 
-                  className={`w-full py-3.5 px-4 flex items-center justify-center gap-2 text-sm font-black rounded-xl transition-all active:scale-95 ${
-                    darkMode ? 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
-                  }`}
+                <button
+                  onClick={() => handleRefreshToken(account.id)}
+                  className={`w-full py-3.5 px-4 flex items-center justify-center gap-2 text-sm font-black rounded-xl transition-all active:scale-95 ${darkMode ? 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                    }`}
                 >
                   <RefreshCw size={16} />
                   Refresh Token
                 </button>
-                <button 
-                  onClick={() => handleDisconnect(account.id)} 
-                  className={`w-full py-3.5 px-4 flex items-center justify-center gap-2 text-sm font-black rounded-xl transition-all active:scale-95 ${
-                    darkMode ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' : 'bg-red-50 text-red-600 hover:bg-red-100'
-                  }`}
+                <button
+                  onClick={() => handleDisconnect(account.id)}
+                  className={`w-full py-3.5 px-4 flex items-center justify-center gap-2 text-sm font-black rounded-xl transition-all active:scale-95 ${darkMode ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' : 'bg-red-50 text-red-600 hover:bg-red-100'
+                    }`}
                 >
                   <Trash2 size={16} />
                   Disconnect
@@ -307,7 +309,7 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
               </div>
             </div>
           ))}
-          
+
           {/* Add New Card - Only show if they have not reached their limit */}
           {!accountLimitExceeded && (
             <button
@@ -436,14 +438,18 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
                       <h3 className="font-bold text-gray-900 text-base sm:text-lg mb-1 truncate">@{account.username}</h3>
                       <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1 sm:mt-2">
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wide ${account.status === 'active'
-                            ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white shadow-md'
-                            : account.status === 'expired'
-                              ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-white shadow-md'
-                              : 'bg-gradient-to-r from-red-400 to-rose-500 text-white shadow-md'
+                          className={`inline-flex items-center px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wide ${(account.status === 'active' && account.token_expires_at && new Date(account.token_expires_at) < new Date())
+                            ? 'bg-gradient-to-r from-red-500 to-rose-600 text-white shadow-md'
+                            : account.status === 'active'
+                              ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white shadow-md'
+                              : account.status === 'expired'
+                                ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-white shadow-md'
+                                : 'bg-gradient-to-r from-red-400 to-rose-500 text-white shadow-md'
                             }`}
                         >
-                          {account.status}
+                          {(account.status === 'active' && account.token_expires_at && new Date(account.token_expires_at) < new Date())
+                            ? 'expired'
+                            : account.status}
                         </span>
                         <span className="text-xs sm:text-sm text-gray-600 font-medium px-2 py-1 bg-gray-100 rounded-md whitespace-nowrap">
                           Connected {formatDate(account.connected_at)}
@@ -476,15 +482,15 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
                   </div>
                 </div>
               ))}
-              
+
               {/* Only show Add Account button if limit is not reached */}
               {!accountLimitExceeded && (
                 <button
                   onClick={handleConnectInstagram}
                   className="w-full py-4 mt-6 rounded-2xl border-2 border-dashed flex justify-center items-center gap-2 font-bold transition-all border-pink-300 text-pink-600 hover:bg-pink-50 cursor-pointer"
                 >
-                    <Instagram size={20} />
-                    Connect Another Account
+                  <Instagram size={20} />
+                  Connect Another Account
                 </button>
               )}
             </div>
