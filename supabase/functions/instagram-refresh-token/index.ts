@@ -111,7 +111,7 @@ Deno.serve(async (req: Request) => {
         const newExpiresAt = new Date(Date.now() + (refreshData.expires_in || 5184000) * 1000).toISOString();
 
         // Update the token in the database
-        const { error: updateError } = await supabase
+        let { error: updateError } = await supabase
           .from("instagram_accounts")
           .update({
             access_token: newAccessToken,
@@ -120,6 +120,20 @@ Deno.serve(async (req: Request) => {
             expiration_notified: false
           })
           .eq("id", account.id);
+
+        // Fallback: If expiration_notified column is missing, try updating without it
+        if (updateError && updateError.message.includes("expiration_notified")) {
+          console.warn(`[instagram-refresh-token] Column 'expiration_notified' missing, retrying update without it.`);
+          const { error: retryError } = await supabase
+            .from("instagram_accounts")
+            .update({
+              access_token: newAccessToken,
+              token_expires_at: newExpiresAt,
+              last_synced_at: new Date().toISOString()
+            })
+            .eq("id", account.id);
+          updateError = retryError;
+        }
 
         if (updateError) {
           results.push({
@@ -171,12 +185,20 @@ Deno.serve(async (req: Request) => {
     // --- 55-Day Notification System (Cron Only) ---
     if (isCron) {
       const fiveDaysFromNow = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();
-      const { data: expiringAccounts } = await supabase
+      
+      // Try to fetch with expiration_notified, fallback if missing
+      let expiringQuery = supabase
         .from("instagram_accounts")
-        .select("id, user_id, username")
+        .select("id, user_id, username, expiration_notified")
         .eq("status", "active")
-        .eq("expiration_notified", false)
         .lt("token_expires_at", fiveDaysFromNow);
+      
+      let { data: expiringAccounts, error: expiringError } = await expiringQuery.eq("expiration_notified", false);
+
+      if (expiringError && expiringError.message.includes("expiration_notified")) {
+        console.warn("[instagram-refresh-token] Skipping notification system as 'expiration_notified' column is missing.");
+        expiringAccounts = null;
+      }
 
       if (expiringAccounts && expiringAccounts.length > 0) {
         const neonDbUrl = Deno.env.get("NEON_DB_URL");

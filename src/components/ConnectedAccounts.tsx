@@ -130,7 +130,7 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
 
       const accResult = result.results?.[0];
       if (accResult && accResult.success) {
-        toast.success(`Token refreshed! Valid until ${new Date(accResult.expires_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`, { id: toastId });
+        toast.success(`Token refreshed! Next refresh: ${new Date(accResult.expires_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`, { id: toastId });
         await fetchAccounts();
       } else {
         toast.error(accResult?.error || 'Refresh failed. Please click "Connect Another Account" to re-authenticate manually.', { id: toastId });
@@ -280,7 +280,7 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
                  </p>
                  {account.token_expires_at && (
                    <p className="text-[10px] mt-1 font-bold text-pink-500">
-                     Expires: {new Date(account.token_expires_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} (IST)
+                     NEXT REFRESH : {new Date(account.token_expires_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} (IST)
                    </p>
                  )}
               </div>
@@ -450,7 +450,7 @@ export default function ConnectedAccounts({ isNested = false }: { isNested?: boo
                         </span>
                         {account.token_expires_at && (
                           <span className="text-xs text-pink-600 font-bold px-2 py-1 bg-pink-50 rounded-md whitespace-nowrap">
-                            Expires: {new Date(account.token_expires_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} (IST)
+                            NEXT REFRESH : {new Date(account.token_expires_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} (IST)
                           </span>
                         )}
                       </div>
