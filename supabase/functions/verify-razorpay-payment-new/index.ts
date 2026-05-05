@@ -374,13 +374,32 @@ serve(async (req) => {
 
         const connectedHandle = instagramData?.username || null;
 
-        const { count: automationsCount, error: countError } = await supabaseClient
+        const { data: automations, error: autoError } = await supabaseClient
           .from('automations')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', userId)
-          .eq('status', 'active');
+          .select('status')
+          .eq('user_id', userId);
 
-        const activeAutomationsCount = countError ? 0 : (automationsCount || 0);
+        const activeAutomationsCount = autoError ? 0 : (automations?.filter(a => a.status === 'active').length || 0);
+        const deactivatedAutomationsCount = autoError ? 0 : (automations?.filter(a => a.status === 'inactive').length || 0);
+        const totalAutomationsCount = autoError ? 0 : (automations?.length || 0);
+
+        const subscriptionEnd = expiryDate.toISOString();
+
+        // Calculate Growth
+        const followersCount = instagramData?.followers_count || 0;
+        const initialFollowersCount = instagramData?.initial_followers_count || 0;
+        const growth = Math.max(0, followersCount - initialFollowersCount);
+
+        // Fetch Lifetime Metrics (Aggregation)
+        const [dmRes, cmtRes, conRes] = await Promise.all([
+          supabaseClient.from('automation_activities').select('*', { count: 'exact', head: true }).eq('user_id', userId).in('activity_type', ['dm', 'send_dm', 'incoming_message', 'incoming_event', 'interaction']),
+          supabaseClient.from('automation_activities').select('*', { count: 'exact', head: true }).eq('user_id', userId).in('activity_type', ['comment', 'reply', 'incoming_comment', 'comment_reply']),
+          supabaseClient.from('contacts').select('*', { count: 'exact', head: true }).eq('user_id', userId)
+        ]);
+
+        const totalDMs = dmRes.count || 0;
+        const totalComments = cmtRes.count || 0;
+        const totalReach = conRes.count || 0;
 
         const subscriptionEnd = expiryDate.toISOString();
 
@@ -388,11 +407,16 @@ serve(async (req) => {
         await neonClient.queryObject(`
           INSERT INTO users (
             id, username, email, status, joining_date, last_active,
-            instagram_handle, connected_instagram_handle, no_of_automations, deleted, promo_code
+            instagram_handle, connected_instagram_handle, no_of_automations, 
+            automations_active, automations_deactivated, 
+            insta_followers_now, insta_followers_at_joining, insta_growth,
+            total_dms, total_comments, total_reach,
+            plan_name, plan_status,
+            deleted, promo_code
           ) VALUES (
             $1, $2, $3, 'active',
             NOW() + INTERVAL '5 hours 30 minutes', NOW() + INTERVAL '5 hours 30 minutes',
-            $4, $5, $6, FALSE, $7
+            $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, FALSE, $17
           )
           ON CONFLICT (email) DO UPDATE SET
             username = COALESCE(EXCLUDED.username, users.username),
@@ -401,6 +425,16 @@ serve(async (req) => {
             instagram_handle = EXCLUDED.instagram_handle,
             connected_instagram_handle = EXCLUDED.connected_instagram_handle,
             no_of_automations = EXCLUDED.no_of_automations,
+            automations_active = EXCLUDED.automations_active,
+            automations_deactivated = EXCLUDED.automations_deactivated,
+            insta_followers_now = EXCLUDED.insta_followers_now,
+            insta_followers_at_joining = EXCLUDED.insta_followers_at_joining,
+            insta_growth = EXCLUDED.insta_growth,
+            total_dms = EXCLUDED.total_dms,
+            total_comments = EXCLUDED.total_comments,
+            total_reach = EXCLUDED.total_reach,
+            plan_name = EXCLUDED.plan_name,
+            plan_status = EXCLUDED.plan_status,
             promo_code = EXCLUDED.promo_code,
             deleted = FALSE;
         `, [
@@ -409,16 +443,24 @@ serve(async (req) => {
           email,
           instagramHandle,
           connectedHandle,
+          totalAutomationsCount,
           activeAutomationsCount,
+          deactivatedAutomationsCount,
+          followersCount,
+          initialFollowersCount,
+          growth,
+          totalDMs,
+          totalComments,
+          totalReach,
+          packageName,
+          'active', // status
           couponCode || null
         ]);
 
         // 2. Fetch or Create Plan
         let packageName = planTier === 'try_me_out' ? 'Monthly Sampler' : planTier ? planTier.charAt(0).toUpperCase() + planTier.slice(1).replace(/_/g, ' ') : 'Premium';
-        if (planTier !== 'try_me_out') {
-            if (planType === 'quarterly') packageName += ' (Quarterly)';
-            if (planType === 'annual') packageName += ' (Annual)';
-        }
+        if (planType === 'quarterly') packageName += ' (Quarterly)';
+        if (planType === 'annual') packageName += ' (Annual)';
 
         const baseAmountRsCalculated = Math.floor(baseAmountPaise / 100);
         const planResult = await neonClient.queryObject(`

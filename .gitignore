@@ -83,6 +83,9 @@ bolt.json
 /*.cjs
 /*.ps1
 /*.md
+
+# Scratch directory
+scratch/
 # Allowlist key configuration files
 !/eslint.config.js
 !/postcss.config.js

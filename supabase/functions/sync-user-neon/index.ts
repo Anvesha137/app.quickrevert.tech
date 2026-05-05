@@ -39,9 +39,9 @@ serve(async (req) => {
     const supabaseClient = createClient(supabaseUrl, supabaseKey);
 
     // 1. Parallel Fetch all necessary data from Supabase
-    const [instagramResult, automationsResult, subResult, limitResult] = await Promise.all([
+    const [instagramResult, allAutomationsResult, subResult, limitResult] = await Promise.all([
       supabaseClient.from('instagram_accounts').select('username, initial_followers_count, followers_count').eq('user_id', userId).eq('status', 'active').maybeSingle(),
-      supabaseClient.from('automations').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'active'),
+      supabaseClient.from('automations').select('status').eq('user_id', userId),
       supabaseClient.from('subscriptions').select('*').eq('user_id', userId).maybeSingle(),
       supabaseClient.from('user_limits').select('*').eq('user_id', userId).maybeSingle()
     ]);
@@ -51,7 +51,10 @@ serve(async (req) => {
     const initialFollowers = instagramResult.data?.initial_followers_count || 0;
     const currentFollowers = instagramResult.data?.followers_count || 0;
 
-    const activeAutomationsCount = automationsResult.count || 0;
+    const automations = allAutomationsResult.data || [];
+    const activeAutomationsCount = automations.filter(a => a.status === 'active').length;
+    const deactivatedAutomationsCount = automations.filter(a => a.status !== 'active').length;
+    const totalAutomationsCount = automations.length;
 
     const subData = subResult.data;
     if (subResult.error) console.warn("[sync-user-neon] Subscription fetch error:", subResult.error.message);
@@ -78,10 +81,10 @@ serve(async (req) => {
       packageName = 'Premium';
 
       if (planId.includes('quarterly')) {
-        packageName += ' Quarterly';
+        packageName = planId.toLowerCase().includes('sampler') ? 'Monthly Sampler (Quarterly)' : 'Premium Quarterly';
         billingCycle = 'quarterly';
       } else if (planId.includes('annual')) {
-        packageName += ' Annual';
+        packageName = planId.toLowerCase().includes('sampler') ? 'Monthly Sampler (Annual)' : 'Premium Annual';
         billingCycle = 'annual';
       } else {
         billingCycle = 'monthly';
@@ -104,72 +107,138 @@ serve(async (req) => {
       await neonClient.queryObject(`DELETE FROM users WHERE id = $1`, [(existingNeonUsers[0] as any).id]);
     }
 
-    await neonClient.queryObject(
-      `INSERT INTO users (id, username, email, status, promo_code, deleted, joining_date, last_active, instagram_handle, connected_instagram_handle, no_of_automations, insta_followers_at_joining, insta_followers_now)
-       VALUES ($1, $2, $3, $4, $5, FALSE, NOW() AT TIME ZONE 'Asia/Kolkata', NOW() AT TIME ZONE 'Asia/Kolkata', $6, $7, $8, $9, $10)
-       ON CONFLICT (email) DO UPDATE SET
-        username = COALESCE(EXCLUDED.username, users.username),
-        status = EXCLUDED.status,
-        promo_code = COALESCE(EXCLUDED.promo_code, users.promo_code),
-        deleted = FALSE,
-        last_active = NOW() AT TIME ZONE 'Asia/Kolkata',
-        instagram_handle = COALESCE(EXCLUDED.instagram_handle, users.instagram_handle),
-        connected_instagram_handle = COALESCE(EXCLUDED.connected_instagram_handle, users.connected_instagram_handle),
+    // 1. Fetch comprehensive KPIs from Supabase
+    const { data: userStats, error: statsError } = await supabaseClient
+      .from('instagram_accounts')
+      .select(`
+        username,
+        followers_count,
+        initial_followers_count
+      `)
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    // Aggregations
+    const [dmRes, cmtRes, conRes, autoRes, subRes] = await Promise.all([
+      supabaseClient.from('automation_activities').select('*', { count: 'exact', head: true }).eq('user_id', userId).in('activity_type', ['dm', 'send_dm', 'incoming_message', 'incoming_event', 'interaction']),
+      supabaseClient.from('automation_activities').select('*', { count: 'exact', head: true }).eq('user_id', userId).in('activity_type', ['comment', 'reply', 'incoming_comment', 'comment_reply']),
+      supabaseClient.from('contacts').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+      supabaseClient.from('automations').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+      supabaseClient.from('subscriptions').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle()
+    ]);
+
+    const activeAutomationsRes = await supabaseClient.from('automations').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'active');
+    const deactivatedAutomationsRes = await supabaseClient.from('automations').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'inactive');
+
+    const totalDMs = dmRes.count || 0;
+    const totalComments = cmtRes.count || 0;
+    const totalReach = conRes.count || 0;
+    const totalAutomations = autoRes.count || 0;
+    const activeAutomations = activeAutomationsRes.count || 0;
+    const deactivatedAutomations = deactivatedAutomationsRes.count || 0;
+    const followers = userStats?.followers_count || 0;
+    const initialFollowers = userStats?.initial_followers_count || 0;
+    const growth = Math.max(0, followers - initialFollowers);
+    const connectedHandle = userStats?.username || null;
+    
+    // Plan & Status Info
+    const subData = subRes.data;
+    let status = 'active';
+    let packageName = 'Free';
+    let planStatus = subData?.status || 'active';
+    let billingCycle = 'monthly';
+    let amountPaid = subData?.amount_paid || 0;
+    let discountAmount = subData?.discount_amount || 0;
+    let promoCode = subData?.coupon_code || null;
+
+    if (subData && (subData.status === 'active' || subData.status === 'trialing')) {
+      const planId = (subData.plan_id || '').toLowerCase();
+      if (planId.includes('try_me_out')) packageName = 'Monthly Sampler';
+      else if (planId.includes('premium')) packageName = 'Premium';
+      else if (planId.includes('professional')) packageName = 'Professional';
+      
+      if (planId.includes('quarterly')) {
+        packageName += ' (Quarterly)';
+        billingCycle = 'quarterly';
+      } else if (planId.includes('annual')) {
+        packageName += ' (Annual)';
+        billingCycle = 'annual';
+      }
+    }
+
+    const usernameValue = instagramHandle || fullName || email.split('@')[0];
+    const cleanEmail = email.trim().toLowerCase();
+
+    // 2. Neon Operations
+    console.log(`[sync-user-neon] Connecting to Neon for email: ${cleanEmail}`);
+    neonClient = new Client(neonDbUrl);
+    await neonClient.connect();
+
+    // 2.1 Upsert into Neon
+    const upsertQuery = `
+      INSERT INTO users (
+        id, username, email, instagram_handle, connected_instagram_handle,
+        insta_followers_now, insta_followers_at_joining, insta_growth,
+        no_of_automations, automations_active, automations_deactivated,
+        total_dms, total_comments, total_reach,
+        package, status, payment_status,
+        plan_name, plan_status,
+        last_active, joining_date
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW(), NOW())
+      ON CONFLICT (email) DO UPDATE SET
+        username = EXCLUDED.username,
+        email = EXCLUDED.email,
+        instagram_handle = EXCLUDED.instagram_handle,
+        connected_instagram_handle = EXCLUDED.connected_instagram_handle,
+        insta_followers_now = EXCLUDED.insta_followers_now,
+        insta_followers_at_joining = EXCLUDED.insta_followers_at_joining,
+        insta_growth = EXCLUDED.insta_growth,
         no_of_automations = EXCLUDED.no_of_automations,
-        insta_followers_at_joining = COALESCE(EXCLUDED.insta_followers_at_joining, users.insta_followers_at_joining),
-        insta_followers_now = EXCLUDED.insta_followers_now`,
-      [userId, usernameValue, cleanEmail, status, promoCode, connectedHandle, connectedHandle, activeAutomationsCount, initialFollowers, currentFollowers]
-    );
+        automations_active = EXCLUDED.automations_active,
+        automations_deactivated = EXCLUDED.automations_deactivated,
+        total_dms = EXCLUDED.total_dms,
+        total_comments = EXCLUDED.total_comments,
+        total_reach = EXCLUDED.total_reach,
+        package = EXCLUDED.package,
+        status = EXCLUDED.status,
+        payment_status = EXCLUDED.payment_status,
+        plan_name = EXCLUDED.plan_name,
+        plan_status = EXCLUDED.plan_status,
+        last_active = NOW();
+    `;
 
-    // 2.2 Now check for Banned and Gifted status
+    await neonClient.queryArray(upsertQuery, [
+      userId, usernameValue, cleanEmail, connectedHandle, connectedHandle,
+      followers, initialFollowers, growth,
+      totalAutomations, activeAutomations, deactivatedAutomations,
+      totalDMs, totalComments, totalReach,
+      packageName, status, (subData && (subData.status === 'active' || subData.status === 'trialing')) ? 'paid' : 'unpaid',
+      packageName, planStatus
+    ]);
+
+    // 2.2 Process Banned
     const { rows: bannedRows } = await neonClient.queryObject(`SELECT id FROM banned_users WHERE email ILIKE $1`, [cleanEmail]);
-
     if (bannedRows.length > 0) {
-      console.log(`[sync-user-neon] User ${cleanEmail} is BANNED.`);
       await neonClient.end();
       return new Response(JSON.stringify({ success: true, isBanned: true, email: cleanEmail }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Process Gifted - Robust Lookup
-    // 1. Try join via email first (most reliable)
+    // 2.3 Process Gifted
     let giftedRows: any[] = [];
-    const giftedByEmailRes = await neonClient.queryObject(`
+    const giftedRes = await neonClient.queryObject(`
       SELECT gp.* FROM gifted_premium gp 
       JOIN users u ON u.id = gp.user_id 
-      WHERE u.email ILIKE $1
-    `, [cleanEmail]);
-    
-    giftedRows = giftedByEmailRes.rows;
-
-    // 2. If not found, try direct email column in gifted_premium if it exists
-    if (giftedRows.length === 0) {
-      const { rows: columns } = await neonClient.queryObject(`SELECT column_name FROM information_schema.columns WHERE table_name='gifted_premium' AND column_name='email'`);
-      if (columns.length > 0) {
-        const giftedDirectRes = await neonClient.queryObject(`SELECT * FROM gifted_premium WHERE email ILIKE $1`, [cleanEmail]);
-        giftedRows = giftedDirectRes.rows;
-      }
-    }
-
-    // 3. If still not found, try by user_id
-    if (giftedRows.length === 0) {
-      const giftedByIdRes = await neonClient.queryObject(`SELECT * FROM gifted_premium WHERE user_id = $1`, [userId]);
-      giftedRows = giftedByIdRes.rows;
-    }
-
-    console.log(`[sync-user-neon] Gifted Lookup Results: Found=${giftedRows.length}`);
+      WHERE u.email ILIKE $1 OR u.id = $2
+    `, [cleanEmail, userId]);
+    giftedRows = giftedRes.rows;
 
     let isGifted = giftedRows.length > 0;
     let giftedSettings = isGifted ? (giftedRows[0] as any) : null;
-
-    if (isGifted) {
-      console.log(`[sync-user-neon] Gifted record found. Expiry: ${giftedSettings.expiry_date}`);
-      // Handle potential string vs date type for expiry_date
-      const expiry = new Date(giftedSettings.expiry_date);
-      if (expiry < new Date()) {
-        console.log(`[sync-user-neon] Gifted subscription EXPIRED.`);
+    if (isGifted && new Date(giftedSettings.expiry_date) < new Date()) {
         isGifted = false;
         giftedSettings = null;
-      }
     }
 
     // 3. Smart Limit Sync (Update Supabase)
