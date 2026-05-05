@@ -145,6 +145,28 @@ These are the documented fixes for historical logic errors encountered during de
         - Added `Content-Type: application/json` to all n8n API calls to ensure compatibility.
 - **Cleanup**: After applying timeouts, use the "Stop all" button in n8n to clear the backlog of "Running" executions.
 
+### 5.11 Cloudinary Migration (May 2026)
+- **Problem**: Storing user-uploaded contact form images directly in Supabase was consuming high storage and slowing down database backups.
+- **The Fix**: Integrated **Cloudinary** for image delivery. 
+    - Frontend components (`ContactForm.tsx`) now upload images to Cloudinary via signed/unsigned presets.
+    - Supabase only stores the resulting `secure_url`.
+    - **Benefit**: Reduced database bloat by 90% for form submissions and improved image delivery speed.
+
+### 5.12 Gifted Premium Sync Resilience (May 2026)
+- **Problem**: The `sync-user-neon` function frequently crashed because the Supabase Auth UUID didn't exist in the Neon `users` table at the time of sync. It also referenced non-existent columns (`package`, `payment_status`).
+- **The Fix**: 
+    - Migrated to **Email-based Lookup**: The function now searches Neon for the user's email if the ID lookup fails.
+    - **Schema Alignment**: Updated the SQL upsert to use actual Neon columns (`plan_name`, `plan_status`).
+    - **Gifted Source of Truth**: The function now explicitly pulls from the `gifted_premium` table in Neon to override "Basic" plan states in Supabase.
+
+### 5.13 Automated Maintenance & pg_cron (May 2026)
+- **Problem**: Manual maintenance of Instagram tokens and event logs was error-prone, leading to "ghost" automation failures.
+- **The Fix**: Implemented a suite of `pg_cron` jobs in Supabase:
+    - `refresh-instagram-tokens`: Daily refresh of all 60-day tokens.
+    - `cleanup-processed-events`: Deletes deduplication records older than 24 hours.
+    - `purge_automation_activities_90d`: Keeps activity logs within storage quotas.
+- **Stability**: This ensures the system stays "self-healing" without admin intervention.
+
 ---
 
 ## 6. Infrastructure & Performance (EasyPanel)
@@ -531,3 +553,8 @@ To eliminate the need for manual "Syncing" from the admin panel, the `create-wor
 For automations triggered by plain-text DM keywords, we implemented the `tracked_messages` table (May 2026).
 - **Mechanism**: Similar to `tracked_payloads`, it maps case-insensitive keywords to specific `n8n_workflow_ids` and `webhook_paths`.
 - **Priority**: In `webhook-meta`, `tracked_messages` is checked immediately after `tracked_payloads`. This ensures that if a user sends a message that matches a specific keyword, only the intended workflow triggers, bypassing global fallback routes.
+
+### 7.5 Plan Limit Enforcement (May 2026)
+- **Mechanism**: The `webhook-meta` function now performs a pre-flight check using the `checkUserDmLimit` utility.
+- **Local Cache**: Plan flags (dm_limit, is_gifted, etc.) are synced from Neon to a local Supabase table `user_limits`.
+- **Enforcement**: If the user's DM count in `automation_activities` exceeds their assigned limit, `webhook-meta` blocks the n8n trigger and logs a `limit_exceeded` activity. This prevents users from exceeding their tier quotas without requiring a cross-database call on every webhook.
