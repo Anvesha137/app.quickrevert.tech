@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Send, MessageSquare, Mail, Lock, Rocket, X, Plus, Bot, Info, FileSpreadsheet, Image as ImageIcon, ChevronDown, ChevronUp, Globe, CheckCircle2, Smartphone, RotateCcw, User } from 'lucide-react';
+import { Send, MessageSquare, Mail, Lock, Rocket, X, Plus, Bot, Info, FileSpreadsheet, Image as ImageIcon, ChevronDown, ChevronUp, Globe, CheckCircle2, Smartphone, RotateCcw, User, Loader } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -1822,7 +1822,7 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                     animate={{ rotate: 360 }}
                     transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
                   >
-                    <Rocket className="w-5 h-5 text-orange-400" />
+                    <Loader className="w-5 h-5 text-orange-400" />
                   </motion.div>
                   <span>{launchProgress < 70 ? 'Initializing...' : launchProgress < 90 ? 'Preparing...' : 'Finalizing...'}</span>
                   <span className="text-[10px] opacity-40 ml-1 font-mono">{Math.round(launchProgress)}%</span>
