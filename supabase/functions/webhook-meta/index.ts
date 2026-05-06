@@ -449,6 +449,16 @@ async function processEvent(body: any) {
         }
         if (entry.changes) {
             for (const change of entry.changes) {
+                // 🔇 BOT SELF-COMMENT FILTER: Drop events where the bot commented on its own post
+                // This happens when the bot replies to a comment — Meta reflects it back as a new comment event.
+                // The Loop Protection Switch in n8n was catching this, but we save the n8n execution + Supabase work by killing it here.
+                const commentFromUsername = change.value?.from?.username;
+                const botUsername = accountsData?.[0]?.username;
+                if (change.field === 'comments' && commentFromUsername && botUsername && commentFromUsername.toLowerCase() === botUsername.toLowerCase()) {
+                    console.log(`[BOT SELF-COMMENT] Dropped bot's own reply comment from ${commentFromUsername}. Saves n8n execution.`);
+                    continue;
+                }
+
                 // IDEMPOTENCY CHECK (For changes/comments)
                 const eventId = change.value?.id || await hashPayload(change);
 
