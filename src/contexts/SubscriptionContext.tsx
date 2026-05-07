@@ -320,8 +320,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     const canUseFollowUpMsgs = hasAdvancedFeatures;
     const canUseAppointmentManager = hasAdvancedFeatures;
     
-    const maxCarouselCards = isGiftedActive ? (giftedSettings?.carousel_count ?? 10) : 10;
-    const maxMenuFlowCards = isGiftedActive ? (giftedSettings?.menu_flow_count ?? 10) : 10;
+    const maxCarouselCards = isGiftedActive ? (giftedSettings?.carousel_count ?? 6) : 6;
+    const maxMenuFlowCards = isGiftedActive ? (giftedSettings?.menu_flow_count ?? 6) : 6;
 
     // Limits
     const dmLimit = isGiftedActive

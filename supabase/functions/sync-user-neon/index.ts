@@ -190,9 +190,9 @@ serve(async (req) => {
       syncLimits.automation_limit = giftedSettings.automation_limit;
       syncLimits.lead_manager = giftedSettings.lead_manager === true || giftedSettings.lead_manager === 'true';
       syncLimits.carousel_enabled = giftedSettings.carousel_enabled === true || giftedSettings.carousel_enabled === 'true';
-      syncLimits.carousel_count = giftedSettings.carousel_count || 10;
+      syncLimits.carousel_count = giftedSettings.carousel_count ? Math.min(giftedSettings.carousel_count, 6) : 6;
       syncLimits.menu_flow_enabled = giftedSettings.menu_flow_enabled === true || giftedSettings.menu_flow_enabled === 'true';
-      syncLimits.menu_flow_count = giftedSettings.menu_flow_count || 10;
+      syncLimits.menu_flow_count = giftedSettings.menu_flow_count ? Math.min(giftedSettings.menu_flow_count, 6) : 6;
       syncLimits.ask_to_follow_enabled = giftedSettings.ask_to_follow_enabled === true || giftedSettings.ask_to_follow_enabled === 'true';
       syncLimits.account_limit = giftedSettings.account_limit || 1;
       syncLimits.expiry_date = giftedSettings.expiry_date;
@@ -202,9 +202,9 @@ serve(async (req) => {
       syncLimits.automation_limit = hasPaidPremium ? null : 5;
       syncLimits.lead_manager = hasPaidPremium;
       syncLimits.carousel_enabled = hasPaidPremium;
-      syncLimits.carousel_count = 10;
+      syncLimits.carousel_count = 6;
       syncLimits.menu_flow_enabled = hasPaidPremium;
-      syncLimits.menu_flow_count = 10;
+      syncLimits.menu_flow_count = 6;
       syncLimits.ask_to_follow_enabled = hasPaidPremium;
       syncLimits.account_limit = hasPaidPremium ? 2 : 1;
       syncLimits.expiry_date = null;
