@@ -556,7 +556,18 @@ return results;`
 
         const lmCredName = `Instagram - ${instagramAccount.username} (${instagramAccount.instagram_user_id})`;
         const lmSpreadsheetUrl = leadAction.spreadsheetUrl || '';
-        const lmMessages = leadAction.messages || {};
+        // Helper to clean messages from legacy prefixes
+    const cleanMsg = (msg: string | undefined, fallback: string) => {
+      if (!msg) return fallback;
+      return msg.replace("What's your answer for ", "").replace("What's your answer for {{label}}?", "{{label}}?");
+    };
+
+    const lmMessages: any = {};
+    if (leadAction && leadAction.messages) {
+      Object.entries(leadAction.messages).forEach(([key, val]) => {
+        lmMessages[key] = cleanMsg(val as string, "");
+      });
+    }
         const docMatch = lmSpreadsheetUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
         const documentId = docMatch ? docMatch[1] : '';
 

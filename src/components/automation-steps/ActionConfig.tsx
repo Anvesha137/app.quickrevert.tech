@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Send, MessageSquare, Mail, Lock, Rocket, X, Plus, Bot, Info, FileSpreadsheet, Image as ImageIcon, ChevronDown, ChevronUp, Globe, CheckCircle2, Smartphone, RotateCcw, User, Loader } from 'lucide-react';
+import { Send, MessageSquare, Mail, Lock, Rocket, X, Plus, Bot, Info, FileSpreadsheet, Image as ImageIcon, ChevronDown, ChevronUp, Globe, CheckCircle2, Smartphone, RotateCcw, User, Loader, Tag } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -1495,7 +1495,11 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                                                     <span className={cn("text-[8px] font-bold opacity-30")}>{((leadAction?.messages as any)?.[qKey] || (DEFAULT_LEAD_MESSAGES as any)[qKey] || '').length} / 1000</span>
                                                   </div>
                                                   <textarea
-                                                    value={(leadAction?.messages as any)?.[qKey] ?? (DEFAULT_LEAD_MESSAGES as any)[qKey]?.replace('{{label}}', customLabel)}
+                                                    value={((leadAction?.messages as any)?.[qKey] || (DEFAULT_LEAD_MESSAGES as any)[qKey] || '')
+                                                      .replace("What's your answer for ", "")
+                                                      .replace("What's your answer for {{label}}?", "{{label}}?")
+                                                      .replace('{{label}}', customLabel)
+                                                    }
                                                     onChange={(e) => {
                                                       const newActions = [...actions];
                                                       const idx = newActions.findIndex(a => a.type === 'save_lead');
