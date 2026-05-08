@@ -2078,7 +2078,11 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                                               value={leadAction?.messages?.confirmAll ?? (
                                                 (DEFAULT_LEAD_MESSAGES.confirmAll || '')
                                                   .replace(/\nPhone: {{phone}}/g, collected.includes('phone') ? '\nPhone: {{phone}}' : '')
+                                                  .replace(/Phone: {{phone}}/g, collected.includes('phone') ? 'Phone: {{phone}}' : '')
                                                   .replace(/\n{{label}}: {{custom}}/g, collected.includes('custom') ? `\n${customLabel}: {{custom}}` : '')
+                                                  .replace(/{{label}}: {{custom}}/g, collected.includes('custom') ? `${customLabel}: {{custom}}` : '')
+                                                  .replace('{{label}}', customLabel)
+                                                  .trim()
                                               )}
                                               onChange={(e) => {
                                                 const newActions = [...actions];

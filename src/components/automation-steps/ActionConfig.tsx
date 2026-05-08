@@ -1641,7 +1641,11 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                                                   value={leadAction?.messages?.confirmAll ?? (
                                                     (DEFAULT_LEAD_MESSAGES.confirmAll || '')
                                                       .replace(/\nPhone: {{phone}}/g, (leadAction?.collectFields || []).includes('phone') ? '\nPhone: {{phone}}' : '')
+                                                      .replace(/Phone: {{phone}}/g, (leadAction?.collectFields || []).includes('phone') ? 'Phone: {{phone}}' : '')
                                                       .replace(/\n{{label}}: {{custom}}/g, (leadAction?.collectFields || []).includes('custom') ? `\n${leadAction?.customField?.label || 'Custom'}: {{custom}}` : '')
+                                                      .replace(/{{label}}: {{custom}}/g, (leadAction?.collectFields || []).includes('custom') ? `${leadAction?.customField?.label || 'Custom'}: {{custom}}` : '')
+                                                      .replace('{{label}}', leadAction?.customField?.label || 'Custom')
+                                                      .trim()
                                                   )}
                                                   onChange={(e) => {
                                                     const newActions = [...actions];

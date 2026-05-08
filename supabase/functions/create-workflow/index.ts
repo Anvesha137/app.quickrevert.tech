@@ -568,6 +568,30 @@ return results;`
         lmMessages[key] = cleanMsg(val as string, "");
       });
     }
+
+    // Dynamic Confirm Message Title Construction
+    let confirmTitle = lmMessages.confirmAll || DEFAULT_LEAD_MESSAGES.confirmAll || "Perfect! Just confirming ✅";
+    
+    // 1. Replacements
+    confirmTitle = confirmTitle
+      .replace('{{name}}', '{{ $json.name }}')
+      .replace('{{email}}', '{{ $json.email }}')
+      .replace('{{phone}}', '{{ $json.phone }}')
+      .replace('{{custom}}', '{{ $json.custom }}')
+      .replace('{{label}}', customConfig.label);
+
+    // 2. Conditional Line Removal (Defensive)
+    if (!hasPhone) {
+      confirmTitle = confirmTitle.replace(/\nPhone: {{ \$json\.phone }}/g, '').replace(/Phone: {{ \$json\.phone }}/g, '');
+    }
+    if (!hasCustom) {
+      // Find and remove the line containing the custom tag
+      confirmTitle = confirmTitle.replace(new RegExp(`\\n${customConfig.label}: {{ \\$json\\.custom }}`, 'g'), '').replace(new RegExp(`${customConfig.label}: {{ \\$json\\.custom }}`, 'g'), '');
+      // Also check for legacy or default placeholders
+      confirmTitle = confirmTitle.replace(/\n.*?{{ \$json\.custom }}/g, '').replace(/.*?{{ \$json\.custom }}/g, '');
+    }
+    
+    confirmTitle = confirmTitle.trim();
         const docMatch = lmSpreadsheetUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
         const documentId = docMatch ? docMatch[1] : '';
 
@@ -828,7 +852,7 @@ return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead
           {
             "parameters": {
               "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
-              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [{\n          \"title\": \"" + (lmMessages.confirmAll ? lmMessages.confirmAll.replace('{{name}}', '{{ $json.name }}').replace('{{email}}', '{{ $json.email }}').replace('{{phone}}', '{{ $json.phone }}').replace('{{custom}}', '{{ $json.custom }}') : "Perfect! Just confirming ✅").replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\",\n          \"subtitle\": \"" + (lmMessages.confirmAll ? "" : "Name: {{ $json.name }}\\nEmail: {{ $json.email }}\\nPhone: {{ $json.phone }}" + (hasCustom ? "\\n" + customConfig.label + ": {{ $json.custom }}" : "")).replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\",\n          \"buttons\": [\n            { \"type\": \"postback\", \"title\": \"" + (lmMessages.btnYesLooksGood || "✅ Yes, looks good!").replace(/"/g, '\\\"') + "\", \"payload\": \"CONFIRM_SAVE_" + uniqueId + "\" },\n            { \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeEmail || "✏️ Change Email").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_EMAIL_" + uniqueId + "\" },\n            " + (hasCustom ? "{ \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeCustom ? lmMessages.btnChangeCustom.replace('{{label}}', customConfig.label) : "✏️ Change " + customConfig.label).replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_CUSTOM_" + uniqueId + "\" }" : (hasPhone ? "{ \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangePhone || "✏️ Change Phone").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_PHONE_" + uniqueId + "\" }" : "{ \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeName || "✏️ Change Name").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_NAME_" + uniqueId + "\" }")) + "\n          ]\n        }]\n      }\n    }\n  }\n}",
+              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [{\n          \"title\": \"" + confirmTitle.replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\",\n          \"subtitle\": \"" + (lmMessages.confirmAll ? "" : "Name: {{ $json.name }}\\nEmail: {{ $json.email }}\\nPhone: {{ $json.phone }}" + (hasCustom ? "\\n" + customConfig.label + ": {{ $json.custom }}" : "")).replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\",\n          \"buttons\": [\n            { \"type\": \"postback\", \"title\": \"" + (lmMessages.btnYesLooksGood || "✅ Yes, looks good!").replace(/"/g, '\\\"') + "\", \"payload\": \"CONFIRM_SAVE_" + uniqueId + "\" },\n            { \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeEmail || "✏️ Change Email").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_EMAIL_" + uniqueId + "\" },\n            " + (hasCustom ? "{ \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeCustom ? lmMessages.btnChangeCustom.replace('{{label}}', customConfig.label) : "✏️ Change " + customConfig.label).replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_CUSTOM_" + uniqueId + "\" }" : (hasPhone ? "{ \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangePhone || "✏️ Change Phone").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_PHONE_" + uniqueId + "\" }" : "{ \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeName || "✏️ Change Name").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_NAME_" + uniqueId + "\" }")) + "\n          ]\n        }]\n      }\n    }\n  }\n}",
               "options": { "timeout": 15000 }
             },
             "name": "Confirm Details",
