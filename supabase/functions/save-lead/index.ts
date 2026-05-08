@@ -25,7 +25,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const body = await req.json();
-    const { automation_id, instagram_username, full_name, email, phone, metadata } = body;
+    const { automation_id, instagram_username, full_name, email, phone, metadata, custom_data, custom_label } = body;
 
     console.log(`Processing lead for automation: ${automation_id}, user: ${instagram_username}`);
 
@@ -64,6 +64,8 @@ Deno.serve(async (req: Request) => {
         phone,
         automation_id,
         automation_name: automation.name,
+        custom_data: custom_data || metadata?.custom_field || '',
+        custom_label: custom_label || metadata?.custom_label || '',
         metadata: metadata || {}
       })
       .select()

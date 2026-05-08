@@ -969,7 +969,7 @@ return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead
               },
               "sendBody": true,
               "specifyBody": "json",
-              "jsonBody": "={\n  \"automation_id\": \"" + automationId + "\",\n  \"instagram_username\": \"{{ ($('Fetch IG Profile').first().json.username || 'unknown') }}\",\n  \"full_name\": \"{{ $('Confirm Save').first().json.name }}\",\n  \"email\": \"{{ $('Confirm Save').first().json.email }}\",\n  \"phone\": \"{{ $('Confirm Save').first().json.phone || '' }}\",\n  \"metadata\": { \"source\": \"n8n_workflow\", \"custom_field\": \"{{ $('Confirm Save').first().json.custom || '' }}\", \"custom_label\": \"" + customConfig.label + "\", \"" + customConfig.label.replace(/"/g, '') + "\": \"{{ $('Confirm Save').first().json.custom || '' }}\" }\n}",
+              "jsonBody": "={\n  \"automation_id\": \"" + automationId + "\",\n  \"instagram_username\": \"{{ ($('Fetch IG Profile').first().json.username || 'unknown') }}\",\n  \"full_name\": \"{{ $('Confirm Save').first().json.name }}\",\n  \"email\": \"{{ $('Confirm Save').first().json.email }}\",\n  \"phone\": \"{{ $('Confirm Save').first().json.phone || '' }}\",\n  \"custom_data\": \"{{ $('Confirm Save').first().json.custom || '' }}\",\n  \"custom_label\": \"" + customConfig.label + "\",\n  \"metadata\": { \"source\": \"n8n_workflow\", \"custom_field\": \"{{ $('Confirm Save').first().json.custom || '' }}\", \"custom_label\": \"" + customConfig.label + "\", \"" + customConfig.label.replace(/"/g, '') + "\": \"{{ $('Confirm Save').first().json.custom || '' }}\" }\n}",
               "options": {}
             },
             "name": "Save to Lead Manager DB",

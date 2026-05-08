@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, User, CheckCircle2, XCircle, MessageSquare, Clock, Users as UsersIcon, ExternalLink, ClipboardCheck, Phone, Mail, Bot } from 'lucide-react';
+import { Search, User, CheckCircle2, XCircle, MessageSquare, Clock, Users as UsersIcon, ExternalLink, ClipboardCheck, Phone, Mail, Bot, Download, FileSpreadsheet, Tag, RotateCcw, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -31,6 +31,8 @@ interface Lead {
   automation_name: string;
   created_at: string;
   metadata: any;
+  custom_data?: string;
+  custom_label?: string;
 }
 
 export default function LeadManager() {
@@ -67,12 +69,54 @@ export default function LeadManager() {
 
       if (error) throw error;
       setLeads(data || []);
-    } catch (error) {
-      console.error('Error fetching leads:', error);
     } finally {
       setLoading(false);
     }
   }
+
+  const exportLeads = () => {
+    if (leads.length === 0) return;
+
+    // 1. Define headers
+    const headers = [
+      'Captured At',
+      'Instagram Username',
+      'Full Name',
+      'Email',
+      'Phone',
+      'Custom Label',
+      'Custom Data',
+      'Automation Source'
+    ];
+
+    // 2. Map data
+    const rows = leads.map(lead => [
+      new Date(lead.created_at).toLocaleString(),
+      lead.instagram_username,
+      lead.full_name || '',
+      lead.email || '',
+      lead.phone || '',
+      lead.custom_label || lead.metadata?.custom_label || '',
+      lead.custom_data || lead.metadata?.custom_field || '',
+      lead.automation_name
+    ]);
+
+    // 3. Construct CSV string
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    // 4. Trigger download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `QuickRevert_Leads_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   async function fetchAutomationNamesForActivities(activitiesData: any[]) {
     if (!activitiesData || activitiesData.length === 0) return;
@@ -433,6 +477,22 @@ export default function LeadManager() {
               {isSyncing ? 'Syncing...' : 'Sync History'}
             </button>
 
+            {activeTab === 'leads' && (
+              <button
+                onClick={exportLeads}
+                disabled={leads.length === 0}
+                className={cn(
+                  "flex items-center gap-2 px-6 py-3.5 rounded-2xl text-sm font-bold transition-all disabled:opacity-50",
+                  darkMode 
+                    ? "bg-emerald-600 text-white hover:bg-emerald-500 shadow-lg shadow-emerald-600/20" 
+                    : "bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-500/20"
+                )}
+              >
+                <Download className="w-4 h-4" />
+                Export Leads
+              </button>
+            )}
+
             <div className="relative w-full md:w-96">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
@@ -519,13 +579,20 @@ export default function LeadManager() {
                                 {lead.email}
                               </div>
                             )}
-                            {lead.phone && (
-                              <div className={cn("flex items-center gap-2 text-xs font-bold", darkMode ? "text-white/60" : "text-gray-700")}>
-                                <Phone className="w-3 h-3 text-emerald-500" />
-                                {lead.phone}
-                              </div>
-                            )}
-                          </div>
+                             {lead.phone && (
+                               <div className={cn("flex items-center gap-2 text-xs font-bold", darkMode ? "text-white/60" : "text-gray-700")}>
+                                 <Phone className="w-3 h-3 text-emerald-500" />
+                                 {lead.phone}
+                               </div>
+                             )}
+                             {(lead.custom_data || lead.metadata?.custom_field) && (
+                               <div className={cn("flex items-center gap-2 text-xs font-bold", darkMode ? "text-white/60" : "text-gray-700")}>
+                                 <Tag className="w-3 h-3 text-orange-500" />
+                                 <span className="opacity-50">{lead.custom_label || lead.metadata?.custom_label || 'Custom'}:</span>
+                                 {lead.custom_data || lead.metadata?.custom_field}
+                               </div>
+                             )}
+                           </div>
                         </td>
                         <td className="px-6 py-5">
                           <div className={cn(
