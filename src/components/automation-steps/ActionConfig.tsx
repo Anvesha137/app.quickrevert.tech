@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Send, MessageSquare, Mail, Lock, Rocket, X, Plus, Bot, Info, FileSpreadsheet, Image as ImageIcon, ChevronDown, ChevronUp, Globe, CheckCircle2, Smartphone, RotateCcw, User, Loader, Tag } from 'lucide-react';
+import { Send, MessageSquare, Mail, Lock, Rocket, X, Plus, Bot, Info, FileSpreadsheet, Image as ImageIcon, ChevronDown, ChevronUp, Globe, CheckCircle2, Smartphone, RotateCcw, User, Loader, Tag, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
