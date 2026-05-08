@@ -1757,12 +1757,16 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                       <div className="flex flex-wrap gap-2 pt-1 pb-1">
                         {(['name', 'email', 'phone'] as const).map(field => {
                           const isSelected = (leadAction?.collectFields || ['name', 'email']).includes(field);
+                          const isLocked = field === 'name';
+
                           return (
                             <button
                               key={field}
-                              disabled={readOnly}
+                              disabled={readOnly || isLocked}
                               onClick={() => {
                                 if (!leadAction) return;
+                                if (isLocked) return;
+                                
                                 const newFields = new Set(leadAction.collectFields || ['name', 'email']);
                                 if (isSelected) {
                                   if (newFields.size <= 1) {
@@ -1784,10 +1788,11 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                                 "px-4 py-1.5 rounded-full text-[11px] font-bold border transition-all flex items-center justify-center gap-1.5",
                                 isSelected
                                   ? (darkMode ? "bg-orange-500/10 border-orange-500/20 text-orange-400" : "bg-orange-50 border-orange-200 text-orange-600")
-                                  : (darkMode ? "bg-transparent border-white/10 text-white/40 hover:bg-white/5" : "bg-transparent border-gray-200 text-gray-500 hover:bg-gray-50")
+                                  : (darkMode ? "bg-transparent border-white/10 text-white/40 hover:bg-white/5" : "bg-transparent border-gray-200 text-gray-500 hover:bg-gray-50"),
+                                isLocked && "opacity-80 cursor-not-allowed"
                               )}
                             >
-                              <span className={cn("w-1.5 h-1.5 rounded-full transition-all", isSelected ? "bg-current" : "bg-transparent")} />
+                              {isLocked ? <Lock size={10} className="opacity-40" /> : <span className={cn("w-1.5 h-1.5 rounded-full transition-all", isSelected ? "bg-current" : "bg-transparent")} />}
                               {field.charAt(0).toUpperCase() + field.slice(1)}
                             </button>
                           );
