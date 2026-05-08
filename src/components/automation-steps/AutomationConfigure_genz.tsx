@@ -74,15 +74,15 @@ const GradientLine = () => {
 };
 
 export default function AutomationConfigureGenz({ formData, setFormData, onSave, saving, readOnly, onBack, automationId }: AutomationConfigureGenzProps) {
-  const { 
-    isPremium, 
+  const {
+    isPremium,
     canUseAskToFollow,
     canUseCarousel,
     canUseMenuFlow,
     canUseLeadManager,
     canUseFollowUpMsgs,
     maxCarouselCards,
-    maxMenuFlowCards 
+    maxMenuFlowCards
   } = useSubscription();
   const { openModal } = useUpgradeModal();
   const { darkMode } = useTheme();
@@ -118,14 +118,14 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
         const { data: automations, error } = await supabase
           .from('automations')
           .select('id, trigger_type, trigger_config');
-        
+
         if (error) throw error;
-        
+
         const usedIds = new Set<string>();
         automations?.forEach(auto => {
           // If editing, don't block current automation's posts
           if (automationId && auto.id === automationId) return;
-          
+
           const tConfig = auto.trigger_config;
           if (auto.trigger_type === 'post_comment' && tConfig?.postsType === 'specific') {
             tConfig.specificPosts?.forEach((id: string) => usedIds.add(id));
@@ -373,12 +373,12 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
 
   const toggleFollowUp = () => {
     if (readOnly) return;
-    
+
     if (!canUseFollowUpMsgs) {
       openModal();
       return;
     }
-    
+
     if (!hasLeadManager) {
       toast.error("Follow Up messages can only be enabled when Lead Manager is ON");
       return;
@@ -530,10 +530,10 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
           card.title.trim().length > 0 &&
           (card.buttons || []).every(btn => btn.text.trim().length > 0 && /^(https?:\/\/)?([\w.-]+)\.([a-z]{2,})(:\d{1,5})?(\/.*)?$/i.test(btn.url || ''))
         )
-        : (dmAction.title || '').trim().length > 0 && (dmAction.actionButtons || []).every(btn => 
-            btn.text.trim().length > 0 && 
-            (btn.buttonType === 'postback' || (btn.url && /^(https?:\/\/)?([\w.-]+)\.([a-z]{2,})(:\d{1,5})?(\/.*)?$/i.test(btn.url)))
-          )
+        : (dmAction.title || '').trim().length > 0 && (dmAction.actionButtons || []).every(btn =>
+          btn.text.trim().length > 0 &&
+          (btn.buttonType === 'postback' || (btn.url && /^(https?:\/\/)?([\w.-]+)\.([a-z]{2,})(:\d{1,5})?(\/.*)?$/i.test(btn.url)))
+        )
     )
     : true;
   const isFollowUpValid = !hasFollowUp || (!!followUpAction && !!followUpAction.message && (followUpAction.delayValue || 0) > 0);
@@ -628,7 +628,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                             {isUsed && (
                               <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center p-2 text-center">
                                 <Lock size={16} className="text-white/60 mb-1" />
-                                <span className="text-[8px] font-black uppercase text-white/80 leading-tight">Already<br/>Automated</span>
+                                <span className="text-[8px] font-black uppercase text-white/80 leading-tight">Already<br />Automated</span>
                               </div>
                             )}
                           </div>
@@ -921,12 +921,12 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                 <p className={cn("text-[11px] md:text-xs font-medium leading-tight", darkMode ? "text-white/40" : "text-gray-500")}>Only send the DM after they follow your account</p>
               </div>
               <label className={cn("relative inline-flex items-center transition-opacity", (readOnly || (!hasFollowGate && hasLeadManager)) ? "cursor-not-allowed opacity-50" : "cursor-pointer")}>
-                <input 
-                  type="checkbox" 
-                  className="sr-only peer" 
-                  checked={hasFollowGate} 
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={hasFollowGate}
                   onChange={toggleFollowGate}
-                  disabled={readOnly || (!hasFollowGate && hasLeadManager)} 
+                  disabled={readOnly || (!hasFollowGate && hasLeadManager)}
                 />
                 <div className={cn(
                   "w-10 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600 shadow-inner",
@@ -1009,7 +1009,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                         {['simple', 'carousel', 'conversation_flow'].map((type) => {
                           const isSelected = (dmAction?.dmType || 'simple') === type;
                           let isSupported = type === 'simple' ? caps?.dm : (type === 'carousel' ? caps?.carousel : caps?.convFlow);
-                          
+
                           // Feature flag checks
                           if (type === 'carousel' && !canUseCarousel) isSupported = false;
                           if (type === 'conversation_flow' && !canUseMenuFlow) isSupported = false;
@@ -1733,12 +1733,12 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                 <p className={cn("text-[11px] font-medium leading-relaxed", darkMode ? "text-white/40" : "text-gray-400")}>Capture names and emails into a lead table automatically</p>
               </div>
               <label className={cn("relative inline-flex items-center transition-opacity", (readOnly || (!hasLeadManager && (hasFollowGate || (hasDm && dmAction?.dmType === 'conversation_flow')))) ? "cursor-not-allowed opacity-50" : "cursor-pointer")}>
-                <input 
-                  type="checkbox" 
-                  className="sr-only peer" 
-                  checked={hasLeadManager} 
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={hasLeadManager}
                   onChange={toggleLeadManager}
-                  disabled={readOnly || (!hasLeadManager && (hasFollowGate || (hasDm && dmAction?.dmType === 'conversation_flow')))} 
+                  disabled={readOnly || (!hasLeadManager && (hasFollowGate || (hasDm && dmAction?.dmType === 'conversation_flow')))}
                 />
                 <div className={cn(
                   "w-10 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500 shadow-inner",
@@ -1766,7 +1766,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                               onClick={() => {
                                 if (!leadAction) return;
                                 if (isLocked) return;
-                                
+
                                 const newFields = new Set(leadAction.collectFields || ['name', 'email']);
                                 if (isSelected) {
                                   if (newFields.size <= 1) {
@@ -1782,10 +1782,10 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                                     const newActions = [...actions];
                                     const idx = newActions.findIndex(a => a.type === 'save_lead');
                                     if (idx >= 0) {
-                                      newActions[idx] = { 
-                                        ...newActions[idx], 
+                                      newActions[idx] = {
+                                        ...newActions[idx],
                                         collectFields: Array.from(newFields),
-                                        customField: { label: 'Age', type: 'text', enabled: true } 
+                                        customField: { label: 'Age', type: 'text', enabled: true }
                                       } as SaveLeadAction;
                                       updateActions(newActions);
                                       return;
@@ -1830,17 +1830,17 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                                   const idx = newActions.findIndex(a => a.type === 'save_lead');
                                   if (idx >= 0) {
                                     const currentItem = newActions[idx] as SaveLeadAction;
-                                    newActions[idx] = { 
-                                      ...currentItem, 
-                                      customField: { ...(currentItem.customField || { label: 'Age', enabled: true }), type } 
+                                    newActions[idx] = {
+                                      ...currentItem,
+                                      customField: { ...(currentItem.customField || { label: 'Age', enabled: true }), type }
                                     } as SaveLeadAction;
                                     updateActions(newActions);
                                   }
                                 }}
                                 className={cn(
                                   "px-3 py-1 rounded-md text-[9px] font-black uppercase transition-all",
-                                  leadAction.customField?.type === type 
-                                    ? (darkMode ? "bg-white text-black" : "bg-white text-orange-600 shadow-sm") 
+                                  leadAction.customField?.type === type
+                                    ? (darkMode ? "bg-white text-black" : "bg-white text-orange-600 shadow-sm")
                                     : "text-gray-400 hover:text-gray-600"
                                 )}
                               >
@@ -1857,9 +1857,9 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                             const idx = newActions.findIndex(a => a.type === 'save_lead');
                             if (idx >= 0) {
                               const currentItem = newActions[idx] as SaveLeadAction;
-                              newActions[idx] = { 
-                                ...currentItem, 
-                                customField: { ...(currentItem.customField || { type: 'text', enabled: true }), label: e.target.value } 
+                              newActions[idx] = {
+                                ...currentItem,
+                                customField: { ...(currentItem.customField || { type: 'text', enabled: true }), label: e.target.value }
                               } as SaveLeadAction;
                               updateActions(newActions);
                             }
@@ -1901,162 +1901,163 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                             <div className="pt-6 space-y-12">
                               {(() => {
                                 const collected = leadAction?.collectFields || ['name', 'email'];
-                                return collected.map(field => {
-                                  const customLabel = leadAction?.customField?.label || 'Custom';
-                                  const fieldTitle = field === 'custom' ? customLabel.toUpperCase() : field.toUpperCase();
-                                  const qKey = field === 'name' ? 'askName' : field === 'email' ? 'askEmail' : field === 'phone' ? 'askPhone' : 'askCustom';
-                                  const cKey = field === 'name' ? 'confirmName' : null;
-                                  const rKey = field === 'name' ? 'askNameAgain' : field === 'email' ? 'askEmailAgain' : field === 'phone' ? 'askPhoneAgain' : 'askCustomAgain';
-                                  const bKey = field === 'name' ? 'btnChangeName' : field === 'email' ? 'btnChangeEmail' : field === 'phone' ? 'btnChangePhone' : 'btnChangeCustom';
-                                  const iKey = field === 'email' ? 'invalidEmail' : field === 'phone' ? 'invalidPhone' : field === 'custom' && leadAction?.customField?.type === 'number' ? 'invalidCustom' : null;
+                                const customLabel = leadAction?.customField?.label || 'Custom';
 
-                                  const Icon = field === 'name' ? User : field === 'email' ? Mail : field === 'phone' ? Smartphone : Tag;
+                                return (
+                                  <>
+                                    {collected.map(field => {
+                                      const fieldTitle = field === 'custom' ? customLabel.toUpperCase() : field.toUpperCase();
+                                      const qKey = field === 'name' ? 'askName' : field === 'email' ? 'askEmail' : field === 'phone' ? 'askPhone' : 'askCustom';
+                                      const cKey = field === 'name' ? 'confirmName' : null;
+                                      const rKey = field === 'name' ? 'askNameAgain' : field === 'email' ? 'askEmailAgain' : field === 'phone' ? 'askPhoneAgain' : 'askCustomAgain';
+                                      const bKey = field === 'name' ? 'btnChangeName' : field === 'email' ? 'btnChangeEmail' : field === 'phone' ? 'btnChangePhone' : 'btnChangeCustom';
+                                      const iKey = field === 'email' ? 'invalidEmail' : field === 'phone' ? 'invalidPhone' : field === 'custom' && leadAction?.customField?.type === 'number' ? 'invalidCustom' : null;
 
-                                  return (
-                                    <div key={field} className="space-y-4">
-                                      <div className="flex items-center gap-2 px-1">
-                                        <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", darkMode ? "bg-white/5 text-white/60" : "bg-gray-100 text-gray-500")}>
-                                          <Icon size={16} />
-                                        </div>
-                                        <span className={cn("text-xs font-black uppercase tracking-widest", darkMode ? "text-white/40" : "text-gray-400")}>{fieldTitle} COLLECTION</span>
-                                      </div>
+                                      const Icon = field === 'name' ? User : field === 'email' ? Mail : field === 'phone' ? Smartphone : Tag;
 
-                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {/* LEFT: THE QUESTION */}
-                                        <div className={cn("p-4 rounded-2xl border flex flex-col gap-3", darkMode ? "bg-white/[0.03] border-white/5" : "bg-gray-50/50 border-gray-100")}>
-                                          <div className="flex items-center justify-between">
-                                            <label className={cn("text-[9px] font-black uppercase tracking-wider", darkMode ? "text-white/40" : "text-gray-500")}>The Question</label>
-                                            <span className={cn("text-[8px] font-bold opacity-30")}>{((leadAction?.messages as any)?.[qKey] || (DEFAULT_LEAD_MESSAGES as any)[qKey] || '').length} / 1000</span>
-                                          </div>
-                                          <textarea
-                                            value={(leadAction?.messages as any)?.[qKey] ?? (DEFAULT_LEAD_MESSAGES as any)[qKey]?.replace('{{label}}', customLabel)}
-                                            onChange={(e) => {
-                                              const newActions = [...actions];
-                                              const idx = newActions.findIndex(a => a.type === 'save_lead');
-                                              if (idx >= 0) {
-                                                const currentItem = newActions[idx] as SaveLeadAction;
-                                                const newMsgs = { ...DEFAULT_LEAD_MESSAGES, ...(currentItem.messages || {}) };
-                                                (newMsgs as any)[qKey] = e.target.value;
-                                                newActions[idx] = { ...currentItem, messages: newMsgs };
-                                                updateActions(newActions);
-                                              }
-                                            }}
-                                            rows={2}
-                                            className={cn("bg-transparent outline-none text-xs font-semibold resize-none", darkMode ? "text-white" : "text-gray-800")}
-                                            placeholder="The question text..."
-                                          />
-                                        </div>
-
-                                        {/* RIGHT: CONFIRMATION OR BUTTON LABEL */}
-                                        <div className={cn("p-4 rounded-2xl border flex flex-col gap-3", darkMode ? "bg-white/[0.03] border-white/5" : "bg-gray-50/50 border-gray-100")}>
-                                          <div className="flex items-center justify-between">
-                                            <label className={cn("text-[9px] font-black uppercase tracking-wider", darkMode ? "text-white/40" : "text-gray-500")}>Confirmation & Buttons</label>
-                                            {cKey && <span className={cn("text-[8px] font-bold opacity-30")}>{((leadAction?.messages as any)?.[cKey!] || (DEFAULT_LEAD_MESSAGES as any)[cKey!] || '').length} / 1000</span>}
-                                          </div>
-                                          {cKey && (
-                                            <textarea
-                                              value={leadAction?.messages?.[cKey] ?? DEFAULT_LEAD_MESSAGES[cKey]}
-                                              onChange={(e) => {
-                                                const newActions = [...actions];
-                                                const idx = newActions.findIndex(a => a.type === 'save_lead');
-                                                if (idx >= 0) {
-                                                  const currentItem = newActions[idx] as SaveLeadAction;
-                                                  const newMsgs = { ...DEFAULT_LEAD_MESSAGES, ...(currentItem.messages || {}) };
-                                                  (newMsgs as any)[cKey] = e.target.value;
-                                                  newActions[idx] = { ...currentItem, messages: newMsgs };
-                                                  updateActions(newActions);
-                                                }
-                                              }}
-                                              rows={2}
-                                              className={cn("bg-transparent outline-none text-[11px] font-medium resize-none opacity-80", darkMode ? "text-white" : "text-gray-800")}
-                                              placeholder="Confirmation message..."
-                                            />
-                                          )}
-                                          <div className="flex items-center gap-2 mt-auto">
-                                            <span className={cn("text-[8px] font-bold uppercase", darkMode ? "text-white/20" : "text-gray-300")}>BTN:</span>
-                                            <input
-                                              type="text"
-                                              value={(leadAction?.messages as any)?.[bKey] ?? (DEFAULT_LEAD_MESSAGES as any)[bKey]?.replace('{{label}}', customLabel)}
-                                              onChange={(e) => {
-                                                const newActions = [...actions];
-                                                const idx = newActions.findIndex(a => a.type === 'save_lead');
-                                                if (idx >= 0) {
-                                                  const currentItem = newActions[idx] as SaveLeadAction;
-                                                  const newMsgs = { ...DEFAULT_LEAD_MESSAGES, ...(currentItem.messages || {}) };
-                                                  (newMsgs as any)[bKey] = e.target.value;
-                                                  newActions[idx] = { ...currentItem, messages: newMsgs };
-                                                  updateActions(newActions);
-                                                }
-                                              }}
-                                              className={cn("flex-1 bg-transparent border-b border-dashed outline-none text-[10px] font-black", darkMode ? "border-white/10 text-white/50 focus:text-white" : "border-gray-200 text-gray-400 focus:text-gray-900")}
-                                              placeholder="Button text..."
-                                            />
-                                          </div>
-                                        </div>
-
-                                        {/* BOTTOM: RETRY / INVALID MESSAGES (FULL WIDTH) */}
-                                        <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                          {/* Correction / Reset */}
-                                          <div className={cn("p-4 rounded-2xl border flex flex-col gap-2", darkMode ? "bg-white/[0.01] border-white/10" : "bg-white/10 border-gray-100")}>
-                                            <div className="flex items-center justify-between">
-                                              <div className="flex items-center gap-2">
-                                                <RotateCcw size={10} className="opacity-40" />
-                                                <label className={cn("text-[9px] font-black uppercase tracking-wider", darkMode ? "text-white/30" : "text-gray-400")}>Correction / Reset Msg</label>
-                                              </div>
+                                      return (
+                                        <div key={field} className="space-y-4">
+                                          <div className="flex items-center gap-2 px-1">
+                                            <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", darkMode ? "bg-white/5 text-white/60" : "bg-gray-100 text-gray-500")}>
+                                              <Icon size={16} />
                                             </div>
-                                            <textarea
-                                              value={(leadAction?.messages as any)?.[rKey] ?? (DEFAULT_LEAD_MESSAGES as any)[rKey]?.replace('{{label}}', customLabel)}
-                                              onChange={(e) => {
-                                                const newActions = [...actions];
-                                                const idx = newActions.findIndex(a => a.type === 'save_lead');
-                                                if (idx >= 0) {
-                                                  const currentItem = newActions[idx] as SaveLeadAction;
-                                                  const newMsgs = { ...DEFAULT_LEAD_MESSAGES, ...(currentItem.messages || {}) };
-                                                  (newMsgs as any)[rKey] = e.target.value;
-                                                  newActions[idx] = { ...currentItem, messages: newMsgs };
-                                                  updateActions(newActions);
-                                                }
-                                              }}
-                                              rows={1}
-                                              className={cn("bg-transparent outline-none text-xs font-medium resize-none opacity-60 italic", darkMode ? "text-white" : "text-gray-800")}
-                                              placeholder="Reset message..."
-                                            />
+                                            <span className={cn("text-xs font-black uppercase tracking-widest", darkMode ? "text-white/40" : "text-gray-400")}>{fieldTitle} COLLECTION</span>
                                           </div>
 
-                                          {/* Invalid Format */}
-                                          {iKey && (
-                                            <div className={cn("p-4 rounded-2xl border flex flex-col gap-2", darkMode ? "bg-white/[0.01] border-white/10" : "bg-white/10 border-gray-100")}>
+                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {/* LEFT: THE QUESTION */}
+                                            <div className={cn("p-4 rounded-2xl border flex flex-col gap-3", darkMode ? "bg-white/[0.03] border-white/5" : "bg-gray-50/50 border-gray-100")}>
                                               <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-2">
-                                                  <AlertCircle size={10} className="text-orange-500" />
-                                                  <label className={cn("text-[9px] font-black uppercase tracking-wider", darkMode ? "text-white/30" : "text-gray-400")}>Wrong Format Msg</label>
-                                                </div>
+                                                <label className={cn("text-[9px] font-black uppercase tracking-wider", darkMode ? "text-white/40" : "text-gray-500")}>The Question</label>
+                                                <span className={cn("text-[8px] font-bold opacity-30")}>{((leadAction?.messages as any)?.[qKey] || (DEFAULT_LEAD_MESSAGES as any)[qKey] || '').length} / 1000</span>
                                               </div>
                                               <textarea
-                                                value={(leadAction?.messages as any)?.[iKey] ?? (DEFAULT_LEAD_MESSAGES as any)[iKey]?.replace('{{label}}', customLabel)}
+                                                value={(leadAction?.messages as any)?.[qKey] ?? (DEFAULT_LEAD_MESSAGES as any)[qKey]?.replace('{{label}}', customLabel)}
                                                 onChange={(e) => {
                                                   const newActions = [...actions];
                                                   const idx = newActions.findIndex(a => a.type === 'save_lead');
                                                   if (idx >= 0) {
                                                     const currentItem = newActions[idx] as SaveLeadAction;
                                                     const newMsgs = { ...DEFAULT_LEAD_MESSAGES, ...(currentItem.messages || {}) };
-                                                    (newMsgs as any)[iKey] = e.target.value;
+                                                    (newMsgs as any)[qKey] = e.target.value;
                                                     newActions[idx] = { ...currentItem, messages: newMsgs };
                                                     updateActions(newActions);
                                                   }
                                                 }}
-                                                rows={1}
-                                                className={cn("bg-transparent outline-none text-xs font-medium resize-none opacity-60 italic text-orange-500/80", darkMode ? "text-white" : "text-gray-800")}
-                                                placeholder="Invalid format message..."
+                                                rows={2}
+                                                className={cn("bg-transparent outline-none text-xs font-semibold resize-none", darkMode ? "text-white" : "text-gray-800")}
+                                                placeholder="The question text..."
                                               />
                                             </div>
-                                          )}
+
+                                            {/* RIGHT: CONFIRMATION OR BUTTON LABEL */}
+                                            <div className={cn("p-4 rounded-2xl border flex flex-col gap-3", darkMode ? "bg-white/[0.03] border-white/5" : "bg-gray-50/50 border-gray-100")}>
+                                              <div className="flex items-center justify-between">
+                                                <label className={cn("text-[9px] font-black uppercase tracking-wider", darkMode ? "text-white/40" : "text-gray-500")}>Confirmation & Buttons</label>
+                                                {cKey && <span className={cn("text-[8px] font-bold opacity-30")}>{((leadAction?.messages as any)?.[cKey!] || (DEFAULT_LEAD_MESSAGES as any)[cKey!] || '').length} / 1000</span>}
+                                              </div>
+                                              {cKey && (
+                                                <textarea
+                                                  value={leadAction?.messages?.[cKey] ?? DEFAULT_LEAD_MESSAGES[cKey]}
+                                                  onChange={(e) => {
+                                                    const newActions = [...actions];
+                                                    const idx = newActions.findIndex(a => a.type === 'save_lead');
+                                                    if (idx >= 0) {
+                                                      const currentItem = newActions[idx] as SaveLeadAction;
+                                                      const newMsgs = { ...DEFAULT_LEAD_MESSAGES, ...(currentItem.messages || {}) };
+                                                      (newMsgs as any)[cKey] = e.target.value;
+                                                      newActions[idx] = { ...currentItem, messages: newMsgs };
+                                                      updateActions(newActions);
+                                                    }
+                                                  }}
+                                                  rows={2}
+                                                  className={cn("bg-transparent outline-none text-[11px] font-medium resize-none opacity-80", darkMode ? "text-white" : "text-gray-800")}
+                                                  placeholder="Confirmation message..."
+                                                />
+                                              )}
+                                              <div className="flex items-center gap-2 mt-auto">
+                                                <span className={cn("text-[8px] font-bold uppercase", darkMode ? "text-white/20" : "text-gray-300")}>BTN:</span>
+                                                <input
+                                                  type="text"
+                                                  value={(leadAction?.messages as any)?.[bKey] ?? (DEFAULT_LEAD_MESSAGES as any)[bKey]?.replace('{{label}}', customLabel)}
+                                                  onChange={(e) => {
+                                                    const newActions = [...actions];
+                                                    const idx = newActions.findIndex(a => a.type === 'save_lead');
+                                                    if (idx >= 0) {
+                                                      const currentItem = newActions[idx] as SaveLeadAction;
+                                                      const newMsgs = { ...DEFAULT_LEAD_MESSAGES, ...(currentItem.messages || {}) };
+                                                      (newMsgs as any)[bKey] = e.target.value;
+                                                      newActions[idx] = { ...currentItem, messages: newMsgs };
+                                                      updateActions(newActions);
+                                                    }
+                                                  }}
+                                                  className={cn("flex-1 bg-transparent border-b border-dashed outline-none text-[10px] font-black", darkMode ? "border-white/10 text-white/50 focus:text-white" : "border-gray-200 text-gray-400 focus:text-gray-900")}
+                                                  placeholder="Button text..."
+                                                />
+                                              </div>
+                                            </div>
+
+                                            {/* BOTTOM: RETRY / INVALID MESSAGES (FULL WIDTH) */}
+                                            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                              {/* Correction / Reset */}
+                                              <div className={cn("p-4 rounded-2xl border flex flex-col gap-2", darkMode ? "bg-white/[0.01] border-white/10" : "bg-white/10 border-gray-100")}>
+                                                <div className="flex items-center justify-between">
+                                                  <div className="flex items-center gap-2">
+                                                    <RotateCcw size={10} className="opacity-40" />
+                                                    <label className={cn("text-[9px] font-black uppercase tracking-wider", darkMode ? "text-white/30" : "text-gray-400")}>Correction / Reset Msg</label>
+                                                  </div>
+                                                </div>
+                                                <textarea
+                                                  value={(leadAction?.messages as any)?.[rKey] ?? (DEFAULT_LEAD_MESSAGES as any)[rKey]?.replace('{{label}}', customLabel)}
+                                                  onChange={(e) => {
+                                                    const newActions = [...actions];
+                                                    const idx = newActions.findIndex(a => a.type === 'save_lead');
+                                                    if (idx >= 0) {
+                                                      const currentItem = newActions[idx] as SaveLeadAction;
+                                                      const newMsgs = { ...DEFAULT_LEAD_MESSAGES, ...(currentItem.messages || {}) };
+                                                      (newMsgs as any)[rKey] = e.target.value;
+                                                      newActions[idx] = { ...currentItem, messages: newMsgs };
+                                                      updateActions(newActions);
+                                                    }
+                                                  }}
+                                                  rows={1}
+                                                  className={cn("bg-transparent outline-none text-xs font-medium resize-none opacity-60 italic", darkMode ? "text-white" : "text-gray-800")}
+                                                  placeholder="Reset message..."
+                                                />
+                                              </div>
+
+                                              {/* Invalid Format */}
+                                              {iKey && (
+                                                <div className={cn("p-4 rounded-2xl border flex flex-col gap-2", darkMode ? "bg-white/[0.01] border-white/10" : "bg-white/10 border-gray-100")}>
+                                                  <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                      <AlertCircle size={10} className="text-orange-500" />
+                                                      <label className={cn("text-[9px] font-black uppercase tracking-wider", darkMode ? "text-white/30" : "text-gray-400")}>Wrong Format Msg</label>
+                                                    </div>
+                                                  </div>
+                                                  <textarea
+                                                    value={(leadAction?.messages as any)?.[iKey] ?? (DEFAULT_LEAD_MESSAGES as any)[iKey]?.replace('{{label}}', customLabel)}
+                                                    onChange={(e) => {
+                                                      const newActions = [...actions];
+                                                      const idx = newActions.findIndex(a => a.type === 'save_lead');
+                                                      if (idx >= 0) {
+                                                        const currentItem = newActions[idx] as SaveLeadAction;
+                                                        const newMsgs = { ...DEFAULT_LEAD_MESSAGES, ...(currentItem.messages || {}) };
+                                                        (newMsgs as any)[iKey] = e.target.value;
+                                                        newActions[idx] = { ...currentItem, messages: newMsgs };
+                                                        updateActions(newActions);
+                                                      }
+                                                    }}
+                                                    rows={1}
+                                                    className={cn("bg-transparent outline-none text-xs font-medium resize-none opacity-60 italic text-orange-500/80", darkMode ? "text-white" : "text-gray-800")}
+                                                    placeholder="Invalid format message..."
+                                                  />
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
                                         </div>
-                                      </div>
-                                    </div>
-                                  );
-                                });
-                              })()}
+                                      );
                                     })}
 
                                     {/* SUMMARY & FINAL MESSAGE SECTION */}
@@ -2138,249 +2139,250 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                                   </>
                                 );
                               })()}
-                            </div>
+
+                          </div>
                           </motion.div>
                         )}
-                      </AnimatePresence>
-                    </div>
+                    </AnimatePresence>
                   </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
-
-        {/* CARD 4: Follow Up Message */}
-        {(triggerType === 'user_directed_messages' || (triggerType === 'post_comment' && hasLeadManager)) && (
-          <div className={cn(
-            "rounded-2xl border-2 transition-all overflow-hidden",
-            hasFollowUp
-              ? (darkMode ? "border-emerald-500/30 bg-emerald-500/5" : "border-emerald-200 bg-emerald-50/30")
-              : (darkMode ? "border-white/5 bg-transparent" : "border-gray-100 bg-white")
-          )}>
-            <div className="p-4 flex items-center gap-3 cursor-pointer" onClick={toggleFollowUp}>
-              <div className={cn(
-                "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border",
-                darkMode ? "bg-white/10 border-white/10" : "bg-gray-50 border-gray-100"
-              )}>
-                <RotateCcw className={cn("w-5 h-5", darkMode ? "text-white/60" : "text-gray-500")} />
-              </div>
-              <div className="flex-1 text-left">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <h3 className={cn("font-bold text-[14px]", darkMode ? "text-white" : "text-gray-900")}>Automated Follow-up</h3>
-                  {!canUseFollowUpMsgs && (
-                    <span className="bg-purple-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider">PROFESSIONAL</span>
-                  )}
                 </div>
-                <p className={cn("text-[11px] font-medium leading-relaxed", darkMode ? "text-white/40" : "text-gray-400")}>Send a second message automatically after a delay</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer pointer-events-none">
-                <input type="checkbox" className="sr-only peer" checked={hasFollowUp} readOnly />
-                <div className={cn(
-                  "w-10 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 shadow-inner",
-                  darkMode && "bg-white/10"
-                )}></div>
-              </label>
+                </motion.div>
+              )}
+          </AnimatePresence>
+          </div>
+        )}
+
+      {/* CARD 4: Follow Up Message */}
+      {(triggerType === 'user_directed_messages' || (triggerType === 'post_comment' && hasLeadManager)) && (
+        <div className={cn(
+          "rounded-2xl border-2 transition-all overflow-hidden",
+          hasFollowUp
+            ? (darkMode ? "border-emerald-500/30 bg-emerald-500/5" : "border-emerald-200 bg-emerald-50/30")
+            : (darkMode ? "border-white/5 bg-transparent" : "border-gray-100 bg-white")
+        )}>
+          <div className="p-4 flex items-center gap-3 cursor-pointer" onClick={toggleFollowUp}>
+            <div className={cn(
+              "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border",
+              darkMode ? "bg-white/10 border-white/10" : "bg-gray-50 border-gray-100"
+            )}>
+              <RotateCcw className={cn("w-5 h-5", darkMode ? "text-white/60" : "text-gray-500")} />
             </div>
+            <div className="flex-1 text-left">
+              <div className="flex items-center gap-2 mb-0.5">
+                <h3 className={cn("font-bold text-[14px]", darkMode ? "text-white" : "text-gray-900")}>Automated Follow-up</h3>
+                {!canUseFollowUpMsgs && (
+                  <span className="bg-purple-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider">PROFESSIONAL</span>
+                )}
+              </div>
+              <p className={cn("text-[11px] font-medium leading-relaxed", darkMode ? "text-white/40" : "text-gray-400")}>Send a second message automatically after a delay</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer pointer-events-none">
+              <input type="checkbox" className="sr-only peer" checked={hasFollowUp} readOnly />
+              <div className={cn(
+                "w-10 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 shadow-inner",
+                darkMode && "bg-white/10"
+              )}></div>
+            </label>
+          </div>
 
-            <AnimatePresence>
-              {hasFollowUp && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="px-4 pb-4 pt-0">
-                  <div className={cn("p-6 rounded-2xl border space-y-6", darkMode ? "bg-black/20 border-white/5" : "bg-white border-emerald-100 shadow-sm")}>
-                    
-                    <div className="flex flex-col md:flex-row gap-6 md:items-end">
-                      <div className="flex-1 space-y-2">
-                        <label className={cn("text-[10px] font-black uppercase tracking-wider text-gray-500", darkMode && "text-white/40")}>Send delay</label>
-                        <div className="flex items-center gap-3">
-                          <input 
-                            type="number"
-                            min="1"
-                            max="30"
-                            value={followUpAction?.delayValue || 30}
-                            onChange={(e) => {
-                              const val = Math.min(30, Math.max(1, parseInt(e.target.value) || 1));
-                              const newActions = [...actions];
-                              const idx = newActions.findIndex(a => a.type === 'follow_up');
-                              if (idx >= 0) {
-                                newActions[idx] = { ...newActions[idx], delayValue: val, delayUnit: 'minutes' } as FollowUpAction;
-                                updateActions(newActions);
-                              }
-                            }}
-                            className={cn("w-20 px-4 py-2 rounded-xl border-2 font-black text-center outline-none transition-all", darkMode ? "bg-white/5 border-white/10 text-white focus:border-emerald-500" : "bg-gray-50 border-gray-100 focus:bg-white focus:border-emerald-500")}
-                          />
-                          <span className={cn("text-[11px] font-black uppercase tracking-widest opacity-40")}>Minutes</span>
-                        </div>
-                      </div>
-                    </div>
+          <AnimatePresence>
+            {hasFollowUp && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="px-4 pb-4 pt-0">
+                <div className={cn("p-6 rounded-2xl border space-y-6", darkMode ? "bg-black/20 border-white/5" : "bg-white border-emerald-100 shadow-sm")}>
 
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center px-1">
-                        <label className={cn("text-[10px] font-black uppercase tracking-wider text-gray-500", darkMode && "text-white/40")}>Follow Up Message</label>
-                        <span className={cn("text-[9px] font-bold opacity-30")}>{(followUpAction?.message || '').length} / 1000</span>
-                      </div>
-                      <textarea
-                        value={followUpAction?.message || ''}
-                        onChange={(e) => {
-                          const newActions = [...actions];
-                          const idx = newActions.findIndex(a => a.type === 'follow_up');
-                          if (idx >= 0) {
-                            newActions[idx] = { ...newActions[idx], message: e.target.value } as FollowUpAction;
-                            updateActions(newActions);
-                          }
-                        }}
-                        placeholder="Hey! Just following up on my previous message... 😊"
-                        rows={3}
-                        className={cn("w-full p-4 rounded-xl border-2 font-medium text-sm outline-none transition-all", darkMode ? "bg-white/5 border-white/10 text-white focus:border-emerald-500" : "bg-gray-50 border-gray-100 focus:bg-white focus:border-emerald-500")}
-                      />
-                    </div>
-
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center px-1">
-                        <label className={cn("text-[10px] font-black uppercase tracking-wider text-gray-500", darkMode && "text-white/40")}>Buttons (Max 3, URLs only)</label>
-                        <span className={cn("text-[9px] font-bold opacity-30")}>{(followUpAction?.actionButtons || []).length} / 3</span>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 gap-2">
-                        {(followUpAction?.actionButtons || []).map((btn, bIdx) => (
-                          <div key={btn.id} className={cn("p-3 rounded-xl border flex flex-col gap-2 transition-all", darkMode ? "bg-white/[0.03] border-white/5" : "bg-white border-gray-100 shadow-sm")}>
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="text"
-                                value={btn.text}
-                                placeholder="Button Label (e.g. Visit Website)"
-                                onChange={(e) => {
-                                  const newActions = [...actions];
-                                  const idx = newActions.findIndex(a => a.type === 'follow_up');
-                                  if (idx >= 0) {
-                                    const followUp = { ...newActions[idx] } as FollowUpAction;
-                                    const btns = [...(followUp.actionButtons || [])];
-                                    btns[bIdx] = { ...btns[bIdx], text: e.target.value.substring(0, 20) };
-                                    newActions[idx] = { ...followUp, actionButtons: btns };
-                                    updateActions(newActions);
-                                  }
-                                }}
-                                className={cn("flex-1 bg-transparent border-none outline-none text-[11px] font-black", darkMode ? "text-white placeholder:text-white/20" : "text-gray-900 placeholder:text-gray-300")}
-                              />
-                              <button
-                                onClick={() => {
-                                  const newActions = [...actions];
-                                  const idx = newActions.findIndex(a => a.type === 'follow_up');
-                                  if (idx >= 0) {
-                                    const followUp = { ...newActions[idx] } as FollowUpAction;
-                                    const btns = (followUp.actionButtons || []).filter((_, i) => i !== bIdx);
-                                    newActions[idx] = { ...followUp, actionButtons: btns };
-                                    updateActions(newActions);
-                                  }
-                                }}
-                                className={cn("p-1.5 rounded-lg transition-colors", darkMode ? "hover:bg-red-500/20 text-red-400" : "hover:bg-red-50 text-red-500")}
-                              >
-                                <X size={12} />
-                              </button>
-                            </div>
-                            <div className="flex items-center gap-2 px-1 border-t border-dashed border-gray-500/10 pt-2">
-                              <Globe size={10} className="opacity-30" />
-                              <input
-                                type="text"
-                                value={btn.url || ''}
-                                placeholder="https://example.com"
-                                onChange={(e) => {
-                                  const newActions = [...actions];
-                                  const idx = newActions.findIndex(a => a.type === 'follow_up');
-                                  if (idx >= 0) {
-                                    const followUp = { ...newActions[idx] } as FollowUpAction;
-                                    const btns = [...(followUp.actionButtons || [])];
-                                    btns[bIdx] = { ...btns[bIdx], url: e.target.value, buttonType: 'web_url' };
-                                    newActions[idx] = { ...followUp, actionButtons: btns };
-                                    updateActions(newActions);
-                                  }
-                                }}
-                                className={cn("flex-1 bg-transparent border-none outline-none text-[9px] font-medium", darkMode ? "text-emerald-400 placeholder:text-white/10" : "text-emerald-600 placeholder:text-gray-300")}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                        
-                        {(followUpAction?.actionButtons || []).length < 3 && (
-                          <button
-                            onClick={() => {
-                              const newActions = [...actions];
-                              const idx = newActions.findIndex(a => a.type === 'follow_up');
-                              if (idx >= 0) {
-                                const followUp = { ...newActions[idx] } as FollowUpAction;
-                                const btns = [...(followUp.actionButtons || []), { id: Math.random().toString(36).substr(2, 9), text: '', url: '', buttonType: 'web_url' } as ActionButton];
-                                newActions[idx] = { ...followUp, actionButtons: btns };
-                                updateActions(newActions);
-                              }
-                            }}
-                            className={cn("p-3 rounded-xl border-2 border-dashed flex items-center justify-center gap-2 transition-all group", darkMode ? "bg-white/[0.02] border-white/5 hover:border-emerald-500/50 hover:bg-emerald-500/5" : "bg-gray-50/50 border-gray-100 hover:border-emerald-500/50 hover:bg-emerald-50/50")}
-                          >
-                            <Plus size={14} className={cn("transition-colors", darkMode ? "text-white/20 group-hover:text-emerald-400" : "text-gray-400 group-hover:text-emerald-500")} />
-                            <span className={cn("text-[10px] font-black uppercase tracking-wider transition-colors", darkMode ? "text-white/20 group-hover:text-emerald-400" : "text-gray-400 group-hover:text-emerald-500")}>Add Button</span>
-                          </button>
-                        )}
+                  <div className="flex flex-col md:flex-row gap-6 md:items-end">
+                    <div className="flex-1 space-y-2">
+                      <label className={cn("text-[10px] font-black uppercase tracking-wider text-gray-500", darkMode && "text-white/40")}>Send delay</label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="number"
+                          min="1"
+                          max="30"
+                          value={followUpAction?.delayValue || 30}
+                          onChange={(e) => {
+                            const val = Math.min(30, Math.max(1, parseInt(e.target.value) || 1));
+                            const newActions = [...actions];
+                            const idx = newActions.findIndex(a => a.type === 'follow_up');
+                            if (idx >= 0) {
+                              newActions[idx] = { ...newActions[idx], delayValue: val, delayUnit: 'minutes' } as FollowUpAction;
+                              updateActions(newActions);
+                            }
+                          }}
+                          className={cn("w-20 px-4 py-2 rounded-xl border-2 font-black text-center outline-none transition-all", darkMode ? "bg-white/5 border-white/10 text-white focus:border-emerald-500" : "bg-gray-50 border-gray-100 focus:bg-white focus:border-emerald-500")}
+                        />
+                        <span className={cn("text-[11px] font-black uppercase tracking-widest opacity-40")}>Minutes</span>
                       </div>
                     </div>
                   </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
-      </div>
 
-      {/* ===== BOTTOM BAR ===== */}
-      <div className={cn(
-        "mt-8 pt-6 pb-20 md:pb-0 flex items-center justify-between transition-all duration-500",
-        darkMode ? "border-t border-white/10" : "border-t border-gray-100"
-      )}>
-        {onBack ? (
-          <button
-            onClick={onBack}
-            className={cn("font-bold text-sm flex items-center gap-1 transition-colors", darkMode ? "text-white/40 hover:text-white" : "text-gray-500 hover:text-gray-700")}
-          >
-            ← Back
-          </button>
-        ) : <div />}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center px-1">
+                      <label className={cn("text-[10px] font-black uppercase tracking-wider text-gray-500", darkMode && "text-white/40")}>Follow Up Message</label>
+                      <span className={cn("text-[9px] font-bold opacity-30")}>{(followUpAction?.message || '').length} / 1000</span>
+                    </div>
+                    <textarea
+                      value={followUpAction?.message || ''}
+                      onChange={(e) => {
+                        const newActions = [...actions];
+                        const idx = newActions.findIndex(a => a.type === 'follow_up');
+                        if (idx >= 0) {
+                          newActions[idx] = { ...newActions[idx], message: e.target.value } as FollowUpAction;
+                          updateActions(newActions);
+                        }
+                      }}
+                      placeholder="Hey! Just following up on my previous message... 😊"
+                      rows={3}
+                      className={cn("w-full p-4 rounded-xl border-2 font-medium text-sm outline-none transition-all", darkMode ? "bg-white/5 border-white/10 text-white focus:border-emerald-500" : "bg-gray-50 border-gray-100 focus:bg-white focus:border-emerald-500")}
+                    />
+                  </div>
 
-        <div className="flex items-center gap-4">
-          {!canSave && (
-            <div className="flex items-center gap-1.5 text-orange-500">
-              <AlertCircle className="w-4 h-4" />
-              <span className="text-xs font-black uppercase tracking-widest">Complete all required fields</span>
-            </div>
-          )}
-          <button
-            onClick={onSave}
-            disabled={!canSave || saving || readOnly}
-            className={cn(
-              "px-8 py-3 rounded-2xl font-black text-sm flex items-center gap-2 transition-all shadow-lg",
-              canSave && !readOnly
-                ? (darkMode ? `bg-gradient-to-r ${isPremium ? 'from-indigo-600 to-violet-700 shadow-indigo-500/50' : 'from-blue-500 to-purple-600 shadow-purple-500/50'} text-white hover:brightness-110 border-transparent` : "bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-md shadow-purple-500/20")
-                : (darkMode ? "bg-white/5 text-white/20" : "bg-gray-100 text-gray-400")
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center px-1">
+                      <label className={cn("text-[10px] font-black uppercase tracking-wider text-gray-500", darkMode && "text-white/40")}>Buttons (Max 3, URLs only)</label>
+                      <span className={cn("text-[9px] font-bold opacity-30")}>{(followUpAction?.actionButtons || []).length} / 3</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2">
+                      {(followUpAction?.actionButtons || []).map((btn, bIdx) => (
+                        <div key={btn.id} className={cn("p-3 rounded-xl border flex flex-col gap-2 transition-all", darkMode ? "bg-white/[0.03] border-white/5" : "bg-white border-gray-100 shadow-sm")}>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={btn.text}
+                              placeholder="Button Label (e.g. Visit Website)"
+                              onChange={(e) => {
+                                const newActions = [...actions];
+                                const idx = newActions.findIndex(a => a.type === 'follow_up');
+                                if (idx >= 0) {
+                                  const followUp = { ...newActions[idx] } as FollowUpAction;
+                                  const btns = [...(followUp.actionButtons || [])];
+                                  btns[bIdx] = { ...btns[bIdx], text: e.target.value.substring(0, 20) };
+                                  newActions[idx] = { ...followUp, actionButtons: btns };
+                                  updateActions(newActions);
+                                }
+                              }}
+                              className={cn("flex-1 bg-transparent border-none outline-none text-[11px] font-black", darkMode ? "text-white placeholder:text-white/20" : "text-gray-900 placeholder:text-gray-300")}
+                            />
+                            <button
+                              onClick={() => {
+                                const newActions = [...actions];
+                                const idx = newActions.findIndex(a => a.type === 'follow_up');
+                                if (idx >= 0) {
+                                  const followUp = { ...newActions[idx] } as FollowUpAction;
+                                  const btns = (followUp.actionButtons || []).filter((_, i) => i !== bIdx);
+                                  newActions[idx] = { ...followUp, actionButtons: btns };
+                                  updateActions(newActions);
+                                }
+                              }}
+                              className={cn("p-1.5 rounded-lg transition-colors", darkMode ? "hover:bg-red-500/20 text-red-400" : "hover:bg-red-50 text-red-500")}
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-2 px-1 border-t border-dashed border-gray-500/10 pt-2">
+                            <Globe size={10} className="opacity-30" />
+                            <input
+                              type="text"
+                              value={btn.url || ''}
+                              placeholder="https://example.com"
+                              onChange={(e) => {
+                                const newActions = [...actions];
+                                const idx = newActions.findIndex(a => a.type === 'follow_up');
+                                if (idx >= 0) {
+                                  const followUp = { ...newActions[idx] } as FollowUpAction;
+                                  const btns = [...(followUp.actionButtons || [])];
+                                  btns[bIdx] = { ...btns[bIdx], url: e.target.value, buttonType: 'web_url' };
+                                  newActions[idx] = { ...followUp, actionButtons: btns };
+                                  updateActions(newActions);
+                                }
+                              }}
+                              className={cn("flex-1 bg-transparent border-none outline-none text-[9px] font-medium", darkMode ? "text-emerald-400 placeholder:text-white/10" : "text-emerald-600 placeholder:text-gray-300")}
+                            />
+                          </div>
+                        </div>
+                      ))}
+
+                      {(followUpAction?.actionButtons || []).length < 3 && (
+                        <button
+                          onClick={() => {
+                            const newActions = [...actions];
+                            const idx = newActions.findIndex(a => a.type === 'follow_up');
+                            if (idx >= 0) {
+                              const followUp = { ...newActions[idx] } as FollowUpAction;
+                              const btns = [...(followUp.actionButtons || []), { id: Math.random().toString(36).substr(2, 9), text: '', url: '', buttonType: 'web_url' } as ActionButton];
+                              newActions[idx] = { ...followUp, actionButtons: btns };
+                              updateActions(newActions);
+                            }
+                          }}
+                          className={cn("p-3 rounded-xl border-2 border-dashed flex items-center justify-center gap-2 transition-all group", darkMode ? "bg-white/[0.02] border-white/5 hover:border-emerald-500/50 hover:bg-emerald-500/5" : "bg-gray-50/50 border-gray-100 hover:border-emerald-500/50 hover:bg-emerald-50/50")}
+                        >
+                          <Plus size={14} className={cn("transition-colors", darkMode ? "text-white/20 group-hover:text-emerald-400" : "text-gray-400 group-hover:text-emerald-500")} />
+                          <span className={cn("text-[10px] font-black uppercase tracking-wider transition-colors", darkMode ? "text-white/20 group-hover:text-emerald-400" : "text-gray-400 group-hover:text-emerald-500")}>Add Button</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
             )}
-          >
-            {saving ? 'Saving...' : 'Launch Automation'}
-          </button>
+          </AnimatePresence>
         </div>
-
-        {!canSave && !saving && !readOnly && (
-          <div className="flex justify-center -mt-4 mb-20">
-            <p className={cn(
-              "text-[10px] font-black uppercase tracking-[0.2em] animate-pulse px-4 py-1.5 rounded-full border shadow-sm text-center",
-              darkMode
-                ? "bg-orange-500/10 text-orange-400 border-orange-500/20"
-                : "bg-orange-50 text-orange-600 border-orange-200"
-            )}>
-              {characterLimitExceeded.exceeded ? characterLimitExceeded.reason :
-                !isReplyValid ? 'Add a reply template' :
-                !isDmValid ? 'Finish DM configuration' :
-                  !isFollowUpValid ? 'Complete follow up message' :
-                    'Check action settings'}
-            </p>
-
-          </div>
-        )}
-      </div>
+      )}
     </div>
+
+      {/* ===== BOTTOM BAR ===== */ }
+  <div className={cn(
+    "mt-8 pt-6 pb-20 md:pb-0 flex items-center justify-between transition-all duration-500",
+    darkMode ? "border-t border-white/10" : "border-t border-gray-100"
+  )}>
+    {onBack ? (
+      <button
+        onClick={onBack}
+        className={cn("font-bold text-sm flex items-center gap-1 transition-colors", darkMode ? "text-white/40 hover:text-white" : "text-gray-500 hover:text-gray-700")}
+      >
+        ← Back
+      </button>
+    ) : <div />}
+
+    <div className="flex items-center gap-4">
+      {!canSave && (
+        <div className="flex items-center gap-1.5 text-orange-500">
+          <AlertCircle className="w-4 h-4" />
+          <span className="text-xs font-black uppercase tracking-widest">Complete all required fields</span>
+        </div>
+      )}
+      <button
+        onClick={onSave}
+        disabled={!canSave || saving || readOnly}
+        className={cn(
+          "px-8 py-3 rounded-2xl font-black text-sm flex items-center gap-2 transition-all shadow-lg",
+          canSave && !readOnly
+            ? (darkMode ? `bg-gradient-to-r ${isPremium ? 'from-indigo-600 to-violet-700 shadow-indigo-500/50' : 'from-blue-500 to-purple-600 shadow-purple-500/50'} text-white hover:brightness-110 border-transparent` : "bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-md shadow-purple-500/20")
+            : (darkMode ? "bg-white/5 text-white/20" : "bg-gray-100 text-gray-400")
+        )}
+      >
+        {saving ? 'Saving...' : 'Launch Automation'}
+      </button>
+    </div>
+
+    {!canSave && !saving && !readOnly && (
+      <div className="flex justify-center -mt-4 mb-20">
+        <p className={cn(
+          "text-[10px] font-black uppercase tracking-[0.2em] animate-pulse px-4 py-1.5 rounded-full border shadow-sm text-center",
+          darkMode
+            ? "bg-orange-500/10 text-orange-400 border-orange-500/20"
+            : "bg-orange-50 text-orange-600 border-orange-200"
+        )}>
+          {characterLimitExceeded.exceeded ? characterLimitExceeded.reason :
+            !isReplyValid ? 'Add a reply template' :
+              !isDmValid ? 'Finish DM configuration' :
+                !isFollowUpValid ? 'Complete follow up message' :
+                  'Check action settings'}
+        </p>
+
+      </div>
+    )}
+  </div>
+    </div >
   );
 }
