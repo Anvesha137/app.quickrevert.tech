@@ -694,18 +694,64 @@ return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead
             "position": [1950, 2800]
           },
           {
-            "parameters": { "jsCode": `const senderId = $json.senderId;\nconst msg = $json.msg;\nconst name = $json.name;\nconst emailRegex = /[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}/;\nconst emailMatch = msg.match(emailRegex);\nconst email = emailMatch ? emailMatch[0] : msg;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nstaticData.leads[senderId] = { state: '${hasPhone ? 'waiting_phone' : 'waiting_confirm'}', name: name, email: email, phone: '', owner: '${uniqueId}' };\nreturn [{ json: { senderId, name, email } }];` },
+            "parameters": { "jsCode": `const senderId = $json.senderId;\nconst msg = $json.msg;\nconst name = $json.name;\nconst emailRegex = /[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}/;\nconst emailMatch = msg.match(emailRegex);\nconst isValid = !!emailMatch;\nconst email = isValid ? emailMatch[0] : '';\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nif (isValid) {\n  staticData.leads[senderId] = { state: '${hasPhone ? 'waiting_phone' : 'waiting_confirm'}', name: name, email: email, phone: '', owner: '${uniqueId}' };\n} else {\n  staticData.leads[senderId] = { state: 'waiting_email', name: name, email: '', phone: '', owner: '${uniqueId}' };\n}\nreturn [{ json: { isValid, senderId, name, email } }];` },
             "name": "Save Email",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
             "position": [1950, 3000]
           },
           {
-            "parameters": { "jsCode": "const senderId = $json.senderId;\nconst msg = $json.msg;\nconst name = $json.name;\nconst email = $json.email;\nconst phoneRaw = msg.replace(/[^\\d+\\-() ]/g, '').trim();\nconst phone = phoneRaw || msg;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nstaticData.leads[senderId] = { state: 'waiting_confirm', name: name, email: email, phone: phone, owner: '" + uniqueId + "' };\nreturn [{ json: { senderId, name, email, phone } }];" },
+            "parameters": { "jsCode": "const senderId = $json.senderId;\nconst msg = $json.msg;\nconst name = $json.name;\nconst email = $json.email;\nconst phoneRaw = msg.replace(/[^0-9]/g, '');\nconst isValid = phoneRaw.length >= 7;\nconst phone = isValid ? phoneRaw : '';\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nif (isValid) {\n  staticData.leads[senderId] = { state: 'waiting_confirm', name: name, email: email, phone: phone, owner: '" + uniqueId + "' };\n} else {\n  staticData.leads[senderId] = { state: 'waiting_phone', name: name, email: email, phone: '', owner: '" + uniqueId + "' };\n}\nreturn [{ json: { isValid, senderId, name, email, phone } }];" },
             "name": "Save Phone",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
             "position": [1950, 3200]
+          },
+          {
+            "parameters": {
+              "rules": {
+                "values": [
+                  { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "valid", "leftValue": "={{ $json.isValid }}", "rightValue": true, "operator": { "type": "boolean", "operation": "true", "singleValue": true } }], "combinator": "and" }, "renameOutput": true, "outputKey": "Valid" },
+                  { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "invalid", "leftValue": "={{ $json.isValid }}", "rightValue": false, "operator": { "type": "boolean", "operation": "false", "singleValue": true } }], "combinator": "and" }, "renameOutput": true, "outputKey": "Invalid" }
+                ]
+              }, "options": { "ignoreCase": true }
+            },
+            "id": "validation-router-email", "name": "Validation Router Email", "type": "n8n-nodes-base.switch", "typeVersion": 3.3, "position": [2100, 3000]
+          },
+          {
+            "parameters": {
+              "rules": {
+                "values": [
+                  { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "valid", "leftValue": "={{ $json.isValid }}", "rightValue": true, "operator": { "type": "boolean", "operation": "true", "singleValue": true } }], "combinator": "and" }, "renameOutput": true, "outputKey": "Valid" },
+                  { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "invalid", "leftValue": "={{ $json.isValid }}", "rightValue": false, "operator": { "type": "boolean", "operation": "false", "singleValue": true } }], "combinator": "and" }, "renameOutput": true, "outputKey": "Invalid" }
+                ]
+              }, "options": { "ignoreCase": true }
+            },
+            "id": "validation-router-phone", "name": "Validation Router Phone", "type": "n8n-nodes-base.switch", "typeVersion": 3.3, "position": [2100, 3200]
+          },
+          {
+            "parameters": {
+              "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
+              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": { \"text\": \"" + (lmMessages.invalidEmail || "Enter a valid email address 📧").replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\" }\n}",
+              "options": { "timeout": 15000 }
+            },
+            "name": "Invalid Email Message",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [2400, 3000],
+            "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
+          },
+          {
+            "parameters": {
+              "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
+              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": { \"text\": \"" + (lmMessages.invalidPhone || "Enter a valid phone number 📱").replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\" }\n}",
+              "options": { "timeout": 15000 }
+            },
+            "name": "Invalid Phone Message",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [2400, 3200],
+            "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
           },
           {
             "parameters": { "jsCode": "const senderId = $json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nstaticData.leads[senderId] = { state: 'waiting_name', name: '', email: '', phone: '', owner: '" + uniqueId + "' };\nreturn [{ json: { senderId } }];" },
@@ -767,7 +813,7 @@ return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead
           {
             "parameters": {
               "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
-              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [{\n          \"title\": \"" + (lmMessages.confirmAll ? lmMessages.confirmAll.split('\n')[0].replace('{{name}}', '{{ $json.name }}').replace('{{email}}', '{{ $json.email }}').replace('{{phone}}', '{{ $json.phone }}') : "Perfect! Just confirming ✅").replace(/"/g, '\\\"') + "\",\n          \"subtitle\": \"Name: {{ $json.name }} | Email: {{ $json.email }} | Phone: {{ $json.phone }}\",\n          \"buttons\": [\n            { \"type\": \"postback\", \"title\": \"" + (lmMessages.btnYesLooksGood || "✅ Yes, looks good!").replace(/"/g, '\\\"') + "\", \"payload\": \"CONFIRM_SAVE_" + uniqueId + "\" },\n            { \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeEmail || "✏️ Change Email").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_EMAIL_" + uniqueId + "\" },\n            " + (hasPhone ? "{ \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangePhone || "✏️ Change Phone").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_PHONE_" + uniqueId + "\" }" : "{ \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeName || "✏️ Change Name").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_NAME_" + uniqueId + "\" }") + "\n          ]\n        }]\n      }\n    }\n  }\n}",
+              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [{\n          \"title\": \"" + (lmMessages.confirmAll ? lmMessages.confirmAll.replace('{{name}}', '{{ $json.name }}').replace('{{email}}', '{{ $json.email }}').replace('{{phone}}', '{{ $json.phone }}') : "Perfect! Just confirming ✅\\nName: {{ $json.name }}\\nEmail: {{ $json.email }}\\nPhone: {{ $json.phone }}").replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\",\n          \"subtitle\": \"\",\n          \"buttons\": [\n            { \"type\": \"postback\", \"title\": \"" + (lmMessages.btnYesLooksGood || "✅ Yes, looks good!").replace(/"/g, '\\\"') + "\", \"payload\": \"CONFIRM_SAVE_" + uniqueId + "\" },\n            { \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeEmail || "✏️ Change Email").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_EMAIL_" + uniqueId + "\" },\n            " + (hasPhone ? "{ \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangePhone || "✏️ Change Phone").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_PHONE_" + uniqueId + "\" }" : "{ \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeName || "✏️ Change Name").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_NAME_" + uniqueId + "\" }") + "\n          ]\n        }]\n      }\n    }\n  }\n}",
               "options": { "timeout": 15000 }
             },
             "name": "Confirm Details",
@@ -1051,8 +1097,10 @@ return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead
           "Read State": { "main": [[{ "node": "State Router", "type": "main", "index": 0 }]] },
           "State Router": { "main": [[{ "node": "Save Name", "type": "main", "index": 0 }], [{ "node": "Save Email", "type": "main", "index": 0 }], [{ "node": "Save Phone", "type": "main", "index": 0 }], [{ "node": "Init Lead", "type": "main", "index": 0 }]] },
           "Save Name": { "main": [[{ "node": "Confirm Name + Ask Email", "type": "main", "index": 0 }]] },
-          "Save Email": { "main": [[{ "node": hasPhone ? "Confirm Email + Ask Phone" : "Confirm Details", "type": "main", "index": 0 }]] },
-          "Save Phone": { "main": [[{ "node": "Confirm Details", "type": "main", "index": 0 }]] },
+          "Save Email": { "main": [[{ "node": "Validation Router Email", "type": "main", "index": 0 }]] },
+          "Validation Router Email": { "main": [[{ "node": hasPhone ? "Confirm Email + Ask Phone" : "Confirm Details", "type": "main", "index": 0 }], [{ "node": "Invalid Email Message", "type": "main", "index": 0 }]] },
+          "Save Phone": { "main": [[{ "node": "Validation Router Phone", "type": "main", "index": 0 }]] },
+          "Validation Router Phone": { "main": [[{ "node": "Confirm Details", "type": "main", "index": 0 }], [{ "node": "Invalid Phone Message", "type": "main", "index": 0 }]] },
           "Init Lead": { "main": [[{ "node": "Ask Name (From DM)", "type": "main", "index": 0 }]] },
           "Confirm Name + Ask Email": { "main": [[{ "node": "Ask Email", "type": "main", "index": 0 }]] },
           "Confirm Email + Ask Phone": { "main": [[{ "node": "Ask Phone", "type": "main", "index": 0 }]] },

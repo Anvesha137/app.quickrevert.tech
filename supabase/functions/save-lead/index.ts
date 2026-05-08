@@ -33,6 +33,14 @@ Deno.serve(async (req: Request) => {
         return new Response(JSON.stringify({ error: "Missing required fields" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // Strict validation for email and phone
+    if (email && !email.includes('@')) {
+        return new Response(JSON.stringify({ error: "Invalid email format: must contain '@'" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    if (phone && !/^[0-9+]+$/.test(phone)) {
+        return new Response(JSON.stringify({ error: "Invalid phone format: must be numeric" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     // 1. Validate automation and extract user_id + name
     const { data: automation, error: autoError } = await supabase
       .from("automations")

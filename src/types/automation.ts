@@ -104,6 +104,8 @@ export interface LeadMessages {
   askNameAgain?: string;
   askEmailAgain?: string;
   askPhoneAgain?: string;
+  invalidEmail?: string;
+  invalidPhone?: string;
 
   // Button Labels
   btnChangeName?: string;
@@ -117,11 +119,13 @@ export const DEFAULT_LEAD_MESSAGES: LeadMessages = {
   askEmail: "What email should we use to get in touch with you? 📧",
   askPhone: "What's your phone number? 📱",
   confirmName: "Awesome, {{name}}! 😊 If you typed your name wrong, fix it below.",
-  confirmAll: "Perfect! Just confirming ✅ Name: {{name}} Email: {{email}} Phone: {{phone}}",
+  confirmAll: "Perfect! Just confirming ✅\nName: {{name}}\nEmail: {{email}}\nPhone: {{phone}}",
   finalMessage: "🎉 We've got you, {{name}}! Your details have been saved and our team will reach out soon. Thank you! 🙏",
   askNameAgain: "No problem! What's your correct first name? ✏️",
   askEmailAgain: "Sure! What's the correct email address? 📧",
   askPhoneAgain: "What's the correct phone number? 📱",
+  invalidEmail: "Enter a valid email address 📧",
+  invalidPhone: "Enter a valid phone number 📱",
 
   // Default Button Labels
   btnChangeName: "✏️ Change Name",
