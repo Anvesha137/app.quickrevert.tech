@@ -463,19 +463,6 @@ export default function LeadManager() {
                 All Audience
               </button>
             </div>
-            <button
-              onClick={manualSync}
-              disabled={isSyncing}
-              className={cn(
-                "flex items-center gap-2 px-6 py-3.5 rounded-2xl text-sm font-bold transition-all disabled:opacity-50",
-                darkMode 
-                  ? "bg-white/5 border border-white/10 text-white hover:bg-white/10" 
-                  : "bg-white/60 backdrop-blur-xl border border-white/40 text-gray-700 hover:bg-white hover:shadow-lg"
-              )}
-            >
-              <Clock className={cn("w-4 h-4 text-blue-500", isSyncing && "animate-spin")} />
-              {isSyncing ? 'Syncing...' : 'Sync History'}
-            </button>
 
             {activeTab === 'leads' && (
               <button
