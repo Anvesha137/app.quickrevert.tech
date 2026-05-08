@@ -199,6 +199,8 @@ Deno.serve(async (req: Request) => {
       const hasFollowUp = !!followUpAction && followUpAction.enabled;
       const dataToCollect = leadAction?.collectFields || leadAction?.dataToCollect || ['name', 'email'];
       const hasPhone = dataToCollect.includes('phone');
+      const hasCustom = dataToCollect.includes('custom') && leadAction?.customField?.enabled;
+      const customConfig = leadAction?.customField || { label: 'Other', type: 'text' };
 
 
       // --- COMMON VARIABLES ---
@@ -635,6 +637,7 @@ return results;`
                   { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "change-name", "leftValue": "={{ $json.payload }}", "rightValue": "CHANGE_NAME_" + uniqueId, "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "CHANGE_NAME" },
                   { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "change-email", "leftValue": "={{ $json.payload }}", "rightValue": "CHANGE_EMAIL_" + uniqueId, "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "CHANGE_EMAIL" },
                   { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "change-phone", "leftValue": "={{ $json.payload }}", "rightValue": "CHANGE_PHONE_" + uniqueId, "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "CHANGE_PHONE" },
+                  { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "change-custom", "leftValue": "={{ $json.payload }}", "rightValue": "CHANGE_CUSTOM_" + uniqueId, "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "CHANGE_CUSTOM" },
                   { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "confirm", "leftValue": "={{ $json.payload }}", "rightValue": "CONFIRM_SAVE_" + uniqueId, "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "CONFIRM_SAVE" }
                 ]
               },
@@ -652,7 +655,7 @@ const senderId = entry?.sender?.id || '';
 const username = entry?.sender_name || '';
 const staticData = $getWorkflowStaticData('global');
 if (!staticData.leads) staticData.leads = {};
-let lead = staticData.leads[senderId] || staticData.leads[username] || { state: 'new', name: '', email: '', phone: '' };
+let lead = staticData.leads[senderId] || staticData.leads[username] || { state: 'new', name: '', email: '', phone: '', custom: '' };
 if (username && staticData.leads[username] && !staticData.leads[senderId]) staticData.leads[senderId] = lead;
 
 // 🔒 Ownership Guard: Only respond if this workflow explicitly owns the lead
@@ -663,7 +666,7 @@ if (lead.owner !== '${uniqueId}') {
   }
 }
 
-return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead.email, phone: lead.phone } }];` },
+return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead.email, phone: lead.phone, custom: lead.custom || '' } }];` },
             "name": "Read State",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
@@ -676,6 +679,7 @@ return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead
                   { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "waiting-name", "leftValue": "={{ $json.state }}", "rightValue": "waiting_name", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "Got Name" },
                   { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "waiting-email", "leftValue": "={{ $json.state }}", "rightValue": "waiting_email", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "Got Email" },
                   { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "waiting-phone", "leftValue": "={{ $json.state }}", "rightValue": "waiting_phone", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "Got Phone" },
+                  { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "waiting-custom", "leftValue": "={{ $json.state }}", "rightValue": "waiting_custom", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "Got Custom" },
                   { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "new-or-done", "leftValue": "={{ $json.state }}", "rightValue": "new", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "New" }
                 ]
               },
@@ -687,21 +691,21 @@ return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead
             "position": [1700, 3000]
           },
           {
-            "parameters": { "jsCode": "const senderId = $json.senderId;\nconst name = $json.msg;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nstaticData.leads[senderId] = { state: 'waiting_email', name: name, email: '', phone: '', owner: '" + uniqueId + "' };\nreturn [{ json: { senderId, name } }];" },
+            "parameters": { "jsCode": "const senderId = $json.senderId;\nconst name = $json.msg;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nstaticData.leads[senderId] = { state: 'waiting_email', name: name, email: '', phone: '', custom: '', owner: '" + uniqueId + "' };\nreturn [{ json: { senderId, name } }];" },
             "name": "Save Name",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
             "position": [1950, 2800]
           },
           {
-            "parameters": { "jsCode": `const senderId = $json.senderId;\nconst msg = $json.msg;\nconst name = $json.name;\nconst emailRegex = /[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}/;\nconst emailMatch = msg.match(emailRegex);\nconst isValid = !!emailMatch;\nconst email = isValid ? emailMatch[0] : '';\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nif (isValid) {\n  staticData.leads[senderId] = { state: '${hasPhone ? 'waiting_phone' : 'waiting_confirm'}', name: name, email: email, phone: '', owner: '${uniqueId}' };\n} else {\n  staticData.leads[senderId] = { state: 'waiting_email', name: name, email: '', phone: '', owner: '${uniqueId}' };\n}\nreturn [{ json: { isValid, senderId, name, email } }];` },
+            "parameters": { "jsCode": `const senderId = $json.senderId;\nconst msg = $json.msg;\nconst name = $json.name;\nconst emailRegex = /[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}/;\nconst emailMatch = msg.match(emailRegex);\nconst isValid = !!emailMatch;\nconst email = isValid ? emailMatch[0] : '';\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nif (isValid) {\n  staticData.leads[senderId] = { state: '${hasPhone ? 'waiting_phone' : (hasCustom ? 'waiting_custom' : 'waiting_confirm')}', name: name, email: email, phone: '', custom: '', owner: '${uniqueId}' };\n} else {\n  staticData.leads[senderId] = { state: 'waiting_email', name: name, email: '', phone: '', custom: '', owner: '${uniqueId}' };\n}\nreturn [{ json: { isValid, senderId, name, email } }];` },
             "name": "Save Email",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
             "position": [1950, 3000]
           },
           {
-            "parameters": { "jsCode": "const senderId = $json.senderId;\nconst msg = $json.msg;\nconst name = $json.name;\nconst email = $json.email;\nconst phoneRaw = msg.replace(/[^0-9]/g, '');\nconst isValid = phoneRaw.length >= 7;\nconst phone = isValid ? phoneRaw : '';\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nif (isValid) {\n  staticData.leads[senderId] = { state: 'waiting_confirm', name: name, email: email, phone: phone, owner: '" + uniqueId + "' };\n} else {\n  staticData.leads[senderId] = { state: 'waiting_phone', name: name, email: email, phone: '', owner: '" + uniqueId + "' };\n}\nreturn [{ json: { isValid, senderId, name, email, phone } }];" },
+            "parameters": { "jsCode": "const senderId = $json.senderId;\nconst msg = $json.msg;\nconst name = $json.name;\nconst email = $json.email;\nconst phoneRaw = msg.replace(/[^0-9]/g, '');\nconst isValid = phoneRaw.length >= 7;\nconst phone = isValid ? phoneRaw : '';\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nif (isValid) {\n  staticData.leads[senderId] = { state: '" + (hasCustom ? "waiting_custom" : "waiting_confirm") + "', name: name, email: email, phone: phone, custom: '', owner: '" + uniqueId + "' };\n} else {\n  staticData.leads[senderId] = { state: 'waiting_phone', name: name, email: email, phone: '', custom: '', owner: '" + uniqueId + "' };\n}\nreturn [{ json: { isValid, senderId, name, email, phone } }];" },
             "name": "Save Phone",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
@@ -754,7 +758,7 @@ return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead
             "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
           },
           {
-            "parameters": { "jsCode": "const senderId = $json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nstaticData.leads[senderId] = { state: 'waiting_name', name: '', email: '', phone: '', owner: '" + uniqueId + "' };\nreturn [{ json: { senderId } }];" },
+            "parameters": { "jsCode": "const senderId = $json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nstaticData.leads[senderId] = { state: 'waiting_name', name: '', email: '', phone: '', custom: '', owner: '" + uniqueId + "' };\nreturn [{ json: { senderId } }];" },
             "name": "Init Lead",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
@@ -813,7 +817,7 @@ return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead
           {
             "parameters": {
               "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
-              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [{\n          \"title\": \"" + (lmMessages.confirmAll ? lmMessages.confirmAll.replace('{{name}}', '{{ $json.name }}').replace('{{email}}', '{{ $json.email }}').replace('{{phone}}', '{{ $json.phone }}') : "Perfect! Just confirming ✅\\nName: {{ $json.name }}\\nEmail: {{ $json.email }}\\nPhone: {{ $json.phone }}").replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\",\n          \"subtitle\": \"\",\n          \"buttons\": [\n            { \"type\": \"postback\", \"title\": \"" + (lmMessages.btnYesLooksGood || "✅ Yes, looks good!").replace(/"/g, '\\\"') + "\", \"payload\": \"CONFIRM_SAVE_" + uniqueId + "\" },\n            { \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeEmail || "✏️ Change Email").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_EMAIL_" + uniqueId + "\" },\n            " + (hasPhone ? "{ \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangePhone || "✏️ Change Phone").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_PHONE_" + uniqueId + "\" }" : "{ \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeName || "✏️ Change Name").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_NAME_" + uniqueId + "\" }") + "\n          ]\n        }]\n      }\n    }\n  }\n}",
+              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [{\n          \"title\": \"" + (lmMessages.confirmAll ? lmMessages.confirmAll.replace('{{name}}', '{{ $json.name }}').replace('{{email}}', '{{ $json.email }}').replace('{{phone}}', '{{ $json.phone }}').replace('{{custom}}', '{{ $json.custom }}') : "Perfect! Just confirming ✅\\nName: {{ $json.name }}\\nEmail: {{ $json.email }}\\nPhone: {{ $json.phone }}" + (hasCustom ? "\\n" + customConfig.label + ": {{ $json.custom }}" : "")).replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\",\n          \"subtitle\": \"\",\n          \"buttons\": [\n            { \"type\": \"postback\", \"title\": \"" + (lmMessages.btnYesLooksGood || "✅ Yes, looks good!").replace(/"/g, '\\\"') + "\", \"payload\": \"CONFIRM_SAVE_" + uniqueId + "\" },\n            { \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeEmail || "✏️ Change Email").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_EMAIL_" + uniqueId + "\" },\n            " + (hasCustom ? "{ \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeCustom ? lmMessages.btnChangeCustom.replace('{{label}}', customConfig.label) : "✏️ Change " + customConfig.label).replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_CUSTOM_" + uniqueId + "\" }" : (hasPhone ? "{ \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangePhone || "✏️ Change Phone").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_PHONE_" + uniqueId + "\" }" : "{ \"type\": \"postback\", \"title\": \"" + (lmMessages.btnChangeName || "✏️ Change Name").replace(/"/g, '\\\"') + "\", \"payload\": \"CHANGE_NAME_" + uniqueId + "\" }")) + "\n          ]\n        }]\n      }\n    }\n  }\n}",
               "options": { "timeout": 15000 }
             },
             "name": "Confirm Details",
@@ -824,21 +828,21 @@ return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead
           },
 
           {
-            "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst existing = staticData.leads[senderId] || {};\nstaticData.leads[senderId] = { state: 'waiting_name', name: '', email: existing.email || '', phone: existing.phone || '', owner: '" + uniqueId + "' };\nreturn [{ json: { senderId } }];" },
+            "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst existing = staticData.leads[senderId] || {};\nstaticData.leads[senderId] = { state: 'waiting_name', name: '', email: existing.email || '', phone: existing.phone || '', custom: existing.custom || '', owner: '" + uniqueId + "' };\nreturn [{ json: { senderId } }];" },
             "name": "Reset Name State",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
             "position": [1950, 2200]
           },
           {
-            "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst existing = staticData.leads[senderId] || {};\nstaticData.leads[senderId] = { state: 'waiting_email', name: existing.name || '', email: '', phone: existing.phone || '', owner: '" + uniqueId + "' };\nreturn [{ json: { senderId, name: existing.name || '' } }];" },
+            "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst existing = staticData.leads[senderId] || {};\nstaticData.leads[senderId] = { state: 'waiting_email', name: existing.name || '', email: '', phone: existing.phone || '', custom: existing.custom || '', owner: '" + uniqueId + "' };\nreturn [{ json: { senderId, name: existing.name || '' } }];" },
             "name": "Reset Email State",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
             "position": [1950, 2400]
           },
           {
-            "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst existing = staticData.leads[senderId] || {};\nstaticData.leads[senderId] = { state: 'waiting_phone', name: existing.name || '', email: existing.email || '', phone: '', owner: '" + uniqueId + "' };\nreturn [{ json: { senderId, name: existing.name || '', email: existing.email || '' } }];" },
+            "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst existing = staticData.leads[senderId] || {};\nstaticData.leads[senderId] = { state: 'waiting_phone', name: existing.name || '', email: existing.email || '', phone: '', custom: existing.custom || '', owner: '" + uniqueId + "' };\nreturn [{ json: { senderId, name: existing.name || '', email: existing.email || '' } }];" },
             "name": "Reset Phone State",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
@@ -881,7 +885,26 @@ return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead
             "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
           },
           {
-            "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst lead = staticData.leads[senderId] || {};\nstaticData.leads[senderId] = { state: 'saved', name: lead.name, email: lead.email, phone: lead.phone || '', owner: '" + uniqueId + "' };\nconst now = new Date();\nconst timestamp = now.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });\nreturn [{ json: { senderId, name: lead.name, email: lead.email, phone: lead.phone || '', timestamp } }];" },
+            "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst existing = staticData.leads[senderId] || {};\nstaticData.leads[senderId] = { state: 'waiting_custom', name: existing.name || '', email: existing.email || '', phone: existing.phone || '', custom: '', owner: '" + uniqueId + "' };\nreturn [{ json: { senderId, name: existing.name || '', email: existing.email || '', phone: existing.phone || '' } }];" },
+            "name": "Reset Custom State",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [1950, 2700]
+          },
+          {
+            "parameters": {
+              "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
+              "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": { \"text\": \"" + (lmMessages.askCustomAgain ? lmMessages.askCustomAgain.replace('{{label}}', customConfig.label) : "No problem! What's the correct answer for " + customConfig.label + "? ✏️").replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\" }\n}",
+              "options": { "timeout": 15000 }
+            },
+            "name": "Ask Custom Again",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [2200, 2700],
+            "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
+          },
+          {
+            "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst lead = staticData.leads[senderId] || {};\nstaticData.leads[senderId] = { state: 'saved', name: lead.name, email: lead.email, phone: lead.phone || '', custom: lead.custom || '', owner: '" + uniqueId + "' };\nconst now = new Date();\nconst timestamp = now.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });\nreturn [{ json: { senderId, name: lead.name, email: lead.email, phone: lead.phone || '', custom: lead.custom || '', timestamp } }];" },
             "name": "Confirm Save",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
@@ -896,7 +919,7 @@ return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead
             "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
           },
           {
-            "parameters": { "jsCode": "const profile = $('Fetch IG Profile').first().json;\nconst confirmData = $('Confirm Save').first().json;\nreturn [{\n  json: {\n    \"Timestamp\": confirmData.timestamp,\n    \"Instagram Username\": '@' + (profile.username || 'unknown'),\n    \"Instagram ID\": profile.id || confirmData.senderId,\n    \"Name\": confirmData.name,\n    \"Email\": confirmData.email,\n    \"Phone\": confirmData.phone || '',\n    \"Type\": \"lead\",\n    \"Raw Message\": confirmData.name + ' | ' + confirmData.email + ' | ' + (confirmData.phone || '')\n  }\n}];" },
+            "parameters": { "jsCode": "const profile = $('Fetch IG Profile').first().json;\nconst confirmData = $('Confirm Save').first().json;\nreturn [{\n  json: {\n    \"Timestamp\": confirmData.timestamp,\n    \"Instagram Username\": '@' + (profile.username || 'unknown'),\n    \"Instagram ID\": profile.id || confirmData.senderId,\n    \"Name\": confirmData.name,\n    \"Email\": confirmData.email,\n    \"Phone\": confirmData.phone || '',\n    \"" + customConfig.label + "\": confirmData.custom || '',\n    \"Type\": \"lead\",\n    \"Raw Message\": confirmData.name + ' | ' + confirmData.email + ' | ' + (confirmData.phone || '') + ' | ' + (confirmData.custom || '')\n  }\n}];" },
             "name": "Prepare Row",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
@@ -915,7 +938,7 @@ return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead
             "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
           },
           {
-            "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nstaticData.leads[senderId] = { state: 'waiting_name', name: '', email: '', phone: '', owner: '" + uniqueId + "' };\nreturn [{ json: { senderId } }];" },
+            "parameters": { "jsCode": "const senderId = $('Extract Postback').first().json.senderId;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nstaticData.leads[senderId] = { state: 'waiting_name', name: '', email: '', phone: '', custom: '', owner: '" + uniqueId + "' };\nreturn [{ json: { senderId } }];" },
             "name": "Init From Start",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
@@ -946,7 +969,7 @@ return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead
               },
               "sendBody": true,
               "specifyBody": "json",
-              "jsonBody": "={\n  \"automation_id\": \"" + automationId + "\",\n  \"instagram_username\": \"{{ ($('Fetch IG Profile').first().json.username || 'unknown') }}\",\n  \"full_name\": \"{{ $('Confirm Save').first().json.name }}\",\n  \"email\": \"{{ $('Confirm Save').first().json.email }}\",\n  \"phone\": \"{{ $('Confirm Save').first().json.phone || '' }}\",\n  \"metadata\": { \"source\": \"n8n_workflow\" }\n}",
+              "jsonBody": "={\n  \"automation_id\": \"" + automationId + "\",\n  \"instagram_username\": \"{{ ($('Fetch IG Profile').first().json.username || 'unknown') }}\",\n  \"full_name\": \"{{ $('Confirm Save').first().json.name }}\",\n  \"email\": \"{{ $('Confirm Save').first().json.email }}\",\n  \"phone\": \"{{ $('Confirm Save').first().json.phone || '' }}\",\n  \"metadata\": { \"source\": \"n8n_workflow\", \"custom_field\": \"{{ $('Confirm Save').first().json.custom || '' }}\", \"custom_label\": \"" + customConfig.label + "\" }\n}",
               "options": {}
             },
             "name": "Save to Lead Manager DB",
@@ -965,7 +988,53 @@ return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead
             "typeVersion": 4.3,
             "position": [2200, 3400],
             "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
-          }
+          },
+          ...(hasCustom ? [
+            {
+              "parameters": { 
+                "jsCode": "const senderId = $json.senderId;\nconst msg = $json.msg;\nconst name = $json.name;\nconst email = $json.email;\nconst phone = $json.phone;\nconst custom = msg.trim();\nconst isValid = " + (customConfig.type === 'number' ? "!!custom.match(/^[0-9]+$/)" : "custom.length > 0") + ";\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nif (isValid) {\n  staticData.leads[senderId] = { state: 'waiting_confirm', name: name, email: email, phone: phone, custom: custom, owner: '" + uniqueId + "' };\n} else {\n  staticData.leads[senderId] = { state: 'waiting_custom', name: name, email: email, phone: phone, custom: '', owner: '" + uniqueId + "' };\n}\nreturn [{ json: { isValid, senderId, name, email, phone, custom } }];" 
+              },
+              "name": "Save Custom", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1950, 3600]
+            },
+            {
+              "parameters": {
+                "rules": {
+                  "values": [
+                    { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "valid", "leftValue": "={{ $json.isValid }}", "rightValue": true, "operator": { "type": "boolean", "operation": "true", "singleValue": true } }], "combinator": "and" }, "renameOutput": true, "outputKey": "Valid" },
+                    { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "invalid", "leftValue": "={{ $json.isValid }}", "rightValue": false, "operator": { "type": "boolean", "operation": "false", "singleValue": true } }], "combinator": "and" }, "renameOutput": true, "outputKey": "Invalid" }
+                  ]
+                }, "options": { "ignoreCase": true }
+              },
+              "id": "validation-router-custom", "name": "Validation Router Custom", "type": "n8n-nodes-base.switch", "typeVersion": 3.3, "position": [2100, 3600]
+            },
+            {
+              "parameters": {
+                "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
+                "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": { \"text\": \"" + (lmMessages.invalidCustom ? lmMessages.invalidCustom.replace('{{label}}', customConfig.label) : "Please enter a valid number for " + customConfig.label + " 🔢").replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\" }\n}",
+                "options": { "timeout": 15000 }
+              },
+              "name": "Invalid Custom Message", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.3, "position": [2400, 3600],
+              "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
+            },
+            {
+              "parameters": {
+                "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
+                "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.senderId }}\" },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n        \"template_type\": \"generic\",\n        \"elements\": [{\n          \"title\": \"" + (hasPhone ? "Almost there, {{ $json.name }}! 📱" : "Got it, {{ $json.name }}! 📧") + "\",\n          \"subtitle\": \"" + (hasPhone ? "Phone saved: {{ $json.phone }}" : "Email saved: {{ $json.email }}") + "\",\n          \"buttons\": [\n            { \"type\": \"postback\", \"title\": \"" + (hasPhone ? (lmMessages.btnChangePhone || "✏️ Change Phone") : (lmMessages.btnChangeEmail || "✏️ Change Email")).replace(/"/g, '\\\"') + "\", \"payload\": \"" + (hasPhone ? "CHANGE_PHONE_" : "CHANGE_EMAIL_") + uniqueId + "\" }\n          ]\n        }]\n      }\n    }\n  }\n}",
+                "options": {}
+              },
+              "name": "Confirm Prev + Ask Custom", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.3, "position": [2200, 3400],
+              "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
+            },
+            {
+              "parameters": {
+                "method": "POST", "url": "https://graph.instagram.com/v24.0/me/messages", "authentication": "predefinedCredentialType", "nodeCredentialType": "facebookGraphApi", "sendBody": true, "specifyBody": "json",
+                "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $('Worker Webhook').first().json.body.entry[0].messaging[0].sender.id }}\" },\n  \"message\": { \"text\": \"" + (lmMessages.askCustom ? lmMessages.askCustom.replace('{{label}}', customConfig.label) : "What's your answer for " + customConfig.label + "? ✏️").replace(/"/g, '\\\"').replace(/\n/g, '\\n') + "\" }\n}",
+                "options": {}
+              },
+              "name": "Ask Custom", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.3, "position": [2450, 3400],
+              "credentials": { "facebookGraphApi": { "id": credentialId, "name": lmCredName } }
+            }
+          ] : [])
         ];
 
         if (isPostCommentLeadManager) {
@@ -1008,7 +1077,7 @@ return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead
 
           lmNodes.push({
             "parameters": {
-              "jsCode": "const entry = $('Worker Webhook').first().json.body.entry[0].changes[0].value;\nconst senderId = entry.from.id;\nconst username = entry.from.username;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst stateObj = { state: 'waiting_name', name: '', email: '', phone: '', owner: '" + uniqueId + "' };\nstaticData.leads[senderId] = stateObj;\nif (username) staticData.leads[username] = stateObj;\nreturn [{ json: { senderId } }];"
+              "jsCode": "const entry = $('Worker Webhook').first().json.body.entry[0].changes[0].value;\nconst senderId = entry.from.id;\nconst username = entry.from.username;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = {};\nconst stateObj = { state: 'waiting_name', name: '', email: '', phone: '', custom: '', owner: '" + uniqueId + "' };\nstaticData.leads[senderId] = stateObj;\nif (username) staticData.leads[username] = stateObj;\nreturn [{ json: { senderId } }];"
             },
             "name": "Init Lead (From Comment)", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1824, 3200], "id": "init-lead-comment-lm"
           });
@@ -1093,21 +1162,27 @@ return [{ json: { senderId, msg, state: lead.state, name: lead.name, email: lead
             "Post Filter Switch": { "main": [[{ "node": "Loop Protection Switch", "type": "main", "index": 0 }]] }
           } : {}),
           "Extract Postback": { "main": [[{ "node": "Postback Router", "type": "main", "index": 0 }]] },
-          "Postback Router": { "main": [[{ "node": "Init From Start", "type": "main", "index": 0 }], [{ "node": "Reset Name State", "type": "main", "index": 0 }], [{ "node": "Reset Email State", "type": "main", "index": 0 }], [{ "node": "Reset Phone State", "type": "main", "index": 0 }], [{ "node": "Confirm Save", "type": "main", "index": 0 }]] },
+          "Postback Router": { "main": [[{ "node": "Init From Start", "type": "main", "index": 0 }], [{ "node": "Reset Name State", "type": "main", "index": 0 }], [{ "node": "Reset Email State", "type": "main", "index": 0 }], [{ "node": "Reset Phone State", "type": "main", "index": 0 }], [{ "node": "Reset Custom State", "type": "main", "index": 0 }], [{ "node": "Confirm Save", "type": "main", "index": 0 }]] },
           "Read State": { "main": [[{ "node": "State Router", "type": "main", "index": 0 }]] },
-          "State Router": { "main": [[{ "node": "Save Name", "type": "main", "index": 0 }], [{ "node": "Save Email", "type": "main", "index": 0 }], [{ "node": "Save Phone", "type": "main", "index": 0 }], [{ "node": "Init Lead", "type": "main", "index": 0 }]] },
+          "State Router": { "main": [[{ "node": "Save Name", "type": "main", "index": 0 }], [{ "node": "Save Email", "type": "main", "index": 0 }], [{ "node": "Save Phone", "type": "main", "index": 0 }], [{ "node": "Save Custom", "type": "main", "index": 0 }], [{ "node": "Init Lead", "type": "main", "index": 0 }]] },
           "Save Name": { "main": [[{ "node": "Confirm Name + Ask Email", "type": "main", "index": 0 }]] },
           "Save Email": { "main": [[{ "node": "Validation Router Email", "type": "main", "index": 0 }]] },
-          "Validation Router Email": { "main": [[{ "node": hasPhone ? "Confirm Email + Ask Phone" : "Confirm Details", "type": "main", "index": 0 }], [{ "node": "Invalid Email Message", "type": "main", "index": 0 }]] },
+          "Validation Router Email": { "main": [[{ "node": hasPhone ? "Confirm Email + Ask Phone" : (hasCustom ? "Confirm Prev + Ask Custom" : "Confirm Details"), "type": "main", "index": 0 }], [{ "node": "Invalid Email Message", "type": "main", "index": 0 }]] },
           "Save Phone": { "main": [[{ "node": "Validation Router Phone", "type": "main", "index": 0 }]] },
-          "Validation Router Phone": { "main": [[{ "node": "Confirm Details", "type": "main", "index": 0 }], [{ "node": "Invalid Phone Message", "type": "main", "index": 0 }]] },
+          "Validation Router Phone": { "main": [[{ "node": hasCustom ? "Confirm Prev + Ask Custom" : "Confirm Details", "type": "main", "index": 0 }], [{ "node": "Invalid Phone Message", "type": "main", "index": 0 }]] },
+          "Save Custom": { "main": [[{ "node": (hasCustom && customConfig.type === 'number') ? "Validation Router Custom" : "Confirm Details", "type": "main", "index": 0 }]] },
+          "Validation Router Custom": { "main": [[{ "node": "Confirm Details", "type": "main", "index": 0 }], [{ "node": "Invalid Custom Message", "type": "main", "index": 0 }]] },
           "Init Lead": { "main": [[{ "node": "Ask Name (From DM)", "type": "main", "index": 0 }]] },
           "Confirm Name + Ask Email": { "main": [[{ "node": "Ask Email", "type": "main", "index": 0 }]] },
           "Confirm Email + Ask Phone": { "main": [[{ "node": "Ask Phone", "type": "main", "index": 0 }]] },
+          "Confirm Prev + Ask Custom": { "main": [[{ "node": "Ask Custom", "type": "main", "index": 0 }]] },
+          "Ask Custom": { "main": [[]] },
           "Confirm Details": { "main": [[{ "node": "Confirm Save", "type": "main", "index": 0 }]] },
           "Reset Name State": { "main": [[{ "node": "Ask Name Again", "type": "main", "index": 0 }]] },
           "Reset Email State": { "main": [[{ "node": "Ask Email Again", "type": "main", "index": 0 }]] },
           "Reset Phone State": { "main": [[{ "node": "Ask Phone Again", "type": "main", "index": 0 }]] },
+          "Reset Custom State": { "main": [[{ "node": "Ask Custom Again", "type": "main", "index": 0 }]] },
+          "Ask Custom Again": { "main": [[]] },
           "Confirm Save": { "main": [[{ "node": "Fetch IG Profile", "type": "main", "index": 0 }]] },
           "Fetch IG Profile": { "main": [[{ "node": "Save to Lead Manager DB", "type": "main", "index": 0 }]] },
           "Save to Lead Manager DB": { "main": [[{ "node": "Prepare Row", "type": "main", "index": 0 }]] },

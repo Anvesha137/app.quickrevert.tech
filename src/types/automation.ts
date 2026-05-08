@@ -111,7 +111,12 @@ export interface LeadMessages {
   btnChangeName?: string;
   btnChangeEmail?: string;
   btnChangePhone?: string;
+  btnChangeCustom?: string;
   btnYesLooksGood?: string;
+
+  askCustom?: string;
+  askCustomAgain?: string;
+  invalidCustom?: string;
 }
 
 export const DEFAULT_LEAD_MESSAGES: LeadMessages = {
@@ -131,14 +136,26 @@ export const DEFAULT_LEAD_MESSAGES: LeadMessages = {
   btnChangeName: "✏️ Change Name",
   btnChangeEmail: "✏️ Change Email",
   btnChangePhone: "✏️ Change Phone",
+  btnChangeCustom: "✏️ Change {{label}}",
   btnYesLooksGood: "✅ Yes, looks good!",
+
+  askCustom: "What's your answer for {{label}}? ✏️",
+  askCustomAgain: "No problem! What's the correct answer for {{label}}? ✏️",
+  invalidCustom: "Please enter a valid number for {{label}} 🔢",
 };
+
+export interface CustomFieldConfig {
+  label: string;
+  type: 'text' | 'number';
+  enabled: boolean;
+}
 
 export interface SaveLeadAction {
   type: 'save_lead';
   enabled: boolean;
   tags?: string[];
-  collectFields?: ('name' | 'email' | 'phone')[];
+  collectFields?: ('name' | 'email' | 'phone' | 'custom')[];
+  customField?: CustomFieldConfig;
   messages?: LeadMessages;
 }
 
