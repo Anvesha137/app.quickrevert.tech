@@ -1316,14 +1316,17 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                       <div className="space-y-2">
                         <label className={`text-[10px] font-bold uppercase tracking-wide ${darkMode ? 'text-white/40' : 'text-gray-500'}`}>Data to Collect</label>
                         <div className="flex flex-wrap gap-2 pt-1 pb-3">
-                          {(['name', 'email', 'phone'] as const).map(field => {
+                          {(['name', 'email', 'phone', 'custom'] as const).map(field => {
                             const isSelected = (leadAction?.collectFields || ['name', 'email']).includes(field);
+                            const isLocked = field === 'name';
                             return (
                               <button
                                 key={field}
                                 disabled={readOnly}
                                 onClick={() => {
                                   if (!leadAction) return;
+                                  if (isLocked) return;
+
                                   const newFields = new Set(leadAction.collectFields || ['name', 'email']);
                                   if (isSelected) {
                                     if (newFields.size <= 1) {
@@ -1332,7 +1335,23 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                                     }
                                     newFields.delete(field);
                                   }
-                                  else newFields.add(field);
+                                  else {
+                                    newFields.add(field);
+                                    // Initialize custom field if adding it
+                                    if (field === 'custom' && !leadAction.customField) {
+                                      const newActions = [...actions];
+                                      const idx = newActions.findIndex(a => a.type === 'save_lead');
+                                      if (idx >= 0) {
+                                        newActions[idx] = {
+                                          ...newActions[idx],
+                                          collectFields: Array.from(newFields),
+                                          customField: { label: 'Age', type: 'text', enabled: true }
+                                        } as SaveLeadAction;
+                                        onActionsChange(newActions);
+                                        return;
+                                      }
+                                    }
+                                  }
 
                                   const newActions = [...actions];
                                   const idx = newActions.findIndex(a => a.type === 'save_lead');
@@ -1345,7 +1364,8 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                                   "px-4 py-1.5 rounded-full text-[11px] font-bold border transition-all flex items-center justify-center gap-1.5",
                                   isSelected
                                     ? (darkMode ? "bg-orange-500/10 border-orange-500/20 text-orange-400" : "bg-orange-50 border-orange-200 text-orange-600")
-                                    : (darkMode ? "bg-transparent border-white/10 text-white/40 hover:bg-white/5" : "bg-transparent border-gray-200 text-gray-500 hover:bg-gray-50")
+                                    : (darkMode ? "bg-transparent border-white/10 text-white/40 hover:bg-white/5" : "bg-transparent border-gray-200 text-gray-500 hover:bg-gray-50"),
+                                  isLocked && "opacity-50 cursor-not-allowed"
                                 )}
                               >
                                 <span className={cn("w-1.5 h-1.5 rounded-full transition-all", isSelected ? "bg-current" : "bg-transparent")} />
@@ -1354,9 +1374,71 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                             );
                           })}
                         </div>
+                        
+                        {/* Custom Field Configuration */}
+                        {leadAction?.collectFields?.includes('custom') && (
+                          <div className={cn("p-4 rounded-2xl border space-y-4 mt-4", darkMode ? "bg-white/5 border-white/10" : "bg-gray-50 border-gray-100 shadow-sm")}>
+                            <div className="flex items-center gap-2">
+                              <Tag size={14} className="text-orange-500" />
+                              <span className={cn("text-xs font-black uppercase tracking-widest", darkMode ? "text-white/40" : "text-gray-400")}>Configure Custom Field</span>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="space-y-1.5">
+                                <label className={cn("text-[9px] font-black uppercase tracking-wider", darkMode ? "text-white/40" : "text-gray-500")}>Field Label (e.g. Age, Company)</label>
+                                <input
+                                  type="text"
+                                  value={leadAction.customField?.label || ''}
+                                  onChange={(e) => {
+                                    const newActions = [...actions];
+                                    const idx = newActions.findIndex(a => a.type === 'save_lead');
+                                    if (idx >= 0) {
+                                      newActions[idx] = { 
+                                        ...newActions[idx], 
+                                        customField: { ...(newActions[idx] as SaveLeadAction).customField!, label: e.target.value } 
+                                      } as SaveLeadAction;
+                                      onActionsChange(newActions);
+                                    }
+                                  }}
+                                  className={cn("w-full border rounded-xl px-4 py-2 outline-none font-medium text-sm transition-all", darkMode ? "border-white/10 bg-white/5 text-white focus:border-orange-500/50" : "border-gray-200 focus:border-orange-500 text-gray-900 bg-white")}
+                                  placeholder="Age"
+                                />
+                              </div>
+                              <div className="space-y-1.5">
+                                <label className={cn("text-[9px] font-black uppercase tracking-wider", darkMode ? "text-white/40" : "text-gray-500")}>Expected Type</label>
+                                <div className="flex bg-gray-200/50 dark:bg-black/20 p-1 rounded-xl border border-gray-200 dark:border-white/5">
+                                  {(['text', 'number'] as const).map(type => (
+                                    <button
+                                      key={type}
+                                      onClick={() => {
+                                        const newActions = [...actions];
+                                        const idx = newActions.findIndex(a => a.type === 'save_lead');
+                                        if (idx >= 0) {
+                                          newActions[idx] = { 
+                                            ...newActions[idx], 
+                                            customField: { ...(newActions[idx] as SaveLeadAction).customField!, type } 
+                                          } as SaveLeadAction;
+                                          onActionsChange(newActions);
+                                        }
+                                      }}
+                                      className={cn(
+                                        "flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all",
+                                        leadAction.customField?.type === type 
+                                          ? (darkMode ? "bg-white/10 text-white shadow-sm" : "bg-white text-gray-900 shadow-sm")
+                                          : "text-gray-400 hover:bg-white/5"
+                                      )}
+                                    >
+                                      {type}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
 
                         {/* Editable Messages */}
-                        <div className="pt-2">
+                        <div className="pt-4">
                           <div
                             className={cn(
                               "p-3 rounded-xl border cursor-pointer hover:opacity-80 transition-opacity flex items-center justify-between",
@@ -1385,16 +1467,16 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                                     const collected = leadAction?.collectFields || ['name', 'email'];
                                     return (
                                       <>
-                                        {(['name', 'email', 'phone'] as const).map(field => {
-                                          if (!collected.includes(field)) return null;
-
-                                          const fieldTitle = field.toUpperCase();
-                                          const qKey = field === 'name' ? 'askName' : field === 'email' ? 'askEmail' : 'askPhone';
+                                        {collected.map(field => {
+                                          const customLabel = leadAction?.customField?.label || 'Custom';
+                                          const fieldTitle = field === 'custom' ? customLabel.toUpperCase() : field.toUpperCase();
+                                          const qKey = field === 'name' ? 'askName' : field === 'email' ? 'askEmail' : field === 'phone' ? 'askPhone' : 'askCustom';
                                           const cKey = field === 'name' ? 'confirmName' : null;
-                                          const rKey = field === 'name' ? 'askNameAgain' : field === 'email' ? 'askEmailAgain' : 'askPhoneAgain';
-                                          const bKey = field === 'name' ? 'btnChangeName' : field === 'email' ? 'btnChangeEmail' : 'btnChangePhone';
+                                          const rKey = field === 'name' ? 'askNameAgain' : field === 'email' ? 'askEmailAgain' : field === 'phone' ? 'askPhoneAgain' : 'askCustomAgain';
+                                          const bKey = field === 'name' ? 'btnChangeName' : field === 'email' ? 'btnChangeEmail' : field === 'phone' ? 'btnChangePhone' : 'btnChangeCustom';
+                                          const iKey = field === 'email' ? 'invalidEmail' : field === 'phone' ? 'invalidPhone' : field === 'custom' && leadAction?.customField?.type === 'number' ? 'invalidCustom' : null;
 
-                                          const Icon = field === 'name' ? User : field === 'email' ? Mail : Smartphone;
+                                          const Icon = field === 'name' ? User : field === 'email' ? Mail : field === 'phone' ? Smartphone : Tag;
 
                                           return (
                                             <div key={field} className="space-y-4">
@@ -1410,40 +1492,44 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                                                 <div className={cn("p-4 rounded-2xl border flex flex-col gap-3", darkMode ? "bg-white/[0.03] border-white/5" : "bg-gray-50/50 border-gray-100")}>
                                                   <div className="flex items-center justify-between">
                                                     <label className={cn("text-[9px] font-black uppercase tracking-wider", darkMode ? "text-white/40" : "text-gray-500")}>The Question</label>
+                                                    <span className={cn("text-[8px] font-bold opacity-30")}>{((leadAction?.messages as any)?.[qKey] || (DEFAULT_LEAD_MESSAGES as any)[qKey] || '').length} / 1000</span>
                                                   </div>
                                                   <textarea
-                                                    value={leadAction?.messages?.[qKey] ?? DEFAULT_LEAD_MESSAGES[qKey]}
+                                                    value={(leadAction?.messages as any)?.[qKey] ?? (DEFAULT_LEAD_MESSAGES as any)[qKey]?.replace('{{label}}', customLabel)}
                                                     onChange={(e) => {
                                                       const newActions = [...actions];
-                                                      const i = newActions.findIndex(a => a.type === 'save_lead');
-                                                      if (i >= 0) {
-                                                        const currentItem = newActions[i] as SaveLeadAction;
+                                                      const idx = newActions.findIndex(a => a.type === 'save_lead');
+                                                      if (idx >= 0) {
+                                                        const currentItem = newActions[idx] as SaveLeadAction;
                                                         const newMsgs = { ...DEFAULT_LEAD_MESSAGES, ...(currentItem.messages || {}) };
-                                                        newMsgs[qKey] = e.target.value;
-                                                        newActions[i] = { ...currentItem, messages: newMsgs };
+                                                        (newMsgs as any)[qKey] = e.target.value;
+                                                        newActions[idx] = { ...currentItem, messages: newMsgs };
                                                         onActionsChange(newActions);
                                                       }
                                                     }}
                                                     rows={2}
                                                     className={cn("bg-transparent outline-none text-xs font-semibold resize-none", darkMode ? "text-white" : "text-gray-800")}
-                                                    placeholder="What is your name?"
+                                                    placeholder="The question text..."
                                                   />
                                                 </div>
 
                                                 {/* RIGHT: CONFIRMATION OR BUTTON LABEL */}
                                                 <div className={cn("p-4 rounded-2xl border flex flex-col gap-3", darkMode ? "bg-white/[0.03] border-white/5" : "bg-gray-50/50 border-gray-100")}>
-                                                  <label className={cn("text-[9px] font-black uppercase tracking-wider", darkMode ? "text-white/40" : "text-gray-500")}>Confirmation & Buttons</label>
+                                                  <div className="flex items-center justify-between">
+                                                    <label className={cn("text-[9px] font-black uppercase tracking-wider", darkMode ? "text-white/40" : "text-gray-500")}>Confirmation & Buttons</label>
+                                                    {cKey && <span className={cn("text-[8px] font-bold opacity-30")}>{((leadAction?.messages as any)?.[cKey!] || (DEFAULT_LEAD_MESSAGES as any)[cKey!] || '').length} / 1000</span>}
+                                                  </div>
                                                   {cKey && (
                                                     <textarea
                                                       value={leadAction?.messages?.[cKey] ?? DEFAULT_LEAD_MESSAGES[cKey]}
                                                       onChange={(e) => {
                                                         const newActions = [...actions];
-                                                        const i = newActions.findIndex(a => a.type === 'save_lead');
-                                                        if (i >= 0) {
-                                                          const currentItem = newActions[i] as SaveLeadAction;
+                                                        const idx = newActions.findIndex(a => a.type === 'save_lead');
+                                                        if (idx >= 0) {
+                                                          const currentItem = newActions[idx] as SaveLeadAction;
                                                           const newMsgs = { ...DEFAULT_LEAD_MESSAGES, ...(currentItem.messages || {}) };
-                                                          newMsgs[cKey] = e.target.value;
-                                                          newActions[i] = { ...currentItem, messages: newMsgs };
+                                                          (newMsgs as any)[cKey] = e.target.value;
+                                                          newActions[idx] = { ...currentItem, messages: newMsgs };
                                                           onActionsChange(newActions);
                                                         }
                                                       }}
@@ -1456,47 +1542,81 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                                                     <span className={cn("text-[8px] font-bold uppercase", darkMode ? "text-white/20" : "text-gray-300")}>BTN:</span>
                                                     <input
                                                       type="text"
-                                                      value={leadAction?.messages?.[bKey] ?? DEFAULT_LEAD_MESSAGES[bKey]}
+                                                      value={(leadAction?.messages as any)?.[bKey] ?? (DEFAULT_LEAD_MESSAGES as any)[bKey]?.replace('{{label}}', customLabel)}
                                                       onChange={(e) => {
                                                         const newActions = [...actions];
-                                                        const i = newActions.findIndex(a => a.type === 'save_lead');
-                                                        if (i >= 0) {
-                                                          const currentItem = newActions[i] as SaveLeadAction;
+                                                        const idx = newActions.findIndex(a => a.type === 'save_lead');
+                                                        if (idx >= 0) {
+                                                          const currentItem = newActions[idx] as SaveLeadAction;
                                                           const newMsgs = { ...DEFAULT_LEAD_MESSAGES, ...(currentItem.messages || {}) };
-                                                          newMsgs[bKey] = e.target.value;
-                                                          newActions[i] = { ...currentItem, messages: newMsgs };
+                                                          (newMsgs as any)[bKey] = e.target.value;
+                                                          newActions[idx] = { ...currentItem, messages: newMsgs };
                                                           onActionsChange(newActions);
                                                         }
                                                       }}
                                                       className={cn("flex-1 bg-transparent border-b border-dashed outline-none text-[10px] font-black", darkMode ? "border-white/10 text-white/50 focus:text-white" : "border-gray-200 text-gray-400 focus:text-gray-900")}
-                                                      placeholder="Change Button text..."
+                                                      placeholder="Button text..."
                                                     />
                                                   </div>
                                                 </div>
 
-                                                {/* BOTTOM: RETRY MESSAGE (FULL WIDTH) */}
-                                                <div className={cn("md:col-span-2 p-4 rounded-2xl border flex flex-col gap-2", darkMode ? "bg-white/[0.01] border-white/5" : "bg-white/10 border-gray-100")}>
-                                                  <div className="flex items-center gap-2">
-                                                    <RotateCcw size={10} className="opacity-40" />
-                                                    <label className={cn("text-[9px] font-black uppercase tracking-wider", darkMode ? "text-white/30" : "text-gray-400")}>Correction / Reset Message</label>
+                                                {/* BOTTOM: RETRY / INVALID MESSAGES (FULL WIDTH) */}
+                                                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                  {/* Correction / Reset */}
+                                                  <div className={cn("p-4 rounded-2xl border flex flex-col gap-2", darkMode ? "bg-white/[0.01] border-white/10" : "bg-white/10 border-gray-100")}>
+                                                    <div className="flex items-center justify-between">
+                                                      <div className="flex items-center gap-2">
+                                                        <RotateCcw size={10} className="opacity-40" />
+                                                        <label className={cn("text-[9px] font-black uppercase tracking-wider", darkMode ? "text-white/30" : "text-gray-400")}>Correction / Reset Msg</label>
+                                                      </div>
+                                                    </div>
+                                                    <textarea
+                                                      value={(leadAction?.messages as any)?.[rKey] ?? (DEFAULT_LEAD_MESSAGES as any)[rKey]?.replace('{{label}}', customLabel)}
+                                                      onChange={(e) => {
+                                                        const newActions = [...actions];
+                                                        const idx = newActions.findIndex(a => a.type === 'save_lead');
+                                                        if (idx >= 0) {
+                                                          const currentItem = newActions[idx] as SaveLeadAction;
+                                                          const newMsgs = { ...DEFAULT_LEAD_MESSAGES, ...(currentItem.messages || {}) };
+                                                          (newMsgs as any)[rKey] = e.target.value;
+                                                          newActions[idx] = { ...currentItem, messages: newMsgs };
+                                                          onActionsChange(newActions);
+                                                        }
+                                                      }}
+                                                      rows={1}
+                                                      className={cn("bg-transparent outline-none text-xs font-medium resize-none opacity-60 italic", darkMode ? "text-white" : "text-gray-800")}
+                                                      placeholder="Reset message..."
+                                                    />
                                                   </div>
-                                                  <textarea
-                                                    value={leadAction?.messages?.[rKey] ?? DEFAULT_LEAD_MESSAGES[rKey]}
-                                                    onChange={(e) => {
-                                                      const newActions = [...actions];
-                                                      const i = newActions.findIndex(a => a.type === 'save_lead');
-                                                      if (i >= 0) {
-                                                        const currentItem = newActions[i] as SaveLeadAction;
-                                                        const newMsgs = { ...DEFAULT_LEAD_MESSAGES, ...(currentItem.messages || {}) };
-                                                        newMsgs[rKey] = e.target.value;
-                                                        newActions[i] = { ...currentItem, messages: newMsgs };
-                                                        onActionsChange(newActions);
-                                                      }
-                                                    }}
-                                                    rows={1}
-                                                    className={cn("bg-transparent outline-none text-xs font-medium resize-none opacity-60 italic", darkMode ? "text-white" : "text-gray-800")}
-                                                    placeholder="Retry message..."
-                                                  />
+
+                                                  {/* Invalid Format */}
+                                                  {iKey && (
+                                                    <div className={cn("p-4 rounded-2xl border flex flex-col gap-2", darkMode ? "bg-white/[0.01] border-white/10" : "bg-white/10 border-gray-100")}>
+                                                      <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-2">
+                                                          <AlertCircle size={10} className="text-orange-500" />
+                                                          <label className={cn("text-[9px] font-black uppercase tracking-wider", darkMode ? "text-white/30" : "text-gray-400")}>Wrong Format Msg</label>
+                                                        </div>
+                                                      </div>
+                                                      <textarea
+                                                        value={(leadAction?.messages as any)?.[iKey] ?? (DEFAULT_LEAD_MESSAGES as any)[iKey]?.replace('{{label}}', customLabel)}
+                                                        onChange={(e) => {
+                                                          const newActions = [...actions];
+                                                          const idx = newActions.findIndex(a => a.type === 'save_lead');
+                                                          if (idx >= 0) {
+                                                            const currentItem = newActions[idx] as SaveLeadAction;
+                                                            const newMsgs = { ...DEFAULT_LEAD_MESSAGES, ...(currentItem.messages || {}) };
+                                                            (newMsgs as any)[iKey] = e.target.value;
+                                                            newActions[idx] = { ...currentItem, messages: newMsgs };
+                                                            onActionsChange(newActions);
+                                                          }
+                                                        }}
+                                                        rows={1}
+                                                        className={cn("bg-transparent outline-none text-xs font-medium resize-none opacity-60 italic text-orange-500/80", darkMode ? "text-white" : "text-gray-800")}
+                                                        placeholder="Invalid format message..."
+                                                      />
+                                                    </div>
+                                                  )}
                                                 </div>
                                               </div>
                                             </div>
