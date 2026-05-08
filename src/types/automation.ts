@@ -124,7 +124,7 @@ export const DEFAULT_LEAD_MESSAGES: LeadMessages = {
   askEmail: "What email should we use to get in touch with you? 📧",
   askPhone: "What's your phone number? 📱",
   confirmName: "Awesome, {{name}}! 😊 If you typed your name wrong, fix it below.",
-  confirmAll: "Perfect! Just confirming ✅\nName: {{name}}\nEmail: {{email}}\nPhone: {{phone}}",
+  confirmAll: "Perfect! Just confirming ✅\nName: {{name}}\nEmail: {{email}}\nPhone: {{phone}}\n{{label}}: {{custom}}",
   finalMessage: "🎉 We've got you, {{name}}! Your details have been saved and our team will reach out soon. Thank you! 🙏",
   askNameAgain: "No problem! What's your correct first name? ✏️",
   askEmailAgain: "Sure! What's the correct email address? 📧",
@@ -139,8 +139,8 @@ export const DEFAULT_LEAD_MESSAGES: LeadMessages = {
   btnChangeCustom: "✏️ Change {{label}}",
   btnYesLooksGood: "✅ Yes, looks good!",
 
-  askCustom: "What's your answer for {{label}}? ✏️",
-  askCustomAgain: "No problem! What's the correct answer for {{label}}? ✏️",
+  askCustom: "{{label}}? ✏️",
+  askCustomAgain: "No problem! {{label}}? ✏️",
   invalidCustom: "Please enter a valid number for {{label}} 🔢",
 };
 

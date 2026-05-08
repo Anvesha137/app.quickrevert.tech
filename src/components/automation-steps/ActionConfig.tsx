@@ -1634,7 +1634,11 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                                               </div>
                                               <div className={cn("p-5 rounded-3xl border space-y-4", darkMode ? "bg-white/[0.03] border-emerald-500/20 shadow-2xl shadow-emerald-500/5" : "bg-emerald-50/30 border-emerald-100")}>
                                                 <textarea
-                                                  value={leadAction?.messages?.confirmAll ?? DEFAULT_LEAD_MESSAGES.confirmAll?.replace(/\nPhone: {{phone}}/g, collected.includes('phone') ? '\nPhone: {{phone}}' : '')}
+                                                  value={leadAction?.messages?.confirmAll ?? (
+                                                    (DEFAULT_LEAD_MESSAGES.confirmAll || '')
+                                                      .replace(/\nPhone: {{phone}}/g, (leadAction?.collectFields || []).includes('phone') ? '\nPhone: {{phone}}' : '')
+                                                      .replace(/\n{{label}}: {{custom}}/g, (leadAction?.collectFields || []).includes('custom') ? `\n${leadAction?.customField?.label || 'Custom'}: {{custom}}` : '')
+                                                  )}
                                                   onChange={(e) => {
                                                     const newActions = [...actions];
                                                     const i = newActions.findIndex(a => a.type === 'save_lead');
