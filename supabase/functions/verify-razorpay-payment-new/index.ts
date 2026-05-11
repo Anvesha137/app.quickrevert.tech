@@ -2,9 +2,10 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Client } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
 import Razorpay from "npm:razorpay@2.8.4";
+import { sendAlert } from "../_shared/alert.ts";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://app.quickrevert.tech',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
@@ -112,11 +113,24 @@ serve(async (req) => {
           );
         }
 
-        await freeClient.queryObject(
-          `UPDATE promo_codes SET total_usage_tilldate = total_usage_tilldate + 1 WHERE id = $1`,
+        // Atomic increment: only succeeds if coupon still has capacity right now.
+        // Prevents two simultaneous 100%-off redemptions racing past the check.
+        const freeIncrResult = await freeClient.queryObject(
+          `UPDATE promo_codes
+           SET total_usage_tilldate = total_usage_tilldate + 1
+           WHERE id = $1
+             AND total_usage_tilldate < max_usage
+             AND expiry_date >= NOW()
+           RETURNING id`,
           [coupon.id]
         );
-        console.log(`Coupon ${couponCode} usage incremented in Neon DB (free flow).`);
+        if ((freeIncrResult.rows as any[]).length === 0) {
+          return new Response(
+            JSON.stringify({ error: 'Coupon was just fully redeemed by a concurrent request. Please contact support.' }),
+            { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        console.log(`Coupon ${couponCode} atomically incremented in Neon DB (free flow).`);
 
       } finally {
         await freeClient.end();
@@ -265,6 +279,40 @@ serve(async (req) => {
     } else {
       amountPaidRs = 0;
       discountRs = Math.floor(baseAmountPaise / 100);
+    }
+
+    // ---------------------------------------------------------------
+    // STEP 3b: Atomic Coupon Gate (paid flow) — runs BEFORE subscription
+    // activation so we can reject cleanly if the coupon was just exhausted.
+    // Uses an atomic DB-level UPDATE to prevent TOCTOU race conditions.
+    // ---------------------------------------------------------------
+    if (couponCode && !isFree) {
+      const couponGateUrl = Deno.env.get('NEON_DB_URL');
+      if (couponGateUrl) {
+        const gateClient = new Client(couponGateUrl);
+        try {
+          await gateClient.connect();
+          const atomicResult = await gateClient.queryObject(
+            `UPDATE promo_codes
+             SET total_usage_tilldate = total_usage_tilldate + 1
+             WHERE LOWER(TRIM(promo_code)) = LOWER(TRIM($1))
+               AND total_usage_tilldate < max_usage
+               AND expiry_date >= NOW()
+             RETURNING id`,
+            [couponCode.trim()]
+          );
+          if ((atomicResult.rows as any[]).length === 0) {
+            console.error(`[COUPON GATE] Coupon ${couponCode} exhausted or expired at atomic check. Rejecting payment.`);
+            return new Response(
+              JSON.stringify({ error: 'Coupon was fully redeemed by a concurrent request. Your payment has NOT been activated. Please contact support for a manual review.' }),
+              { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+          console.log(`[COUPON GATE] ✅ Atomic increment OK for ${couponCode}`);
+        } finally {
+          await gateClient.end();
+        }
+      }
     }
 
     // ---------------------------------------------------------------
@@ -487,28 +535,36 @@ serve(async (req) => {
 
           // 4. Insert Payment Record in Neon
           const paymentStatus = isFree ? 'free' : 'paid';
+          // WHERE NOT EXISTS deduplicates on retry: prevents double payment rows
+          // if the Neon sync is retried after a partial failure.
           await neonClient.queryObject(`
             INSERT INTO payments (user_id, amount, discount_amount, promo_code, payment_status, paid_at)
-            VALUES ($1, $2, $3, $4, $5, NOW() + INTERVAL '5 hours 30 minutes');
+            SELECT $1, $2, $3, $4, $5, NOW() + INTERVAL '5 hours 30 minutes'
+            WHERE NOT EXISTS (
+              SELECT 1 FROM payments
+              WHERE user_id = $1
+                AND payment_status = $5
+                AND paid_at > NOW() - INTERVAL '10 minutes'
+            );
           `, [userId, amountPaidRs, discountRs, couponCode || null, paymentStatus]);
 
-          // 5. Increment Coupon Usage (paid transactions only)
-          if (couponCode && !isFree) {
-            try {
-              await neonClient.queryObject(
-                `UPDATE promo_codes SET total_usage_tilldate = total_usage_tilldate + 1 WHERE LOWER(TRIM(promo_code)) = LOWER(TRIM($1))`,
-                [couponCode.trim()]
-              );
-              console.log(`Paid Coupon ${couponCode} usage incremented in Neon DB.`);
-            } catch (couponErr) {
-              console.error('Failed to increment coupon usage in Neon:', couponErr);
-            }
-          }
+          // Coupon increment was moved to the atomic gate in Step 3b (before
+          // Supabase subscription activation) to prevent TOCTOU race conditions.
+          // Nothing to do here.
 
           console.log("✅ Neon DB Sync Successful");
 
-        } catch (neonError) {
+        } catch (neonError: any) {
           console.error("⚠️ Neon Sync Failed (non-critical):", neonError);
+          // Fire alert with full recovery payload so the Neon row can be fixed manually
+          // without losing the payment data.
+          sendAlert({
+            level: "warning",
+            subject: `Neon Sync Failed — Manual Fix Needed (${email})`,
+            context: "verify-razorpay-payment-new",
+            details: `Supabase subscription is ACTIVE. Neon is out of sync.\nError: ${neonError?.message ?? String(neonError)}\n\nManual fix: UPSERT users, UPDATE subscriptions to active, INSERT payment record.`,
+            data: { userId, email, planTier, planType, amountPaidRs, discountRs, couponCode: couponCode || null },
+          }).catch(() => {/* alert failure must never throw */});
         } finally {
           if (neonClient) {
             try { await neonClient.end(); } catch (_) { /* ignore */ }

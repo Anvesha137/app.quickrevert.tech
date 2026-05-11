@@ -4,7 +4,7 @@ import { Client } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://app.quickrevert.tech',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
@@ -69,12 +69,14 @@ serve(async (req) => {
     let amount = 0;
     if (planTier === 'try_me_out') {
       // Check for previous purchase (One-time only per account)
-      const { data: existingSub, error: subError } = await supabaseClient
+      // No status filter — ANY prior try_me_out row blocks repurchase.
+      // Previously had .neq('status','canceled') with a typo (single-l),
+      // which allowed refunded users (status='cancelled', double-l) to slip through.
+      const { data: existingSub } = await supabaseClient
           .from('subscriptions')
           .select('id')
           .eq('user_id', user.id)
           .ilike('plan_id', '%try_me_out%')
-          .neq('status', 'canceled')
           .limit(1)
           .maybeSingle();
 

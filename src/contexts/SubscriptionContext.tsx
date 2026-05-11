@@ -8,7 +8,7 @@ interface Subscription {
     id: string;
     user_id: string;
     plan_id: PlanId;
-    status: 'active' | 'past_due' | 'canceled' | 'trialing';
+    status: 'active' | 'past_due' | 'canceled' | 'cancelled' | 'trialing';
     current_period_end: string;
     amount_paid?: number;
     discount_amount?: number;
@@ -296,6 +296,44 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         };
     }, [fetchSubscriptionData]);
 
+    // -------------------------------------------------------------------------
+    // Realtime: instantly degrade to free plan when the webhook cancels the sub.
+    // Without this, the user stays on premium until the next 15-min poll.
+    // -------------------------------------------------------------------------
+    useEffect(() => {
+        if (!user) return;
+
+        const channel = supabase
+            .channel(`sub-changes-${user.id}`)
+            .on(
+                'postgres_changes' as any,
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'subscriptions',
+                    filter: `user_id=eq.${user.id}`,
+                },
+                (payload: any) => {
+                    const newStatus = payload?.new?.status;
+                    console.log('[SubscriptionContext] Realtime subscription update:', newStatus);
+
+                    // Clear stale cache immediately so premium features don't linger
+                    localStorage.removeItem(CACHE_KEY);
+
+                    if (newStatus === 'cancelled' || newStatus === 'canceled') {
+                        console.log('[SubscriptionContext] 🔴 Subscription cancelled — degrading to free plan now');
+                    }
+                    // Always re-fetch fresh data from Supabase
+                    fetchSubscriptionData();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [user, fetchSubscriptionData]);
+
     const planId = (subscription?.plan_id || 'basic').toLowerCase() as PlanId;
     const isPlanActive = subscription && (
         subscription.status === 'active' || 
@@ -353,7 +391,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
     const hasUsedSampler = invoices.some(inv => 
         inv.plan_id?.toLowerCase().includes('try_me_out') && 
-        inv.status !== 'canceled' // Only count successful or active as 'used'
+        inv.status !== 'canceled' && inv.status !== 'cancelled'
     );
 
 

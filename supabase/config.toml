@@ -214,3 +214,8 @@ verify_jwt = false
 
 [functions."save-lead"]
 verify_jwt = false
+
+[functions."razorpay-refund-webhook"]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/razorpay-refund-webhook/index.ts"

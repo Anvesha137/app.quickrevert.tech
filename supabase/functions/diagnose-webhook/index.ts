@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 
 const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': 'https://app.quickrevert.tech',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
 };
@@ -123,9 +123,12 @@ Deno.serve(async (req: Request) => {
 
         // 4. Check Recent Failed Events
         console.log('\n4️⃣ Checking Recent Failed Events (last 2 hours)...');
+        const accountIds = diagnostics.checks.instagram_accounts.accounts.map((a: any) => a.id);
+        
         const { data: failedEvents, error: failedError } = await supabase
             .from('failed_events')
             .select('*')
+            .in('account_id', accountIds.length > 0 ? accountIds : ['none']) // Prevent fetching all if no accounts
             .gte('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString())
             .order('created_at', { ascending: false })
             .limit(10);

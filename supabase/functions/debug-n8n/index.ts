@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://app.quickrevert.tech",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
@@ -18,6 +18,14 @@ Deno.serve(async (req: Request) => {
 
     const n8nBaseUrl = Deno.env.get("N8N_BASE_URL")!;
     const n8nApiKey = Deno.env.get("X-N8N-API-KEY")!;
+
+    const secret = req.headers.get("x-quickrevert-secret");
+    if (secret !== Deno.env.get("QUICKREVERT_INTERNAL_SECRET")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Step 1: Get ruchita's current access_token from DB
     const { data: accounts } = await supabase

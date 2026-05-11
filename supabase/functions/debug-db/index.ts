@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Client } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://app.quickrevert.tech',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
@@ -14,6 +14,14 @@ serve(async (req) => {
   try {
     const neonDbUrl = Deno.env.get('NEON_DB_URL');
     if (!neonDbUrl) throw new Error('NEON_DB_URL is not set');
+
+    const secret = req.headers.get("x-quickrevert-secret");
+    if (secret !== Deno.env.get("QUICKREVERT_INTERNAL_SECRET")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const client = new Client(neonDbUrl);
     await client.connect();

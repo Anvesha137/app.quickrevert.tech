@@ -5,7 +5,7 @@ import { syncN8nCredential } from "../_shared/n8n.ts";
 import { sendAlert } from "../_shared/alert.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://app.quickrevert.tech",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
