@@ -48,7 +48,8 @@ serve(async (req) => {
       planType,
       instagramHandle,
       couponCode,
-      isFree
+      isFree,
+      assistedBy
     } = await req.json();
 
     // Security: userId in body must match authenticated user
@@ -462,11 +463,11 @@ serve(async (req) => {
               insta_followers_now, insta_followers_at_joining, insta_growth,
               total_dms, total_comments, total_reach,
               plan_name, plan_status,
-              deleted, promo_code
+              deleted, promo_code, assisted_by
             ) VALUES (
               $1, $2, $3, 'active',
               NOW() + INTERVAL '5 hours 30 minutes', NOW() + INTERVAL '5 hours 30 minutes',
-              $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, FALSE, $17
+              $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, FALSE, $17, $18
             )
             ON CONFLICT (email) DO UPDATE SET
               username = COALESCE(EXCLUDED.username, users.username),
@@ -486,6 +487,7 @@ serve(async (req) => {
               plan_name = EXCLUDED.plan_name,
               plan_status = EXCLUDED.plan_status,
               promo_code = EXCLUDED.promo_code,
+              assisted_by = COALESCE(EXCLUDED.assisted_by, users.assisted_by),
               deleted = FALSE;
           `, [
             userId,
@@ -504,7 +506,8 @@ serve(async (req) => {
             totalReach,
             packageName,       // ✅ declared BEFORE use now
             'active',
-            couponCode || null
+            couponCode || null,
+            assistedBy || null
           ]);
 
           // 2. Fetch or Create Plan in Neon

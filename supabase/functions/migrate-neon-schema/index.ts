@@ -120,7 +120,8 @@ serve(async (req) => {
         ADD COLUMN IF NOT EXISTS connected_instagram_handle TEXT,
         ADD COLUMN IF NOT EXISTS automations_count INTEGER DEFAULT 0,
         ADD COLUMN IF NOT EXISTS automations_active INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS automations_deactivated INTEGER DEFAULT 0;
+        ADD COLUMN IF NOT EXISTS automations_deactivated INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS assisted_by TEXT;
       `);
 
       // Seed last_active from joining_date if it's NULL (initial setup)

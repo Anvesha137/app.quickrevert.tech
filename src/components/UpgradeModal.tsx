@@ -40,6 +40,8 @@ export default function UpgradeModal() {
         finalAmount: 0,
         isFree: false,
     });
+    const [salesTeam, setSalesTeam] = useState<{id: string, name: string}[]>([]);
+    const [assistedBy, setAssistedBy] = useState('');
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
@@ -49,8 +51,20 @@ export default function UpgradeModal() {
             setPlanTier((selectedPlanId as PlanTier) || 'professional');
             setCouponCode('');
             setCoupon({ status: 'idle', message: '', discountAmount: 0, finalAmount: 0, isFree: false });
+            fetchSalesTeam();
         }
     }, [isOpen, defaultBillingCycle, selectedPlanId]);
+
+    const fetchSalesTeam = async () => {
+        try {
+            const { data, error } = await supabase.functions.invoke('get-sales-team');
+            if (!error && data) {
+                setSalesTeam(data);
+            }
+        } catch (err) {
+            console.error('Failed to fetch sales team:', err);
+        }
+    };
 
     // Force quarterly for 'try_me_out'
     useEffect(() => {
@@ -242,7 +256,8 @@ export default function UpgradeModal() {
                         planTier: planTier,
                         planType: billingCycle,
                         instagramHandle: instagramHandle,
-                        couponCode: couponCode
+                        couponCode: couponCode,
+                        assistedBy: assistedBy
                     }
                 });
 
@@ -280,7 +295,8 @@ export default function UpgradeModal() {
                             planTier: planTier,
                             planType: billingCycle,
                             instagramHandle: instagramHandle,
-                            couponCode: couponCode
+                            couponCode: couponCode,
+                            assistedBy: assistedBy
                         }
                     });
 
@@ -524,6 +540,34 @@ export default function UpgradeModal() {
                                             ✗ {coupon.message}
                                         </p>
                                     )}
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">
+                                        Assisted By
+                                    </label>
+                                    <div className="relative">
+                                        <select
+                                            value={assistedBy}
+                                            onChange={(e) => setAssistedBy(e.target.value)}
+                                            className="w-full pl-4 pr-10 py-4 rounded-2xl border border-gray-100 bg-gray-50 focus:outline-none focus:ring-4 focus:ring-blue-600/5 focus:border-blue-600 transition-all font-bold text-sm appearance-none shadow-sm"
+                                        >
+                                            <option value="">NONE / ORGANIC</option>
+                                            {salesTeam.map(member => (
+                                                <option key={member.id} value={member.name}>
+                                                    {member.name.toUpperCase()}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <p className="text-[9px] text-gray-400 mt-2 uppercase tracking-widest font-black">
+                                        Select the sales person who helped you
+                                    </p>
                                 </div>
                             </div>
 

@@ -1,4 +1,4 @@
-import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
+import { createClient } from 'npm:@supabase/supabase-js@2.39.8';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': 'https://app.quickrevert.tech',
@@ -11,8 +11,10 @@ interface EventData {
   commentText?: string;
   messageId?: string;
   messageText?: string;
+  postbackPayload?: string; 
   postId?: string;
   storyId?: string;
+  isFollowing?: boolean;
   from: {
     id: string;
     username: string;
@@ -29,17 +31,7 @@ interface ExecuteRequest {
 }
 
 Deno.serve(async (req: Request) => {
-  console.log("═══════════════════════════════════════");
-  console.log("🎯 EXECUTE-AUTOMATION CALLED");
-  console.log("Time:", new Date().toISOString());
-  console.log("═══════════════════════════════════════");
-
-  if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders,
-    });
-  }
+  if (req.method === 'OPTIONS') return new Response(null, { status: 200, headers: corsHeaders });
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -47,158 +39,125 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const requestBody = await req.json();
-    console.log("📦 Full request body:");
-    console.log(JSON.stringify(requestBody, null, 2));
-
     const { userId, instagramAccountId, triggerType, eventData }: ExecuteRequest = requestBody;
 
-    console.log("📋 Parsed values:");
-    console.log("  userId:", userId);
-    console.log("  instagramAccountId:", instagramAccountId);
-    console.log("  triggerType:", triggerType);
-    console.log("  eventData.from.id:", eventData.from.id);
-
     // 1. Fetch Instagram Account
-    console.log("\n🔍 STEP 1: Fetching Instagram account...");
     const { data: instagramAccount, error: accountError } = await supabase
       .from('instagram_accounts')
-      .select('access_token, instagram_user_id')
+      .select('access_token, instagram_user_id, username')
       .eq('id', instagramAccountId)
       .single();
 
-    if (accountError || !instagramAccount) {
-      console.error('❌ Instagram account error:', accountError);
-      throw new Error('Instagram account not found');
-    }
+    if (accountError || !instagramAccount) throw new Error('Instagram account not found');
 
-    // Resolve Profile & Follow Status
-    console.log('\n🔍 STEP 2: Fetching user profile...');
+    // 2. Fetch User Profile & Follow Status (Critical for "Follow to Unlock")
     try {
-      const apiVersion = 'v21.0';
-      const userProfileUrl = `https://graph.facebook.com/${apiVersion}/${eventData.from.id}?fields=name,username,profile_pic,is_user_follow_business&access_token=${instagramAccount.access_token}`;
-      const userProfileRes = await fetch(userProfileUrl);
-      if (userProfileRes.ok) {
-        const userProfile = await userProfileRes.json();
-        if (userProfile.name) eventData.from.name = userProfile.name;
-        if (!eventData.from.username || eventData.from.username === 'Unknown') {
-          eventData.from.username = userProfile.name || eventData.from.id;
-        }
-        (eventData as any).isFollowing = userProfile.is_user_follow_business || false;
-        (eventData as any).profilePic = userProfile.profile_pic || null;
+      const fbRes = await fetch(`https://graph.facebook.com/v21.0/${eventData.from.id}?fields=name,username,is_user_follow_business&access_token=${instagramAccount.access_token}`);
+      if (fbRes.ok) {
+        const fbData = await fbRes.json();
+        eventData.from.name = fbData.name || eventData.from.name;
+        eventData.isFollowing = fbData.is_user_follow_business || false;
       }
-    } catch (err) {
-      console.error('❌ Error fetching user profile:', err);
-    }
+    } catch (e) { console.warn("Profile fetch failed", e.message); }
 
-    // 3. Upsert Contact
-    console.log('\n🔍 STEP 3: Upserting contact...');
-    let newInteractionCount = 1;
-    try {
-      const { data: existingContact } = await supabase
-        .from('contacts')
-        .select('interaction_count, interacted_automations')
-        .eq('user_id', userId)
-        .eq('instagram_account_id', instagramAccountId)
-        .eq('instagram_user_id', eventData.from.id)
-        .maybeSingle();
+    // 3. Resolve Contact & State
+    const { data: contact } = await supabase
+      .from('contacts')
+      .select('id, metadata')
+      .eq('user_id', userId)
+      .eq('instagram_account_id', instagramAccountId)
+      .eq('instagram_user_id', eventData.from.id)
+      .maybeSingle();
 
-      newInteractionCount = (existingContact?.interaction_count || 0) + 1;
+    const metadata = contact?.metadata || {};
+    const conversationState = metadata.conversation_state || { state: 'new' };
+    const contactId = contact?.id;
 
-      const contactData: any = {
-        user_id: userId,
-        instagram_account_id: instagramAccountId,
-        instagram_user_id: eventData.from.id,
-        username: eventData.from.username || eventData.from.id,
-        full_name: eventData.from.name || null,
-        avatar_url: (eventData as any).profilePic || null,
-        last_interaction_at: new Date().toISOString(),
-        interaction_count: newInteractionCount,
-        follows_us: (eventData as any).isFollowing || false,
-      };
-
-      await supabase.from('contacts').upsert(contactData, {
-        onConflict: 'user_id,instagram_account_id,instagram_user_id',
-        ignoreDuplicates: false
+    // 🎯 4. STATE-MACHINE (Lead Manager)
+    if (conversationState.state && !['new', 'done', 'error'].includes(conversationState.state)) {
+      const stateResult = await handleConversationState({
+        state: conversationState,
+        eventData,
+        supabase,
+        userId,
+        instagramAccount,
+        contactId,
+        metadata
       });
-    } catch (contactErr) {
-      console.error('❌ Contact upsert error:', contactErr);
+
+      if (stateResult.processed) {
+        return new Response(JSON.stringify({ success: true, mode: 'state_machine' }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
     }
 
-    // 4. Fetch and Match Automations
-    console.log('\n🔍 STEP 4: Matching automations...');
+    // 🔍 5. TRIGGER MATCHING
     const { data: automations } = await supabase
       .from('automations')
       .select('*')
       .eq('user_id', userId)
-      .eq('trigger_type', triggerType)
       .eq('status', 'active');
 
     const matchedAutomations = (automations || []).filter(automation => {
       const config = automation.trigger_config || {};
+      const actualTriggerType = automation.trigger_type;
+      const payload = eventData.postbackPayload;
+
+      // Postback Matching
+      if (payload) {
+        const cid = automation.id.replace(/-/g, '');
+        if (payload === `START_FLOW_${cid}` || payload === `CHECK_FOLLOW_${cid}`) return true;
+        if (config.keywords?.some((k: string) => payload.toLowerCase() === k.toLowerCase())) return true;
+        return false;
+      }
+
+      // Type Check
+      if (triggerType !== actualTriggerType && !(triggerType === 'user_directed_messages' && actualTriggerType === 'user_dm')) return false;
+
+      // Keyword/Specific Post Matching
       if (triggerType === 'post_comment') {
-        if (config.postsType === 'specific') {
-          const allowedPosts = config.specificPosts || [];
-          if (!eventData.postId || !allowedPosts.includes(eventData.postId)) return false;
-        }
-        if (config.commentsType === 'keywords' && config.keywords && eventData.commentText) {
-          const text = eventData.commentText.toLowerCase();
-          return config.keywords.some((keyword: string) => text.includes(keyword.toLowerCase()));
+        if (config.postsType === 'specific' && !config.specificPosts?.includes(eventData.postId)) return false;
+        if (config.commentsType === 'keywords') {
+            const text = (eventData.commentText || '').toLowerCase();
+            return config.keywords?.some((k: string) => text.includes(k.toLowerCase()));
         }
         return config.commentsType === 'all';
       }
-      if (triggerType === 'user_directed_messages') {
-        if (config.messageType === 'all') return true;
-        if (config.messageType === 'keywords' && config.keywords && eventData.messageText) {
-          const text = eventData.messageText.toLowerCase();
-          return config.keywords.some((k: string) => text.includes(k.toLowerCase()));
+
+      if (triggerType === 'user_directed_messages' || triggerType === 'user_dm') {
+        if (config.messageType === 'keywords') {
+            const text = (eventData.messageText || '').toLowerCase();
+            return config.keywords?.some((k: string) => text.includes(k.toLowerCase()));
         }
+        return config.messageType === 'all';
       }
-      if (triggerType === 'story_reply') return config.storiesType === 'all';
-      return false;
+
+      return actualTriggerType === 'story_reply';
     });
 
-    console.log(`✅ Matches found: ${matchedAutomations.length}`);
-
-    // 5. Log Inbound Event (REMOVED: Now handled by webhook-meta for deduplication)
-    const primaryAutomationId = matchedAutomations.length > 0 ? matchedAutomations[0].id : null;
-
-    // 6. Execute Actions
+    // 🚀 6. EXECUTION
     for (const automation of matchedAutomations) {
-      const automationName = automation.name || 'Unnamed Automation';
+      // Logic for "Ask to Follow" enforcement
+      const askToFollow = automation.actions?.some((a: any) => a.type === 'send_dm' && a.askToFollow);
+      if (askToFollow && !eventData.isFollowing) {
+          await sendDirectMessage(instagramAccount.access_token, eventData.from.id, "Please follow us to unlock this automation! 🔒", [
+              { text: "I've Followed! ✅", payload: `CHECK_FOLLOW_${automation.id.replace(/-/g, '')}` }
+          ]);
+          continue; 
+      }
 
-      // Update contact's interacted_automations
-      try {
-        const { data: contact } = await supabase
-          .from('contacts')
-          .select('interacted_automations')
-          .eq('user_id', userId)
-          .eq('instagram_account_id', instagramAccountId)
-          .eq('instagram_user_id', eventData.from.id)
-          .single();
-
-        const current = contact?.interacted_automations || [];
-        if (!current.includes(automationName)) {
-          await supabase.from('contacts').update({
-            interacted_automations: [...current, automationName]
-          }).eq('user_id', userId).eq('instagram_account_id', instagramAccountId).eq('instagram_user_id', eventData.from.id);
-        }
-      } catch (err) { console.error('❌ Contact list update error:', err); }
+      // Init Lead State if needed
+      const leadAction = automation.actions?.find((a: any) => a.type === 'save_lead');
+      if (leadAction) {
+        await updateContactMetadata(supabase, contactId, {
+          ...metadata,
+          conversation_state: { state: 'waiting_name', automation_id: automation.id, data: {}, last_message_at: new Date().toISOString() }
+        });
+      }
 
       for (const action of automation.actions || []) {
-        try {
-          await executeAction({
-            action, eventData, accessToken: instagramAccount.access_token,
-            instagramUserId: instagramAccount.instagram_user_id, supabase,
-            automationId: automation.id, userId, instagramAccountId, triggerType
-          });
-        } catch (err: any) {
-          console.error('❌ Action failed:', err.message);
-          await logActivity(supabase, {
-            userId, automationId: automation.id, instagramAccountId,
-            activityType: action.type, targetUsername: eventData.from.username,
-            status: 'failed', metadata: { error: err.message }
-          });
-        }
+        await executeAction({ action, eventData, accessToken: instagramAccount.access_token, supabase, automationId: automation.id, userId, instagramAccountId, triggerType });
       }
     }
 
@@ -207,75 +166,120 @@ Deno.serve(async (req: Request) => {
     });
 
   } catch (error: any) {
-    console.error("❌ FATAL ERROR:", error.message);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });
 
-async function executeAction(params: any) {
-  const { action, eventData, accessToken, instagramUserId, supabase, automationId, userId, instagramAccountId, triggerType } = params;
-  let messageText = '';
-  let buttons: any[] = [];
+async function handleConversationState(params: any) {
+  const { state, eventData, supabase, userId, instagramAccount, contactId, metadata } = params;
+  const msg = (eventData.messageText || '').trim();
+  const payload = eventData.postbackPayload;
+  const automationId = state.automation_id;
 
-  if (action.type === 'reply_to_comment') {
-    messageText = action.replyTemplates?.[Math.floor(Math.random() * action.replyTemplates.length)] || '';
-    buttons = action.actionButtons || [];
-  } else if (action.type === 'send_dm') {
-    messageText = action.messageTemplate || '';
-    buttons = action.actionButtons || [];
+  const { data: automation } = await supabase.from('automations').select('actions, id').eq('id', automationId).single();
+  if (!automation) return { processed: false };
+
+  const leadAction = automation.actions.find((a: any) => a.type === 'save_lead');
+  if (!leadAction) return { processed: false };
+
+  const dataToCollect = leadAction.collectFields || ['name', 'email'];
+  const currentData = state.data || {};
+  let nextState = state.state;
+
+  // Handle Postbacks
+  const cid = automation.id.replace(/-/g, '');
+  if (payload === `CHANGE_NAME_${cid}`) nextState = 'waiting_name';
+  else if (payload === `CHANGE_EMAIL_${cid}`) nextState = 'waiting_email';
+  else if (payload === `CONFIRM_SAVE_${cid}`) nextState = 'saving';
+
+  if (nextState === 'saving') {
+    await supabase.from('leads').insert({ user_id: userId, automation_id: automationId, contact_id: contactId, name: currentData.name, email: currentData.email, phone: currentData.phone, custom_data: currentData.custom });
+    await sendDirectMessage(instagramAccount.access_token, eventData.from.id, leadAction.messages?.success || "Saved! ✅");
+    await updateContactMetadata(supabase, contactId, { ...metadata, conversation_state: { state: 'done' } });
+    return { processed: true };
   }
 
-  messageText = messageText.replace('{{username}}', eventData.from.username);
-  const isPublicReply = action.type === 'reply_to_comment';
-  const apiUrl = isPublicReply ? `https://graph.instagram.com/v21.0/${eventData.commentId}/replies` : `https://graph.instagram.com/v21.0/me/messages`;
-
-  const recipient = (triggerType === 'post_comment' && eventData.commentId && !isPublicReply) ? { comment_id: eventData.commentId } : { id: eventData.from.id };
-  let messagePayload: any = isPublicReply ? { message: messageText } : { recipient, message: {} };
-
-  if (!isPublicReply && buttons.length > 0) {
-    messagePayload.message = {
-      attachment: {
-        type: 'template',
-        payload: {
-          template_type: 'generic',
-          elements: [{
-            title: messageText.substring(0, 400),
-            subtitle: "Powered By Quickrevert.tech",
-            buttons: buttons.slice(0, 3).map((btn: any) => ({
-              type: btn.url?.startsWith('http') ? 'web_url' : 'postback',
-              url: btn.url, title: btn.text.substring(0, 20),
-              payload: btn.url?.startsWith('http') ? undefined : btn.text.toUpperCase()
-            }))
-          }]
-        }
+  // Process Input
+  if (!payload && msg) {
+    if (state.state === 'waiting_name') {
+      currentData.name = msg;
+      nextState = dataToCollect.includes('email') ? 'waiting_email' : (dataToCollect.includes('phone') ? 'waiting_phone' : (dataToCollect.includes('custom') ? 'waiting_custom' : 'confirm'));
+    } 
+    else if (state.state === 'waiting_email') {
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(msg)) {
+        currentData.email = msg;
+        nextState = dataToCollect.includes('phone') ? 'waiting_phone' : (dataToCollect.includes('custom') ? 'waiting_custom' : 'confirm');
+      } else {
+        await sendDirectMessage(instagramAccount.access_token, eventData.from.id, leadAction.messages?.invalidEmail || "Invalid email! 📧");
+        return { processed: true };
       }
-    };
-  } else if (!isPublicReply) {
-    messagePayload.message = { text: messageText };
+    }
+    else if (state.state === 'waiting_phone') {
+        currentData.phone = msg;
+        nextState = dataToCollect.includes('custom') ? 'waiting_custom' : 'confirm';
+    }
+    else if (state.state === 'waiting_custom') {
+        currentData.custom = msg;
+        nextState = 'confirm';
+    }
   }
 
-  const response = await fetch(`${apiUrl}?access_token=${accessToken}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(messagePayload)
-  });
+  // Next Message
+  let nextMessage = "";
+  let buttons = [];
 
-  if (!response.ok) throw new Error(`Instagram API error: ${response.status} - ${await response.text()}`);
-  const result = await response.json();
+  if (nextState === 'waiting_email') nextMessage = leadAction.messages?.askEmail || "What's your email? 📧";
+  else if (nextState === 'waiting_phone') nextMessage = leadAction.messages?.askPhone || "What's your phone? 📱";
+  else if (nextState === 'waiting_custom') nextMessage = leadAction.customField?.label || "Tell us more:";
+  else if (nextState === 'confirm') {
+    nextMessage = (leadAction.messages?.confirmAll || "Confirm details:\n👤 Name: {{name}}\n📧 Email: {{email}}")
+        .replace('{{name}}', currentData.name || 'N/A')
+        .replace('{{email}}', currentData.email || 'N/A')
+        .replace('{{phone}}', currentData.phone || 'N/A')
+        .replace('{{custom}}', currentData.custom || 'N/A');
+    buttons = [{ text: "Confirm ✅", payload: `CONFIRM_SAVE_${cid}` }, { text: "Edit Name 👤", payload: `CHANGE_NAME_${cid}` }];
+  }
 
-  await logActivity(supabase, {
-    userId, automationId, instagramAccountId, activityType: action.type,
-    targetUsername: eventData.from.username, message: messageText,
-    status: 'success', metadata: { messageId: result.message_id, recipientId: result.recipient_id }
-  });
+  if (nextMessage) await sendDirectMessage(instagramAccount.access_token, eventData.from.id, nextMessage, buttons);
+
+  await updateContactMetadata(supabase, contactId, { ...metadata, conversation_state: { ...state, state: nextState, data: currentData } });
+  return { processed: true };
+}
+
+async function executeAction(params: any) {
+  const { action, eventData, accessToken, supabase, automationId, userId, instagramAccountId, triggerType } = params;
+  
+  if (action.type === 'reply_to_comment' && eventData.commentId) {
+    const text = (action.replyTemplates?.[Math.floor(Math.random() * action.replyTemplates.length)] || "Check your DMs!").replace('{{username}}', eventData.from.username);
+    await fetch(`https://graph.instagram.com/v21.0/${eventData.commentId}/replies?access_token=${accessToken}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text }) });
+  }
+
+  if (action.type === 'send_dm') {
+    const recipient = (triggerType === 'post_comment' && eventData.commentId) ? { comment_id: eventData.commentId } : { id: eventData.from.id };
+    await sendDirectMessage(accessToken, recipient, (action.messageTemplate || "Hi!").replace('{{username}}', eventData.from.username), action.actionButtons || []);
+  }
+}
+
+async function sendDirectMessage(accessToken: string, recipient: any, text: string, buttons: any[] = []) {
+  const recipientObj = typeof recipient === 'string' ? { id: recipient } : recipient;
+  let payload: any = { recipient: recipientObj, message: { text } };
+  if (buttons.length > 0) {
+    payload.message = {
+      attachment: { type: 'template', payload: {
+          template_type: 'generic',
+          elements: [{ title: text.substring(0, 80), subtitle: "Powered by QuickRevert", buttons: buttons.slice(0, 3).map(btn => ({
+              type: btn.url ? 'web_url' : 'postback', title: (btn.text || btn.title).substring(0, 20), url: btn.url, payload: btn.payload || (btn.text || btn.title).toUpperCase()
+          })) }]
+      } }
+    };
+  }
+  await fetch(`https://graph.instagram.com/v21.0/me/messages?access_token=${accessToken}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+}
+
+async function updateContactMetadata(supabase: any, contactId: string, metadata: any) {
+  if (contactId) await supabase.from('contacts').update({ metadata }).eq('id', contactId);
 }
 
 async function logActivity(supabase: any, data: any) {
-  await supabase.from('automation_activities').insert({
-    user_id: data.userId, automation_id: data.automationId,
-    instagram_account_id: data.instagramAccountId, activity_type: data.activityType,
-    target_username: data.targetUsername, message: data.message,
-    status: data.status, metadata: data.metadata || {}
-  });
+  await supabase.from('automation_activities').insert({ user_id: data.userId, automation_id: data.automationId, instagram_account_id: data.instagramAccountId, activity_type: data.activityType, target_username: data.targetUsername, message: data.message, status: data.status, metadata: data.metadata || {} });
 }

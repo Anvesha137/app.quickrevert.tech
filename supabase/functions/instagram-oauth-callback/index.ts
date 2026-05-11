@@ -166,6 +166,7 @@ Deno.serve(async (req: Request) => {
       last_synced_at: new Date().toISOString(),
     };
 
+    let instagramAccountId;
     if (existingAccount) {
       const { error: updateError } = await supabase
         .from("instagram_accounts")
@@ -176,21 +177,23 @@ Deno.serve(async (req: Request) => {
         console.error('Database update error:', updateError);
         return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Database update failed: ' + updateError.message)}`, 302);
       }
-
+      instagramAccountId = existingAccount.id;
       console.log('Account updated successfully');
     } else {
-      const { error: insertError } = await supabase
+      const { data: newAcc, error: insertError } = await supabase
         .from("instagram_accounts")
         .insert({
           ...accountData,
           connected_at: new Date().toISOString(),
-        });
+        })
+        .select('id')
+        .single();
 
-      if (insertError) {
+      if (insertError || !newAcc) {
         console.error('Database insert error:', insertError);
-        return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Database insert failed: ' + insertError.message)}`, 302);
+        return Response.redirect(`${frontendUrl}/connect-accounts?error=${encodeURIComponent('Database insert failed: ' + (insertError?.message || 'Unknown error'))}`, 302);
       }
-
+      instagramAccountId = newAcc.id;
       console.log('New account created successfully');
     }
 
@@ -200,7 +203,7 @@ Deno.serve(async (req: Request) => {
       const { data: finalAccount } = await supabase
         .from("instagram_accounts")
         .select("*")
-        .eq("instagram_user_id", instagramUserId)
+        .eq("id", instagramAccountId)
         .single();
       
       if (finalAccount) {
@@ -208,6 +211,40 @@ Deno.serve(async (req: Request) => {
       }
     } catch (n8nError) {
       console.error('⚠️ n8n sync failed (non-fatal):', n8nError);
+    }
+
+    // ✅ AUTO-CREATE ANALYTICS WORKFLOW
+    // This ensures stats tracking starts immediately without manual intervention
+    const analyticsTask = (async () => {
+      console.log('📊 [AUTO-ANALYTICS] Triggering analytics workflow creation...');
+      try {
+        const analyticsRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/create-analytics-workflow`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`
+          },
+          body: JSON.stringify({
+            userId: userId,
+            instagramAccountId: instagramAccountId
+          })
+        });
+        
+        if (!analyticsRes.ok) {
+          console.error('⚠️ [AUTO-ANALYTICS] Failed:', await analyticsRes.text());
+        } else {
+          console.log('✅ [AUTO-ANALYTICS] Success');
+        }
+      } catch (e) {
+        console.error('⚠️ [AUTO-ANALYTICS] Error:', e);
+      }
+    })();
+
+    // Use waitUntil if available to avoid blocking the redirect response
+    // @ts-ignore
+    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(analyticsTask);
     }
 
     // ✅ CRITICAL: Subscribe webhooks using Page-scoped IGBA ID
