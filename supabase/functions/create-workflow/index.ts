@@ -3015,6 +3015,21 @@ return { json: { userId, username, isFollowing } };`
       });
       if (!createRes.ok) throw new Error(`n8n Create Failed: ${createRes.statusText}`);
       n8nResult = await createRes.json();
+
+      // 🔔 NOTIFY ADMIN of New Automation
+      sendAlert({
+        level: "info",
+        subject: "New Automation Created! ⚡",
+        context: "Automation Engine",
+        details: `A user has created a new automation.\n\n**User ID:** ${userId}\n**Name:** ${workflowName}\n**Trigger:** ${bodyTriggerType || 'user_dm'}\n**Instagram:** ${instagramAccount.username}`,
+        data: {
+          userId,
+          automationName: workflowName,
+          triggerType: bodyTriggerType,
+          instagram: instagramAccount.username,
+          workflowId: n8nResult.id
+        }
+      }).catch(err => console.error("[ALERT] Failed to send new automation alert:", err));
     }
 
     // 🔥 PERFORMANCE: Return response as soon as we have the workflow ID

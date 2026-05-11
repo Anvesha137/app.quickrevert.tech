@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Client } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
+import { sendAlert } from "../_shared/alert.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': 'https://app.quickrevert.tech',
@@ -110,6 +111,8 @@ serve(async (req) => {
       await neonClient.queryObject(`DELETE FROM users WHERE id = $1`, [(existingNeonUsers[0] as any).id]);
     }
 
+    const isNewUser = existingNeonUsers.length === 0;
+
     // 2.2 Check Banned FIRST (early exit)
     const { rows: bannedRows } = await neonClient.queryObject(`SELECT id FROM banned_users WHERE email ILIKE $1`, [cleanEmail]);
     if (bannedRows.length > 0) {
@@ -177,6 +180,24 @@ serve(async (req) => {
       totalDMs, totalComments, totalReach,
       packageName, planStatus, status
     ]);
+
+    // 2.5 Notify Admin of New User
+    if (isNewUser) {
+      console.log(`[sync-user-neon] Sending notification for new user: ${cleanEmail}`);
+      sendAlert({
+        level: "info",
+        subject: "New User Registered! 🚀",
+        context: "Account Sync",
+        details: `A new user has joined QuickRevert.\n\n**Email:** ${cleanEmail}\n**Name:** ${usernameValue}\n**Instagram:** ${connectedHandle || 'Not connected'}\n**Followers:** ${followers}`,
+        data: {
+          userId,
+          email: cleanEmail,
+          name: usernameValue,
+          instagram: connectedHandle,
+          followers
+        }
+      }).catch(err => console.error("[ALERT] Failed to send new user notification:", err));
+    }
 
     // 3. Smart Limit Sync (Update Supabase user_limits)
     const syncLimits: any = {
