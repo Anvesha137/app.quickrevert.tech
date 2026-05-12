@@ -564,7 +564,7 @@ export default function UpgradeModal() {
                                         >
                                             <option value="">NONE / ORGANIC</option>
                                             {salesTeam.map(member => (
-                                                <option key={member.id} value={member.name}>
+                                                <option key={member.id} value={member.email}>
                                                     {member.name.toUpperCase()}
                                                 </option>
                                             ))}

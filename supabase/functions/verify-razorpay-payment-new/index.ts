@@ -319,8 +319,7 @@ serve(async (req) => {
     // ---------------------------------------------------------------
     // STEP 4: Write Supabase Subscription (CRITICAL - must always succeed)
     // ---------------------------------------------------------------
-    const { data: { user: userData } } = await supabaseClient.auth.admin.getUserById(userId);
-    const email = userData?.email || '';
+    const email = user.email || '';
 
     const now = new Date();
 
@@ -380,13 +379,10 @@ serve(async (req) => {
 
     console.log(`✅ Supabase subscription written for user ${userId}, plan ${planTier}_${planType}`);
 
-    // ---------------------------------------------------------------
-    // STEP 5: Sync to Neon DB (Dashboard analytics - ISOLATED, never kills main flow)
-    // ---------------------------------------------------------------
-    const neonDbUrl = Deno.env.get('NEON_DB_URL');
-    if (neonDbUrl) {
-      // Fire and forget — any Neon failure must NEVER affect the subscription
-      (async () => {
+      // ---------------------------------------------------------------
+      // Sync to Neon DB (Dashboard analytics)
+      // ---------------------------------------------------------------
+      try {
         let neonClient: Client | null = null;
         try {
           // Build packageName FIRST before any usage
@@ -398,9 +394,7 @@ serve(async (req) => {
           if (planType === 'quarterly') packageName += ' (Quarterly)';
           if (planType === 'annual') packageName += ' (Annual)';
 
-          // Single subscriptionEnd declaration
           const subscriptionEnd = periodEnd.toISOString();
-
           const istOffsetMs = 5.5 * 60 * 60 * 1000;
           const baseAmountRsCalculated = Math.floor(baseAmountPaise / 100);
 
@@ -487,7 +481,7 @@ serve(async (req) => {
               plan_name = EXCLUDED.plan_name,
               plan_status = EXCLUDED.plan_status,
               promo_code = EXCLUDED.promo_code,
-              assisted_by = COALESCE(EXCLUDED.assisted_by, users.assisted_by),
+              assisted_by = CASE WHEN EXCLUDED.assisted_by IS NOT NULL THEN EXCLUDED.assisted_by ELSE users.assisted_by END,
               deleted = FALSE;
           `, [
             userId,
@@ -504,7 +498,7 @@ serve(async (req) => {
             totalDMs,
             totalComments,
             totalReach,
-            packageName,       // ✅ declared BEFORE use now
+            packageName,
             'active',
             couponCode || null,
             assistedBy || null
@@ -538,8 +532,6 @@ serve(async (req) => {
 
           // 4. Insert Payment Record in Neon
           const paymentStatus = isFree ? 'free' : 'paid';
-          // WHERE NOT EXISTS deduplicates on retry: prevents double payment rows
-          // if the Neon sync is retried after a partial failure.
           await neonClient.queryObject(`
             INSERT INTO payments (user_id, amount, discount_amount, promo_code, payment_status, paid_at)
             SELECT $1, $2, $3, $4, $5, NOW() + INTERVAL '5 hours 30 minutes'
@@ -551,16 +543,10 @@ serve(async (req) => {
             );
           `, [userId, amountPaidRs, discountRs, couponCode || null, paymentStatus]);
 
-          // Coupon increment was moved to the atomic gate in Step 3b (before
-          // Supabase subscription activation) to prevent TOCTOU race conditions.
-          // Nothing to do here.
-
           console.log("✅ Neon DB Sync Successful");
 
         } catch (neonError: any) {
           console.error("⚠️ Neon Sync Failed (non-critical):", neonError);
-          // Fire alert with full recovery payload so the Neon row can be fixed manually
-          // without losing the payment data.
           sendAlert({
             level: "warning",
             subject: `Neon Sync Failed — Manual Fix Needed (${email})`,
@@ -573,8 +559,9 @@ serve(async (req) => {
             try { await neonClient.end(); } catch (_) { /* ignore */ }
           }
         }
-      })();
-    }
+      } catch (e) {
+        console.error("Critical error in Neon sync wrapper:", e);
+      }
 
     // ---------------------------------------------------------------
     // Return success immediately — Neon sync runs in background
