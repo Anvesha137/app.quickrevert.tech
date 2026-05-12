@@ -27,26 +27,19 @@ export default function DMsChart() {
             sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
             sevenDaysAgo.setHours(0, 0, 0, 0);
 
-            const { data: allActivities, error } = await supabase
-                .from('automation_activities')
-                .select('created_at, activity_type')
-                .eq('user_id', user!.id)
-                .gte('created_at', sevenDaysAgo.toISOString())
-                .order('created_at', { ascending: false })
-                .limit(5000); // 🔒 SAFETY LIMIT
+            // 🚀 OPTIMIZED: Use RPC for date-based aggregation
+            const { data: stats, error } = await supabase
+                .rpc('get_daily_activity_stats', {
+                    p_user_id: user!.id,
+                    p_start_date: sevenDaysAgo.toISOString(),
+                    p_end_date: new Date().toISOString()
+                });
 
             if (error) throw error;
 
-            // Filter for DM-like activities (sent + received)
+            // Filter for DM-like activities (sent + received) in the aggregated set
             const DM_TYPES = new Set(['dm', 'send_dm', 'incoming_message', 'incoming_event', 'interaction']);
-            const dmActivities = (allActivities || []).filter(a => {
-                const type = (a.activity_type || '').toLowerCase();
-                return DM_TYPES.has(type) || type.includes('dm') || type.includes('message');
-            });
-
-            // Process data for the chart using the filtered set
-            const activities = dmActivities;
-
+            
             // Process data for the chart
             const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
             const chartData = [];
@@ -57,13 +50,18 @@ export default function DMsChart() {
                 const dayName = days[date.getDay()];
                 const dateStr = date.toISOString().split('T')[0];
 
-                const count = activities?.filter(a => a.created_at.startsWith(dateStr)).length || 0;
+                // Sum up counts for DM types on this specific date
+                const count = stats?.filter((s: any) => {
+                    const type = (s.activity_type || '').toLowerCase();
+                    return s.date === dateStr && (DM_TYPES.has(type) || type.includes('dm') || type.includes('message'));
+                }).reduce((acc: number, curr: any) => acc + Number(curr.count), 0) || 0;
+
                 chartData.push({ name: dayName, value: count });
             }
 
             setData(chartData);
         } catch (error) {
-            // Error ignored as requested
+            console.error('Error fetching chart data:', error);
         } finally {
             setLoading(false);
         }

@@ -24,29 +24,20 @@ export default function TopPerforming() {
         try {
             setLoading(true);
 
-            // 1. Fetch all automations for the user
-            const { data: autos, error: autosError } = await supabase
-                .from('automations')
-                .select('id, name')
-                .eq('user_id', user!.id);
+            // 🚀 OPTIMIZED: Use RPC to get aggregated top automations directly from Postgres
+            const { data: stats, error } = await supabase
+                .rpc('get_top_performing_automations', {
+                    p_user_id: user!.id,
+                    p_limit: 5
+                });
 
-            if (autosError) throw autosError;
-            if (!autos || autos.length === 0) {
+            if (error) throw error;
+            if (!stats || stats.length === 0) {
                 setAutomations([]);
                 return;
             }
 
-            // 2. Fetch activity counts for these automations
-            const { data: activities, error: activitiesError } = await supabase
-                .from('automation_activities')
-                .select('automation_id')
-                .eq('user_id', user!.id)
-                .order('created_at', { ascending: false })
-                .limit(2000);
-
-            if (activitiesError) throw activitiesError;
-
-            // 3. Process data
+            // 2. Process data for UI
             const colors = [
                 'from-blue-500 to-cyan-500',
                 'from-purple-500 to-indigo-500',
@@ -55,26 +46,16 @@ export default function TopPerforming() {
                 'from-orange-500 to-red-500'
             ];
 
-            const processedAutos = autos.map((auto, index) => {
-                const count = activities?.filter(a => {
-                    const aId = a.automation_id || (a.metadata as any)?.automation_id || (a.metadata as any)?.automationId || (a.metadata as any)?.AutomationId;
-                    return aId === auto.id;
-                }).length || 0;
-                return {
-                    name: auto.name,
-                    count: count,
-                    color: colors[index % colors.length]
-                };
-            });
-
             // Sort by count descending and take top 3
-            const sortedAutos = processedAutos.sort((a, b) => b.count - a.count).slice(0, 3);
+            const sortedStats = [...stats].sort((a, b) => Number(b.count) - Number(a.count)).slice(0, 3);
 
             // Calculate relative percentages for progress bars
-            const maxCount = Math.max(...sortedAutos.map(a => a.count), 1);
-            const finalAutos = sortedAutos.map(a => ({
-                ...a,
-                percent: Math.round((a.count / maxCount) * 100)
+            const maxCount = Math.max(...sortedStats.map(a => Number(a.count)), 1);
+            const finalAutos = sortedStats.map((stat, index) => ({
+                name: stat.automation_name || 'Unnamed Automation',
+                count: Number(stat.count),
+                color: colors[index % colors.length],
+                percent: Math.round((Number(stat.count) / maxCount) * 100)
             }));
 
             setAutomations(finalAutos);

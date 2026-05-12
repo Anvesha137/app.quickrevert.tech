@@ -31,30 +31,33 @@ export default function UsageGraph() {
                     });
                 });
 
-                const { data: activities, error } = await supabase
-                    .from('automation_activities')
-                    .select('activity_type, executed_at')
-                    .eq('user_id', user.id)
-                    .gte('executed_at', start.toISOString())
-                    .lte('executed_at', end.toISOString());
+                // 🚀 OPTIMIZED: Use RPC to get counts instead of raw rows
+                const { data: stats, error } = await supabase
+                    .rpc('get_daily_activity_stats', {
+                        p_user_id: user.id,
+                        p_start_date: start.toISOString(),
+                        p_end_date: end.toISOString()
+                    });
 
                 if (error) throw error;
 
-                activities?.forEach(activity => {
-                    const dateKey = format(new Date(activity.executed_at), 'yyyy-MM-dd');
+                stats?.forEach((stat: any) => {
+                    const dateKey = stat.date;
                     if (dataMap.has(dateKey)) {
                         const entry = dataMap.get(dateKey);
-                        if (['dm', 'dm_sent', 'send_dm', 'user_directed_messages'].includes(activity.activity_type)) {
-                            entry.dms += 1;
-                        } else if (['incoming_comment', 'reply_to_comment', 'comment', 'reply', 'post_comment'].includes(activity.activity_type)) {
-                            entry.comments += 1;
+                        const type = (stat.activity_type || '').toLowerCase();
+                        
+                        if (['dm', 'dm_sent', 'send_dm', 'user_directed_messages', 'incoming_message', 'interaction'].includes(type)) {
+                            entry.dms += Number(stat.count);
+                        } else if (['incoming_comment', 'reply_to_comment', 'comment', 'reply', 'post_comment', 'comment_reply'].includes(type)) {
+                            entry.comments += Number(stat.count);
                         }
                     }
                 });
 
                 setData(Array.from(dataMap.values()));
             } catch (error) {
-                // Error ignored as requested
+                console.error('Error fetching usage stats:', error);
             } finally {
                 setLoading(false);
             }
