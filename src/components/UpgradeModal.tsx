@@ -247,6 +247,14 @@ export default function UpgradeModal() {
                 setLoading(false);
                 const details = data.details ? ` (${data.details})` : '';
                 toast.error(`Order Failed: ${data.error}${details}`);
+                
+                // Auto-fix for nuclear tests: if user is deleted, sign them out
+                if (data.error === "Authentication failed" && (data.details?.includes("does not exist") || data.details?.includes("invalid"))) {
+                    setTimeout(() => {
+                        supabase.auth.signOut();
+                        toast.info("Session invalid. Please log in again.");
+                    }, 1500);
+                }
                 return;
             }
 
