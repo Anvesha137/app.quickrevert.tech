@@ -59,14 +59,14 @@ serve(async (req) => {
       await client.queryArray(`
         UPDATE users
         SET expiry_date = joining_date + INTERVAL '3 months'
-        WHERE package = 'Premium Quarterly' AND expiry_date IS NULL;
+        WHERE plan_name = 'Premium Quarterly' AND expiry_date IS NULL;
       `);
 
       // Backfill Existing Data: Annual
       await client.queryArray(`
         UPDATE users
         SET expiry_date = joining_date + INTERVAL '1 year'
-        WHERE package = 'Premium Annual' AND expiry_date IS NULL;
+        WHERE plan_name = 'Premium Annual' AND expiry_date IS NULL;
       `);
 
       // Adjust Legacy Data to IST (Shift +5.5 hours)
@@ -95,7 +95,6 @@ serve(async (req) => {
       // Add 'package' and 'billing_cycle' columns
       await client.queryArray(`
         ALTER TABLE users 
-        ADD COLUMN IF NOT EXISTS package TEXT,
         ADD COLUMN IF NOT EXISTS billing_cycle TEXT;
       `);
 
@@ -113,7 +112,7 @@ serve(async (req) => {
         ADD COLUMN IF NOT EXISTS subscription_start TIMESTAMP WITH TIME ZONE;
       `);
 
-      // Add 'instagram_handle' and 'automations_count' columns
+      console.log('Adding instagram_handle columns...');
       await client.queryArray(`
         ALTER TABLE users 
         ADD COLUMN IF NOT EXISTS instagram_handle TEXT,
@@ -159,13 +158,13 @@ serve(async (req) => {
       await client.queryArray(`
         UPDATE users
         SET subscription_start_date = expiry_date - INTERVAL '3 months'
-        WHERE package = 'Premium Quarterly' AND subscription_start_date IS NULL AND expiry_date IS NOT NULL;
+        WHERE plan_name = 'Premium Quarterly' AND subscription_start_date IS NULL AND expiry_date IS NOT NULL;
       `);
 
       await client.queryArray(`
         UPDATE users
         SET subscription_start_date = expiry_date - INTERVAL '1 year'
-        WHERE package = 'Premium Annual' AND subscription_start_date IS NULL AND expiry_date IS NOT NULL;
+        WHERE plan_name = 'Premium Annual' AND subscription_start_date IS NULL AND expiry_date IS NOT NULL;
       `);
 
       return new Response(
@@ -175,10 +174,11 @@ serve(async (req) => {
     } finally {
       await client.end();
     }
-  } catch (error) {
+  } catch (error: any) {
+    console.error('Migration failed:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      JSON.stringify({ error: error.message, stack: error.stack }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
   }
 });

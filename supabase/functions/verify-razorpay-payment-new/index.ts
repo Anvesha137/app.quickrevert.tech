@@ -18,6 +18,7 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || '';
     const supabaseSecretKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SECRET_KEY') || '';
+    const neonDbUrl = Deno.env.get('NEON_DB_URL') || '';
 
     // --- Auth Verification ---
     const authHeader = req.headers.get('Authorization');
@@ -72,15 +73,14 @@ serve(async (req) => {
         );
       }
 
-      const neonDbUrlFree = Deno.env.get('NEON_DB_URL') ?? '';
-      if (!neonDbUrlFree) {
+      if (!neonDbUrl) {
         return new Response(
           JSON.stringify({ error: 'Server configuration error: Neon not configured' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      const freeClient = new Client(neonDbUrlFree);
+      const freeClient = new Client(neonDbUrl);
       try {
         await freeClient.connect();
         const freeResult = await freeClient.queryObject(`
@@ -204,9 +204,8 @@ serve(async (req) => {
 
     // Fetch and calculate discount strictly on server
     if (couponCode) {
-      const neonDbUrl2 = Deno.env.get('NEON_DB_URL');
-      if (neonDbUrl2) {
-        const couponClient = new Client(neonDbUrl2);
+      if (neonDbUrl) {
+        const couponClient = new Client(neonDbUrl);
         try {
           await couponClient.connect();
           const couponResult = await couponClient.queryObject(`
