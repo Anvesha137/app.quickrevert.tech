@@ -31,7 +31,9 @@ export default function DMsChart() {
                 .from('automation_activities')
                 .select('created_at, activity_type')
                 .eq('user_id', user!.id)
-                .gte('created_at', sevenDaysAgo.toISOString());
+                .gte('created_at', sevenDaysAgo.toISOString())
+                .order('created_at', { ascending: false })
+                .limit(5000); // 🔒 SAFETY LIMIT
 
             if (error) throw error;
 
