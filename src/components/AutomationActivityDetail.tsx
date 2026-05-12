@@ -134,11 +134,12 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
       const { data: activitiesData, error: activitiesError } = await supabase
         .from('automation_activities')
         .select(`
-            *,
+            id, activity_type, message, status, created_at, target_username, metadata->direction, metadata->following, metadata->seen,
             contact:contacts(username, instagram_user_id, full_name, avatar_url)
         `)
         .eq('automation_id', automationId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(50);
 
       if (activitiesError) throw activitiesError;
 
@@ -163,7 +164,7 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
       let n8nExecutions: Activity[] = [];
       if (n8nWorkflowId) {
         try {
-          const executionsResult = await N8nWorkflowService.getExecutions(n8nWorkflowId, 100, user.id);
+          const executionsResult = await N8nWorkflowService.getExecutions(n8nWorkflowId, 20, user.id);
 
           if (executionsResult.executions && executionsResult.executions.length > 0) {
             // Fetch detailed execution data for each execution

@@ -219,7 +219,7 @@ export default function LeadManager() {
     try {
       const { data: activities } = await supabase
         .from('automation_activities')
-        .select('target_username, automation_id, metadata')
+        .select('target_username, automation_id, metadata->raw_id, metadata->sender_id, metadata->from')
         .eq('user_id', user!.id)
         .order('created_at', { ascending: false })
         .limit(2000);

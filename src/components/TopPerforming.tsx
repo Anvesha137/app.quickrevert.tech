@@ -39,7 +39,7 @@ export default function TopPerforming() {
             // 2. Fetch activity counts for these automations
             const { data: activities, error: activitiesError } = await supabase
                 .from('automation_activities')
-                .select('automation_id, metadata')
+                .select('automation_id')
                 .eq('user_id', user!.id)
                 .order('created_at', { ascending: false })
                 .limit(2000);

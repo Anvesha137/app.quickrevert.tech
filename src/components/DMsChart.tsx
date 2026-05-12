@@ -29,7 +29,7 @@ export default function DMsChart() {
 
             const { data: allActivities, error } = await supabase
                 .from('automation_activities')
-                .select('created_at, activity_type, metadata')
+                .select('created_at, activity_type')
                 .eq('user_id', user!.id)
                 .gte('created_at', sevenDaysAgo.toISOString());
 

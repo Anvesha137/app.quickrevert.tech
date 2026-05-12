@@ -66,7 +66,7 @@ export default function RecentActivity() {
       setLoading(true);
       const { data: automationActivities, error: activitiesError } = await supabase
         .from('automation_activities')
-        .select('*')
+        .select('id, activity_type, target_username, message, status, created_at, metadata->direction, metadata->following, metadata->seen')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(20);
