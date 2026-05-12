@@ -293,32 +293,48 @@ serve(async (req) => {
         neonClient = new Client(neonDbUrl);
         await neonClient.connect();
 
-        // 10a. Cancel active subscription in Neon
+        // 10a. Resolve correct Neon ID (handles cases where Neon ID != Supabase ID, or user doesn't exist)
+        let neonUserId = userId;
+        const neonUserRes = await neonClient.queryObject(
+          `SELECT id FROM users WHERE email = $1`, [userEmail]
+        );
+        if (neonUserRes.rows.length > 0) {
+           neonUserId = (neonUserRes.rows[0] as any).id;
+        } else {
+           await neonClient.queryObject(
+             `INSERT INTO users (id, email, username, status, joining_date, last_active)
+              VALUES ($1, $2, $2, 'inactive', NOW(), NOW())`,
+             [neonUserId, userEmail]
+           );
+           console.log(`[razorpay-refund-webhook] ✅ Inserted minimal Neon user record for ${neonUserId}`);
+        }
+
+        // 10b. Cancel active subscription in Neon
         await neonClient.queryObject(
           `UPDATE subscriptions
            SET status = 'cancelled'
            WHERE user_id = $1 AND status = 'active'`,
-          [userId]
+          [neonUserId]
         );
-        console.log(`[razorpay-refund-webhook] ✅ Neon subscription cancelled for user ${userId}`);
+        console.log(`[razorpay-refund-webhook] ✅ Neon subscription cancelled for user ${neonUserId}`);
 
-        // 10b. Update user plan_status in Neon
+        // 10c. Update user plan_status in Neon
         await neonClient.queryObject(
           `UPDATE users
            SET plan_status = 'cancelled',
                status = 'inactive'
            WHERE id = $1`,
-          [userId]
+          [neonUserId]
         );
-        console.log(`[razorpay-refund-webhook] ✅ Neon user plan_status set to cancelled for ${userId}`);
+        console.log(`[razorpay-refund-webhook] ✅ Neon user plan_status set to cancelled for ${neonUserId}`);
 
-        // 10c. Insert a refund payment record in Neon
+        // 10d. Insert a refund payment record in Neon
         await neonClient.queryObject(
           `INSERT INTO payments (user_id, amount, discount_amount, promo_code, payment_status, paid_at)
            VALUES ($1, $2, 0, NULL, 'refunded', NOW() + INTERVAL '5 hours 30 minutes')`,
-          [userId, refundAmountRs]
+          [neonUserId, refundAmountRs]
         );
-        console.log(`[razorpay-refund-webhook] ✅ Neon refund payment record inserted: ₹${refundAmountRs} for user ${userId}`);
+        console.log(`[razorpay-refund-webhook] ✅ Neon refund payment record inserted: ₹${refundAmountRs} for user ${neonUserId}`);
 
       } catch (neonErr: any) {
         console.error("[razorpay-refund-webhook] ⚠️ Neon sync failed (non-critical):", neonErr);
