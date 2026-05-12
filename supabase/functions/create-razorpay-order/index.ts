@@ -34,16 +34,17 @@ serve(async (req) => {
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser(jwt);
     
     if (authError || !user) {
+      console.error("[AUTH ERROR]", authError?.message || "User not found for this JWT");
       return new Response(
         JSON.stringify({ 
           error: "Authentication failed", 
-          details: authError?.message || "User session invalid"
+          details: authError?.message || "User session invalid or account was deleted. Please log out and log in again."
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       );
     }
 
-    const { planTier, planType, instagramHandle, couponCode } = await req.json()
+    const { planTier, planType, instagramHandle, couponCode, assistedBy } = await req.json()
 
     const key_id = Deno.env.get('RAZORPAY_KEY_ID');
     const key_secret = Deno.env.get('RAZORPAY_KEY_SECRET');
@@ -222,7 +223,8 @@ serve(async (req) => {
       receipt: `receipt_${Date.now()}`,
       notes: {
         instagram_handle: instagramHandle,
-        coupon_code: couponCode
+        coupon_code: couponCode,
+        assisted_by: assistedBy || 'organic'
       }
     };
 

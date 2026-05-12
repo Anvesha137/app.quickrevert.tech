@@ -232,19 +232,21 @@ export default function UpgradeModal() {
                     planTier: planTier,
                     planType: billingCycle,
                     instagramHandle: instagramHandle,
-                    couponCode: couponCode
+                    couponCode: couponCode,
+                    assistedBy: assistedBy
                 }
             });
 
             if (error) {
-                const errorMsg = error.message || 'Failed to create order. Please try again.';
+                const errorMsg = error.message || 'Failed to create order.';
                 setLoading(false);
                 toast.error(`Order Failed: ${errorMsg}`);
                 return;
             }
             if (data?.error) {
                 setLoading(false);
-                toast.error(`Order Failed: ${data.error}`);
+                const details = data.details ? ` (${data.details})` : '';
+                toast.error(`Order Failed: ${data.error}${details}`);
                 return;
             }
 
