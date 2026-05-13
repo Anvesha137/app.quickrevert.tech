@@ -57,15 +57,26 @@ export default function LeadManager() {
     }
   }, [user, activeTab]);
 
+  // Helper: 7 days ago timestamp
+  const getSevenDaysAgo = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    d.setHours(0, 0, 0, 0);
+    return d.toISOString();
+  };
+
   async function fetchLeads() {
     if (!user) return;
     try {
       setLoading(true);
+      // 🚀 OPTIMIZED: Only needed columns, last 7 days, 500-row cap
       const { data, error } = await supabase
         .from('leads')
-        .select('*')
+        .select('id, instagram_username, full_name, email, phone, automation_name, created_at, metadata, custom_data, custom_label')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .gte('created_at', getSevenDaysAgo())
+        .order('created_at', { ascending: false })
+        .limit(500);
 
       if (error) throw error;
       setLeads(data || []);
@@ -166,7 +177,8 @@ export default function LeadManager() {
     try {
       setLoading(true);
 
-      // Parallelize accounts and contacts fetch
+      // 🚀 OPTIMIZED: Parallelize accounts and contacts fetch, contacts limited to 7 days
+      const sevenDaysAgo = getSevenDaysAgo();
       const [igAccountsResult, contactsResult] = await Promise.all([
         supabase
           .from('instagram_accounts')
@@ -175,9 +187,11 @@ export default function LeadManager() {
           .eq('status', 'active'),
         supabase
           .from('contacts')
-          .select('*')
+          .select('id, instagram_user_id, username, full_name, avatar_url, interaction_count, last_interaction_at, instagram_account_id')
           .eq('user_id', user.id)
+          .gte('last_interaction_at', sevenDaysAgo)
           .order('last_interaction_at', { ascending: false })
+          .limit(500)
       ]);
 
       const connectedUsernames = (igAccountsResult.data || []).map(a => a.username?.toLowerCase().trim()).filter(Boolean);
@@ -186,27 +200,28 @@ export default function LeadManager() {
       if (contactsResult.error) throw contactsResult.error;
       const initialContacts = contactsResult.data || [];
 
-      // If no contacts exist at all, do initial sync (don't block UI with constant background syncs)
+      // If no contacts exist at all, do initial sync (only once, not on every load)
       if (initialContacts.length === 0) {
         await syncHistoricalContactsInternal(connectedUsernames);
-        
+
         // Re-fetch after initial sync
         const { data: syncedData } = await supabase
           .from('contacts')
-          .select('*')
+          .select('id, instagram_user_id, username, full_name, avatar_url, interaction_count, last_interaction_at, instagram_account_id')
           .eq('user_id', user.id)
-          .order('last_interaction_at', { ascending: false });
+          .gte('last_interaction_at', sevenDaysAgo)
+          .order('last_interaction_at', { ascending: false })
+          .limit(500);
 
         if (syncedData && syncedData.length > 0) {
           processAndSetContacts(syncedData, connectedUsernames);
-          // Only fetch activities once for automation names
-          await fetchActivitiesAndBuildNames();
+          await buildAutomationNamesFromContacts(syncedData);
         } else {
           setContacts([]);
         }
       } else {
         processAndSetContacts(initialContacts, connectedUsernames);
-        await fetchActivitiesAndBuildNames();
+        await buildAutomationNamesFromContacts(initialContacts);
       }
     } catch (error) {
       console.error('Error fetching contacts:', error);
@@ -215,20 +230,36 @@ export default function LeadManager() {
     }
   }
 
-  async function fetchActivitiesAndBuildNames() {
+  // 🚀 OPTIMIZED: Build automation names from contacts table directly (no automation_activities fetch)
+  async function buildAutomationNamesFromContacts(contactsData: any[]) {
     try {
-      const { data: activities } = await supabase
-        .from('automation_activities')
-        .select('target_username, automation_id, metadata->raw_id, metadata->sender_id, metadata->from')
-        .eq('user_id', user!.id)
-        .order('created_at', { ascending: false })
-        .limit(2000);
-        
-      if (activities) {
-        await fetchAutomationNamesForActivities(activities);
-      }
+      if (!contactsData || contactsData.length === 0) return;
+
+      const { data: automations } = await supabase
+        .from('automations')
+        .select('id, name')
+        .eq('user_id', user!.id);
+
+      if (!automations) return;
+      const autoMap = new Map<string, string>();
+      automations.forEach(a => autoMap.set(a.id, a.name));
+
+      // contacts.interacted_automations already has this data if populated
+      // Build from what we have without hitting automation_activities
+      const contactAutomations: Record<string, string[]> = {};
+      contactsData.forEach(c => {
+        const key = c.instagram_user_id ? String(c.instagram_user_id) : c.username?.toLowerCase();
+        if (!key) return;
+        if (c.interacted_automations?.length > 0) {
+          contactAutomations[key] = c.interacted_automations
+            .map((id: string) => autoMap.get(id))
+            .filter(Boolean);
+        }
+      });
+
+      setAutomationNames(contactAutomations);
     } catch (e) {
-      console.error("Error fetching activities", e);
+      console.error('Error building automation names:', e);
     }
   }
 
@@ -276,12 +307,14 @@ export default function LeadManager() {
 
   async function syncHistoricalContactsInternal(igUsernames: string[]) {
     try {
+      // 🚀 OPTIMIZED: Only needed columns, last 7 days, no select('*')
       const { data: activities } = await supabase
         .from('automation_activities')
-        .select('*')
+        .select('target_username, automation_id, instagram_account_id, created_at, metadata->raw_id, metadata->sender_id, metadata->from')
         .eq('user_id', user!.id)
+        .gte('created_at', getSevenDaysAgo())
         .order('created_at', { ascending: false })
-        .limit(2000);
+        .limit(500);
 
       if (!activities || activities.length === 0) return;
 
