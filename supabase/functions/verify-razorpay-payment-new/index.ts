@@ -436,14 +436,14 @@ serve(async (req) => {
           const initialFollowersCount = instagramData?.initial_followers_count || 0;
           const growth = Math.max(0, followersCount - initialFollowersCount);
 
-          // Fetch lifetime metrics
+          // Fetch lifetime metrics — DMs from counter, comments still counted
           const [dmRes, cmtRes, conRes] = await Promise.all([
-            supabaseClient.from('automation_activities').select('*', { count: 'exact', head: true }).eq('user_id', userId).in('activity_type', ['dm', 'send_dm', 'incoming_message', 'incoming_event', 'interaction']),
-            supabaseClient.from('automation_activities').select('*', { count: 'exact', head: true }).eq('user_id', userId).in('activity_type', ['comment', 'reply', 'incoming_comment', 'comment_reply']),
+            supabaseClient.from('user_limits').select('total_dms').eq('user_id', userId).maybeSingle(),
+            supabaseClient.from('automation_activities').select('id', { count: 'exact', head: true }).eq('user_id', userId).in('activity_type', ['comment', 'reply', 'incoming_comment', 'comment_reply']),
             supabaseClient.from('contacts').select('*', { count: 'exact', head: true }).eq('user_id', userId)
           ]);
 
-          const totalDMs = dmRes.count || 0;
+          const totalDMs = dmRes.data?.total_dms || 0;  // from pre-computed counter
           const totalComments = cmtRes.count || 0;
           const totalReach = conRes.count || 0;
 

@@ -105,12 +105,12 @@ export default function Dashboard() {
           .select('id, status')
           .eq('user_id', user!.id),
 
-        // 2. DM count server-side (no row data transferred)
+        // 2. DM count — from pre-computed counter (no table scan)
         supabase
-          .from('automation_activities')
-          .select('id', { count: 'exact', head: true })
+          .from('user_limits')
+          .select('total_dms')
           .eq('user_id', user!.id)
-          .in('activity_type', DM_ACTIVITY_TYPES),
+          .maybeSingle(),
 
         // 3. Comment count server-side
         supabase
@@ -143,7 +143,7 @@ export default function Dashboard() {
       const activeAutomationsCount = automationsResult.data?.filter(a => a.status === 'active').length || 0;
 
       setStats({
-        dmsTriggered: dmCountResult.count || 0,
+        dmsTriggered: dmCountResult.data?.total_dms || 0,
         activeAutomations: activeAutomationsCount,
         commentReplies: commentCountResult.count || 0,
         uniqueUsers: contactsCountResult.count || 0,

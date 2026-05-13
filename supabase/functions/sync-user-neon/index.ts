@@ -48,8 +48,9 @@ serve(async (req) => {
       .maybeSingle();
 
     const [dmRes, cmtRes, conRes, autoRes, subRes] = await Promise.all([
-      supabaseClient.from('automation_activities').select('*', { count: 'exact', head: true }).eq('user_id', userId).in('activity_type', ['dm', 'send_dm', 'incoming_message', 'incoming_event', 'interaction']),
-      supabaseClient.from('automation_activities').select('*', { count: 'exact', head: true }).eq('user_id', userId).in('activity_type', ['comment', 'reply', 'incoming_comment', 'comment_reply']),
+      // 🚀 OPTIMIZED: Read pre-computed counter from user_limits instead of scanning automation_activities
+      supabaseClient.from('user_limits').select('total_dms').eq('user_id', userId).maybeSingle(),
+      supabaseClient.from('automation_activities').select('id', { count: 'exact', head: true }).eq('user_id', userId).in('activity_type', ['comment', 'reply', 'incoming_comment', 'comment_reply']),
       supabaseClient.from('contacts').select('*', { count: 'exact', head: true }).eq('user_id', userId),
       supabaseClient.from('automations').select('*', { count: 'exact', head: true }).eq('user_id', userId),
       supabaseClient.from('subscriptions').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle()
@@ -58,7 +59,7 @@ serve(async (req) => {
     const activeAutomationsRes = await supabaseClient.from('automations').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'active');
     const deactivatedAutomationsRes = await supabaseClient.from('automations').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'inactive');
 
-    const totalDMs = dmRes.count || 0;
+    const totalDMs = dmRes.data?.total_dms || 0;  // from counter
     const totalComments = cmtRes.count || 0;
     const totalReach = conRes.count || 0;
     const totalAutomations = autoRes.count || 0;

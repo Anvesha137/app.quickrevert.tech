@@ -27,46 +27,35 @@ export default function TopAutomations() {
 
   const fetchTopAutomations = async () => {
     try {
-      const { data: allAutomations, error: automationsError } = await supabase
-        .from('automations')
-        .select('id, name, trigger_type')
-        .eq('user_id', user!.id);
+      // 🚀 OPTIMIZED: Use RPC — no raw row fetching, pure server-side aggregation
+      const { data: stats, error } = await supabase
+        .rpc('get_top_performing_automations', {
+          p_user_id: user!.id,
+          p_limit: 3
+        });
 
-      if (automationsError) throw automationsError;
-
-      if (!allAutomations || allAutomations.length === 0) {
+      if (error) throw error;
+      if (!stats || stats.length === 0) {
         setAutomations([]);
         return;
       }
 
-      const { data: activities, error: activitiesError } = await supabase
-        .from('automation_activities')
-        .select('automation_id, status')
-        .order('created_at', { ascending: false })
-        .eq('user_id', user!.id)
-        .limit(1000);
+      // Fetch trigger_type for the matched automations (only 3 rows max)
+      const ids = stats.map((s: any) => s.automation_id);
+      const { data: autoDetails } = await supabase
+        .from('automations')
+        .select('id, trigger_type')
+        .in('id', ids);
 
-      if (activitiesError) throw activitiesError;
+      const triggerMap = new Map((autoDetails || []).map(a => [a.id, a.trigger_type]));
 
-      const automationStats = allAutomations.map(auto => {
-        const autoActivities = activities?.filter(a => a.automation_id === auto.id) || [];
-        const successCount = autoActivities.filter(a => a.status === 'success').length;
-        const successRate = autoActivities.length > 0
-          ? Math.round((successCount / autoActivities.length) * 100)
-          : 0;
-
-        return {
-          id: auto.id,
-          name: auto.name,
-          activityCount: autoActivities.length,
-          successRate,
-          trigger_type: auto.trigger_type,
-        };
-      });
-
-      const topThree = automationStats
-        .sort((a, b) => b.activityCount - a.activityCount)
-        .slice(0, 3);
+      const topThree = stats.map((s: any) => ({
+        id: s.automation_id,
+        name: s.automation_name || 'Unnamed Automation',
+        activityCount: Number(s.count),
+        successRate: 100, // RPC counts successful activities only
+        trigger_type: triggerMap.get(s.automation_id) || 'user_directed_messages',
+      }));
 
       setAutomations(topThree);
     } catch (error) {

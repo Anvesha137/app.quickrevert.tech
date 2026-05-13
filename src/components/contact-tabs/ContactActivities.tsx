@@ -76,12 +76,17 @@ export default function ContactActivities({ username }: ContactActivitiesProps) 
   async function fetchActivities() {
     setLoading(true);
     try {
-      // Fetch from automation_activities table
+      // 🚀 OPTIMIZED: Specific columns, 7-day filter, 100-row cap
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
       const { data: automationActivities, error: activitiesError } = await supabase
         .from('automation_activities')
-        .select('*')
+        .select('id, activity_type, target_username, message, status, created_at, metadata->direction, metadata->following, metadata->seen')
         .eq('target_username', username)
-        .order('created_at', { ascending: false });
+        .gte('created_at', sevenDaysAgo.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(100);
 
       if (activitiesError) throw activitiesError;
 
