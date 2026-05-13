@@ -58,8 +58,7 @@ interface SubscriptionContextType {
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
 
-// DM activity types for server-side filtering
-const DM_ACTIVITY_TYPES = ['dm', 'send_dm', 'incoming_message', 'incoming_event', 'interaction'];
+// DM activity types — kept for reference, count now read from user_limits.total_dms counter
 
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
     const { user } = useAuth();
@@ -173,11 +172,13 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
                     .select('id, user_id, plan_id, status, current_period_end, amount_paid, discount_amount, coupon_code, created_at')
                     .eq('user_id', user.id)
                     .order('created_at', { ascending: false }),
+                // 🚀 OPTIMIZED (Phase 3): Read from total_dms counter — no automation_activities scan
+                // total_dms is auto-maintained by a Postgres trigger on every DM insert
                 supabase
-                    .from('automation_activities')
-                    .select('id', { count: 'exact', head: true })
+                    .from('user_limits')
+                    .select('total_dms')
                     .eq('user_id', user.id)
-                    .in('activity_type', DM_ACTIVITY_TYPES),
+                    .maybeSingle(),
                 supabase
                     .from('contacts')
                     .select('id', { count: 'exact', head: true })
@@ -201,7 +202,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
             setHasInstagramConnected((instagramAccountResult.count || 0) > 0);
 
             setUsage({
-                dms: dmCountResult.count || 0,
+                dms: dmCountResult.data?.total_dms || 0,  // reads from counter, not table scan
                 contacts: contactCountResult.count || 0,
                 automations: automationCountResult.count || 0,
                 accounts: instagramAccountResult.count || 0
@@ -234,7 +235,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
                     subscription: subResult.data?.[0] || null,
                     invoices: subResult.data || [],
                     usage: {
-                        dms: dmCountResult.count || 0,
+                        dms: dmCountResult.data?.total_dms || 0,
                         contacts: contactCountResult.count || 0,
                         automations: automationCountResult.count || 0,
                         accounts: instagramAccountResult.count || 0
@@ -251,7 +252,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
                     subscription: subResult.data?.[0] || null,
                     invoices: subResult.data || [],
                     usage: {
-                        dms: dmCountResult.count || 0,
+                        dms: dmCountResult.data?.total_dms || 0,
                         contacts: contactCountResult.count || 0,
                         automations: automationCountResult.count || 0,
                         accounts: instagramAccountResult.count || 0

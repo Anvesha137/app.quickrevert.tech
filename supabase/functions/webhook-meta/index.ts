@@ -884,17 +884,19 @@ async function triggerWorkflows(normalized: any, routes: any[], workflows: any[]
     }));
 }
 
-// 🔒 DM LIMIT CHECK — queries user's dm_limit from Supabase users table
+// 🔒 DM LIMIT CHECK — reads pre-computed counter from user_limits (Phase 2 optimization)
 // Returns true if user has EXCEEDED their limit (should block)
 // dm_limit = null means unlimited, a number means enforce that limit
+// total_dms is maintained by a Postgres trigger on automation_activities insert
 const DM_ACTIVITY_TYPES = ['dm', 'send_dm', 'incoming_message', 'incoming_event', 'interaction'];
 
 async function checkUserDmLimit(supabaseClient: any, userId: string): Promise<boolean> {
     try {
-        // 1. Get user's dm_limit from user_limits table (synced by sync-user-neon)
+        // 🚀 OPTIMIZED: Read dm_limit AND total_dms counter in ONE query — no table scan
+        // total_dms is auto-incremented by the increment_user_dm_count trigger on every insert
         const { data: userData, error: userError } = await supabaseClient
             .from('user_limits')
-            .select('dm_limit, is_gifted')
+            .select('dm_limit, total_dms, is_gifted')
             .eq('user_id', userId)
             .maybeSingle();
 
@@ -910,23 +912,16 @@ async function checkUserDmLimit(supabaseClient: any, userId: string): Promise<bo
             return false;
         }
 
-        // 2. Count existing DM activities for this user
-        const { count, error: countError } = await supabaseClient
-            .from('automation_activities')
-            .select('id', { count: 'exact', head: true })
-            .eq('user_id', userId)
-            .in('activity_type', DM_ACTIVITY_TYPES);
-
-        if (countError) {
-            console.warn(`[DM LIMIT] Could not count DMs for ${userId}:`, countError.message);
-            return false;
-        }
-
-        const currentCount = count || 0;
+        // Read from counter — zero table scan, instant lookup
+        const currentCount = userData.total_dms || 0;
         const exceeded = currentCount >= dmLimit;
+
         if (exceeded) {
             console.log(`[DM LIMIT] User ${userId} at ${currentCount}/${dmLimit} — LIMIT EXCEEDED`);
+        } else {
+            console.log(`[DM LIMIT] User ${userId} at ${currentCount}/${dmLimit} — OK`);
         }
+
         return exceeded;
     } catch (e) {
         console.error(`[DM LIMIT] Exception checking limit for ${userId}:`, e);
