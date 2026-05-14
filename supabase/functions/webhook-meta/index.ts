@@ -635,7 +635,7 @@ async function upsertContact(supabase: any, contact: any) {
                 onConflict: 'user_id, instagram_account_id, instagram_user_id',
                 ignoreDuplicates: false
             })
-            .select() // REQUIRED to get the ID back
+            .select('id, interaction_count') // Only fetch what's needed
             .single();
 
         if (error) {
