@@ -93,9 +93,10 @@ Deno.serve(async (req: Request) => {
     }
 
     // 🔍 5. TRIGGER MATCHING
+    // 🚀 OPTIMIZED: Only fetch needed columns (trigger_config + actions can be large JSONB)
     const { data: automations } = await supabase
       .from('automations')
-      .select('*')
+      .select('id, name, trigger_type, trigger_config, actions')
       .eq('user_id', userId)
       .eq('status', 'active');
 
