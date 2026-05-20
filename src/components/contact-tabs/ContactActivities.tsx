@@ -90,54 +90,10 @@ export default function ContactActivities({ username }: ContactActivitiesProps) 
 
       if (activitiesError) throw activitiesError;
 
-      // Filter out n8n executions if we have DB records to avoid duplicates
-      // We'll mostly rely on DB records now
-      let n8nActivities: Activity[] = [];
-
-      if (user) {
-        try {
-          const executionsResult = await N8nWorkflowService.getExecutions(undefined, 50, user.id);
-          if (executionsResult.executions) {
-            const rawN8n = executionsResult.executions.filter((exec: any) => {
-              // Loose check: only include if we don't have a DB record around the same time
-              // or if the username loosely matches in the raw data
-              const execData = exec.data || exec;
-              const dataStr = JSON.stringify(execData).toLowerCase();
-              return dataStr.includes(username.toLowerCase());
-            });
-
-            n8nActivities = rawN8n.map((exec: any) => ({
-              id: exec.id || `n8n-${exec.executionId}`,
-              activity_type: 'dm', // Generic fallback
-              target_username: username,
-              message: exec.data?.message || exec.data?.text || 'Workflow execution log',
-              metadata: { source: 'n8n' },
-              status: exec.finished ? (exec.stoppedAt ? 'success' : 'failed') : 'pending',
-              created_at: exec.startedAt || exec.createdAt || new Date().toISOString(),
-            }));
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      }
-
-      // Merge: Prefer DB activities. Only add N8n activity if it's significantly different timestamp
-      // simple de-dupe strategy: if an n8n activity is within 2 seconds of a db activity, ignore it (assume it was the trigger)
-      const dbTimestamps = new Set((automationActivities || []).map(a => new Date(a.created_at).getTime()));
-
-      const uniqueN8n = n8nActivities.filter(n8n => {
-        const n8nTime = new Date(n8n.created_at).getTime();
-        // Check if any DB activity is within 5 seconds
-        for (const dbTime of dbTimestamps) {
-          if (Math.abs(dbTime - n8nTime) < 5000) return false;
-        }
-        return true;
-      });
-
-      const allActivities = [
-        ...(automationActivities || []),
-        ...uniqueN8n
-      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      // The massive payload fetching from N8n has been completely removed to prevent Cached Egress blowups.
+      // All activity is now accurately tracked natively in Supabase 'automation_activities'.
+      const allActivities = [...(automationActivities || [])]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       setActivities(allActivities);
     } catch (error) {

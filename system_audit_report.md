@@ -558,3 +558,26 @@ For automations triggered by plain-text DM keywords, we implemented the `tracked
 - **Mechanism**: The `webhook-meta` function now performs a pre-flight check using the `checkUserDmLimit` utility.
 - **Local Cache**: Plan flags (dm_limit, is_gifted, etc.) are synced from Neon to a local Supabase table `user_limits`.
 - **Enforcement**: If the user's DM count in `automation_activities` exceeds their assigned limit, `webhook-meta` blocks the n8n trigger and logs a `limit_exceeded` activity. This prevents users from exceeding their tier quotas without requiring a cross-database call on every webhook.
+
+---
+
+## 9. Troubleshooting: Unconstrained `select('*')` Queries
+
+Using `select('*')` instead of explicitly naming columns (`select('id, name')`) forces the database to return every column in a row. When combined with tables that hold large JSON objects (like `metadata`, `execution_data`, or `payloads`), this causes **massive Egress inflation** and slows down query execution. 
+
+Below is the active audit of `select('*')` usage in the codebase that needs to be refactored to specific columns:
+
+### 9.1 Frontend Components (High Priority for Refactoring)
+*   **`src/components/Automations.tsx` (Line 178)**: Fetching all automations. Should be restricted to `id, name, is_active, trigger_type, instagram_account_id`.
+*   **`src/components/AutomationCreate.tsx` / `AutomationCreate_millennial.tsx`**: Fetching accounts/workflows. 
+*   **`src/components/LeadManager.tsx`**: Fetching leads/contacts. (Note: Line 310 was successfully optimized, but lines 297 & 333 still use `select('*')`).
+*   **`src/components/InstagramConnectionStatus.tsx`**: Should only fetch `status, username, profile_pic`.
+*   **`src/components/Settings.tsx` & `PromoCodeGenerator.tsx`**: Fetching user profiles/promos.
+
+### 9.2 Edge Functions (Medium Priority)
+*   **`create-workflow` & `create-analytics-workflow`**: Fetching `instagram_accounts`. Only `id, access_token, user_id` are usually needed.
+*   **`instagram-refresh-token` & `instagram-oauth-callback`**: OAuth flow queries.
+*   **`fetch-instagram-profile` & `fetch-instagram-media`**: Diagnostic/Fetch queries.
+
+> [!TIP]
+> **Exception to the Rule:** `select('*', { count: 'exact', head: true })` (used in `webhook-meta` and `sync-user-neon`) is **safe**. The `{ head: true }` parameter tells Supabase to only return the count header and skip the body payload entirely. This costs zero Egress.

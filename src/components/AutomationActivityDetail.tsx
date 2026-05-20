@@ -143,88 +143,10 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
 
       if (activitiesError) throw activitiesError;
 
-      // Fetch n8n workflow ID for this automation
-      let n8nWorkflowId: string | null = null;
-      try {
-        const { data: workflowData, error: workflowError } = await supabase
-          .from('n8n_workflows')
-          .select('n8n_workflow_id')
-          .eq('automation_id', automationId)
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (!workflowError && workflowData) {
-          n8nWorkflowId = workflowData.n8n_workflow_id;
-        }
-      } catch (workflowErr) {
-        console.error('Error fetching n8n workflow:', workflowErr);
-      }
-
-      // Fetch n8n executions for this workflow
-      let n8nExecutions: Activity[] = [];
-      if (n8nWorkflowId) {
-        try {
-          const executionsResult = await N8nWorkflowService.getExecutions(n8nWorkflowId, 20, user.id);
-
-          if (executionsResult.executions && executionsResult.executions.length > 0) {
-            // Fetch detailed execution data for each execution
-            const executionDetailsPromises = executionsResult.executions.map(async (exec: any) => {
-              try {
-                // Get detailed execution data using getExecution
-                let execDetail = exec;
-                try {
-                  const detailedResult = await N8nWorkflowService.getExecution(exec.id, user.id);
-                  if (detailedResult.execution) {
-                    execDetail = detailedResult.execution;
-                  }
-                } catch (detailErr) {
-                  // fall back to basic
-                }
-
-                const { username, message } = extractN8nExecutionData(execDetail);
-
-                return {
-                  id: `n8n-${exec.id}`,
-                  activity_type: 'dm',
-                  target_username: username, // N8n still uses payload, acceptable for now as backup
-                  message: message,
-                  metadata: { source: 'n8n' },
-                  status: execDetail.finished ? (execDetail.stoppedAt ? 'success' : 'failed') : 'pending',
-                  created_at: execDetail.startedAt || execDetail.createdAt || new Date().toISOString(),
-                  isN8nExecution: true,
-                  executionData: execDetail,
-                } as Activity;
-
-              } catch (execErr) {
-                console.error(`Error processing execution ${exec.id}:`, execErr);
-                return null;
-              }
-            });
-
-            const executionDetails = await Promise.all(executionDetailsPromises);
-            n8nExecutions = executionDetails.filter((exec): exec is Activity => exec !== null);
-          }
-        } catch (n8nError) {
-          console.error('Error fetching n8n executions:', n8nError);
-        }
-      }
-
-      // Merge: Prefer DB activities. Only add N8n activity if it's significantly different timestamp
-      const dbTimestamps = new Set((activitiesData || []).map(a => new Date(a.created_at).getTime()));
-
-      const uniqueN8n = n8nExecutions.filter(n8n => {
-        const n8nTime = new Date(n8n.created_at).getTime();
-        for (const dbTime of dbTimestamps) {
-          if (Math.abs(dbTime - n8nTime) < 5000) return false;
-        }
-        return true;
-      });
-
-      // Combine and sort all activities
-      const allActivities = [
-        ...(activitiesData || []),
-        ...uniqueN8n
-      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      // The massive payload fetching from N8n has been completely removed to prevent Cached Egress blowups.
+      // All activity is now accurately tracked natively in Supabase 'automation_activities'.
+      const allActivities = [...(activitiesData || [])]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       setActivities(allActivities as Activity[]);
     } catch (error) {

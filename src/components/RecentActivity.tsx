@@ -78,32 +78,8 @@ export default function RecentActivity() {
         .filter(a => a.target_username && a.target_username !== 'Unknown' && a.target_username !== 'UnknownError')
         .map(a => ({ ...a, isN8nExecution: false }));
 
-      // Fetch n8n executions (optional layer)
-      try {
-        const executionsResult = await N8nWorkflowService.getExecutions(undefined, 10, user.id);
-        if (executionsResult.executions) {
-          const n8nExecs = executionsResult.executions
-            .filter((exec: any) => exec.data?.username && exec.data?.username !== 'Unknown')
-            .map((exec: any) => ({
-              id: `n8n-${exec.id}`,
-              activity_type: 'dm',
-              target_username: exec.data?.username,
-              message: exec.data?.message || exec.data?.text || 'Workflow execution',
-              metadata: { source: 'n8n' },
-              status: exec.finished ? (exec.stoppedAt ? 'success' : 'failed') : 'pending' as 'success' | 'failed' | 'pending',
-              created_at: exec.startedAt || exec.createdAt || new Date().toISOString(),
-              isN8nExecution: true,
-            }));
-
-          // Basic deduplication
-          const existingIds = new Set(processedActivities.map(p => p.id));
-          n8nExecs.forEach(exec => {
-            if (!existingIds.has(exec.id)) processedActivities.push(exec);
-          });
-        }
-      } catch (n8nError) {
-        console.error('Error fetching n8n executions:', n8nError);
-      }
+      // The n8n executions fetch has been removed to eliminate massive egress and payload overhead.
+      // All activity is now natively logged to automation_activities by webhook-meta and execute-automation.
 
       const finalActivities = processedActivities
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
