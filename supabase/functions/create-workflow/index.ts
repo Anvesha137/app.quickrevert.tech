@@ -2577,13 +2577,10 @@ if (typeof $getWorkflowStaticData === 'function') {
           // 3. Connect Picker -> Reply
           connections[pickerNodeName] = { main: [[{ node: nodeName, type: "main", index: 0 }]] };
 
-          // 4. Connect Anchor -> Picker (if no teaser)
-          const hasTeaser = actions.some((a: any) => a.type === 'send_dm' && a.askToFollow);
-          if (!hasTeaser) {
-            if (!connections[triggerAnchorNode]) connections[triggerAnchorNode] = { main: [[]] };
-            if (!connections[triggerAnchorNode].main[0]) connections[triggerAnchorNode].main[0] = [];
-            connections[triggerAnchorNode].main[0].push({ node: pickerNodeName, type: "main", index: 0 });
-          }
+          // 4. Connect Anchor -> Picker (always)
+          if (!connections[triggerAnchorNode]) connections[triggerAnchorNode] = { main: [[]] };
+          if (!connections[triggerAnchorNode].main[0]) connections[triggerAnchorNode].main[0] = [];
+          connections[triggerAnchorNode].main[0].push({ node: pickerNodeName, type: "main", index: 0 });
           return;
         }
 
@@ -2631,15 +2628,17 @@ if (typeof $getWorkflowStaticData === 'function') {
               credentials: { facebookGraphApi: { id: credentialId } }
             });
 
-            // 1. Connect Loop Protection to Teaser (Sequential start)
-            if (!connections[triggerAnchorNode]) connections[triggerAnchorNode] = { main: [[]] };
-            if (!connections[triggerAnchorNode].main[0]) connections[triggerAnchorNode].main[0] = [];
-            connections[triggerAnchorNode].main[0].push({ node: teaserNodeName, type: "main", index: 0 });
-
-            // 2. Connect Teaser to Picker -> Reply (Sequential chain)
+            // 1. Connect Teaser
             const replyActionIndex = actions.findIndex((a: any) => a.type === 'reply_to_comment');
             if (replyActionIndex !== -1) {
-              connections[teaserNodeName] = { main: [[{ node: `Round Robin Picker ${replyActionIndex + 1}`, type: "main", index: 0 }]] };
+              // Connect Reply -> Teaser
+              const replyNodeName = `Reply to Comment ${replyActionIndex + 1}`;
+              connections[replyNodeName] = { main: [[{ node: teaserNodeName, type: "main", index: 0 }]] };
+            } else {
+              // Connect Anchor -> Teaser if no reply
+              if (!connections[triggerAnchorNode]) connections[triggerAnchorNode] = { main: [[]] };
+              if (!connections[triggerAnchorNode].main[0]) connections[triggerAnchorNode].main[0] = [];
+              connections[triggerAnchorNode].main[0].push({ node: teaserNodeName, type: "main", index: 0 });
             }
 
             nodeX += 300;

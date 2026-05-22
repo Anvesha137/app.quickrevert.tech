@@ -5,7 +5,8 @@ import {
   ClipboardCheck,
   CreditCard,
   LogOut,
-  User
+  User,
+  Gift
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import UsageStats from './UsageStats';
@@ -22,6 +23,7 @@ export const navigation = [
   { id: 'automations', name: 'Automations', icon: Bot, path: '/automation' },
   { id: 'contacts', name: 'Lead Manager', icon: ClipboardCheck, path: '/lead-manager' },
   { id: 'billing', name: 'Billing', icon: CreditCard, path: '/billing' },
+  { id: 'referrals', name: 'My Referrals', icon: Gift, path: '/referrals' },
   { id: 'account', name: 'My Account', icon: User, path: '/account' },
 ];
 

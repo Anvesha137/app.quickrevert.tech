@@ -822,12 +822,7 @@ export default function Automations() {
                             <span className={cn("text-sm font-bold transition-colors", darkMode ? "text-white" : "text-blue-700")}>{triggerLabels[automation.trigger_type as keyof typeof triggerLabels]}</span>
                           </div>
 
-                          {automation.webhook_url && (
-                            <div className={cn("flex items-center gap-2 px-3 py-1.5 rounded-xl max-w-xs md:max-w-md border transition-colors", darkMode ? "bg-white/5 border-white/5" : "bg-indigo-50/50 border-indigo-100")}>
-                              <span className={cn("text-[10px] font-bold uppercase tracking-wider transition-colors", darkMode ? "text-indigo-400" : "text-indigo-400")}>Webhook</span>
-                              <span className={cn("text-xs font-mono truncate transition-colors", darkMode ? "text-white/40" : "text-indigo-600")}>{automation.webhook_url}</span>
-                            </div>
-                          )}
+
                         </div>
                       </div>
 
