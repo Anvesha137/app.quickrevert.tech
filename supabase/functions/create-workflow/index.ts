@@ -1529,6 +1529,18 @@ return results;`
         const nodes = [
           {
             "parameters": {
+              "httpMethod": "POST",
+              "path": webhookPath,
+              "options": {}
+            },
+            "id": "webhook-node",
+            "name": "Start Trigger",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2.1,
+            "position": [-320, -112]
+          },
+          {
+            "parameters": {
               "url": "https://graph.instagram.com/me",
               "authentication": "predefinedCredentialType",
               "nodeCredentialType": "facebookGraphApi",
@@ -1545,7 +1557,7 @@ return results;`
             },
             "type": "n8n-nodes-base.httpRequest",
             "typeVersion": 4.3,
-            "position": [-144, 464],
+            "position": [-96, -208],
             "id": "get-initial-stats",
             "name": "Get Instagram Stats1",
             "credentials": {
@@ -1637,6 +1649,17 @@ return results;`
         ];
 
         const connections = {
+          "Start Trigger": {
+            "main": [
+              [
+                {
+                  "node": "Get Instagram Stats1",
+                  "type": "main",
+                  "index": 0
+                }
+              ]
+            ]
+          },
           "Get Instagram Stats1": {
             "main": [
               [

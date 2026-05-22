@@ -17,6 +17,7 @@ serve(async (req) => {
         const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         const n8nBaseUrl = Deno.env.get("N8N_BASE_URL")!;
         const n8nApiKey = Deno.env.get("X-N8N-API-KEY")!;
+        const internalSecret = Deno.env.get("QUICKREVERT_INTERNAL_SECRET") || "";
 
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -92,7 +93,7 @@ serve(async (req) => {
                     "name": "Start Trigger",
                     "type": "n8n-nodes-base.webhook",
                     "typeVersion": 2.1,
-                    "position": [-320, -48]
+                    "position": [-320, -112]
                 },
                 {
                     "parameters": {
@@ -112,7 +113,7 @@ serve(async (req) => {
                     },
                     "type": "n8n-nodes-base.httpRequest",
                     "typeVersion": 4.3,
-                    "position": [-96, -48],
+                    "position": [-96, -208],
                     "id": "get-initial-stats",
                     "name": "Get Instagram Stats1",
                     "credentials": {
@@ -121,41 +122,6 @@ serve(async (req) => {
                         }
                     }
                 },
-                // ADDED: Save Initial Stats to Supabase
-                {
-                    "parameters": {
-                        "method": "PATCH",
-                        "url": `${supabaseUrl}/rest/v1/instagram_accounts?id=eq.${instagramAccountId}`,
-                        "headers": {
-                            "parameters": [
-                                { "name": "apikey", "value": supabaseServiceKey },
-                                { "name": "Authorization", "value": `Bearer ${supabaseServiceKey}` },
-                                { "name": "Content-Type", "value": "application/json" },
-                                { "name": "Prefer", "value": "return=minimal" }
-                            ]
-                        },
-                        "sendBody": true,
-                        "specifyBody": "json",
-                        "jsonBody": "={\n  \"initial_followers_count\": {{ $json.followers_count }},\n  \"followers_count\": {{ $json.followers_count }},\n  \"followers_last_updated\": \"{{ new Date().toISOString() }}\"\n}",
-                        "options": { "timeout": 15000 }
-                    },
-                    "type": "n8n-nodes-base.httpRequest",
-                    "typeVersion": 4.3,
-                    "position": [128, -148],
-                    "id": "save-initial",
-                    "name": "Save Initial Stats"
-                },
-                {
-                    "parameters": {
-                        "amount": 2,
-                        "unit": "days"
-                    },
-                    "type": "n8n-nodes-base.wait",
-                    "typeVersion": 1.1,
-                    "position": [128, -48],
-                    "id": "wait-2d",
-                    "name": "Wait 2 Days"
-                },
                 {
                     "parameters": {
                         "url": "https://graph.instagram.com/me",
@@ -174,7 +140,7 @@ serve(async (req) => {
                     },
                     "type": "n8n-nodes-base.httpRequest",
                     "typeVersion": 4.3,
-                    "position": [352, -48],
+                    "position": [128, -208],
                     "id": "get-updated-stats",
                     "name": "updated followers",
                     "credentials": {
@@ -183,29 +149,58 @@ serve(async (req) => {
                         }
                     }
                 },
-                // ADDED: Save Updated Stats to Supabase
                 {
                     "parameters": {
-                        "method": "PATCH",
-                        "url": `${supabaseUrl}/rest/v1/instagram_accounts?id=eq.${instagramAccountId}`,
-                        "headers": {
+                        "rule": {
+                            "interval": [
+                                {
+                                    "field": "days",
+                                    "daysInterval": 2
+                                }
+                            ]
+                        }
+                    },
+                    "type": "n8n-nodes-base.scheduleTrigger",
+                    "typeVersion": 1.3,
+                    "position": [-320, -304],
+                    "id": "schedule-trigger-node",
+                    "name": "Schedule Trigger"
+                },
+                {
+                    "parameters": {
+                        "method": "POST",
+                        "url": supabaseUrl + "/functions/v1/update-followers",
+                        "sendHeaders": true,
+                        "headerParameters": {
                             "parameters": [
-                                { "name": "apikey", "value": supabaseServiceKey },
-                                { "name": "Authorization", "value": `Bearer ${supabaseServiceKey}` },
-                                { "name": "Content-Type", "value": "application/json" },
-                                { "name": "Prefer", "value": "return=minimal" }
+                                { "name": "x-quickrevert-secret", "value": internalSecret },
+                                { "name": "Content-Type", "value": "application/json" }
                             ]
                         },
                         "sendBody": true,
                         "specifyBody": "json",
-                        "jsonBody": "={\n  \"followers_count\": {{ $json.followers_count }},\n  \"followers_last_updated\": \"{{ new Date().toISOString() }}\"\n}",
+                        "jsonBody": "={\n  \"id\": \"{{ $json.id }}\",\n  \"username\": \"{{ $json.username }}\",\n  \"followers_count\": {{ $json.followers_count }}\n}",
                         "options": { "timeout": 15000 }
                     },
                     "type": "n8n-nodes-base.httpRequest",
-                    "typeVersion": 4.3,
-                    "position": [576, -48],
-                    "id": "save-updated",
-                    "name": "Save Updated Stats"
+                    "typeVersion": 4.1,
+                    "position": [352, -208],
+                    "id": "update-followers-webhook",
+                    "name": "Update Followers"
+                },
+                {
+                    "parameters": {
+                        "httpMethod": "POST",
+                        "path": `analytics-refresh-${userId}`,
+                        "responseMode": "lastNode",
+                        "options": {}
+                    },
+                    "type": "n8n-nodes-base.webhook",
+                    "typeVersion": 2,
+                    "position": [-320, 720],
+                    "id": "refresh-webhook-node",
+                    "name": "Webhook",
+                    "webhookId": `webhook-analytics-${userId}`
                 }
             ],
             connections: {
@@ -224,28 +219,6 @@ serve(async (req) => {
                     "main": [
                         [
                             {
-                                "node": "Save Initial Stats",
-                                "type": "main",
-                                "index": 0
-                            }
-                        ]
-                    ]
-                },
-                "Save Initial Stats": {
-                    "main": [
-                        [
-                            {
-                                "node": "Wait 2 Days",
-                                "type": "main",
-                                "index": 0
-                            }
-                        ]
-                    ]
-                },
-                "Wait 2 Days": {
-                    "main": [
-                        [
-                            {
                                 "node": "updated followers",
                                 "type": "main",
                                 "index": 0
@@ -257,18 +230,29 @@ serve(async (req) => {
                     "main": [
                         [
                             {
-                                "node": "Save Updated Stats",
+                                "node": "Update Followers",
                                 "type": "main",
                                 "index": 0
                             }
                         ]
                     ]
                 },
-                "Save Updated Stats": {
+                "Schedule Trigger": {
                     "main": [
                         [
                             {
-                                "node": "Wait 2 Days",
+                                "node": "Get Instagram Stats1",
+                                "type": "main",
+                                "index": 0
+                            }
+                        ]
+                    ]
+                },
+                "Webhook": {
+                    "main": [
+                        [
+                            {
+                                "node": "Get Instagram Stats1",
                                 "type": "main",
                                 "index": 0
                             }

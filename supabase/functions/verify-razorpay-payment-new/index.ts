@@ -533,11 +533,11 @@ serve(async (req) => {
           const paymentStatus = isFree ? 'free' : 'paid';
           await neonClient.queryObject(`
             INSERT INTO payments (user_id, amount, discount_amount, promo_code, payment_status, paid_at)
-            SELECT $1, $2, $3, $4, $5, NOW() + INTERVAL '5 hours 30 minutes'
+            SELECT $1, $2, $3, $4, CAST($5 AS text), NOW() + INTERVAL '5 hours 30 minutes'
             WHERE NOT EXISTS (
               SELECT 1 FROM payments
               WHERE user_id = $1
-                AND payment_status = $5
+                AND payment_status = CAST($5 AS text)
                 AND paid_at > NOW() - INTERVAL '10 minutes'
             );
           `, [userId, amountPaidRs, discountRs, couponCode || null, paymentStatus]);

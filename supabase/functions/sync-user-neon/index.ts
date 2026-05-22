@@ -106,13 +106,14 @@ serve(async (req) => {
     await neonClient.connect();
 
     // 2.1 First, ensure user exists in Neon (clean up deleted users)
-    const { rows: existingNeonUsers } = await neonClient.queryObject(`SELECT id, deleted FROM users WHERE email ILIKE $1`, [cleanEmail]);
+    const { rows: existingNeonUsers } = await neonClient.queryObject(`SELECT id, deleted, assisted_by FROM users WHERE email ILIKE $1`, [cleanEmail]);
     
     if (existingNeonUsers.length > 0 && (existingNeonUsers[0] as any).deleted) {
       await neonClient.queryObject(`DELETE FROM users WHERE id = $1`, [(existingNeonUsers[0] as any).id]);
     }
 
     const isNewUser = existingNeonUsers.length === 0;
+    const existingAssistedBy = existingNeonUsers.length > 0 ? (existingNeonUsers[0] as any).assisted_by : null;
 
     // 2.2 Check Banned FIRST (early exit)
     const { rows: bannedRows } = await neonClient.queryObject(`SELECT id FROM banned_users WHERE email ILIKE $1`, [cleanEmail]);
@@ -185,17 +186,19 @@ serve(async (req) => {
     // 2.5 Notify Admin of New User
     if (isNewUser) {
       console.log(`[sync-user-neon] Sending notification for new user: ${cleanEmail}`);
+      const assistedByDisplay = existingAssistedBy || 'Unassigned';
       sendAlert({
         level: "info",
         subject: "New User Registered! 🚀",
         context: "Account Sync",
-        details: `A new user has joined QuickRevert.\n\n**Email:** ${cleanEmail}\n**Name:** ${usernameValue}\n**Instagram:** ${connectedHandle || 'Not connected'}\n**Followers:** ${followers}`,
+        details: `A new user has joined QuickRevert.\n\n**Email:** ${cleanEmail}\n**Name:** ${usernameValue}\n**Instagram:** ${connectedHandle || 'Not connected'}\n**Followers:** ${followers}\n**Assisted By:** ${assistedByDisplay}`,
         data: {
           userId,
           email: cleanEmail,
           name: usernameValue,
           instagram: connectedHandle,
-          followers
+          followers,
+          assistedBy: existingAssistedBy || null
         }
       }).catch(err => console.error("[ALERT] Failed to send new user notification:", err));
     }
