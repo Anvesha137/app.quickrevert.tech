@@ -11,6 +11,7 @@ interface PromoCode {
   discount_amount: number;
   discount_type: string;
   package: string;
+  expiry_date: string;
 }
 
 interface ReferralUsage {
@@ -155,6 +156,16 @@ export default function MyReferrals() {
                     <span className={darkMode ? 'text-slate-400' : 'text-slate-500'}>Applicable Package:</span>
                     <span className="font-medium bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-xs">
                       {pc.package}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className={darkMode ? 'text-slate-400' : 'text-slate-500'}>Expires On:</span>
+                    <span className="font-medium">
+                      {new Date(pc.expiry_date).toLocaleDateString('en-IN', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric'
+                      })}
                     </span>
                   </div>
                 </div>
