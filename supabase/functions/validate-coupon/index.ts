@@ -103,7 +103,7 @@ serve(async (req) => {
       const selectedPlan = (planType || '').toLowerCase();
       const selectedTier = (planTier || '').toLowerCase();
 
-      if (packType) {
+      if (packType && packType !== 'all plans' && packType !== 'all') {
         // Cycle Check
         if ((packType.includes('quarter') && selectedPlan !== 'quarterly') || (packType.includes('annual') && selectedPlan !== 'annual')) {
            return new Response(

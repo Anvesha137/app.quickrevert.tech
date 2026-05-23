@@ -65,7 +65,7 @@ serve(async (req) => {
       FROM payments p
       JOIN users u ON p.user_id = u.id
       WHERE p.promo_code = ANY($1) 
-      AND p.payment_status = 'paid'
+      AND p.payment_status IN ('paid', 'free')
       ORDER BY p.paid_at DESC
     `, [codes]);
 

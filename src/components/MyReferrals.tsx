@@ -59,7 +59,14 @@ export default function MyReferrals() {
   };
 
   const formatDateIST = (dateString: string) => {
-    const date = new Date(dateString);
+    // The backend artificially adds 5.5 hours to the timestamp before saving to Neon
+    // We reverse this shift to get the true UTC time, then format it natively to IST
+    const isZ = dateString.endsWith('Z');
+    const parseableString = isZ ? dateString : dateString + 'Z';
+    const date = new Date(parseableString);
+    
+    date.setMinutes(date.getMinutes() - 330);
+
     return date.toLocaleString('en-IN', {
       timeZone: 'Asia/Kolkata',
       day: '2-digit',

@@ -143,7 +143,7 @@ serve(async (req) => {
             }
 
             const packType = (coupon.package || '').toLowerCase();
-            if (packType) {
+            if (packType && packType !== 'all plans' && packType !== 'all') {
               const plan = (planType || '').toLowerCase();
               const tier = (planTier || '').toLowerCase();
 

@@ -69,14 +69,14 @@ serve(async (req) => {
       if (!couponCode) {
         return new Response(
           JSON.stringify({ error: 'Missing coupon code for free redemption' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
       if (!neonDbUrl) {
         return new Response(
           JSON.stringify({ error: 'Server configuration error: Neon not configured' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
@@ -84,7 +84,7 @@ serve(async (req) => {
       try {
         await freeClient.connect();
         const freeResult = await freeClient.queryObject(`
-          SELECT id, promo_code, discount_percentage,
+          SELECT id, promo_code, discount_percentage, discount_amount, discount_type,
                  max_usage, total_usage_tilldate, expiry_date, package
           FROM promo_codes
           WHERE LOWER(TRIM(promo_code)) = LOWER(TRIM($1))
@@ -94,7 +94,7 @@ serve(async (req) => {
         if (freeResult.rows.length === 0) {
           return new Response(
             JSON.stringify({ error: 'Invalid or Expired Coupon' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
@@ -103,14 +103,31 @@ serve(async (req) => {
         if (new Date(coupon.expiry_date) < new Date()) {
           return new Response(
             JSON.stringify({ error: 'Coupon has expired' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        if (coupon.discount_percentage !== 100) {
+        let baseAmountPaise = 0;
+        if (planTier === 'try_me_out') baseAmountPaise = 199 * 100;
+        else if (planTier === 'premium') baseAmountPaise = planType === 'annual' ? 4199 * 100 : 1199 * 100;
+        else if (planTier === 'professional') baseAmountPaise = planType === 'annual' ? 5999 * 100 : 1799 * 100;
+        else baseAmountPaise = planType === 'annual' ? (599 * 12 * 100) : (899 * 3 * 100);
+
+        const discountType = coupon.discount_type || 'percentage';
+        const discountPct = coupon.discount_percentage || 0;
+        const discountAmt = coupon.discount_amount || 0;
+        
+        let discountRupees = 0;
+        if (discountType === 'flat') {
+            discountRupees = discountAmt;
+        } else if (discountPct > 0) {
+            discountRupees = Math.floor((baseAmountPaise / 100) * (discountPct / 100));
+        }
+
+        if (Math.max(0, (baseAmountPaise / 100) - discountRupees) > 0) {
           return new Response(
-            JSON.stringify({ error: 'Coupon is not 100% off' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            JSON.stringify({ error: 'Coupon does not cover the full cost for a free checkout' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
@@ -128,7 +145,7 @@ serve(async (req) => {
         if ((freeIncrResult.rows as any[]).length === 0) {
           return new Response(
             JSON.stringify({ error: 'Coupon was just fully redeemed by a concurrent request. Please contact support.' }),
-            { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
         console.log(`Coupon ${couponCode} atomically incremented in Neon DB (free flow).`);
@@ -162,7 +179,7 @@ serve(async (req) => {
       if (signatureHex !== razorpay_signature) {
         return new Response(
           JSON.stringify({ error: 'Invalid signature' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
     }
@@ -223,7 +240,7 @@ serve(async (req) => {
             const packType = coupon.package || '';
 
             // Re-enforce coupon restrictions on verify
-            if (packType) {
+            if (packType && packType.toLowerCase() !== 'all plans' && packType.toLowerCase() !== 'all') {
               const pkg = packType.toLowerCase();
               const plan = (planType || '').toLowerCase();
               const tier = (planTier || '').toLowerCase();
@@ -305,7 +322,7 @@ serve(async (req) => {
             console.error(`[COUPON GATE] Coupon ${couponCode} exhausted or expired at atomic check. Rejecting payment.`);
             return new Response(
               JSON.stringify({ error: 'Coupon was fully redeemed by a concurrent request. Your payment has NOT been activated. Please contact support for a manual review.' }),
-              { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
           }
           console.log(`[COUPON GATE] ✅ Atomic increment OK for ${couponCode}`);
@@ -372,7 +389,7 @@ serve(async (req) => {
       console.error('Supabase DB Error:', dbError);
       return new Response(
         JSON.stringify({ error: 'Failed to update subscription' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
