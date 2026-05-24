@@ -62,7 +62,7 @@ const SubscriptionContext = createContext<SubscriptionContextType | undefined>(u
 
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
     const { user } = useAuth();
-    const CACHE_KEY = 'quickrevert_subscription_cache';
+    const CACHE_KEY = 'quickrevert_subscription_cache_v2';
     const [initialFetchDone, setInitialFetchDone] = useState(false);
 
     const [invoices, setInvoices] = useState<Subscription[]>(() => {
@@ -209,7 +209,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
             });
 
             try {
-                const neonSyncCacheKey = `neon_sync_${user.id}`;
+                const neonSyncCacheKey = `neon_sync_v2_${user.id}`;
                 const lastNeonSync = parseInt(localStorage.getItem(neonSyncCacheKey) || '0');
                 
                 let updatedIsGifted = isGifted;
