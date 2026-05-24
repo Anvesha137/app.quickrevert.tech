@@ -349,7 +349,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         subscription.status === 'past_due'
     ) && new Date(subscription.current_period_end) > new Date();
 
-    const isGiftedActive = isGifted && giftedSettings?.expiry_date && new Date(giftedSettings.expiry_date) > new Date();
+    const isGiftedActive = isGifted && (!giftedSettings?.expiry_date || new Date(giftedSettings.expiry_date) > new Date());
     const isPremium = isGiftedActive || (!planId.includes('basic') && isPlanActive);
     const isProfessional = isGiftedActive || (['professional', 'enterprise'].some(p => planId.includes(p)) && !!isPlanActive);
     const isGold = isPremium && planId.includes('enterprise');

@@ -128,6 +128,7 @@ serve(async (req) => {
       SELECT gp.* FROM gifted_premium gp 
       WHERE gp.user_id IN (SELECT id FROM users WHERE email ILIKE $1)
          OR gp.user_id = $2
+      ORDER BY gp.expiry_date DESC NULLS FIRST
     `, [cleanEmail, userId]);
     giftedRows = giftedRes.rows;
 
@@ -135,7 +136,7 @@ serve(async (req) => {
     let giftedSettings = isGifted ? (giftedRows[0] as any) : null;
     let hasExpiredGifted = false;
     
-    if (isGifted && new Date(giftedSettings.expiry_date) < new Date()) {
+    if (isGifted && giftedSettings.expiry_date && new Date(giftedSettings.expiry_date) < new Date()) {
         isGifted = false;
         hasExpiredGifted = true;
         // We INTENTIONALLY do not nullify giftedSettings here, so the frontend can retain historical records of expired gifts.
