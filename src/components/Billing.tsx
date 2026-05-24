@@ -32,6 +32,7 @@ const Billing = () => {
 
   const getPlanName = (id?: string) => {
     if (isGifted) return 'GIFTED PREMIUM';
+    if (!isPremium) return 'BASIC';
     if (!id || id === 'basic') return 'BASIC';
     const lowerId = id.toLowerCase();
     if (lowerId.includes('enterprise')) return 'ENTERPRISE';
@@ -43,6 +44,7 @@ const Billing = () => {
 
   const getPlanPrice = (id?: string, amount?: number) => {
     if (isGifted) return '₹0';
+    if (!isPremium) return '₹0';
     if (!id || id === 'basic') return '₹0';
     if (amount !== undefined && amount !== null) return `₹${amount}`;
     
@@ -105,7 +107,9 @@ const Billing = () => {
                   </span>
                   {!isGifted && (
                     <span className="text-sm text-gray-500 font-medium uppercase">
-                      {subscription?.plan_id?.toLowerCase().includes('try_me_out') 
+                      {!isPremium 
+                        ? '/ free'
+                        : subscription?.plan_id?.toLowerCase().includes('try_me_out') 
                         ? '/ ONE-TIME' 
                         : subscription?.plan_id?.includes('annual') 
                           ? '/ annual' 
@@ -122,13 +126,15 @@ const Billing = () => {
             <div className="grid grid-cols-2 gap-8 py-6 border-y border-white/[0.05] mb-8">
               <div className="space-y-1">
                 <p className="text-gray-600 text-[9px] font-black uppercase tracking-widest">
-                  {isGifted || isPremium ? 'Expiry Date' : 'Next Billing Date'}
+                  {isGifted || isPremium ? 'Expiry Date' : 'Last Expired On'}
                 </p>
-                <p className="text-white text-lg font-bold">{formatDate(expiryDate)}</p>
+                <p className="text-white text-lg font-bold">{expiryDate ? formatDate(expiryDate) : 'N/A'}</p>
               </div>
               <div className="space-y-1 text-right">
                 <p className="text-gray-600 text-[9px] font-black uppercase tracking-widest">Status</p>
-                <p className="text-green-500 text-lg font-bold uppercase tracking-tighter">Active</p>
+                <p className={`text-lg font-bold uppercase tracking-tighter ${isPremium || isGifted ? 'text-green-500' : 'text-gray-500'}`}>
+                  {isPremium || isGifted ? 'Active' : 'Basic (Free)'}
+                </p>
               </div>
             </div>
 

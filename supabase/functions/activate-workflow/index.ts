@@ -117,6 +117,7 @@ Deno.serve(async (req: Request) => {
       headers: { "X-N8N-API-KEY": n8nApiKey, "Content-Type": "application/json" }
     });
 
+
     if (!n8nRes.ok) {
       const n8nErr = await n8nRes.text();
       console.warn(`n8n /${action} returned ${n8nRes.status}: ${n8nErr}`);
@@ -124,9 +125,9 @@ Deno.serve(async (req: Request) => {
         level: "error",
         subject: `Workflow ${shouldActivate ? 'Activation' : 'Deactivation'} Failed in n8n`,
         context: "activate-workflow",
-        details: `n8n returned ${n8nRes.status} when trying to ${action} workflow ${workflowId}.\nThe DB was updated but n8n may be out of sync.`,
         data: { workflowId, userId: user.id, action, n8nStatus: n8nRes.status, n8nResponse: n8nErr }
       }).catch(() => {});
+      throw new Error(`n8n API failed to ${action} workflow: ${n8nRes.status} - ${n8nErr}`);
     } else {
       console.log(`[N8N] ✅ ${action} succeeded`);
     }
