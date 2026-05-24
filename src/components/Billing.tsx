@@ -256,13 +256,13 @@ const Billing = () => {
               <tbody className="text-white">
                 {(() => {
                   const allInvoices = [...(invoices || [])];
-                  if (isGifted) {
+                  if (isGifted || giftedSettings) {
                     allInvoices.unshift({
                       id: 'gifted-special',
                       plan_id: 'gifted',
                       amount_paid: 0,
                       created_at: new Date().toISOString(), // Current session view
-                      status: 'active'
+                      status: isGifted ? 'active' : 'expired'
                     } as any);
                   }
 
@@ -274,11 +274,11 @@ const Billing = () => {
                           <td className="py-4 font-bold flex flex-col justify-center">
                             <div className="flex items-center gap-2">
                               <div className={`w-1.5 h-1.5 rounded-full ${isGiftedRow ? 'bg-yellow-500' : (idx === 0 && !isGifted ? 'bg-blue-600' : 'bg-gray-600')}`}></div>
-                              {isGiftedRow ? 'Special Assignment - GIFTED' : `INV-${new Date(inv.created_at || new Date()).getFullYear()}-${(invoices.length - (isGifted ? idx - 1 : idx)).toString().padStart(3, '0')}`}
+                              {isGiftedRow ? 'Special Assignment - GIFTED' : `INV-${new Date(inv.created_at || new Date()).getFullYear()}-${(invoices.length - ((isGifted || giftedSettings) ? idx - 1 : idx)).toString().padStart(3, '0')}`}
                             </div>
                             <span className="text-[9px] text-gray-500 uppercase tracking-widest ml-3.5 mt-1">{isGiftedRow ? 'LIFETIME' : getRawPlanName(inv.plan_id)}</span>
                           </td>
-                          <td className="py-4 text-gray-500">{isGiftedRow ? 'Current Plan' : formatDate(inv.created_at)}</td>
+                          <td className="py-4 text-gray-500">{isGiftedRow ? (isGifted ? 'Current Plan' : 'Expired') : formatDate(inv.created_at)}</td>
                           <td className="py-4 text-right font-black text-green-400">₹{inv.amount_paid || 0}</td>
                         </tr>
                       );

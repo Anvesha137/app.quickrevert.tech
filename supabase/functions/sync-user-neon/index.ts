@@ -133,9 +133,12 @@ serve(async (req) => {
 
     let isGifted = giftedRows.length > 0;
     let giftedSettings = isGifted ? (giftedRows[0] as any) : null;
+    let hasExpiredGifted = false;
+    
     if (isGifted && new Date(giftedSettings.expiry_date) < new Date()) {
         isGifted = false;
-        giftedSettings = null;
+        hasExpiredGifted = true;
+        // We INTENTIONALLY do not nullify giftedSettings here, so the frontend can retain historical records of expired gifts.
     }
 
     // Update packageName if gifted (so the Neon upsert has the correct value)
