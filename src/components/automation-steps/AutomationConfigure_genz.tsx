@@ -235,8 +235,9 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
       });
       if (error) throw error;
       setPosts(data.media || []);
-    } catch {
-      toast.error(`Failed to fetch Instagram ${type}`);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || `Failed to fetch Instagram ${type}`);
     } finally {
       setLoadingMedia(false);
     }
@@ -244,24 +245,20 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
 
   const toggleMediaSelection = (mediaId: string) => {
     if (readOnly || usedMediaIds.has(mediaId)) return;
-    setPendingMediaId(prev => prev === mediaId ? null : mediaId);
-  };
-
-  const confirmMediaSelection = () => {
-    if (!pendingMediaId) return;
-
-    // Find the selected media to get its thumbnail/media URL
-    const selectedMedia = posts.find(p => p.id === pendingMediaId);
+    
+    const selectedMedia = posts.find(p => p.id === mediaId);
     const thumbUrl = selectedMedia?.media_type === 'VIDEO' ? selectedMedia.thumbnail_url : selectedMedia?.media_url;
 
     const isPost = triggerType === 'post_comment';
     const key = isPost ? 'specificPosts' : 'specificStories';
     const postsTypeKey = isPost ? 'postsType' : 'storiesType';
     updateConfig({
-      [key]: [pendingMediaId],
+      [key]: [mediaId],
       [postsTypeKey]: 'specific',
       thumbnail_url: thumbUrl
     } as any);
+    
+    setPendingMediaId(mediaId);
     setEditingPosts(false);
   };
 
@@ -589,14 +586,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                 */}
               </div>
               <div className={cn("rounded-xl p-3 md:p-4 transition-colors", darkMode ? "bg-white/5 border border-white/5" : "border-2 border-gray-100 bg-gray-50/50")}>
-                {pendingMediaId && !loadingMedia && (
-                  <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className={cn("mb-4 pb-4 border-b flex flex-col md:flex-row items-center justify-between gap-3", darkMode ? 'border-white/10' : 'border-purple-100')}>
-                    <p className={cn("text-[11px] md:text-sm font-bold", darkMode ? 'text-blue-300' : 'text-purple-700')}>1 Post selected</p>
-                    <button onClick={confirmMediaSelection} disabled={readOnly} className={cn("w-full md:w-auto px-6 py-2.5 rounded-xl font-bold text-[13px] md:text-sm text-white shadow-lg transition-all flex justify-center items-center gap-2", darkMode ? "bg-white text-black hover:bg-gray-100" : "bg-purple-600 hover:bg-purple-700 text-white")}>
-                      Confirm Selection <CheckCircle2 size={16} />
-                    </button>
-                  </motion.div>
-                )}
+                {/* Confirm button removed - Selection is now instant */}
                 <div className="max-h-[320px] overflow-y-auto custom-scrollbar pr-1 -mr-1">
                   {loadingMedia ? (
                     <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
@@ -658,7 +648,12 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                 })()}
                 <div>
                   <span className={cn("text-[11px] md:text-xs font-bold uppercase tracking-widest flex items-center gap-1 mb-0.5", darkMode ? "text-blue-400" : "text-emerald-500")}><CheckCircle2 size={12} strokeWidth={3} /> Confirmed</span>
-                  <p className={cn("text-[13px] md:text-sm font-medium line-clamp-1", darkMode ? "text-white/60" : "text-gray-500")}>Tied to a specific post</p>
+                  <p className={cn("text-[13px] md:text-sm font-medium line-clamp-1", darkMode ? "text-white/60" : "text-gray-500")}>
+                    {(() => {
+                      const p = posts.find(p => p.id === pendingMediaId);
+                      return p?.caption || 'Tied to a specific post';
+                    })()}
+                  </p>
                 </div>
               </div>
               <button onClick={() => setEditingPosts(true)} disabled={readOnly} className={cn("px-3 py-1.5 md:px-4 md:py-2 shrink-0 rounded-lg text-[11px] md:text-xs font-bold transition-all", darkMode ? "bg-white/10 text-white hover:bg-white/20" : "bg-white border text-gray-700 hover:bg-gray-50")}>

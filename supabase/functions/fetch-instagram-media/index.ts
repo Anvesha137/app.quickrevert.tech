@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "https://app.quickrevert.tech",
+  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
@@ -115,7 +115,7 @@ Deno.serve(async (req: Request) => {
 
     if (mediaType === "posts") {
       const mediaResponse = await fetch(
-        `https://graph.instagram.com/me/media?fields=id,caption,media_type,media_url,permalink,timestamp&limit=100&access_token=${instagramAccount.access_token}`
+        `https://graph.instagram.com/me/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp&limit=100&access_token=${instagramAccount.access_token}`
       );
 
       if (!mediaResponse.ok) {
@@ -127,7 +127,7 @@ Deno.serve(async (req: Request) => {
       mediaData = mediaJson.data || [];
     } else if (mediaType === "stories") {
       const storiesResponse = await fetch(
-        `https://graph.instagram.com/me/stories?fields=id,caption,media_type,media_url,permalink,timestamp&access_token=${instagramAccount.access_token}`
+        `https://graph.instagram.com/me/stories?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp&access_token=${instagramAccount.access_token}`
       );
 
       if (!storiesResponse.ok) {

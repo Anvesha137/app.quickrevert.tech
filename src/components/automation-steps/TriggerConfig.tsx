@@ -202,38 +202,34 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
       setPosts(data.media || []);
     } catch (error: any) {
       console.error(`Error fetching ${type}:`, error);
-      toast.error(`Failed to fetch Instagram ${type}`);
+      toast.error(error.message || `Failed to fetch Instagram ${type}`);
     } finally {
       setLoadingMedia(false);
     }
   };
 
   const toggleMediaSelection = (mediaId: string) => {
-    if (readOnly) return;
-    setPendingMediaId(prev => prev === mediaId ? null : mediaId);
-  };
-
-  const confirmMediaSelection = () => {
-    if (!pendingMediaId) return;
+    if (readOnly || usedMediaIds.has(mediaId)) return;
     
     // Find the selected media to get its thumbnail/media URL
-    const selectedMedia = posts.find(p => p.id === pendingMediaId);
+    const selectedMedia = posts.find(p => p.id === mediaId);
     const thumbnail_url = selectedMedia?.media_type === 'VIDEO' ? selectedMedia.thumbnail_url : selectedMedia?.media_url;
 
     const isPostComment = triggerType === 'post_comment';
     if (isPostComment) {
       onConfigChange({ 
         ...currentConfig, 
-        specificPosts: [pendingMediaId],
+        specificPosts: [mediaId],
         thumbnail_url
       } as any);
     } else {
       onConfigChange({ 
         ...currentConfig, 
-        specificStories: [pendingMediaId],
+        specificStories: [mediaId],
         thumbnail_url
       } as any);
     }
+    setPendingMediaId(mediaId);
     setIsSelectingMedia(false);
   };
 
@@ -325,7 +321,12 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
               })()}
               <div>
                 <span className="text-[11px] md:text-xs font-bold text-emerald-500 uppercase tracking-widest flex items-center gap-1 mb-0.5"><CheckCircle2 size={12} strokeWidth={3} /> Confirmed</span>
-                <p className={`text-[13px] md:text-sm font-medium line-clamp-1 ${darkMode ? 'text-white/60' : 'text-gray-500'}`}>Tied to a specific post</p>
+                <p className={`text-[13px] md:text-sm font-medium line-clamp-1 ${darkMode ? 'text-white/60' : 'text-gray-500'}`}>
+                  {(() => {
+                    const p = posts.find(p => p.id === pendingMediaId);
+                    return p?.caption || 'Tied to a specific post';
+                  })()}
+                </p>
               </div>
             </div>
             <button onClick={() => setIsSelectingMedia(true)} disabled={readOnly} className={`px-3 py-1.5 md:px-4 md:py-2 shrink-0 rounded-lg text-[11px] md:text-xs font-bold transition-all ${darkMode ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-white border text-gray-700 hover:bg-gray-50'}`}>
@@ -342,15 +343,7 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
               </div>
             ) : (
               <>
-                {/* Action Bar */}
-                {pendingMediaId && !loadingMedia && (
-                  <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className={`mb-4 pb-4 border-b flex flex-col md:flex-row items-center justify-between gap-3 ${darkMode ? 'border-white/10' : 'border-purple-100'}`}>
-                    <p className={`text-[11px] md:text-sm font-bold ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>1 Post selected</p>
-                    <button onClick={confirmMediaSelection} disabled={readOnly} className={`w-full md:w-auto px-6 py-2.5 rounded-xl font-bold text-[13px] md:text-sm text-white shadow-lg transition-all flex justify-center items-center gap-2 ${darkMode ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:brightness-110 shadow-purple-500/20' : 'bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 shadow-purple-200 hover:shadow-xl hover:-translate-y-0.5'}`}>
-                      Confirm Selection <CheckCircle2 size={16} />
-                    </button>
-                  </motion.div>
-                )}
+                {/* Action Bar removed - Selection is now instant */}
               <div className="max-h-[320px] overflow-y-auto pr-2 custom-scrollbar">
                 <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
                   {posts.map((post) => {
