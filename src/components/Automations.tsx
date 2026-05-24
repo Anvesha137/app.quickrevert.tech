@@ -175,7 +175,7 @@ export default function Automations() {
       // Fetch automations
       const { data: automationsData, error: automationsError } = await supabase
         .from('automations')
-        .select('*')
+        .select('id, name, description, trigger_type, status, created_at, trigger_config, user_id')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 

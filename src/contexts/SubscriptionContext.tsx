@@ -209,22 +209,29 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
             });
 
             try {
-                const { data: syncData, error: syncError } = await supabase.functions.invoke('sync-user-neon', {
-                    body: { userId: user.id, email: user.email, fullName: user.user_metadata?.full_name }
-                });
+                const neonSyncCacheKey = `neon_sync_${user.id}`;
+                const lastNeonSync = parseInt(localStorage.getItem(neonSyncCacheKey) || '0');
+                
+                let updatedIsGifted = isGifted;
+                let updatedGiftedSettings = giftedSettings;
 
-                let updatedIsGifted = false;
-                let updatedGiftedSettings = null;
+                // Only sync every 6 hours or on first load
+                if (Date.now() - lastNeonSync > 21600_000) {
+                    const { data: syncData, error: syncError } = await supabase.functions.invoke('sync-user-neon', {
+                        body: { userId: user.id, email: user.email, fullName: user.user_metadata?.full_name }
+                    });
 
-                if (!syncError && syncData?.isBanned) {
-                    localStorage.setItem('quickrevert_banned', 'true');
-                    await supabase.auth.signOut();
-                    return;
-                }
+                    if (!syncError && syncData?.isBanned) {
+                        localStorage.setItem('quickrevert_banned', 'true');
+                        await supabase.auth.signOut();
+                        return;
+                    }
 
-                if (!syncError && syncData?.isGifted) {
-                    updatedIsGifted = true;
-                    updatedGiftedSettings = syncData.giftedSettings;
+                    if (!syncError) {
+                        updatedIsGifted = !!syncData?.isGifted;
+                        updatedGiftedSettings = syncData?.giftedSettings || null;
+                        localStorage.setItem(neonSyncCacheKey, Date.now().toString());
+                    }
                 }
 
                 setIsGifted(updatedIsGifted);

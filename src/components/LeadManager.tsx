@@ -294,7 +294,7 @@ export default function LeadManager() {
     // Refresh fully
     const { data: refreshedData } = await supabase
       .from('contacts')
-      .select('*')
+      .select('id, instagram_account_id, instagram_user_id, name, username, profile_picture_url, last_interaction_at, user_id')
       .eq('user_id', user!.id)
       .order('last_interaction_at', { ascending: false });
 
@@ -330,7 +330,7 @@ export default function LeadManager() {
 
       const { data: existingContacts } = await supabase
         .from('contacts')
-        .select('*')
+        .select('id, instagram_account_id, instagram_user_id, name, username, profile_picture_url, last_interaction_at, user_id')
         .eq('user_id', user!.id);
 
       const dbContactsMap = new Map();

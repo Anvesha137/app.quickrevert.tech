@@ -199,7 +199,7 @@ export default function Settings({ isNested = false }: { isNested?: boolean }) {
     try {
       const { data } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, first_name, last_name, username, phone, location, business_category')
         .eq('id', user.id)
         .maybeSingle();
 

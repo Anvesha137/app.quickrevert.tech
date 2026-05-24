@@ -59,7 +59,7 @@ const PromoCodeGenerator = () => {
     try {
       const { data, error } = await supabase
         .from('promo_codes')
-        .select('*')
+        .select('id, code, pack_type, discount_amount, generated_for, expires_at, usage_limit, used_count, status')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 

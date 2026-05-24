@@ -28,7 +28,7 @@ export default function InstagramConnectionStatus() {
     try {
       const { data, error } = await supabase
         .from('instagram_accounts')
-        .select('*')
+        .select('id, instagram_user_id, username, status, profile_picture_url, connected_at, last_synced_at')
         .eq('user_id', user.id)
         .order('connected_at', { ascending: false })
         .limit(1);

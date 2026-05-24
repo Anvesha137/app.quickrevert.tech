@@ -106,7 +106,7 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
       const { data: automationData, error: automationError } = await supabase
         .from('automations')
         .select(`
-          *,
+          id, name, trigger_type, status, description, created_at, is_active,
           n8n_workflows!automation_id(
             n8n_workflow_id
           )
