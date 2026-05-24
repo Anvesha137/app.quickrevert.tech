@@ -42,6 +42,16 @@ const Billing = () => {
     return lowerId.toUpperCase();
   };
 
+  const getRawPlanName = (id?: string) => {
+    if (!id || id === 'basic') return 'BASIC';
+    const lowerId = id.toLowerCase();
+    if (lowerId.includes('enterprise')) return 'ENTERPRISE';
+    if (lowerId.includes('professional')) return 'PROFESSIONAL';
+    if (lowerId.includes('try_me_out')) return 'TRY ME OUT';
+    if (lowerId.includes('premium')) return 'PREMIUM';
+    return lowerId.toUpperCase();
+  };
+
   const getPlanPrice = (id?: string, amount?: number) => {
     if (isGifted) return '₹0';
     if (!isPremium) return '₹0';
@@ -261,9 +271,12 @@ const Billing = () => {
                       const isGiftedRow = inv.id === 'gifted-special';
                       return (
                         <tr key={inv.id} className="border-b border-white/[0.02] last:border-0 hover:bg-white/[0.02] transition-colors">
-                          <td className="py-4 font-bold flex items-center gap-2">
-                            <div className={`w-1.5 h-1.5 rounded-full ${isGiftedRow ? 'bg-yellow-500' : (idx === 0 && !isGifted ? 'bg-blue-600' : 'bg-gray-600')}`}></div>
-                            {isGiftedRow ? 'Special Assignment - GIFTED' : `INV-${new Date(inv.created_at || new Date()).getFullYear()}-${(invoices.length - (isGifted ? idx - 1 : idx)).toString().padStart(3, '0')}`}
+                          <td className="py-4 font-bold flex flex-col justify-center">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-1.5 h-1.5 rounded-full ${isGiftedRow ? 'bg-yellow-500' : (idx === 0 && !isGifted ? 'bg-blue-600' : 'bg-gray-600')}`}></div>
+                              {isGiftedRow ? 'Special Assignment - GIFTED' : `INV-${new Date(inv.created_at || new Date()).getFullYear()}-${(invoices.length - (isGifted ? idx - 1 : idx)).toString().padStart(3, '0')}`}
+                            </div>
+                            <span className="text-[9px] text-gray-500 uppercase tracking-widest ml-3.5 mt-1">{isGiftedRow ? 'LIFETIME' : getRawPlanName(inv.plan_id)}</span>
                           </td>
                           <td className="py-4 text-gray-500">{isGiftedRow ? 'Current Plan' : formatDate(inv.created_at)}</td>
                           <td className="py-4 text-right font-black text-green-400">₹{inv.amount_paid || 0}</td>
