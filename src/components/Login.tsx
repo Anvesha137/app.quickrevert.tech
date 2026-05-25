@@ -116,11 +116,11 @@ export default function Login() {
   };
 
   const carouselImages = [
-    '/1.png',
-    '/2.jpeg',
-    '/3.png',
-    '/4.png',
-    '/5.png'
+    '/1.webp',
+    '/2.webp',
+    '/3.webp',
+    '/4.webp',
+    '/5.webp'
   ];
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
