@@ -31,6 +31,7 @@ import TopPerforming from './TopPerforming';
 import UsageStats from './UsageStats';
 import { Skeleton } from './ui/skeleton';
 import DayNightToggle from './ui/DayNightToggle';
+import OnboardingTour from './OnboardingTour';
 
 interface DashboardStats {
   dmsTriggered: number;
@@ -70,6 +71,7 @@ export default function Dashboard() {
   const [isRefreshingAnalytics, _setRefreshingAnalytics] = useState(false);
   const [instagramAccount, setInstagramAccount] = useState<any>(null);
   const [isMounted, setIsMounted] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const { isPremium: subIsPremium, isGifted: subIsGifted, isAtLimit: subIsAtLimit } = useSubscription();
   const { uiStyle } = useUIStyle();
 
@@ -77,6 +79,13 @@ export default function Dashboard() {
     setIsMounted(true);
     if (user) {
       fetchDashboardStats();
+      
+      // Check onboarding status
+      const localOnboarding = localStorage.getItem(`qr_onboarding_${user.id}`);
+      const hasCompleted = user.user_metadata?.has_completed_onboarding || localOnboarding === 'completed';
+      if (!hasCompleted) {
+        setShowOnboarding(true);
+      }
     }
   }, [user]);
 
@@ -212,6 +221,12 @@ export default function Dashboard() {
   if (uiStyle === 'millennial') {
     return (
       <div className={`flex-1 min-h-full font-outfit pb-32 lg:pb-0 transition-colors duration-500 ${darkMode ? 'bg-transparent text-white' : 'bg-white text-gray-800'}`}>
+        {showOnboarding && user && (
+          <OnboardingTour 
+            userId={user.id} 
+            onComplete={() => setShowOnboarding(false)} 
+          />
+        )}
         <div className="flex h-full w-full max-w-[1600px] mx-auto flex-col lg:flex-row justify-between gap-6 lg:gap-8 p-4 lg:p-6">
 
           {/* Main Content Area */}
@@ -246,7 +261,7 @@ export default function Dashboard() {
               </div>
 
               {/* Connection Status Banner - Millennial */}
-              <div className="mb-4 group">
+              <div className="mb-4 group" id="tour-connect">
                 {instagramAccount ? (
                   <div className={`relative overflow-hidden rounded-2xl py-3 px-4 md:py-4 md:px-6 shadow-xl transition-all duration-300 hover:shadow-2xl border-none bg-gradient-to-r from-orange-500 to-purple-700 text-white`}>
 
@@ -290,7 +305,7 @@ export default function Dashboard() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3" id="tour-metrics">
                 <div className={`p-2 md:p-3 rounded-[1.25rem] border shadow-sm flex flex-col gap-1 transition-all duration-500 ${darkMode ? 'bg-[#1A1C23] border-[#2E323D]' : 'bg-white border-gray-100'}`}>
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[#3b82f6] flex items-center justify-center shadow-sm flex-shrink-0">
@@ -388,7 +403,7 @@ export default function Dashboard() {
           </div>
 
           {/* Right Sidebar */}
-          <div className="w-full lg:w-80 flex-shrink-0 flex flex-col gap-6">
+          <div className="w-full lg:w-80 flex-shrink-0 flex flex-col gap-6" id="tour-setup">
             {/* Setup Progress */}
             <div className={`rounded-[1.25rem] p-4 shadow-sm border group/setup transition-all duration-300 hover:shadow-md ${darkMode ? 'bg-[#1A1C23] border-[#2E323D]' : 'bg-white border-gray-100'}`}>
               <h3 className={`font-bold mb-2 text-sm transition-colors duration-500 ${darkMode ? 'text-white' : 'text-[#2A2B3A]'}`}>Your Setup Progress</h3>
@@ -465,6 +480,13 @@ export default function Dashboard() {
 
   return (
     <div className={`flex-1 relative min-h-screen overflow-x-hidden font-outfit transition-colors duration-500 ${darkMode ? 'bg-black' : 'bg-[#fafbff]'}`}>
+      {showOnboarding && user && (
+        <OnboardingTour 
+          userId={user.id} 
+          onComplete={() => setShowOnboarding(false)} 
+        />
+      )}
+      
       {/* Animated Background Blobs - Refined */}
       {!darkMode && (
         <div className="fixed inset-0 -z-10 bg-slate-50/50">
@@ -522,7 +544,7 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
             {/* Left Column: Metrics & Analytics */}
             <div className="lg:col-span-2 space-y-8">
-              <div className="group">
+              <div className="group" id="tour-connect-classic">
                 {instagramAccount ? (
                   <div className={`relative overflow-hidden rounded-2xl p-6 transition-all duration-300 shadow-xl bg-gradient-to-r from-orange-500 to-purple-700 text-white shadow-purple-500/30`}>
 
@@ -565,7 +587,7 @@ export default function Dashboard() {
               </div>
 
               {/* KPI Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-5">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-5" id="tour-metrics-classic">
                 <KPICard
                   title="Total DMs"
                   value={loading ? <Skeleton className="h-8 w-20" /> : stats.dmsTriggered.toLocaleString()}
@@ -639,7 +661,7 @@ export default function Dashboard() {
             </div>
 
             {/* Right Column: Insights & Progress */}
-            <div className="space-y-8">
+            <div className="space-y-8" id="tour-setup-classic">
               <div className="sticky top-10 space-y-8">
                 <SetupProgress progress={overallProgress} tasks={setupTasks} />
                 <TopPerforming />
