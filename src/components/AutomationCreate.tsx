@@ -461,7 +461,36 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
           autoActivate: true,
         }, user.id);
 
-        console.log('N8N workflow created successfully:', result);
+        console.log('N8N workflow created (pass 1):', result);
+
+        // ─── Auto-Sync: Re-generate the workflow immediately after creation ──────
+        // The first call creates the n8n workflow and stores its ID in n8n_workflows.
+        // The second call (PUT update) re-runs the full workflow builder against the
+        // now-persisted automation row in the DB — this is exactly what the admin
+        // "Sync" button does and ensures routes, payloads, and tracked_posts are
+        // cleanly registered so the automation works without manual admin intervention.
+        try {
+          await N8nWorkflowService.createWorkflow({
+            template: 'instagram_automation_v1',
+            instagramAccountId: instagramAccount.id,
+            workflowName: workflowName,
+            automationId: automationData.id,
+            actions: finalActions,
+            triggerType: formData.triggerType,
+            variables: {
+              brandName: 'QuickRevert',
+              replyMessage: replyMessage,
+              dmTitle: dmTitle,
+              dmImageUrl: (dmAction?.showImage && dmAction?.imageUrl) ? dmAction.imageUrl : '',
+            },
+            autoActivate: true,
+          }, user.id);
+          console.log('N8N workflow auto-synced (pass 2 — routes registered)');
+        } catch (syncError: any) {
+          // Non-fatal: first pass already created the workflow; log and continue
+          console.warn('Auto-sync pass 2 failed (non-fatal):', syncError.message);
+        }
+        // ─────────────────────────────────────────────────────────────────────────
 
         // The workflow mapping is already stored by the backend function
         // No need to store it again here

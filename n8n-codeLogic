@@ -1,0 +1,383 @@
+# n8n → Code Engine Migration — Full Implementation Plan
+
+## Goal
+Replace the self-hosted n8n automation engine with native Supabase Edge Functions (the "Code Engine"), without disrupting the ~30 existing users or any new users. The migration is invisible — users see zero UI changes.
+
+---
+
+## Architecture: Split Function Design
+
+Instead of one monolithic `execute-automation` function, we split into **a master router + 3 trigger-specific executors**. This keeps each function small, testable, and independently deployable.
+
+```mermaid
+graph TD
+    WM["webhook-meta<br/>(entry point)"] -->|use_code_engine = true| Router["execute-automation<br/>(master router)"]
+    WM -->|use_code_engine = false| N8N["n8n (legacy)"]
+    
+    Router -->|post_comment| EPC["execute-post-comment<br/>• Reply to comment<br/>• Send DM with buttons<br/>• Carousel cards<br/>• Follow-to-unlock"]
+    Router -->|user_dm / story_reply| EDM["execute-dm<br/>• Text DM reply<br/>• Template messages<br/>• Menu flow / postbacks<br/>• Lead Manager state machine"]
+    Router -->|story_reply| ESR["execute-story<br/>• Story reply handling<br/>• DM follow-up"]
+```
+
+### Why split?
+
+| Concern | Monolith | Split |
+|---------|----------|-------|
+| **Memory** | One function loads ALL logic (carousel builder, state machine, comment reply) | Each function loads only what it needs |
+| **Testing** | Must test everything together | Test comment flow independently of DM flow |
+| **Deploy risk** | Bug in DM logic breaks comment flows | Isolated blast radius |
+| **Cold start** | Larger bundle = slower cold start | Smaller bundles = faster |
+| **Readability** | 500+ line file | ~150 lines each, focused |
+
+---
+
+## Feature Flag
+
+### `user_limits.use_code_engine` (boolean, default `false`)
+
+- `false` = All traffic routes to n8n (current behavior, unchanged)
+- `true` = All traffic routes to Code Engine
+
+> [!IMPORTANT]
+> **Default is `false` for EVERYONE** — existing users, new signups, all of them. You manually flip it to `true` on your test account. Once verified, we change the DB default to `true`.
+
+---
+
+## Phase 1: Database + Feature Flag
+
+**Goal**: Add the routing flag without touching any running code.
+
+### Changes
+
+#### [NEW] SQL Migration
+```sql
+ALTER TABLE user_limits
+ADD COLUMN IF NOT EXISTS use_code_engine boolean DEFAULT false;
+```
+
+That's it. No user is affected. Every user (old and new) gets `false`.
+
+### Testing
+- Run the SQL on Supabase dashboard
+- Verify: `SELECT use_code_engine FROM user_limits LIMIT 5;` → all `false`
+- Manually set YOUR account: `UPDATE user_limits SET use_code_engine = true WHERE user_id = '<your-user-id>';`
+
+### ✅ Phase 1 is safe to deploy immediately — zero impact on production
+
+---
+
+## Phase 2: Wire up `webhook-meta` (The Traffic Director)
+
+**Goal**: Make `webhook-meta` check the flag and route to Code Engine OR n8n.
+
+### Changes
+
+#### [MODIFY] [webhook-meta/index.ts](file:///c:/QuickRevert/app.quickrevert.tech/supabase/functions/webhook-meta/index.ts)
+
+Currently, after all the identity resolution, contact upsert, and activity logging, the function calls:
+```typescript
+await triggerWorkflows(payloadData, activeRoutes.routes, activeRoutes.workflows);
+```
+
+We add a check **right before** this line (in both the messaging branch ~line 442 and the changes branch ~line 579):
+
+```typescript
+// Check if this user has Code Engine enabled
+const useCodeEngine = await checkCodeEngineFlag(supabaseClient, accountsData[0].user_id);
+
+if (useCodeEngine) {
+    // Route to Code Engine
+    await supabaseClient.functions.invoke('execute-automation', {
+        body: {
+            userId: accountsData[0].user_id,
+            instagramAccountId: internalAccountId,
+            triggerType: /* 'post_comment' | 'user_dm' | 'story_reply' */,
+            eventData: {
+                commentId: /* ... */,
+                commentText: /* ... */,
+                messageText: /* ... */,
+                postbackPayload: /* ... */,
+                postId: mediaId,
+                from: { id: targetUserId, username: resolvedUsername }
+            }
+        }
+    });
+} else {
+    // Legacy n8n routing (unchanged)
+    await triggerWorkflows(payloadData, activeRoutes.routes, activeRoutes.workflows);
+}
+```
+
+We also add a helper that piggybacks on the existing `checkUserDmLimit` query (so we don't add an extra DB call):
+
+```typescript
+async function checkCodeEngineFlag(supabaseClient: any, userId: string): Promise<boolean> {
+    const { data } = await supabaseClient
+        .from('user_limits')
+        .select('use_code_engine')
+        .eq('user_id', userId)
+        .maybeSingle();
+    return data?.use_code_engine === true;
+}
+```
+
+> [!TIP]
+> Even better: we already call `checkUserDmLimit()` which queries `user_limits`. We can add `use_code_engine` to that same SELECT and return it alongside the DM limit check — **zero additional DB calls**.
+
+### What does NOT change
+- All identity resolution, contact upsert, activity logging — stays exactly the same
+- The `resolveRoutes()` function — still runs (we need the `matchedAutomationId` for logging)
+- n8n users — their `use_code_engine` is `false`, so `triggerWorkflows()` runs as before
+
+### Testing
+1. Deploy updated `webhook-meta`
+2. Your account has `use_code_engine = true` → triggers go to `execute-automation`
+3. All other accounts have `false` → triggers go to n8n as before
+4. Send a test DM to your connected Instagram account → check Supabase logs for `execute-automation` invocation
+
+---
+
+## Phase 3: Build the Executor Functions & Follow-up Scheduler
+
+**Goal**: Implement the actual execution logic split by trigger type, along with advanced features (Carousel support, recursive Menu Flows, and Scheduled Follow-up DMs).
+
+### 3A. Master Router
+
+#### [MODIFY] [execute-automation/index.ts](file:///c:/QuickRevert/app.quickrevert.tech/supabase/functions/execute-automation/index.ts)
+
+Refactor into a lightweight router that:
+1. Receives the event from `webhook-meta`
+2. Fetches the Instagram account + access token
+3. Matches the automation(s) using trigger config
+4. Delegates to the correct executor function
+
+```typescript
+// Pseudocode
+const matched = matchAutomations(automations, triggerType, eventData);
+
+for (const automation of matched) {
+    switch (triggerType) {
+        case 'post_comment':
+            await supabase.functions.invoke('execute-post-comment', {
+                body: { automation, eventData, accessToken }
+            });
+            break;
+        case 'user_dm':
+        case 'user_directed_messages':
+            await supabase.functions.invoke('execute-dm', {
+                body: { automation, eventData, accessToken, contactId }
+            });
+            break;
+        case 'story_reply':
+            await supabase.functions.invoke('execute-story', {
+                body: { automation, eventData, accessToken }
+            });
+            break;
+    }
+}
+```
+
+The trigger matching logic already exists in the current `execute-automation`. We keep it here in the router.
+
+---
+
+### 3B. Post Comment Executor
+
+#### [NEW] `execute-post-comment/index.ts`
+
+Handles the `post_comment` trigger. Responsibilities:
+- Reply to the comment with round-robin templates via `/{comment_id}/replies`
+- Send DM to commenter via `/me/messages` (text, buttons, or carousel)
+- **Carousel Support**: When action has `dmType === 'carousel'` and `carouselCards` is present, format them as a `generic` template element list for Facebook's Send API:
+  ```typescript
+  const elements = action.carouselCards.map((card: any) => ({
+      title: card.title.substring(0, 80),
+      subtitle: card.subtitle.substring(0, 80),
+      image_url: card.imageUrl,
+      buttons: card.buttons.slice(0, 3).map((b: any) => ({
+          type: b.url ? "web_url" : "postback",
+          title: b.text.substring(0, 20),
+          url: b.url,
+          payload: b.url ? undefined : `${b.text}_${automationId}`
+      }))
+  }));
+  ```
+- Follow-to-unlock guard (check `is_user_follow_business`)
+- **Init Follow-up DM**: If the automation has a scheduled follow-up active, insert a record in the `scheduled_followups` table (see 3E).
+- Log execution to `automation_activities`
+
+---
+
+### 3C. DM / Conversation Menu Executor
+
+#### [NEW] `execute-dm/index.ts`
+
+Handles `user_dm` / `user_directed_messages` triggers. Responsibilities:
+- Reply with text or template message
+- **Carousel Support**: Support card carousel deck presentation using the generic template array structure.
+- **Lead Manager state machine**: Keep contact-specific progression state (waiting_name → waiting_email → waiting_phone → confirm → save). If conversation flow completes successfully, cancel any pending follow-up in the `scheduled_followups` table.
+- **Recursive Menu / Postback handling**:
+  - When a button tap postback payload is received (matching a card ID or payload), scan the automation's `actions` (specifically `conversationCards`) for the corresponding card.
+  - Send the matched card's text and custom action buttons (which route to further child cards recursively).
+- Log execution to `automation_activities`
+
+---
+
+### 3D. Story Reply Executor
+
+#### [NEW] `execute-story/index.ts`
+
+Handles `story_reply` triggers. Responsibilities:
+- Reply to story DM with text or template (with support for carousel or buttons if needed)
+- Keyword filtering (same logic as DM)
+- Log execution
+
+---
+
+### 3E. Unified Scheduled Follow-ups (New Component)
+
+Instead of running individual cron workflows per automation, we implement a central, database-backed follow-up scheduler.
+
+1. **Database Table** (Created during Phase 1):
+   ```sql
+   CREATE TABLE IF NOT EXISTS public.scheduled_followups (
+     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+     contact_id UUID REFERENCES public.contacts(id) ON DELETE CASCADE NOT NULL,
+     automation_id UUID REFERENCES public.automations(id) ON DELETE CASCADE NOT NULL,
+     send_at TIMESTAMP WITH TIME ZONE NOT NULL,
+     payload JSONB NOT NULL, -- The follow-up message payload (text, buttons, etc.)
+     status TEXT CHECK (status IN ('pending', 'sent', 'cancelled')) DEFAULT 'pending',
+     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+   );
+   CREATE INDEX IF NOT EXISTS idx_scheduled_followups_send_at_status 
+   ON public.scheduled_followups (send_at, status);
+   ```
+
+2. **Scheduling a Follow-up**:
+   When an automation is triggered (in comment or DM flow), if it contains an active `follow_up` action, insert a record:
+   - `send_at`: `NOW() + INTERVAL '1 hour'` (using dynamic delay values/units from action configuration)
+   - `payload`: The message content and action buttons
+   - `status`: `'pending'`
+
+3. **Cancelling a Follow-up**:
+   If the contact completes the lead flow successfully (e.g. email/phone collected and saved in `handleConversationState`), update any pending follow-ups for this `contact_id` and `automation_id` to `'cancelled'`.
+
+4. **[NEW] `send-scheduled-followups/index.ts` Edge Function**:
+   A single background function running on a schedule (e.g. every 5 minutes via Supabase cron) that:
+   - Queries `scheduled_followups` where `status = 'pending' AND send_at <= NOW()`
+   - Sends the message via Facebook Graph API using the user's access token
+   - Marks the records as `'sent'`
+
+---
+
+### Testing Phase 3
+1. Create a test automation with `post_comment` trigger on your account → comment on your post → verify reply + DM arrives
+2. Test Carousel DMs → verify image carousel displays correctly with buttons on Instagram
+3. Test Lead Manager → DM your account → go through name → email → confirm flow → verify lead saved in `leads` table and any scheduled follow-up is cancelled
+4. Test Menu Flow with postback buttons → tap buttons → verify correct card responses recursively
+5. Verify Follow-ups: Start a lead flow but abandon it → wait for the scheduled time → verify follow-up DM is sent automatically.
+
+---
+
+## Phase 4: Update `create-workflow` (Skip n8n for Code Engine Users)
+
+**Goal**: When a Code Engine user saves an automation, don't push anything to n8n.
+
+### Changes
+
+#### [MODIFY] [create-workflow/index.ts](file:///c:/QuickRevert/app.quickrevert.tech/supabase/functions/create-workflow/index.ts)
+
+Add an early check after fetching `user_limits`:
+
+```typescript
+// Check if user uses Code Engine
+const { data: userFlags } = await supabase
+    .from('user_limits')
+    .select('use_code_engine')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+if (userFlags?.use_code_engine) {
+    // Code Engine user — no n8n workflow needed
+    // Just ensure route tables are populated for webhook-meta routing
+    await ensureRoutes(supabase, automationData, instagramAccount, automationId, account_id);
+    
+    return new Response(JSON.stringify({
+        success: true,
+        workflowId: 'code-engine',
+        message: 'Automation saved (Code Engine)'
+    }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+}
+
+// ... rest of existing n8n logic unchanged ...
+```
+
+#### [MODIFY] `activate-workflow`, `deactivate-workflow`, `delete-workflow`
+
+Same pattern — check flag, if Code Engine user, just update the `automations.status` column directly instead of calling n8n API.
+
+#### [MODIFY] [n8nService.ts](file:///c:/QuickRevert/app.quickrevert.tech/src/lib/n8nService.ts)
+
+No changes needed! The frontend still calls `create-workflow`, `activate-workflow`, etc. — the edge functions themselves decide whether to talk to n8n or not. The frontend is completely unaware of the engine switch.
+
+### Testing Phase 4
+1. On your test account, create a new automation → verify no n8n workflow is created
+2. Toggle the automation on/off → verify only the DB `status` column changes
+3. Delete the automation → verify no n8n API call
+4. Trigger the automation → verify Code Engine handles it
+
+---
+
+## Phase 5: Gradual Rollout + n8n Retirement
+
+**Goal**: Once tested, roll out to all users and eventually shut down n8n.
+
+### Step 5A: Change default
+```sql
+ALTER TABLE user_limits
+ALTER COLUMN use_code_engine SET DEFAULT true;
+```
+Now all NEW signups get Code Engine. Existing users stay on n8n.
+
+### Step 5B: Migrate existing users (batch)
+Write a migration script that for each existing user:
+1. Checks their automations support all Code Engine features
+2. Flips `use_code_engine = true`
+3. (Optional) Deactivates their n8n workflows via API
+
+```sql
+-- Migrate all users at once (when ready)
+UPDATE user_limits SET use_code_engine = true;
+```
+
+### Step 5C: Decommission n8n
+- Remove `N8N_BASE_URL` and `X-N8N-API-KEY` env vars
+- Delete the `triggerWorkflows()` function from `webhook-meta`
+- Remove n8n-specific code from `create-workflow`
+- Drop the `n8n_workflows` table
+- Shut down the n8n Docker container
+
+> [!CAUTION]
+> Phase 5C should only happen AFTER all users have been on Code Engine for at least 2 weeks with zero issues.
+
+---
+
+## Summary: What Changes Where
+
+| File | Phase | Change |
+|------|-------|--------|
+| `user_limits` table | 1 | Add `use_code_engine` column (default `false`) |
+| `scheduled_followups` table | 1 | **[NEW]** Add scheduled follow-ups tracking |
+| `webhook-meta/index.ts` | 2 | Add Code Engine routing branch before `triggerWorkflows()` |
+| `execute-automation/index.ts` | 3 | Refactor into master router |
+| `execute-post-comment/index.ts` | 3 | **[NEW]** Comment reply + DM executor + carousel support |
+| `execute-dm/index.ts` | 3 | **[NEW]** DM + Menu Flow + Lead Manager executor + carousel + postback recursion |
+| `execute-story/index.ts` | 3 | **[NEW]** Story reply executor |
+| `send-scheduled-followups/index.ts` | 3 | **[NEW]** Scheduled follow-up sender cron function |
+| `create-workflow/index.ts` | 4 | Skip n8n if `use_code_engine = true` |
+| `activate-workflow/index.ts` | 4 | Skip n8n API call if Code Engine user |
+| `deactivate-workflow/index.ts` | 4 | Skip n8n API call if Code Engine user |
+| `delete-workflow/index.ts` | 4 | Skip n8n API call if Code Engine user |
+| `n8nService.ts` (frontend) | — | **No changes** |
+| `Automations.tsx` (frontend) | — | **No changes** |

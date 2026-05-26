@@ -1,0 +1,232 @@
+# n8n → Code Engine Migration — Full Implementation Plan (Revised)
+
+## Goal
+Replace the self-hosted n8n automation engine with native Supabase Edge Functions (the "Code Engine"), without disrupting the ~30 existing users or any new users. The migration is invisible — users see zero UI changes.
+
+---
+
+## Architecture: Split Function Design
+
+Instead of one monolithic `execute-automation` function, we split into **a master router + 3 trigger-specific executors + 1 background follow-up processor**. This keeps each function small, testable, and independently deployable.
+
+```mermaid
+graph TD
+    WM["webhook-meta<br/>(entry point)"] -->|use_code_engine = true| Router["execute-automation<br/>(master router)"]
+    WM -->|use_code_engine = false| N8N["n8n (legacy)"]
+    
+    Router -->|post_comment| EPC["execute-post-comment<br/>• Reply to comment<br/>• Send DM with buttons<br/>• Carousel cards<br/>• Follow-to-unlock"]
+    Router -->|user_dm / story_reply| EDM["execute-dm<br/>• Text DM reply<br/>• Template messages<br/>• Menu flow / postbacks<br/>• Lead Manager state machine"]
+    Router -->|story_reply| ESR["execute-story<br/>• Story reply handling<br/>• DM follow-up"]
+    
+    EPC -->|insert scheduled record| DB_SF[("scheduled_followups table")]
+    EDM -->|insert scheduled record| DB_SF
+    
+    Cron["Supabase Cron (5 min)"] --> SF["send-scheduled-followups<br/>• Process pending follow-ups"]
+```
+
+---
+
+## Core Engineering Challenges & Solutions
+
+### 1. State Management (Lead Manager State Machine)
+- **Problem**: n8n workflows use `$getWorkflowStaticData('global')` to store conversation state (e.g. `waiting_name`, `waiting_email`). Edge Functions are stateless.
+- **Solution**: Persist state in the database using the existing `contacts.metadata.conversation_state` column.
+- **State Schema**:
+  ```typescript
+  interface ConversationState {
+    state: 'new' | 'waiting_name' | 'waiting_email' | 'waiting_phone' | 'waiting_custom' | 'confirm' | 'done';
+    automation_id: string; // The active automation triggering lead collection
+    data: {
+      name?: string;
+      email?: string;
+      phone?: string;
+      custom?: string;
+    };
+    last_message_at: string; // ISO timestamp
+  }
+  ```
+- **Lifecycle (in `execute-dm`)**:
+  1. Fetch `contacts.metadata` when a message is received.
+  2. If `conversation_state.state` is active (not `new`, `done`, or `error`), route the input text directly to the state machine logic in `execute-dm`.
+  3. Update and write back the state object in a single `UPDATE public.contacts SET metadata = ...` DB update call.
+  4. Webhooks for a single contact are naturally queued/sequential on Meta's end, minimizing race condition risks.
+
+### 2. Edge Function CPU Limit (2-Second Constraint)
+- **Problem**: Supabase Edge Functions enforce a strict **2-second CPU time limit** per invocation. Running multiple Facebook Graph API and database calls sequentially can exceed this.
+- **Solution**:
+  1. **I/O Billing Exclusion**: Understand that Deno edge runtime halts CPU billing when waiting for asynchronous network fetches (such as Facebook Graph API calls). Wall-clock time limit is 150 seconds, but actual CPU consumption remains extremely low (<50ms per network wait).
+  2. **Parallel Outbound Requests**: When performing independent actions (e.g., posting a comment reply and sending an initial welcome DM), use `Promise.all([replyToComment(), sendWelcomeDM()])` to execute concurrently, minimizing wall-clock latency.
+  3. **Decoupled Follow-ups**: Do not wait or schedule delays in-memory. The executor function inserts a row into `scheduled_followups` and returns immediately. The follow-up is executed out-of-band by a scheduled background runner.
+
+### 3. Eliminating Technical Debt in Ingestion (`resolveRoutes()` Bypass)
+- **Problem**: `webhook-meta` currently calls `resolveRoutes()`, which executes 3-4 DB queries against `tracked_posts`, `tracked_payloads`, `tracked_messages`, and `automation_routes` on every single webhook invocation.
+- **Solution**:
+  1. **Early Flag Check**: Check the `use_code_engine` flag right after loading the active `instagram_accounts` record.
+  2. **Complete Bypass**: If `use_code_engine` is `true`, **skip the `resolveRoutes()` call entirely**.
+  3. **Activity Linking**:
+     - `webhook-meta` creates the activity record in `automation_activities` with `automation_id = null`.
+     - `webhook-meta` invokes `execute-automation` passing the `activity_id`.
+     - Once `execute-automation` resolves the matched automation dynamically, it updates the corresponding `automation_activities` record with the `automation_id` in the background.
+
+### 4. Postback Routing (Zero-Lookup Routing)
+- **Problem**: n8n uses `tracked_payloads` to map button taps back to specific workflow IDs. How do button taps map to automations without n8n?
+- **Solution**:
+  1. **Self-Describing Payloads**: Generate postback button payloads dynamically using the format: `[ACTION]_[AUTOMATION_ID_HEX]`. For example: `CONFIRM_SAVE_23c89b4f`.
+  2. **Zero-Lookup Resolution**: When `webhook-meta` receives a postback payload for a Code Engine user, it parses the `automation_id` directly from the payload.
+  3. **In-Memory Resolution**: `execute-automation` fetches the user's active automations and matches the parsed ID, completely bypassing the need for a database lookup in `tracked_payloads` for postbacks.
+
+### 5. Graceful State-Draining Strategy (Phase 5B)
+- **Problem**: Simply flipping `use_code_engine` to `true` for a user mid-conversation resets active user flows (waiting for name/email) since Code Engine has no state for them.
+- **Solution**:
+  - Implement a **State Drain Window**:
+    1. When flipping a user to Code Engine, we update their status to `draining_to_code`.
+    2. During this state, **new** conversations (initial triggers, new comments) route to Code Engine.
+    3. Incoming messages that contain a postback payload matching an active n8n workflow in `tracked_payloads`, or incoming messages from a contact who had active interaction in the last 15 minutes, are routed to n8n.
+    4. Once the contact is inactive for 15 minutes, they transition fully to Code Engine.
+    5. After 24 hours, the user's account is updated to `use_code_engine = true` permanently.
+
+---
+
+## Feature Flag
+
+### `user_limits.use_code_engine` (boolean, default `false`)
+- `false` = All traffic routes to n8n (current behavior)
+- `true` = All traffic routes to Code Engine
+- `draining_to_code` = Dual routing phase (new conversations go to Code Engine, active conversations drain in n8n)
+
+---
+
+## Phase 1: Database + Feature Flag + Scheduled Table
+
+**Goal**: Prepare the database for routing and scheduled follow-ups without affecting production.
+
+### Changes
+
+#### [NEW] SQL Migration
+```sql
+-- 1. Add Code Engine flag to user_limits
+ALTER TABLE user_limits
+ADD COLUMN IF NOT EXISTS use_code_engine text DEFAULT 'false'; -- 'false', 'true', 'draining'
+
+-- 2. Create scheduled followups table
+CREATE TABLE IF NOT EXISTS public.scheduled_followups (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  contact_id UUID REFERENCES public.contacts(id) ON DELETE CASCADE NOT NULL,
+  automation_id UUID REFERENCES public.automations(id) ON DELETE CASCADE NOT NULL,
+  send_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  payload JSONB NOT NULL, -- Message text and action buttons
+  status TEXT CHECK (status IN ('pending', 'sent', 'cancelled')) DEFAULT 'pending',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Index for fast cron lookup
+CREATE INDEX IF NOT EXISTS idx_scheduled_followups_send_at_status 
+ON public.scheduled_followups (send_at, status);
+```
+
+---
+
+## Phase 2: Wire up `webhook-meta` (Ingestion Router)
+
+**Goal**: Detect the routing flag early and forward events to Code Engine while skipping n8n routes.
+
+### Changes
+
+#### [MODIFY] [webhook-meta/index.ts](file:///c:/QuickRevert/app.quickrevert.tech/supabase/functions/webhook-meta/index.ts)
+
+1. Check user flag right after fetching active accounts.
+2. If `use_code_engine === 'true'` (or matches `draining` rules):
+   - Skip `resolveRoutes()`.
+   - Log activity to `automation_activities` (with `automation_id` initially set to `null`).
+   - Invoke `execute-automation` with event details and the created `activity_id`.
+3. If `use_code_engine === 'false'`:
+   - Run existing `resolveRoutes()` and `triggerWorkflows()` path (legacy n8n path, unchanged).
+
+---
+
+## Phase 3: Build the Executor Functions & Follow-up Scheduler
+
+### 3A. Master Router
+#### [MODIFY] [execute-automation/index.ts](file:///c:/QuickRevert/app.quickrevert.tech/supabase/functions/execute-automation/index.ts)
+Lightweight router that receives event and `activity_id`, resolves the matched automation, updates the activity log with the matched `automation_id`, and delegates to the appropriate executor:
+- `execute-post-comment`
+- `execute-dm`
+- `execute-story`
+
+### 3B. Post Comment Executor
+#### [NEW] `execute-post-comment/index.ts`
+- Reply to the comment using round-robin picker.
+- Send DM (supports Text, Buttons, or Carousel Card formatting).
+- **Carousel Support**: Format `carouselCards` into FB generic template structure.
+- **Schedule Follow-up**: If a follow-up action is active, write a record to `scheduled_followups`.
+
+### 3C. DM / Conversation Menu Executor
+#### [NEW] `execute-dm/index.ts`
+- Reply with text, template, or Carousel Card.
+- **State Machine**: Read/Write state to `contacts.metadata.conversation_state`.
+- **Menu Flow**: Recursively handle button postback payloads by matching them against action card IDs, returning child cards dynamically.
+- **Complete Flow**: If lead collection succeeds, update pending follow-ups for this `contact_id` + `automation_id` to `'cancelled'`.
+
+### 3D. Story Reply Executor
+#### [NEW] `execute-story/index.ts`
+- Handle story replies and delegate message execution.
+
+### 3E. Background Follow-up Processor
+#### [NEW] `send-scheduled-followups/index.ts`
+- Cron-triggered Edge Function running every 5 minutes.
+- Fetches all pending follow-ups where `send_at <= NOW()`.
+- Sends the messages via Meta Graph API and updates status to `'sent'`.
+
+---
+
+## Phase 4: Update `create-workflow` (Skip n8n for Code Engine Users)
+
+**Goal**: Update automation creators to save only to DB routes and skip pushing to n8n if `use_code_engine` is active.
+
+### Changes
+
+#### [MODIFY] [create-workflow/index.ts](file:///c:/QuickRevert/app.quickrevert.tech/supabase/functions/create-workflow/index.ts)
+Check flag; if Code Engine user, call `ensureRoutes()` to map DB routes but skip posting to the n8n API.
+
+#### [MODIFY] `activate-workflow`, `deactivate-workflow`, `delete-workflow`
+Check flag; skip n8n API triggers, directly updating `automations.status` in the DB.
+
+---
+
+## Phase 5: Gradual Rollout + n8n Retirement
+
+### Step 5A: New Signups default to Code Engine
+```sql
+ALTER TABLE user_limits
+ALTER COLUMN use_code_engine SET DEFAULT 'true';
+```
+
+### Step 5B: Graceful Transition & Draining
+Run the migration script:
+1. Update user flag to `'draining'`.
+2. Allow active conversations 24 hours to finish in n8n.
+3. Automatically update flag to `'true'` after 24 hours.
+
+### Step 5C: Decommission n8n
+- Remove n8n env credentials.
+- Drop `n8n_workflows` table.
+- Stop self-hosted n8n container.
+
+---
+
+## Summary of Changes
+
+| File / Component | Phase | Change Description |
+| :--- | :--- | :--- |
+| `user_limits` table | 1 | Add `use_code_engine` routing state column. |
+| `scheduled_followups` table | 1 | **[NEW]** Track background follow-up queue. |
+| `webhook-meta/index.ts` | 2 | Bypass `resolveRoutes()` and direct to Code Engine for CE users. |
+| `execute-automation/index.ts` | 3 | Refactor to Master Router, updates incoming activity log mapping. |
+| `execute-post-comment/index.ts` | 3 | **[NEW]** Handle comment replies, carousels, schedule follow-ups. |
+| `execute-dm/index.ts` | 3 | **[NEW]** State machine in `contacts.metadata`, recursive menu routing. |
+| `execute-story/index.ts` | 3 | **[NEW]** Handle story trigger events. |
+| `send-scheduled-followups/index.ts` | 3 | **[NEW]** background follow-up cron script. |
+| `create-workflow/index.ts` | 4 | Save DB routes only, skipping n8n API calls. |
+| `n8nService.ts` (frontend) | — | **No changes** |
+| `Automations.tsx` (frontend) | — | **No changes** |

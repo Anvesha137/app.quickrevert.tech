@@ -1,0 +1,230 @@
+# QuickRevert — Architecture, Flow, & Code Engine Migration Report
+
+This report provides a complete architectural deep-dive into QuickRevert, details the user flows, analyzes backend communication counts (API/DB calls), and reviews the current status of the transition from n8n to the custom Code Engine.
+
+---
+
+## 1. Complete Architecture Overview
+
+QuickRevert is a high-performance Instagram automation platform designed to filter comments, handle direct messages (DMs), capture leads, and support multi-level conversation menus.
+
+```mermaid
+graph TD
+    User[Instagram User] -->|Comment / DM| CF[Cloudflare Bouncer]
+    CF -->|Filter Junk / HMAC| WM[Supabase: webhook-meta]
+    WM -->|Verify & Route| Router{Routing Engine}
+    
+    %% Current Flow
+    Router -->|If n8n enabled| N8N[n8n Instance]
+    N8N -->|Instagram Graph API| IG[Instagram API]
+    N8N -->|Log Lead| SL[Supabase: save-lead]
+    
+    %% Target Flow (Code Engine)
+    Router -.->|Direct Execution| CE[Supabase: execute-automation]
+    CE -->|Instagram Graph API| IG
+    CE -->|Direct DB Write| DB[(Supabase Postgres)]
+    
+    %% Database Sync
+    DB <-->|Sync Limits/Flags| Neon[(Neon Database)]
+```
+
+### Core Architecture Layers:
+1. **Frontend Dashboard (React/Vite)**: A single-page app styled using HSL-based vanilla CSS (featuring Gen Z and Millennial skins). It handles user login, account connection states, billing, and automation management.
+2. **Cloudflare Worker ("The Bouncer")**: Acts as the first line of defense. It receives all incoming Meta webhook traffic, verifies signatures, and drops junk events (like delivery/read receipts) at $0 cost to protect Supabase from billing overload.
+3. **Database Layer (Dual Databases)**:
+   - **Supabase Postgres**: The primary database storing active user configurations, connected accounts, automation routes, contacts, logs, and activity records.
+   - **Neon Database (External)**: Stores user plan configurations, billing statuses, feature flags, and gifted premium user overrides.
+4. **Supabase Edge Functions (Deno)**: 40+ serverless functions.
+   - `webhook-meta` is the hot entry-point.
+   - `create-workflow`, `activate-workflow`, `deactivate-workflow`, and `delete-workflow` orchestrate automation setups.
+5. **n8n Automation Engine (Current Setup)**: A self-hosted workflow platform. Each automation translates 1-to-1 into a registered n8n workflow. It uses n8n's `staticData` store to maintain state across DM conversations.
+6. **Code Engine (Future Setup)**: A custom-built serverless JS execution engine (`execute-automation` edge function) designed to match rules, manage state machines, and talk to Instagram Graph APIs directly, removing the need for n8n.
+
+---
+
+## 2. End-to-End User Flow
+
+Here is the exact lifecycle of a user, from initial onboarding to automation execution and deletion.
+
+### 2.1 Sign-Up & Onboarding
+1. **Auth Session**: User signs up/logs in via Email/Password or Google OAuth (handled by Supabase Auth).
+2. **Gifted Verification**: If the user is flagged as a gifted premium user, a password override is synced and checked against the Neon DB.
+3. **Plan Sync**: The system fetches user plan limits from Neon and stores them in the `user_limits` table in Supabase.
+
+### 2.2 Connecting Instagram
+1. **Initiate**: User clicks "Connect Instagram" in the dashboard, invoking the `/instagram-oauth-init` Edge Function, which redirects the user's browser to Meta.
+2. **Authorization**: The user approves permissions (`instagram_basic`, `manage_comments`, `manage_messages`, etc.) and is redirected back to the `/instagram-oauth-callback` Edge Function.
+3. **Token Upgrade**: The callback exchanges the auth code for a short-lived token, upgrades it to a 60-day long-lived token, and fetches profile details.
+4. **ID Resolution**: It queries the Facebook Pages API to find the linked **Instagram Business Account (IGBA) ID** (essential since Meta webhook payloads send the IGBA ID, not the raw user ID).
+5. **Webhook Subscription**: The function automatically registers the app to receive webhooks for that IGBA ID (`subscribed_apps` endpoint).
+6. **n8n Credential Sync**: The function invokes `syncN8nCredential()` which uses a `PATCH` request to push the new token to n8n.
+
+### 2.3 Creating and Saving Automations
+1. **Builder UI**: The user builds a flow (e.g. a comment trigger that replies publicly and sends a DM with a menu button).
+2. **DB Sync**: Saving writes to the `automations` table.
+3. **Workflow Generation**: The frontend triggers `/create-workflow`. This function generates n8n workflow JSON from templates, registers the workflow via n8n's REST API, and activates it.
+4. **Route Registration**: The function registers execution entry points in three tables:
+   - `automation_routes` (maps account IDs to n8n webhook paths).
+   - `tracked_posts` (for specific post-level comment overrides).
+   - `tracked_payloads` / `tracked_messages` (maps buttons/keywords to specific workflows).
+
+### 2.4 Automation Execution (Trigger Flow)
+1. **User Action**: An Instagram follower leaves a comment containing a keyword (e.g., "LINK").
+2. **Ingestion (CF Bouncer)**: Meta sends the webhook to the Cloudflare Worker. The worker validates the signature, verifies it's not a read/delivery receipt, and forwards the body.
+3. **Routing (Supabase webhook-meta)**:
+   - `webhook-meta` matches the incoming account ID.
+   - It verifies user DM limits in `user_limits`.
+   - It queries the route tables (`tracked_posts`, then `tracked_payloads`/`tracked_messages`, and falls back to `automation_routes`) to resolve which workflows are mapped to this event.
+   - It fetches the commenter's profile to resolve identity (username/avatar) and upserts it in the `contacts` table.
+   - It inserts a log into the `automation_activities` table.
+   - It forwards the event as a POST request to n8n.
+4. **Execution (n8n)**:
+   - n8n checks loop protection (stops execution if username matches the bot).
+   - n8n runs a public comment reply via Instagram Graph API.
+   - n8n sends a DM message with a CTA button.
+   - If the flow includes a Lead Manager, n8n reads conversation state from `staticData`, steps through the state machine (`waiting_name` -> `waiting_email`), and calls Supabase `/save-lead` when complete.
+5. **Postback / Button Tap**:
+   - If the user taps the DM button, Meta sends a postback event.
+   - The event routes to the Cloudflare Worker -> `webhook-meta` -> n8n.
+   - n8n reads the postback payload (e.g. `CONFIRM_SAVE`), updates state, and finishes the lead record.
+
+---
+
+## 3. Backend Communication: Call Audit & Costs
+
+Here is a breakdown of API and database calls triggered by a single user interaction (Comment -> Comment Reply + DM with Button).
+
+### 3.1 Initial Webhook Ingestion (Supabase `webhook-meta`)
+For each incoming comment event that passes Cloudflare:
+
+| System / Step | Action Type | Details | Call Count |
+| :--- | :--- | :--- | :--- |
+| **Meta → Cloudflare** | Inbound HTTP | Webhook POST delivery | 1 API Call |
+| **Cloudflare → Supabase** | Outbound HTTP | Forward to `/webhook-meta` | 1 API Call |
+| **Supabase DB** | SELECT | Lookup account in `instagram_accounts` | 1 DB Call |
+| **Supabase DB** | SELECT/INSERT | Idempotency verification in `processed_events` | 1 DB Call |
+| **Supabase DB** | SELECT | Check pre-computed limit in `user_limits` | 1 DB Call |
+| **Supabase DB** | SELECT | Resolve routes in `tracked_posts`/`automation_routes` | 1 DB Call |
+| **Supabase DB** | SELECT | Fetch n8n workflow details in `n8n_workflows` | 1 DB Call |
+| **Supabase → Meta** | Outbound HTTP | Fetch profile of commenter (`name`, `username`, `avatar`) | 1 API Call |
+| **Supabase DB** | UPSERT | Save follower profile in `contacts` table | 1 DB Call |
+| **Supabase DB** | INSERT | Log inbound interaction in `automation_activities` | 1 DB Call |
+| **Supabase → n8n** | Outbound HTTP | Forward payload to n8n webhook | 1 API Call |
+
+*Subtotal for Ingestion: 4 API Calls, 7 DB Calls.*
+
+---
+
+### 3.2 Workflow Execution (n8n Instance)
+Once n8n receives the webhook payload:
+
+| System / Step | Action Type | Details | Call Count |
+| :--- | :--- | :--- | :--- |
+| **n8n → Instagram** | Outbound HTTP | GET `/me` to get bot username (loop protection) | 1 API Call |
+| **n8n → Instagram** | Outbound HTTP | POST `/{comment_id}/replies` (public reply) | 1 API Call |
+| **n8n → Instagram** | Outbound HTTP | POST `/me/messages` (send DM with buttons) | 1 API Call |
+
+*Subtotal for Execution: 3 API Calls, 0 DB Calls.*
+
+---
+
+### 3.3 Echo Handling (Filtered at Cloudflare Edge)
+For every outbound DM the bot sends, Meta sends an **Echo Webhook** back. However, the Cloudflare Worker is configured to intercept and drop these echoes at the edge:
+```javascript
+// From cloudflare-bouncer.js
+if (messaging?.message?.is_echo === true) {
+  console.log('[BOUNCER] Dropped Echo event');
+  return new Response('EVENT_RECEIVED', { status: 200 });
+}
+```
+This saves Supabase from being invoked for echo events, avoiding unnecessary duplicate checks and logging overhead.
+
+| System / Step | Action Type | Details | Call Count |
+| :--- | :--- | :--- | :--- |
+| **Meta → CF** | Inbound HTTP | Echo webhook POST | 1 API Call |
+| **Cloudflare** | Logic Check | Detects `is_echo === true` and drops the event | 0 Outbound Calls |
+| **Supabase Edge** | Invocations | Bypassed completely | 0 Invocations |
+| **Supabase DB** | DB Operations | Bypassed completely | 0 DB Calls |
+
+*Subtotal for Echo: 1 API Call (to Cloudflare), 0 Supabase Invocations, 0 DB Calls.*
+
+---
+
+### Total Call Count for 1 Completed Automation Interaction:
+- **Total External API Calls**: **7 HTTP Calls** (Comment inbound to CF, CF forward to Supabase, Supabase forward to n8n, 3 API calls from n8n to Instagram, and the inbound Echo to CF which is dropped).
+- **Total Database Calls**: **7 DB Operations** (all during initial ingestion; 0 during execution and echo handling).
+- **Cloudflare Requests**: **4 requests** (Comment, DM Echo, Delivery Receipt, Read Receipt).
+- **Supabase Edge Invocations**: **1 invocation** (1 for initial comment; the Echo is successfully dropped at the edge).
+
+
+---
+
+## 4. Switching from n8n to Code Engine
+
+To scale the platform to 1,000+ users, we are migrating from n8n to a native serverless Code Engine (`execute-automation` edge function). This eliminates n8n server hosting bottlenecks, prevents memory exhaustion, and cuts execution delay.
+
+### 4.1 What is Completed 
+The core engine has already been written in Deno and is stored in [execute-automation/index.ts](file:///c:/QuickRevert/app.quickrevert.tech/supabase/functions/execute-automation/index.ts):
+- **Trigger Matching Logic**: Handles matching keywords, specific posts, message text, and postback buttons.
+- **State Machine (Lead Manager)**: A database-driven state machine replaces n8n's in-memory `staticData`. It reads and writes metadata to the `contacts` table, stepping through `waiting_name`, `waiting_email`, `waiting_phone`, and `waiting_custom`, validating fields, and inserting captured leads directly into the `leads` table.
+- **Follow-to-Unlock Guard**: Calls the Facebook Graph API to check if the user is following the business account before unlocking actions.
+- **Action Dispatcher**: Directly executes comment replies (`/replies` endpoint) and sends text or generic template messages (`/messages` endpoint).
+- **Declaration**: Registered in `supabase/config.toml` as a public edge function.
+
+---
+
+### 4.2 What is Left / Pending
+1. **Connecting Ingestion (`webhook-meta`)**: `webhook-meta/index.ts` has **no link** to `execute-automation`. It still directs all resolved events to n8n webhook URLs.
+2. **Frontend UI Independence**: The dashboard still invokes `create-workflow`, `activate-workflow`, and `deactivate-workflow` edge functions to build and deploy n8n JSON structures. The frontend must be refactored to simply edit `automations` in the database and bypass n8n configurations entirely.
+3. **Support for Advanced UI Actions**: The action runner in the Code Engine supports simple comments, DMs, and basic template cards. It does **not** yet handle carousel structures or complex multi-level menu paths (Recursive Menus).
+4. **Execution Logs and Debugging**: n8n provides visual debugging. If we retire n8n, we need to log execution states, successes, and errors to a database table so users can review execution history.
+
+---
+
+### 4.3 Proposed Migration Path
+
+We should implement the migration in 4 sequential phases:
+
+```mermaid
+matrix
+    "Phase 1: Ingestion Routing" : "Modify webhook-meta to optionally call execute-automation directly instead of n8n."
+    "Phase 2: Action Completion"  : "Extend execute-automation to support Carousel template schemas and Multi-Level Menu flows."
+    "Phase 3: Frontend Transition" : "Refactor dashboard save/toggle actions to bypass n8n API calls and update DB records only."
+    "Phase 4: Cleanup & Retire"   : "Decommission the self-hosted n8n instance and delete n8n-specific tables (n8n_workflows)."
+```
+
+#### Step 1: Hook up `webhook-meta` to `execute-automation`
+Update `webhook-meta/index.ts` to trigger the code engine. We can introduce a feature toggle (`use_code_engine` column or environment variable) so we can roll it out incrementally:
+```typescript
+if (useCodeEngine) {
+    // Invoke execute-automation directly
+    await supabaseClient.functions.invoke('execute-automation', {
+        body: {
+            userId: account.user_id,
+            instagramAccountId: account.id,
+            triggerType: event_type === 'messaging' ? 'user_dm' : 'post_comment',
+            eventData: {
+                commentId: change.value?.id,
+                commentText: change.value?.text,
+                messageText: msg.message?.text,
+                postbackPayload: msg.postback?.payload || msg.message?.quick_reply?.payload,
+                from: { id: targetUserId, username: resolvedUsername }
+            }
+        }
+    });
+} else {
+    // Fall back to n8n routing
+    await triggerWorkflows(payloadData, activeRoutes.routes, activeRoutes.workflows);
+}
+```
+
+#### Step 2: Implement Complex Layouts in Code Engine
+Enhance `executeAction` inside `execute-automation/index.ts` to map and parse the complex carousel structures (`carouselCards`) and recursive menus.
+
+#### Step 3: Implement Execution Logs Table
+Create an `execution_logs` table (or enrich `automation_activities`) to record the exact path execution (e.g., `Matched Automation X -> Sent DM -> Capturing Lead`). This replaces the n8n execution history view.
+
+#### Step 4: Decommission n8n
+- Modify `Automations.tsx` and the frontend codebase to stop calling n8n Edge Functions.
+- Run a migration script to clean up `n8n_workflows` and deprecated API credentials.
+- Turn off the self-hosted n8n Docker container.
