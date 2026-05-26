@@ -577,6 +577,33 @@ async function processEvent(body: any) {
                             activity_id: primaryActivityId
                         };
                         await triggerWorkflows(payloadData, activeRoutes.routes, activeRoutes.workflows);
+
+                        // 🔥 FIX: Log the outgoing DM triggered by this comment automation.
+                        // The N8N workflow sends the DM via Instagram API but never logs it.
+                        // Instagram echo webhooks for private replies (via comment_id) are unreliable,
+                        // so we proactively log the send_dm activity here to ensure the counter increments.
+                        if (change.field === 'comments') {
+                            const commentUsername = change.value?.from?.username || 'Instagram User';
+                            for (const account of accountsData) {
+                                await supabaseClient.from('automation_activities').insert({
+                                    user_id: account.user_id,
+                                    instagram_account_id: account.id,
+                                    contact_id: null,
+                                    automation_id: matchedAutomationId,
+                                    activity_type: 'send_dm',
+                                    target_username: commentUsername,
+                                    message: 'DM sent (triggered by comment automation)',
+                                    status: 'success',
+                                    metadata: {
+                                        direction: 'outbound',
+                                        trigger: 'comment_automation',
+                                        event_id: eventId,
+                                        media_id: change.value?.media?.id
+                                    }
+                                });
+                            }
+                            console.log(`[DM COUNTER] Logged send_dm for comment automation → ${commentUsername}`);
+                        }
                     }
                 }
             }
