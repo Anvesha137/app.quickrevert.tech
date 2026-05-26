@@ -767,21 +767,10 @@ export default function Automations() {
                           <div className={cn(
                             "w-14 h-14 rounded-xl transition-colors shadow-sm overflow-hidden flex items-center justify-center shrink-0",
                             automation.status === 'active'
-                              ? (automation.trigger_config?.thumbnail_url ? "" : (darkMode ? "bg-blue-500/20 text-blue-400" : "bg-blue-50 text-blue-600"))
-                              : (automation.trigger_config?.thumbnail_url ? "" : (darkMode ? "bg-white/5 text-white/20" : "bg-slate-100 text-slate-500"))
+                              ? (darkMode ? "bg-blue-500/20 text-blue-400" : "bg-blue-50 text-blue-600")
+                              : (darkMode ? "bg-white/5 text-white/20" : "bg-slate-100 text-slate-500")
                           )}>
                             {(() => {
-                              const thumbUrl = automation.trigger_config?.thumbnail_url;
-                              if (thumbUrl && (automation.trigger_type === 'post_comment' || automation.trigger_type === 'story_reply')) {
-                                return (
-                                  <img
-                                    src={thumbUrl}
-                                    alt=""
-                                    className="w-full h-full object-cover"
-                                  />
-                                );
-                              }
-
                               switch (automation.trigger_type) {
                                 case 'post_comment': return <MessageSquare className="h-6 w-6" />;
                                 case 'story_reply': return <ImageIcon className="h-6 w-6" />;

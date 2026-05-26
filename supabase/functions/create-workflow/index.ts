@@ -149,7 +149,10 @@ Deno.serve(async (req: Request) => {
     }
 
     // Reuse path if existing
-    const webhookPath = existingVibePath || `instagram-webhook-${userId}-${automationId || Date.now()}`;
+    let webhookPath = existingVibePath || `instagram-webhook-${userId}-${automationId || Date.now()}`;
+    if (bodyTriggerType === 'enable_analytics') {
+      webhookPath = `analytics-refresh-${userId}`;
+    }
 
     // --- BUILDERS ---
     // --- BUILDERS ---
@@ -1531,13 +1534,15 @@ return results;`
             "parameters": {
               "httpMethod": "POST",
               "path": webhookPath,
+              "responseMode": "lastNode",
               "options": {}
             },
             "id": "webhook-node",
-            "name": "Start Trigger",
+            "name": "Webhook",
             "type": "n8n-nodes-base.webhook",
             "typeVersion": 2.1,
-            "position": [-320, -112]
+            "position": [-320, -112],
+            "webhookId": `webhook-analytics-${userId}`
           },
           {
             "parameters": {
@@ -1631,25 +1636,11 @@ return results;`
             "position": [288, 464],
             "id": "update-followers-webhook",
             "name": "Update Followers"
-          },
-          {
-            "parameters": {
-              "httpMethod": "POST",
-              "path": `analytics-refresh-${userId}`,
-              "responseMode": "lastNode",
-              "options": {}
-            },
-            "type": "n8n-nodes-base.webhook",
-            "typeVersion": 2,
-            "position": [-368, 720],
-            "id": "refresh-webhook-node",
-            "name": "Webhook",
-            "webhookId": `webhook-analytics-${userId}`
           }
         ];
 
         const connections = {
-          "Start Trigger": {
+          "Webhook": {
             "main": [
               [
                 {
@@ -1683,17 +1674,6 @@ return results;`
             ]
           },
           "Schedule Trigger": {
-            "main": [
-              [
-                {
-                  "node": "Get Instagram Stats1",
-                  "type": "main",
-                  "index": 0
-                }
-              ]
-            ]
-          },
-          "Webhook": {
             "main": [
               [
                 {

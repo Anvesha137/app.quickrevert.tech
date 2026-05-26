@@ -77,7 +77,7 @@ serve(async (req) => {
 
         // 4. Construct Workflow JSON
         const workflowName = `[Analytics] ${username}`;
-        const webhookPath = `analytics-${userId}-${Date.now()}`;
+        const webhookPath = `analytics-refresh-${userId}`;
         const webhookUrl = `${n8nBaseUrl}/webhook/${webhookPath}`;
 
         const n8nWorkflowJSON = {
@@ -87,13 +87,15 @@ serve(async (req) => {
                     "parameters": {
                         "httpMethod": "POST",
                         "path": webhookPath,
+                        "responseMode": "lastNode",
                         "options": {}
                     },
                     "id": "webhook-node",
-                    "name": "Start Trigger",
+                    "name": "Webhook",
                     "type": "n8n-nodes-base.webhook",
                     "typeVersion": 2.1,
-                    "position": [-320, -112]
+                    "position": [-320, -112],
+                    "webhookId": `webhook-analytics-${userId}`
                 },
                 {
                     "parameters": {
@@ -187,24 +189,10 @@ serve(async (req) => {
                     "position": [352, -208],
                     "id": "update-followers-webhook",
                     "name": "Update Followers"
-                },
-                {
-                    "parameters": {
-                        "httpMethod": "POST",
-                        "path": `analytics-refresh-${userId}`,
-                        "responseMode": "lastNode",
-                        "options": {}
-                    },
-                    "type": "n8n-nodes-base.webhook",
-                    "typeVersion": 2,
-                    "position": [-320, 720],
-                    "id": "refresh-webhook-node",
-                    "name": "Webhook",
-                    "webhookId": `webhook-analytics-${userId}`
                 }
             ],
             connections: {
-                "Start Trigger": {
+                "Webhook": {
                     "main": [
                         [
                             {
@@ -238,17 +226,6 @@ serve(async (req) => {
                     ]
                 },
                 "Schedule Trigger": {
-                    "main": [
-                        [
-                            {
-                                "node": "Get Instagram Stats1",
-                                "type": "main",
-                                "index": 0
-                            }
-                        ]
-                    ]
-                },
-                "Webhook": {
                     "main": [
                         [
                             {
