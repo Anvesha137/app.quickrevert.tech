@@ -143,6 +143,11 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         return null;
     });
 
+    // Live Supabase user_limits row — updated immediately when admin saves Gift Premium.
+    // This is the authoritative source for dm_limit, automation_limit and feature flags.
+    // It bypasses the stale 6-hour Neon sync so Usage Stats always shows the correct ceiling.
+    const [userLimits, setUserLimits] = useState<any | null>(null);
+
     const [hasInstagramConnected, setHasInstagramConnected] = useState<boolean>(() => {
         if (typeof window === 'undefined') return false;
         try {
@@ -172,11 +177,11 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
                     .select('id, user_id, plan_id, status, current_period_end, amount_paid, discount_amount, coupon_code, created_at')
                     .eq('user_id', user.id)
                     .order('created_at', { ascending: false }),
-                // 🚀 OPTIMIZED (Phase 3): Read from total_dms counter — no automation_activities scan
-                // total_dms is auto-maintained by a Postgres trigger on every DM insert
+                // 🚀 Fetch full user_limits row: total_dms counter + live gifted limit fields
+                // dm_limit, automation_limit etc. are pushed here immediately on admin Gift Premium saves
                 supabase
                     .from('user_limits')
-                    .select('total_dms')
+                    .select('*')
                     .eq('user_id', user.id)
                     .maybeSingle(),
                 supabase
@@ -207,6 +212,9 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
                 automations: automationCountResult.count || 0,
                 accounts: instagramAccountResult.count || 0
             });
+
+            // Store live limit values — this is now the authoritative source for all limit computations
+            setUserLimits(dmCountResult.data || null);
 
             try {
                 const neonSyncCacheKey = `neon_sync_v2_${user.id}`;
@@ -349,41 +357,61 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         subscription.status === 'past_due'
     ) && new Date(subscription.current_period_end) > new Date();
 
-    const isGiftedActive = isGifted && (!giftedSettings?.expiry_date || new Date(giftedSettings.expiry_date) > new Date());
+    // ── Gifted status ──────────────────────────────────────────────────────────
+    // userLimits.is_gifted is the live authoritative flag (pushed immediately when admin saves
+    // Gift Premium). We fall back to the Neon-sync-derived `isGifted` + `giftedSettings` for
+    // users whose user_limits row hasn't been written yet.
+    const isGiftedActive =
+        (userLimits?.is_gifted === true) ||
+        (isGifted && (!giftedSettings?.expiry_date || new Date(giftedSettings.expiry_date) > new Date()));
+
     const isPremium = isGiftedActive || (!planId.includes('basic') && isPlanActive);
     const isProfessional = isGiftedActive || (['professional', 'enterprise'].some(p => planId.includes(p)) && !!isPlanActive);
     const isGold = isPremium && planId.includes('enterprise');
 
+    // ── Effective gifted settings ───────────────────────────────────────────────
+    // userLimits (Supabase, refreshed every 15 min + immediately on admin saves) takes priority
+    // over giftedSettings (from Neon sync, stale up to 6 hours).
+    const effectiveDmLimit       = userLimits?.dm_limit          ?? giftedSettings?.dm_limit;
+    const effectiveAutoLimit     = userLimits?.automation_limit  ?? giftedSettings?.automation_limit;
+    const effectiveCarousel      = userLimits?.carousel_enabled  ?? giftedSettings?.carousel_enabled  ?? false;
+    const effectiveLeadManager   = userLimits?.lead_manager      ?? giftedSettings?.lead_manager      ?? false;
+    const effectiveMenuFlow      = userLimits?.menu_flow_enabled ?? giftedSettings?.menu_flow_enabled ?? false;
+    const effectiveCarouselCount = userLimits?.carousel_count    ?? giftedSettings?.carousel_count    ?? 6;
+    const effectiveMenuFlowCount = userLimits?.menu_flow_count   ?? giftedSettings?.menu_flow_count   ?? 10;
+    const effectiveAskToFollow   = userLimits?.ask_to_follow_enabled ?? giftedSettings?.ask_to_follow_enabled ?? false;
+    const effectiveAccountLimit  = userLimits?.account_limit     ?? giftedSettings?.account_limit     ?? 1;
+
     // Feature flags
-    const canUseAskToFollow = isGiftedActive ? (giftedSettings?.ask_to_follow_enabled ?? false) : (!planId.includes('basic') && !!isPlanActive);
+    const canUseAskToFollow = isGiftedActive ? effectiveAskToFollow : (!planId.includes('basic') && !!isPlanActive);
     const advancedPlanIds: PlanId[] = ['try_me_out', 'professional', 'enterprise'];
     const hasAdvancedFeatures = isGiftedActive || (advancedPlanIds.some(p => planId.includes(p)) && !!isPlanActive);
     
     // Feature flags - Gifted users respect their specific configuration
-    const canUseCarousel = isGiftedActive ? (giftedSettings?.carousel_enabled ?? false) : hasAdvancedFeatures;
-    const canUseLeadManager = isGiftedActive ? (giftedSettings?.lead_manager ?? false) : hasAdvancedFeatures;
-    const canUseMenuFlow = isGiftedActive ? (giftedSettings?.menu_flow_enabled ?? false) : hasAdvancedFeatures;
+    const canUseCarousel = isGiftedActive ? effectiveCarousel : hasAdvancedFeatures;
+    const canUseLeadManager = isGiftedActive ? effectiveLeadManager : hasAdvancedFeatures;
+    const canUseMenuFlow = isGiftedActive ? effectiveMenuFlow : hasAdvancedFeatures;
     const canUseFollowUpMsgs = hasAdvancedFeatures;
     const canUseAppointmentManager = hasAdvancedFeatures;
     
-    const maxCarouselCards = isGiftedActive ? (giftedSettings?.carousel_count ?? 6) : 6;
-    const maxMenuFlowCards = isGiftedActive ? (giftedSettings?.menu_flow_count ?? 10) : 10;
+    const maxCarouselCards = isGiftedActive ? effectiveCarouselCount : 6;
+    const maxMenuFlowCards = isGiftedActive ? effectiveMenuFlowCount : 10;
 
-    // Limits
+    // Limits — prefer live user_limits values, fall back to Neon giftedSettings
     const dmLimit = isGiftedActive
-        ? (giftedSettings?.dm_limit ?? 'Unlimited')
+        ? (effectiveDmLimit ?? 'Unlimited')
         : planId === 'basic' ? 2000
         : planId.includes('try_me_out') && isPlanActive ? 10000
         : isPlanActive ? 'Unlimited' : 2000;
 
     const automationLimit = isGiftedActive
-        ? (giftedSettings?.automation_limit ?? 'Unlimited')
+        ? (effectiveAutoLimit ?? 'Unlimited')
         : planId === 'basic' ? 5
         : planId.includes('try_me_out') && isPlanActive ? 10
         : isPlanActive ? 'Unlimited' : 5;
 
     const accountLimit = isGiftedActive
-        ? (giftedSettings?.account_limit ?? 1)
+        ? effectiveAccountLimit
         : planId.includes('enterprise') ? 10
         : planId.includes('professional') ? 2
         : 1;
