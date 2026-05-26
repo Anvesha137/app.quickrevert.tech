@@ -46,13 +46,13 @@ export default function Pricing() {
             period: '/ one-time',
             cta: 'Try Now',
             features: [
-                '1 Instagram Account', 
-                '10 Automations', 
-                '10,000 DMs', 
-                'Growth Tool (Ask to follow)', 
-                'Carousel msgs', 
-                'Lead Manager', 
-                'Follow up msgs', 
+                '1 Instagram Account',
+                '10 Automations',
+                '10,000 DMs',
+                'Growth Tool (Ask to follow)',
+                'Carousel msgs',
+                'Lead Manager',
+                'Follow up msgs',
                 '1:1 appointment manager*'
             ],
             icon: <Zap className="w-5 h-5 text-orange-500" />,
@@ -68,9 +68,9 @@ export default function Pricing() {
             period: '/ mo',
             cta: 'Start Premium',
             features: [
-                '1 Instagram Account', 
-                'Unlimited automations', 
-                'Unlimited DMs', 
+                '1 Instagram Account',
+                'Unlimited automations',
+                'Unlimited DMs',
                 'Growth Tool (Ask to follow)'
             ],
             icon: <Sparkles className="w-5 h-5 text-blue-500" />,
@@ -86,9 +86,8 @@ export default function Pricing() {
             period: '/ mo',
             cta: 'Go Professional',
             features: [
-                'Up to 2 Instagram Accounts', 
-                'Unlimited automations', 
-                'Unlimited DMs', 
+                'Unlimited automations',
+                'Unlimited DMs',
                 'Growth Tool (Ask to follow)',
                 'Carousel msgs',
                 'Lead Manager',
@@ -108,9 +107,9 @@ export default function Pricing() {
             period: 'Sales',
             cta: 'Contact Sales',
             features: [
-                'Multiple Instagram Accounts', 
-                'Unlimited automations', 
-                'Unlimited DMs', 
+                'Multiple Instagram Accounts',
+                'Unlimited automations',
+                'Unlimited DMs',
                 'Growth Tool (Ask to follow)',
                 'Carousel msgs',
                 'Lead Manager',
@@ -130,7 +129,7 @@ export default function Pricing() {
     };
 
     const activePlan = allPlans.find(p => isActivePlan(p.id)) || allPlans[0];
-    
+
     const gridPlans = allPlans.filter(p => {
         if (p.id === activePlan.id) return false;
         const isSamplerAndUsed = p.id === 'try_me_out' && hasUsedSampler && activePlanId !== 'try_me_out';
@@ -165,17 +164,16 @@ export default function Pricing() {
                     </div>
 
                     {/* Active Plan Card */}
-                    <div className={`bg-white rounded-3xl p-4 md:p-5 border transition-all relative group ${
-                        isActivePlan(activePlan.id)
+                    <div className={`bg-white rounded-3xl p-4 md:p-5 border transition-all relative group ${isActivePlan(activePlan.id)
                             ? 'border-blue-400 shadow-[0_15px_40px_-12px_rgba(59,130,246,0.25)] ring-1 ring-blue-400/20'
                             : 'border-gray-100 shadow-sm'
-                    }`}>
+                        }`}>
                         <div className="absolute -top-2.5 left-0 right-0 mx-auto w-fit z-20">
                             <span className="bg-blue-600 text-[8px] text-white font-black uppercase tracking-widest px-4 py-0.5 rounded-full shadow-lg flex items-center gap-1">
                                 <Crown className="w-2.5 h-2.5" /> {isGiftedActive && activePlan.id === 'premium' ? 'Gifted Premium' : 'Your Plan'}
                             </span>
                         </div>
-                        
+
                         <div className="flex justify-between items-start mb-3">
                             <div className="p-1.5 bg-gray-50 rounded-xl group-hover:bg-blue-50 transition-colors">{activePlan.icon}</div>
                             <div className="text-right">
@@ -184,7 +182,7 @@ export default function Pricing() {
                             </div>
                         </div>
                         <p className="text-[10px] text-gray-500 font-medium mb-3">{activePlan.description}</p>
-                        
+
                         {(isPremium || isGiftedActive) && expiryDate && (
                             <div className="mb-3 px-3 py-1.5 bg-amber-50 rounded-lg border border-amber-100 flex items-center justify-between">
                                 <span className="text-[8px] text-amber-800 font-black uppercase tracking-widest">Valid Until</span>
@@ -200,8 +198,8 @@ export default function Pricing() {
                                 </li>
                             ))}
                         </ul>
-                        <button 
-                            onClick={() => navigate('/dashboard')} 
+                        <button
+                            onClick={() => navigate('/dashboard')}
                             className="w-full py-2.5 rounded-xl bg-blue-600 text-white text-[9px] font-black uppercase tracking-widest hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20"
                         >
                             Go to Dashboard
@@ -237,13 +235,12 @@ export default function Pricing() {
                         {gridPlans.map((plan) => {
                             const isCurrent = isActivePlan(plan.id);
                             return (
-                                <div key={plan.id} className={`group relative rounded-3xl bg-white border p-6 flex flex-col transition-all duration-300 ${
-                                    isCurrent
+                                <div key={plan.id} className={`group relative rounded-3xl bg-white border p-6 flex flex-col transition-all duration-300 ${isCurrent
                                         ? 'border-blue-400 shadow-[0_15px_40px_-12px_rgba(59,130,246,0.25)] ring-1 ring-blue-400/20'
                                         : plan.highlighted
                                             ? 'border-purple-500 shadow-[0_15px_40px_-12px_rgba(168,85,247,0.25)] ring-1 ring-purple-500/20'
                                             : 'border-gray-100 hover:border-gray-300 hover:shadow-lg'
-                                }`}>
+                                    }`}>
                                     {/* Badge */}
                                     {isCurrent ? (
                                         <div className="absolute -top-3 left-0 right-0 mx-auto w-fit z-20">

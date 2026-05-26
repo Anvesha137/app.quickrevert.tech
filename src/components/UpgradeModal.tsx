@@ -40,7 +40,7 @@ export default function UpgradeModal() {
         finalAmount: 0,
         isFree: false,
     });
-    const [salesTeam, setSalesTeam] = useState<{id: string, name: string}[]>([]);
+    const [salesTeam, setSalesTeam] = useState<{ id: string, name: string }[]>([]);
     const [assistedBy, setAssistedBy] = useState('');
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -86,7 +86,6 @@ export default function UpgradeModal() {
     const getPlanFeatures = () => {
         if (planTier === 'professional') {
             return [
-                'Up to 2 Instagram Accounts',
                 'Unlimited Automations & DMs',
                 'Ask to follow - Growth Tool',
                 'Carousel & Post automation',
@@ -148,21 +147,21 @@ export default function UpgradeModal() {
 
         try {
             const { data, error } = await supabase.functions.invoke('validate-coupon', {
-                body: { 
-                    couponCode: code.trim(), 
+                body: {
+                    couponCode: code.trim(),
                     planType: billingCycle,
                     planTier: planTier
                 }
             });
 
             if (error || !data.valid) {
-                 setCoupon({
+                setCoupon({
                     status: 'invalid',
                     message: error?.message || data?.message || 'Invalid coupon code.',
                     discountAmount: 0,
                     finalAmount: getBaseTotal(),
                     isFree: false,
-                 });
+                });
                 return;
             }
 
@@ -247,7 +246,7 @@ export default function UpgradeModal() {
                 setLoading(false);
                 const details = data.details ? ` (${data.details})` : '';
                 toast.error(`Order Failed: ${data.error}${details}`);
-                
+
                 // Auto-fix for nuclear tests: if user is deleted, sign them out
                 if (data.error === "Authentication failed" && (data.details?.includes("does not exist") || data.details?.includes("invalid"))) {
                     setTimeout(() => {
@@ -354,27 +353,26 @@ export default function UpgradeModal() {
 
                     {message && (
                         <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl text-red-600 text-xs font-black animate-pulse flex items-center gap-2 uppercase tracking-widest">
-                             <Tag className="w-4 h-4" />
-                             {message}
+                            <Tag className="w-4 h-4" />
+                            {message}
                         </div>
                     )}
 
                     <div className="flex items-center gap-4 mb-2">
-                        <div className={`p-3 rounded-2xl ${
-                            planTier === 'professional' ? 'bg-purple-100 text-purple-600' : 
-                            planTier === 'try_me_out' ? 'bg-orange-100 text-orange-600' : 
-                            'bg-blue-100 text-blue-600'
-                        }`}>
-                            {planTier === 'professional' ? <Trophy className="w-6 h-6" /> : 
-                             planTier === 'try_me_out' ? <Zap className="w-6 h-6" /> : 
-                             <Sparkles className="w-6 h-6" />}
+                        <div className={`p-3 rounded-2xl ${planTier === 'professional' ? 'bg-purple-100 text-purple-600' :
+                                planTier === 'try_me_out' ? 'bg-orange-100 text-orange-600' :
+                                    'bg-blue-100 text-blue-600'
+                            }`}>
+                            {planTier === 'professional' ? <Trophy className="w-6 h-6" /> :
+                                planTier === 'try_me_out' ? <Zap className="w-6 h-6" /> :
+                                    <Sparkles className="w-6 h-6" />}
                         </div>
                         <div>
                             <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tight">
                                 Upgrade to <span className={
-                                    planTier === 'professional' ? 'text-purple-600' : 
-                                    planTier === 'try_me_out' ? 'text-orange-500' : 
-                                    'text-blue-600'
+                                    planTier === 'professional' ? 'text-purple-600' :
+                                        planTier === 'try_me_out' ? 'text-orange-500' :
+                                            'text-blue-600'
                                 }>{planTier.replace(/_/g, ' ')}</span>
                             </h2>
                             <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mt-0.5">Scale your Instagram Automation</p>
@@ -386,18 +384,17 @@ export default function UpgradeModal() {
                     {/* STEP 1: Plan Selection */}
                     {step === 1 && (
                         <div className="animate-in fade-in slide-in-from-right-4 duration-500">
-                            
+
                             {/* Tier Selector inside modal */}
                             <div className="grid grid-cols-3 gap-2 mb-6 p-1 bg-gray-50 rounded-2xl border border-gray-100">
                                 {(['try_me_out', 'premium', 'professional'] as const).map((tier) => (
                                     <button
                                         key={tier}
                                         onClick={() => setPlanTier(tier)}
-                                        className={`py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                            planTier === tier 
-                                            ? 'bg-white shadow-md text-gray-900 ring-1 ring-gray-100' 
-                                            : 'text-gray-400 hover:text-gray-600'
-                                        }`}
+                                        className={`py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${planTier === tier
+                                                ? 'bg-white shadow-md text-gray-900 ring-1 ring-gray-100'
+                                                : 'text-gray-400 hover:text-gray-600'
+                                            }`}
                                     >
                                         {tier.replace(/_/g, ' ')}
                                     </button>
@@ -408,11 +405,10 @@ export default function UpgradeModal() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 mb-8 bg-gray-50/50 p-6 rounded-3xl border border-gray-100">
                                 {getPlanFeatures().map((feature, idx) => (
                                     <div key={idx} className="flex items-start gap-2.5">
-                                        <CheckCircle2 className={`w-4 h-4 flex-shrink-0 mt-0.5 ${
-                                            planTier === 'professional' ? 'text-purple-500' : 
-                                            planTier === 'try_me_out' ? 'text-orange-500' : 
-                                            'text-blue-500'
-                                        }`} />
+                                        <CheckCircle2 className={`w-4 h-4 flex-shrink-0 mt-0.5 ${planTier === 'professional' ? 'text-purple-500' :
+                                                planTier === 'try_me_out' ? 'text-orange-500' :
+                                                    'text-blue-500'
+                                            }`} />
                                         <span className="text-gray-700 font-bold text-[10px] uppercase tracking-tight leading-tight">{feature}</span>
                                     </div>
                                 ))}
@@ -444,14 +440,13 @@ export default function UpgradeModal() {
                             )}
 
                             {/* Pricing Display */}
-                            <div className={`rounded-3xl p-8 text-center mb-8 border transition-colors ${
-                                planTier === 'professional' ? 'bg-purple-50/50 border-purple-100' : 
-                                planTier === 'try_me_out' ? 'bg-orange-50/50 border-orange-100' : 
-                                'bg-blue-50/50 border-blue-100'
-                            }`}>
+                            <div className={`rounded-3xl p-8 text-center mb-8 border transition-colors ${planTier === 'professional' ? 'bg-purple-50/50 border-purple-100' :
+                                    planTier === 'try_me_out' ? 'bg-orange-50/50 border-orange-100' :
+                                        'bg-blue-50/50 border-blue-100'
+                                }`}>
                                 <p className="text-gray-400 font-black text-[10px] mb-2 uppercase tracking-widest">
-                                    {planTier === 'try_me_out' ? 'SINGLE SAMPLER PACK' : 
-                                     billingCycle === 'annual' ? 'ANNUAL PLAN' : 'QUARTERLY ACCESS'}
+                                    {planTier === 'try_me_out' ? 'SINGLE SAMPLER PACK' :
+                                        billingCycle === 'annual' ? 'ANNUAL PLAN' : 'QUARTERLY ACCESS'}
                                 </p>
                                 <div className="flex items-center justify-center gap-2">
                                     <span className="text-5xl font-black text-gray-900 tracking-tighter">
@@ -459,11 +454,10 @@ export default function UpgradeModal() {
                                     </span>
                                     {planTier !== 'try_me_out' && <span className="text-lg text-gray-400 font-bold uppercase tracking-tight">/mo*</span>}
                                 </div>
-                                <div className={`inline-block mt-4 px-6 py-1.5 rounded-full font-black text-xs uppercase tracking-widest ${
-                                    planTier === 'professional' ? 'bg-purple-600 text-white' : 
-                                    planTier === 'try_me_out' ? 'bg-orange-500 text-white' : 
-                                    'bg-blue-600 text-white'
-                                }`}>
+                                <div className={`inline-block mt-4 px-6 py-1.5 rounded-full font-black text-xs uppercase tracking-widest ${planTier === 'professional' ? 'bg-purple-600 text-white' :
+                                        planTier === 'try_me_out' ? 'bg-orange-500 text-white' :
+                                            'bg-blue-600 text-white'
+                                    }`}>
                                     Total Payable: ₹{getBaseTotal().toLocaleString()}
                                 </div>
                                 <p className="text-[10px] text-gray-400 mt-3 font-bold uppercase tracking-tighter">
@@ -473,11 +467,10 @@ export default function UpgradeModal() {
 
                             <button
                                 onClick={handleNextStep}
-                                className={`w-full text-white text-sm font-black py-5 rounded-2xl shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98] uppercase tracking-[0.2em] ${
-                                    planTier === 'professional' ? 'bg-purple-600 hover:bg-purple-700 shadow-purple-600/20' : 
-                                    planTier === 'try_me_out' ? 'bg-orange-500 hover:bg-orange-600 shadow-orange-500/20' : 
-                                    'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'
-                                }`}
+                                className={`w-full text-white text-sm font-black py-5 rounded-2xl shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98] uppercase tracking-[0.2em] ${planTier === 'professional' ? 'bg-purple-600 hover:bg-purple-700 shadow-purple-600/20' :
+                                        planTier === 'try_me_out' ? 'bg-orange-500 hover:bg-orange-600 shadow-orange-500/20' :
+                                            'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'
+                                    }`}
                             >
                                 Continue to Checkout
                             </button>
@@ -618,11 +611,10 @@ export default function UpgradeModal() {
                                 <button
                                     onClick={handleUpgrade}
                                     disabled={loading}
-                                    className={`flex-1 text-white text-sm font-black py-5 rounded-2xl shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 uppercase tracking-[0.2em] ${
-                                        planTier === 'professional' ? 'bg-purple-600 shadow-purple-600/20' : 
-                                        planTier === 'try_me_out' ? 'bg-orange-500 shadow-orange-500/20' : 
-                                        'bg-blue-600 shadow-blue-600/20'
-                                    }`}
+                                    className={`flex-1 text-white text-sm font-black py-5 rounded-2xl shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 uppercase tracking-[0.2em] ${planTier === 'professional' ? 'bg-purple-600 shadow-purple-600/20' :
+                                            planTier === 'try_me_out' ? 'bg-orange-500 shadow-orange-500/20' :
+                                                'bg-blue-600 shadow-blue-600/20'
+                                        }`}
                                 >
                                     {loading ? 'Processing...' : coupon.isFree ? 'Unlock Now 🎉' : 'Purchase Access'}
                                 </button>
