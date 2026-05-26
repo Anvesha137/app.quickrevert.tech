@@ -581,3 +581,26 @@ Below is the active audit of `select('*')` usage in the codebase that needs to b
 
 > [!TIP]
 > **Exception to the Rule:** `select('*', { count: 'exact', head: true })` (used in `webhook-meta` and `sync-user-neon`) is **safe**. The `{ head: true }` parameter tells Supabase to only return the count header and skip the body payload entirely. This costs zero Egress.
+
+---
+
+## 10. The "Manual Sync" Bug Fix (May 2026)
+
+### 10.1 The Problem
+When a user created an automation, they noticed it **wouldn't actually work** (DMs wouldn't trigger) unless an admin went into the internal dashboard and clicked a "Sync" button. 
+
+**Why was this happening?**
+1. When creating a *new* automation, the backend edge function (`create-workflow`) creates a fresh n8n workflow from scratch. 
+2. However, during this *first* creation pass, some data (like the correct Meta Instagram Business ID) might not be fully ready or linked yet, causing the webhook routes to be saved with missing or incorrect IDs. 
+3. When the admin clicked "Sync", it called the *same* edge function again. But because the workflow already existed, it took an **"Update" (PUT)** path. This path was heavily optimized to cleanly wipe out old broken routes and rebuild them with the correct IDs.
+
+### 10.2 The Simple Fix
+Instead of forcing the admin to click Sync, we made the frontend application do it automatically in the blink of an eye.
+
+**How the fix works:**
+In `AutomationCreate.tsx`, right after the user clicks "Save" and the automation is created (Pass 1), the code now **immediately calls the creation function a second time** (Pass 2).
+
+- **Pass 1:** Creates the n8n workflow and saves its ID to our database.
+- **Pass 2 (Auto-Sync):** Sees that the workflow ID already exists, so it updates the workflow and rigorously rebuilds all the database routes (`automation_routes`, `tracked_posts`, `tracked_payloads`).
+
+This replicates exactly what the admin "Sync" button was doing, ensuring the automation works 100% of the time right after creation without any manual intervention!
