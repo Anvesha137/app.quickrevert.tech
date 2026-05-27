@@ -18,6 +18,7 @@ interface ReferralUsage {
   promo_code: string;
   user_email: string;
   paid_at: string;
+  package_name?: string;
 }
 
 export default function MyReferrals() {
@@ -195,6 +196,7 @@ export default function MyReferrals() {
                     <tr className={`border-b text-xs font-bold uppercase tracking-wider ${darkMode ? 'border-slate-800 text-slate-400' : 'border-slate-200 text-slate-500'}`}>
                       <th className="px-6 py-4">User Email</th>
                       <th className="px-6 py-4">Promo Code Used</th>
+                      <th className="px-6 py-4">Package</th>
                       <th className="px-6 py-4 text-right">Date & Time (IST)</th>
                     </tr>
                   </thead>
@@ -212,6 +214,11 @@ export default function MyReferrals() {
                           }`}>
                             {usage.promo_code}
                           </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className={`text-sm font-medium ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+                            {usage.package_name ? usage.package_name.replace(/Monthly Sampler.*/i, 'TRY ME OUT') : '-'}
+                          </div>
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>

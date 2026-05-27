@@ -61,7 +61,7 @@ serve(async (req) => {
 
     // 2. Fetch usages from payments table and join with users to get email
     const { rows: usages } = await neonClient.queryObject(`
-      SELECT p.promo_code, u.email as user_email, p.paid_at
+      SELECT p.promo_code, u.email as user_email, p.paid_at, u.plan_name as package_name
       FROM payments p
       JOIN users u ON p.user_id = u.id
       WHERE p.promo_code = ANY($1) 
