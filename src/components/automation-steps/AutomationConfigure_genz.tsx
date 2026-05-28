@@ -1690,7 +1690,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                           {(dmAction.conversationCards?.length || 0) >= maxMenuFlowCards && (
                             <div className="col-span-full p-6 rounded-3xl bg-red-500/10 border border-red-500/20 text-center">
                               <p className="text-xs font-black text-red-500 uppercase tracking-widest italic">{maxMenuFlowCards + 1} Card Limit Active</p>
-                              <p className="text-[10px] font-bold text-red-400/80">Remaining buttons must be Links to save space.</p>
+                              <p className="text-[10px] font-bold text-red-400/80">Remaining buttons can be Links</p>
                             </div>
                           )}
                         </div>

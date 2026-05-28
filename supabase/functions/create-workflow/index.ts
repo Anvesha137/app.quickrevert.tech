@@ -238,7 +238,7 @@ Deno.serve(async (req: Request) => {
         const hybridNodes: any[] = [
           // 1. Worker Webhook
           {
-            "parameters": { "httpMethod": "POST", "path": webhookPath, "options": {} },
+            "parameters": { "httpMethod": "POST", "path": webhookPath, "responseMode": "onReceived", "options": {} },
             "id": "webhook-node", "name": "Worker Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 2.1,
             "position": [-1264, -1184], "webhookId": webhookPath
           },
@@ -470,7 +470,8 @@ if (typeof $getWorkflowStaticData === 'function') {
           "Payload Router": {
             "main": uniquePayloads.map((p: string) => {
               const targetName = getCardName(p);
-              return [{ "node": targetName, "type": "main", "index": 0 }];
+              const exists = cards.some((c: any) => getCardName(c.id) === targetName);
+              return exists ? [{ "node": targetName, "type": "main", "index": 0 }] : [];
             })
           }
         };
@@ -1326,7 +1327,7 @@ return results;`
         const cfNodes: any[] = [
           // 1. Webhook
           {
-            "parameters": { "httpMethod": "POST", "path": webhookPath, "options": {} },
+            "parameters": { "httpMethod": "POST", "path": webhookPath, "responseMode": "onReceived", "options": {} },
             "id": "webhook-node", "name": "Worker Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 2.1,
             "position": [-304, 4048], "webhookId": webhookPath
           },
@@ -1468,8 +1469,8 @@ return [{ json: { senderId } }];` },
           "Extract Payload": { "main": [[{ "node": "Payload Router", "type": "main", "index": 0 }]] },
           "Payload Router": {
             "main": uniquePayloads.map((p: string) => {
-              const targetName = cardNameMap[p] || `Card: ${p}`;
-              return [{ "node": targetName, "type": "main", "index": 0 }];
+              const targetName = cardNameMap[p];
+              return targetName ? [{ "node": targetName, "type": "main", "index": 0 }] : [];
             })
           }
         };
