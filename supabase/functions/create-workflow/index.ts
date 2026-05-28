@@ -412,10 +412,10 @@ if (typeof $getWorkflowStaticData === 'function') {
         cards.forEach((card: any, idx: number) => {
           const cardNodeName = getCardName(card.id);
           const cardPostbacks = formatButtons(card.actionButtons);
-          const hasPostbacks = cardPostbacks.some((b: any) => b.type === 'postback');
+          const hasButtons = cardPostbacks.length > 0;
 
           let cardJsonBody: string;
-          if (hasPostbacks) {
+          if (hasButtons) {
             const cardBody = {
               recipient: { id: senderExpr },
               message: {
@@ -1416,11 +1416,11 @@ return [{ json: { senderId } }];` },
           cardNameMap[card.id] = cardNodeName;
 
           const cardPostbacks = formatButtons(card.actionButtons);
-          const hasPostbacks = cardPostbacks.some((b: any) => b.type === 'postback');
+          const hasButtons = cardPostbacks.length > 0;
 
-          // If card has postback buttons → send as template; otherwise send as plain text
+          // If card has ANY buttons (postback OR web_url links) → send as template; otherwise send as plain text
           let cardJsonBody: string;
-          if (hasPostbacks) {
+          if (hasButtons) {
             const cardBody = {
               recipient: { id: senderExpr },
               message: {
