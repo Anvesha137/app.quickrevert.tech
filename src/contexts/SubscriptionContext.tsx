@@ -117,7 +117,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         return true;
     });
 
-    const [isGifted, setIsGifted] = useState(() => {
+    const [isGiftedState, setIsGiftedState] = useState(() => {
         if (typeof window === 'undefined') return false;
         try {
             const cached = localStorage.getItem(CACHE_KEY);
@@ -130,7 +130,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         return false;
     });
     
-    const [giftedSettings, setGiftedSettings] = useState<any | null>(() => {
+    const [giftedSettingsState, setGiftedSettingsState] = useState<any | null>(() => {
         if (typeof window === 'undefined') return null;
         try {
             const cached = localStorage.getItem(CACHE_KEY);
@@ -242,8 +242,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
                     }
                 }
 
-                setIsGifted(updatedIsGifted);
-                setGiftedSettings(updatedGiftedSettings);
+                setIsGiftedState(updatedIsGifted);
+                setGiftedSettingsState(updatedGiftedSettings);
 
                 // Save to cache with LOCAL variables to avoid closure issues
                 localStorage.setItem(CACHE_KEY, JSON.stringify({
@@ -350,12 +350,58 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         };
     }, [user, fetchSubscriptionData]);
 
+    // -------------------------------------------------------------------------
+    // Realtime: instantly degradation/upgrade when user_limits changes (Gift Premium)
+    // -------------------------------------------------------------------------
+    useEffect(() => {
+        if (!user) return;
+
+        const channel = supabase
+            .channel(`limits-changes-${user.id}`)
+            .on(
+                'postgres_changes' as any,
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'user_limits',
+                    filter: `user_id=eq.${user.id}`,
+                },
+                (payload: any) => {
+                    console.log('[SubscriptionContext] Realtime user_limits update:', payload);
+                    // Clear stale cache immediately
+                    localStorage.removeItem(CACHE_KEY);
+                    // Always re-fetch fresh data from Supabase
+                    fetchSubscriptionData();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [user, fetchSubscriptionData]);
+
     const planId = (subscription?.plan_id || 'basic').toLowerCase() as PlanId;
     const isPlanActive = subscription && (
         subscription.status === 'active' || 
         subscription.status === 'trialing' || 
         subscription.status === 'past_due'
     ) && new Date(subscription.current_period_end) > new Date();
+
+    // ── Gifted status & settings derived from live userLimits ──────────────────
+    const isGifted = (userLimits?.is_gifted === true) || isGiftedState;
+
+    const giftedSettings = userLimits?.is_gifted === true ? {
+        dm_limit: userLimits.dm_limit,
+        automation_limit: userLimits.automation_limit,
+        ask_to_follow_enabled: userLimits.ask_to_follow_enabled,
+        lead_manager: userLimits.lead_manager,
+        carousel_enabled: userLimits.carousel_enabled,
+        carousel_count: userLimits.carousel_count,
+        menu_flow_enabled: userLimits.menu_flow_enabled,
+        menu_flow_count: userLimits.menu_flow_count,
+        expiry_date: userLimits.expiry_date
+    } : giftedSettingsState;
 
     // ── Gifted status ──────────────────────────────────────────────────────────
     // userLimits.is_gifted is the live authoritative flag (pushed immediately when admin saves

@@ -90,6 +90,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
   const [editingPosts, setEditingPosts] = useState(true);
   const [editingKeywords, setEditingKeywords] = useState(true);
   const [showLeadMessages, setShowLeadMessages] = useState(false);
+  const [dmFormatOpen, setDmFormatOpen] = useState(false);
   const [keyword, setKeyword] = useState('');
   const [posts, setPosts] = useState<InstagramMedia[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(false);
@@ -516,7 +517,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
       ? (dmAction.title || '').trim().length > 0 &&
       (dmAction.actionButtons || []).every(btn => btn.text.trim().length > 0) &&
       (dmAction.conversationCards || []).every(card =>
-        (card.title || '').trim().length > 0 &&
+        (card.messageTemplate || '').trim().length > 0 &&
         (card.actionButtons || []).every(btn =>
           btn.text.trim().length > 0 &&
           (btn.buttonType === 'postback' || (btn.url && /^(https?:\/\/)?([\w.-]+)\.([a-z]{2,})(:\d{1,5})?(\/.*)?$/i.test(btn.url)))
@@ -998,44 +999,156 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                   <div className={cn("p-4 rounded-xl border space-y-4", darkMode ? "bg-black/20 border-white/5" : "bg-white border-purple-100")}>
 
                     {/* DM Format Selector */}
-                    <div className="space-y-2">
+                    <div className="space-y-2 relative">
                       <label className={cn("text-[10px] font-bold uppercase tracking-wide", darkMode ? "text-white/40" : "text-gray-500")}>DM Format</label>
-                      <div className="flex gap-2">
-                        {['simple', 'carousel', 'conversation_flow'].map((type) => {
-                          const isSelected = (dmAction?.dmType || 'simple') === type;
-                          let isSupported = type === 'simple' ? caps?.dm : (type === 'carousel' ? caps?.carousel : caps?.convFlow);
+                      
+                      {/* Dropdown Trigger */}
+                      <button
+                        type="button"
+                        onClick={() => !readOnly && setDmFormatOpen(!dmFormatOpen)}
+                        disabled={readOnly}
+                        className={cn(
+                          "w-full flex items-center justify-between rounded-xl border-2 px-4 py-3 font-bold text-sm transition-all text-left",
+                          darkMode 
+                            ? "bg-white/5 border-white/10 hover:border-purple-500/50 text-white" 
+                            : "bg-white border-purple-100 hover:border-purple-300 text-gray-900 shadow-sm",
+                          readOnly && "opacity-50 cursor-not-allowed"
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          {(() => {
+                            const currentType = dmAction?.dmType || 'simple';
+                            if (currentType === 'carousel') {
+                              return (
+                                <>
+                                  <ImageIcon className={cn("w-4 h-4", darkMode ? "text-purple-400" : "text-purple-600")} />
+                                  <span>Carousel Engine</span>
+                                </>
+                              );
+                            }
+                            if (currentType === 'conversation_flow') {
+                              return (
+                                <>
+                                  <MessageSquare className={cn("w-4 h-4", darkMode ? "text-purple-400" : "text-purple-600")} />
+                                  <span>Menu Flow</span>
+                                </>
+                              );
+                            }
+                            return (
+                              <>
+                                <Send className={cn("w-4 h-4", darkMode ? "text-purple-400" : "text-purple-600")} />
+                                <span>Simple Message</span>
+                              </>
+                            );
+                          })()}
+                        </div>
+                        <ChevronDown className={cn("w-4 h-4 transition-transform duration-200", dmFormatOpen && "rotate-180", darkMode ? "text-white/40" : "text-gray-400")} />
+                      </button>
 
-                          // Feature flag checks
-                          if (type === 'carousel' && !canUseCarousel) isSupported = false;
-                          if (type === 'conversation_flow' && !canUseMenuFlow) isSupported = false;
-
-                          if (!isSupported) return null;
-                          return (
-                            <button
-                              key={type}
-                              onClick={() => {
-                                if (type === 'conversation_flow' && hasLeadManager) {
-                                  toast.error("Lead Manager + Conversation Flow cannot be toggled on together");
-                                  return;
-                                }
-                                updateDmAction({ dmType: type as any });
-                              }}
-                              disabled={readOnly || (type === 'conversation_flow' && hasLeadManager)}
+                      {/* Dropdown Panel */}
+                      <AnimatePresence>
+                        {dmFormatOpen && (
+                          <>
+                            {/* Backdrop/Overlay to close dropdown when clicking outside */}
+                            <div className="fixed inset-0 z-40" onClick={() => setDmFormatOpen(false)} />
+                            
+                            <motion.div
+                              initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                              transition={{ duration: 0.15 }}
                               className={cn(
-                                "flex-1 py-1.5 px-2 rounded-lg border-2 font-bold text-[11px] transition-all",
-                                isSelected
-                                  ? (darkMode ? "border-purple-500 bg-purple-500/20 text-purple-300" : "border-purple-600 bg-purple-50 text-purple-700")
-                                  : (darkMode ? "border-white/5 bg-white/5 text-white/40 hover:bg-white/10" : "border-gray-100 bg-gray-50 text-gray-400 hover:bg-gray-100"),
-                                (type === 'conversation_flow' && hasLeadManager) && "opacity-50 cursor-not-allowed"
+                                "absolute left-0 right-0 mt-1.5 z-50 rounded-2xl border-2 p-2 shadow-2xl overflow-hidden backdrop-blur-2xl",
+                                darkMode 
+                                  ? "bg-black/95 border-white/10 text-white" 
+                                  : "bg-white border-purple-100 text-gray-900"
                               )}
                             >
-                              {type === 'simple' && 'Simple'}
-                              {type === 'carousel' && 'Carousel'}
-                              {type === 'conversation_flow' && 'Flow'}
-                            </button>
-                          );
-                        })}
-                      </div>
+                              <div className="space-y-1">
+                                {[
+                                  {
+                                    id: 'simple',
+                                    name: 'Simple Message',
+                                    desc: 'Standard direct message with links, attachments or buttons',
+                                    icon: Send,
+                                    isLocked: false,
+                                  },
+                                  {
+                                    id: 'carousel',
+                                    name: 'Carousel Engine',
+                                    desc: 'Interactive swipeable cards with custom headlines & images',
+                                    icon: ImageIcon,
+                                    isLocked: !canUseCarousel,
+                                  },
+                                  {
+                                    id: 'conversation_flow',
+                                    name: 'Menu Flow',
+                                    desc: 'Multi-choice interactive branches and automated replies',
+                                    icon: MessageSquare,
+                                    isLocked: !canUseMenuFlow,
+                                  }
+                                ].map((option) => {
+                                  const isSelected = (dmAction?.dmType || 'simple') === option.id;
+                                  const OptionIcon = option.icon;
+
+                                  return (
+                                    <button
+                                      key={option.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setDmFormatOpen(false);
+                                        if (option.isLocked) {
+                                          openModal();
+                                          return;
+                                        }
+                                        if (option.id === 'conversation_flow' && hasLeadManager) {
+                                          toast.error("Lead Manager + Conversation Flow cannot be toggled on together");
+                                          return;
+                                        }
+                                        updateDmAction({ dmType: option.id as any });
+                                      }}
+                                      className={cn(
+                                        "w-full flex items-center justify-between p-3 rounded-xl transition-all text-left group",
+                                        isSelected 
+                                          ? (darkMode ? "bg-purple-500/20 text-purple-300" : "bg-purple-50 text-purple-700") 
+                                          : (darkMode ? "hover:bg-white/5 text-white/70 hover:text-white" : "hover:bg-gray-50 text-gray-700 hover:text-gray-900")
+                                      )}
+                                    >
+                                      <div className="flex items-start gap-3">
+                                        <div className={cn(
+                                          "p-2 rounded-lg border shrink-0 transition-colors mt-0.5",
+                                          isSelected
+                                            ? (darkMode ? "bg-purple-500/30 border-purple-500/40 text-purple-400" : "bg-purple-100 border-purple-200 text-purple-700")
+                                            : (darkMode ? "bg-white/5 border-white/5 text-white/40 group-hover:bg-white/10" : "bg-gray-50 border-gray-100 text-gray-400 group-hover:bg-white")
+                                        )}>
+                                          <OptionIcon className="w-4 h-4" />
+                                        </div>
+                                        <div>
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="font-bold text-xs uppercase tracking-wider">{option.name}</span>
+                                            {option.isLocked && (
+                                              <span className="bg-purple-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider flex items-center gap-0.5">
+                                                <Lock className="w-2 h-2" /> PRO
+                                              </span>
+                                            )}
+                                          </div>
+                                          <p className={cn("text-[10px] font-medium mt-0.5 leading-tight", darkMode ? "text-white/40" : "text-gray-400")}>
+                                            {option.desc}
+                                          </p>
+                                        </div>
+                                      </div>
+
+                                      {isSelected && (
+                                        <CheckCircle2 className={cn("w-4 h-4 shrink-0", darkMode ? "text-purple-400" : "text-purple-600")} />
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </motion.div>
+                          </>
+                        )}
+                      </AnimatePresence>
                     </div>
 
                     {(dmAction?.dmType || 'simple') === 'simple' && (
@@ -2351,12 +2464,20 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
       </button>
     ) : <div />}
 
-    <div className="flex items-center gap-4">
-      {!canSave && (
-        <div className="flex items-center gap-1.5 text-orange-500">
-          <AlertCircle className="w-4 h-4" />
-          <span className="text-xs font-black uppercase tracking-widest">Complete all required fields</span>
-        </div>
+    <div className="flex flex-col items-center gap-2">
+      {!canSave && !saving && !readOnly && (
+        <p className={cn(
+          "text-[10px] font-black uppercase tracking-[0.2em] animate-pulse px-4 py-1.5 rounded-full border shadow-sm text-center",
+          darkMode
+            ? "bg-orange-500/10 text-orange-400 border-orange-500/20"
+            : "bg-orange-50 text-orange-600 border-orange-200"
+        )}>
+          {characterLimitExceeded.exceeded ? characterLimitExceeded.reason :
+            !isReplyValid ? 'Add a reply template' :
+              !isDmValid ? 'Finish DM configuration' :
+                !isFollowUpValid ? 'Complete follow up message' :
+                  'Check action settings'}
+        </p>
       )}
       <button
         onClick={onSave}
@@ -2371,24 +2492,6 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
         {saving ? 'Saving...' : 'Launch Automation'}
       </button>
     </div>
-
-    {!canSave && !saving && !readOnly && (
-      <div className="flex justify-center -mt-4 mb-20">
-        <p className={cn(
-          "text-[10px] font-black uppercase tracking-[0.2em] animate-pulse px-4 py-1.5 rounded-full border shadow-sm text-center",
-          darkMode
-            ? "bg-orange-500/10 text-orange-400 border-orange-500/20"
-            : "bg-orange-50 text-orange-600 border-orange-200"
-        )}>
-          {characterLimitExceeded.exceeded ? characterLimitExceeded.reason :
-            !isReplyValid ? 'Add a reply template' :
-              !isDmValid ? 'Finish DM configuration' :
-                !isFollowUpValid ? 'Complete follow up message' :
-                  'Check action settings'}
-        </p>
-
-      </div>
-    )}
   </div>
     </div >
   );

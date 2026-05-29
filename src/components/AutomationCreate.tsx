@@ -278,6 +278,17 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
     if (!formData.name.trim()) {
       console.error('Automation name is required');
       toast.error('Please provide a name for your automation');
+      const nameInput = document.getElementById('automation-name-input');
+      if (nameInput) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setTimeout(() => {
+          nameInput.classList.add('ring-2', 'ring-red-500', 'ring-offset-2');
+          nameInput.focus();
+          setTimeout(() => nameInput.classList.remove('ring-2', 'ring-red-500', 'ring-offset-2'), 3000);
+        }, 400);
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
       return;
     }
 
@@ -535,37 +546,38 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
               : "bg-white/60 backdrop-blur-xl border border-white/80 shadow-sm"
           )}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             <button
               onClick={() => navigate('/automation')}
-              className={cn("transition-colors font-bold text-base", darkMode ? "text-white/60 hover:text-white" : "text-slate-500 hover:text-purple-600")}
+              className={cn("transition-colors font-bold text-base shrink-0", darkMode ? "text-white/60 hover:text-white" : "text-slate-500 hover:text-purple-600")}
             >
               Automation
             </button>
             <span className={cn("transition-colors text-lg", darkMode ? "text-white/20" : "text-slate-300")}>/</span>
- 
-            <div className="flex items-center group relative">
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => !readOnly && setFormData({ ...formData, name: e.target.value })}
-                placeholder="Untitled*"
-                disabled={readOnly}
-                className={cn(
-                  "bg-transparent border-none outline-none text-2xl md:text-3xl font-black placeholder-white/20 focus:ring-0 p-0 w-[300px] transition-all",
-                  darkMode ? "text-white" : "text-slate-800 placeholder-slate-400"
-                )}
-              />
-              {!readOnly && <Pencil size={20} className={cn("ml-3 transition-colors", darkMode ? "text-white/40" : "text-slate-400")} />}
-            </div>
           </div>
- 
-          <div className="flex items-center gap-4">
+
+          <div className="flex items-center group relative flex-1 min-w-0">
+            <input
+              id="automation-name-input"
+              type="text"
+              value={formData.name}
+              onChange={(e) => !readOnly && setFormData({ ...formData, name: e.target.value })}
+              placeholder="Untitled*"
+              disabled={readOnly}
+              className={cn(
+                "bg-transparent border-none outline-none text-xl md:text-3xl font-black focus:ring-0 p-0 w-full transition-all rounded-lg",
+                darkMode ? "text-white placeholder-white/20" : "text-slate-800 placeholder-slate-400"
+              )}
+            />
+            {!readOnly && <Pencil size={20} className={cn("ml-3 transition-colors shrink-0", darkMode ? "text-white/40" : "text-slate-400")} />}
+          </div>
+
+          <div className="shrink-0">
             <button
               onClick={executeSave}
               disabled={saving || readOnly}
               className={cn(
-                "px-6 py-3 rounded-xl font-semibold text-sm transition-all flex items-center gap-2",
+                "px-6 py-3 rounded-xl font-semibold text-sm transition-all flex items-center gap-2 w-full md:w-auto justify-center",
                 darkMode 
                   ? `bg-gradient-to-r ${subIsPremium ? 'from-indigo-600 to-violet-700 shadow-indigo-500/50' : 'from-blue-500 to-purple-600 shadow-purple-500/50'} text-white hover:brightness-110 border-transparent`
                   : "bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-md shadow-purple-500/20"
@@ -575,6 +587,7 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
               {saving ? 'Saving...' : 'Save Automation'}
             </button>
           </div>
+
         </motion.div>
 
         {/* Stepper */}
