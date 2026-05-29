@@ -165,12 +165,61 @@ serve(async (req) => {
         const excessAutos = activeAutos.slice(5);
         const excessIds = excessAutos.map(a => a.id);
         
+        // 1. Fetch linked n8n workflows
+        const { data: workflowsToDeactivate } = await supabaseClient
+          .from('n8n_workflows')
+          .select('automation_id, n8n_workflow_id')
+          .in('automation_id', excessIds);
+
+        const n8nBaseUrlRaw = Deno.env.get("N8N_BASE_URL") || "";
+        const n8nApiKey = Deno.env.get("X-N8N-API-KEY") || "";
+        const n8nBaseUrl = n8nBaseUrlRaw.endsWith('/') ? n8nBaseUrlRaw.slice(0, -1) : n8nBaseUrlRaw;
+
+        const workflowIds = (workflowsToDeactivate || []).map(w => w.n8n_workflow_id).filter(Boolean);
+
+        // 2. Call n8n API for each workflow to deactivate
+        if (workflowsToDeactivate && workflowsToDeactivate.length > 0) {
+          for (const wf of workflowsToDeactivate) {
+            if (wf.n8n_workflow_id) {
+              console.log(`[sync-user-neon] Deactivating workflow in n8n: ${wf.n8n_workflow_id}`);
+              try {
+                const deactResp = await fetch(`${n8nBaseUrl}/api/v1/workflows/${wf.n8n_workflow_id}/deactivate`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "X-N8N-API-KEY": n8nApiKey },
+                });
+                if (!deactResp.ok) {
+                  console.warn(`[sync-user-neon] n8n deactivation returned ${deactResp.status}: ${await deactResp.text()}`);
+                } else {
+                  console.log(`[sync-user-neon] ✅ n8n deactivation succeeded for ${wf.n8n_workflow_id}`);
+                }
+              } catch (n8nErr) {
+                console.error(`[sync-user-neon] Error calling n8n for ${wf.n8n_workflow_id}:`, n8nErr);
+              }
+            }
+          }
+        }
+
+        // 3. Update automation_routes (Stop Routing)
+        if (workflowIds.length > 0) {
+          await supabaseClient
+            .from('automation_routes')
+            .update({ is_active: false })
+            .in('n8n_workflow_id', workflowIds);
+            
+          // 4. Update n8n_workflows status
+          await supabaseClient
+            .from('n8n_workflows')
+            .update({ is_active: false })
+            .in('n8n_workflow_id', workflowIds);
+        }
+
+        // 5. Update automations table status
         await supabaseClient
           .from('automations')
           .update({ status: 'inactive' })
           .in('id', excessIds);
         
-        console.log(`[sync-user-neon] Deactivated ${excessIds.length} excess automations in Supabase:`, excessIds);
+        console.log(`[sync-user-neon] Deactivated ${excessIds.length} excess automations across Supabase and n8n:`, excessIds);
         
         // Update local counters for Neon upsert
         activeAutomations = 5;
