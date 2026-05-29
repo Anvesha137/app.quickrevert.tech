@@ -121,7 +121,10 @@ export default function MyReferrals() {
             {promoCodes.map((pc) => (
               <div 
                 key={pc.promo_code}
+                onClick={() => pc.terms_and_conditions && setSelectedTerms(pc.terms_and_conditions)}
                 className={`p-5 rounded-2xl border transition-all ${
+                  pc.terms_and_conditions ? 'cursor-pointer hover:border-indigo-500/50' : ''
+                } ${
                   isGenZ 
                     ? `bg-gradient-to-br ${darkMode ? 'from-purple-900/40 to-fuchsia-900/40 border-fuchsia-500/20' : 'from-purple-50 to-fuchsia-50 border-fuchsia-200'} shadow-lg shadow-fuchsia-500/5`
                     : `${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} shadow-sm hover:shadow-md`
@@ -137,7 +140,10 @@ export default function MyReferrals() {
                     </div>
                   </div>
                   <button
-                    onClick={() => copyToClipboard(pc.promo_code)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      copyToClipboard(pc.promo_code);
+                    }}
                     className={`p-2 rounded-lg transition-colors ${
                       copiedCode === pc.promo_code 
                         ? 'bg-green-100 text-green-600' 
