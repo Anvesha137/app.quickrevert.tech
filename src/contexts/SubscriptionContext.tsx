@@ -220,25 +220,64 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
                 const neonSyncCacheKey = `neon_sync_v2_${user.id}`;
                 const lastNeonSync = parseInt(localStorage.getItem(neonSyncCacheKey) || '0');
                 
-                let updatedIsGifted = isGifted;
-                let updatedGiftedSettings = giftedSettings;
+                let updatedIsGifted = false;
+                let updatedGiftedSettings: any = null;
+
+                if (dmCountResult.data) {
+                    updatedIsGifted = dmCountResult.data.is_gifted === true;
+                    if (updatedIsGifted) {
+                        updatedGiftedSettings = {
+                            dm_limit: dmCountResult.data.dm_limit,
+                            automation_limit: dmCountResult.data.automation_limit,
+                            ask_to_follow_enabled: dmCountResult.data.ask_to_follow_enabled,
+                            lead_manager: dmCountResult.data.lead_manager,
+                            carousel_enabled: dmCountResult.data.carousel_enabled,
+                            carousel_count: dmCountResult.data.carousel_count,
+                            menu_flow_enabled: dmCountResult.data.menu_flow_enabled,
+                            menu_flow_count: dmCountResult.data.menu_flow_count,
+                            expiry_date: dmCountResult.data.expiry_date
+                        };
+                    }
+                } else {
+                    // Fallback to cache if database table has no entry
+                    try {
+                        const cached = localStorage.getItem(CACHE_KEY);
+                        if (cached) {
+                            const parsed = JSON.parse(cached);
+                            updatedIsGifted = parsed.isGifted || false;
+                            updatedGiftedSettings = parsed.giftedSettings || null;
+                        }
+                    } catch (e) {
+                        console.error('Failed to parse cached gifted status:', e);
+                    }
+                }
 
                 // Only sync every 6 hours or on first load
                 if (Date.now() - lastNeonSync > 21600_000) {
-                    const { data: syncData, error: syncError } = await supabase.functions.invoke('sync-user-neon', {
-                        body: { userId: user.id, email: user.email, fullName: user.user_metadata?.full_name }
-                    });
+                    // Lock instantly before invoking to prevent concurrent render loops
+                    localStorage.setItem(neonSyncCacheKey, Date.now().toString());
 
-                    if (!syncError && syncData?.isBanned) {
-                        localStorage.setItem('quickrevert_banned', 'true');
-                        await supabase.auth.signOut();
-                        return;
-                    }
+                    try {
+                        const { data: syncData, error: syncError } = await supabase.functions.invoke('sync-user-neon', {
+                            body: { userId: user.id, email: user.email, fullName: user.user_metadata?.full_name }
+                        });
 
-                    if (!syncError) {
-                        updatedIsGifted = !!syncData?.isGifted;
-                        updatedGiftedSettings = syncData?.giftedSettings || null;
-                        localStorage.setItem(neonSyncCacheKey, Date.now().toString());
+                        if (!syncError && syncData?.isBanned) {
+                            localStorage.setItem('quickrevert_banned', 'true');
+                            await supabase.auth.signOut();
+                            return;
+                        }
+
+                        if (!syncError) {
+                            updatedIsGifted = !!syncData?.isGifted;
+                            updatedGiftedSettings = syncData?.giftedSettings || null;
+                        } else {
+                            // On sync error, allow retry after 5 minutes rather than locking for 6 hours
+                            localStorage.setItem(neonSyncCacheKey, (Date.now() - 21600_000 + 300_000).toString());
+                        }
+                    } catch (err) {
+                        // On network or invoke error, allow retry after 5 minutes
+                        localStorage.setItem(neonSyncCacheKey, (Date.now() - 21600_000 + 300_000).toString());
                     }
                 }
 
@@ -272,8 +311,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
                         automations: automationCountResult.count || 0,
                         accounts: instagramAccountResult.count || 0
                     },
-                    isGifted, // fallback to state if sync failed
-                    giftedSettings,
+                    isGifted: updatedIsGifted, // fallback to local variable if sync failed
+                    giftedSettings: updatedGiftedSettings,
                     hasInstagramConnected: (instagramAccountResult.count || 0) > 0,
                     timestamp: Date.now()
                 }));
