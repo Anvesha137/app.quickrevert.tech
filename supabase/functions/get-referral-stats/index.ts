@@ -43,7 +43,7 @@ serve(async (req) => {
 
     // 1. Fetch promo codes assigned to this user
     const { rows: promoCodes } = await neonClient.queryObject(`
-      SELECT promo_code, discount_percentage, discount_amount, discount_type, package, expiry_date
+      SELECT promo_code, discount_percentage, discount_amount, discount_type, package, expiry_date, terms_and_conditions
       FROM promo_codes 
       WHERE assigned_to_customer = $1
     `, [userEmail]);

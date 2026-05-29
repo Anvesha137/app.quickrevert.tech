@@ -12,6 +12,7 @@ interface PromoCode {
   discount_type: string;
   package: string;
   expiry_date: string;
+  terms_and_conditions?: string;
 }
 
 interface ReferralUsage {
@@ -31,6 +32,7 @@ export default function MyReferrals() {
   const [usages, setUsages] = useState<ReferralUsage[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [selectedTerms, setSelectedTerms] = useState<string | null>(null);
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -170,6 +172,20 @@ export default function MyReferrals() {
                     </span>
                   </div>
                 </div>
+                {pc.terms_and_conditions && (
+                  <div className={`mt-4 pt-3 border-t border-dashed ${darkMode ? 'border-slate-800' : 'border-slate-100'}`}>
+                    <button
+                      onClick={() => setSelectedTerms(pc.terms_and_conditions || null)}
+                      className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
+                        isGenZ
+                          ? 'bg-fuchsia-500/10 text-fuchsia-500 hover:bg-fuchsia-500/20'
+                          : 'bg-indigo-500/10 text-indigo-650 hover:bg-indigo-500/20'
+                      }`}
+                    >
+                      Show Terms & Conditions
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -231,6 +247,62 @@ export default function MyReferrals() {
                 </table>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Terms and Conditions Dialog Modal */}
+      {selectedTerms && (
+        <div
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center z-50 animate-in fade-in duration-150"
+          onClick={() => setSelectedTerms(null)}
+        >
+          <div
+            className={`rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl border animate-in zoom-in-95 duration-150 flex flex-col ${
+              darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-800'
+            }`}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className={`flex justify-between items-center mb-4 pb-3 border-b ${
+              darkMode ? 'border-slate-800' : 'border-slate-100'
+            }`}>
+              <h3 className="font-bold text-lg flex items-center gap-2">
+                <Gift className={`w-5 h-5 ${isGenZ ? 'text-fuchsia-500' : 'text-indigo-500'}`} />
+                Terms & Conditions
+              </h3>
+              <button
+                onClick={() => setSelectedTerms(null)}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  darkMode ? 'hover:bg-slate-800 text-slate-400 hover:text-white' : 'hover:bg-slate-100 text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className={`text-sm leading-relaxed max-h-60 overflow-y-auto whitespace-pre-wrap ${
+              darkMode ? 'text-slate-300' : 'text-slate-600'
+            }`}>
+              {selectedTerms}
+            </div>
+
+            {/* Close Button */}
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setSelectedTerms(null)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                  isGenZ
+                    ? 'bg-fuchsia-500 hover:bg-fuchsia-600 text-white'
+                    : 'bg-indigo-650 hover:bg-indigo-750 text-white'
+                }`}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
