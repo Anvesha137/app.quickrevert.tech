@@ -63,8 +63,8 @@ serve(async (req) => {
     const totalComments = cmtRes.count || 0;
     const totalReach = conRes.count || 0;
     const totalAutomations = autoRes.count || 0;
-    const activeAutomations = activeAutomationsRes.count || 0;
-    const deactivatedAutomations = deactivatedAutomationsRes.count || 0;
+    let activeAutomations = activeAutomationsRes.count || 0;
+    let deactivatedAutomations = deactivatedAutomationsRes.count || 0;
     const followers = userStats?.followers_count || 0;
     const initialFollowers = userStats?.initial_followers_count || 0;
     const growth = Math.max(0, followers - initialFollowers);
@@ -73,7 +73,7 @@ serve(async (req) => {
     // Plan & Status Info
     const subData = subRes.data;
     let status = 'active';
-    let packageName = 'Free';
+    let packageName = 'Basic';
     let planStatus = subData?.status || 'active';
     let billingCycle = 'monthly';
     let amountPaid = subData?.amount_paid || 0;
@@ -81,7 +81,11 @@ serve(async (req) => {
     let promoCode = subData?.coupon_code || null;
     let paymentStatus = 'unpaid';
 
-    if (subData && (subData.status === 'active' || subData.status === 'trialing')) {
+    const isSubActive = subData && 
+      (subData.status === 'active' || subData.status === 'trialing') && 
+      (!subData.current_period_end || new Date(subData.current_period_end) > new Date());
+
+    if (isSubActive) {
       paymentStatus = 'paid';
       const planId = (subData.plan_id || '').toLowerCase();
       if (planId.includes('try_me_out')) packageName = 'Monthly Sampler';
@@ -95,6 +99,10 @@ serve(async (req) => {
         packageName += ' (Annual)';
         billingCycle = 'annual';
       }
+    } else {
+      packageName = 'Basic';
+      planStatus = 'expired';
+      paymentStatus = 'unpaid';
     }
 
     const usernameValue = instagramHandle || fullName || email.split('@')[0];
@@ -140,6 +148,34 @@ serve(async (req) => {
         isGifted = false;
         hasExpiredGifted = true;
         // We INTENTIONALLY do not nullify giftedSettings here, so the frontend can retain historical records of expired gifts.
+    }
+
+    // Deactivate excess active automations (beyond 5) if basic and not gifted
+    const hasPaidPremium = isSubActive && subData && subData.plan_id && subData.plan_id.toLowerCase() !== 'basic';
+    if (!hasPaidPremium && !isGifted && activeAutomations > 5) {
+      console.log(`[sync-user-neon] User ${cleanEmail} has ${activeAutomations} active automations on Free/Basic tier (limit 5). Deactivating excess...`);
+      const { data: activeAutos } = await supabaseClient
+        .from('automations')
+        .select('id, created_at')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+
+      if (activeAutos && activeAutos.length > 5) {
+        const excessAutos = activeAutos.slice(5);
+        const excessIds = excessAutos.map(a => a.id);
+        
+        await supabaseClient
+          .from('automations')
+          .update({ status: 'inactive' })
+          .in('id', excessIds);
+        
+        console.log(`[sync-user-neon] Deactivated ${excessIds.length} excess automations in Supabase:`, excessIds);
+        
+        // Update local counters for Neon upsert
+        activeAutomations = 5;
+        deactivatedAutomations += excessIds.length;
+      }
     }
 
     // Update packageName if gifted (so the Neon upsert has the correct value)
@@ -226,7 +262,7 @@ serve(async (req) => {
       syncLimits.account_limit = giftedSettings.account_limit || 1;
       syncLimits.expiry_date = giftedSettings.expiry_date;
     } else {
-      const hasPaidPremium = subData && (subData.status === 'active' || subData.status === 'trialing') && subData.plan_id && subData.plan_id.toLowerCase() !== 'basic';
+      const hasPaidPremium = isSubActive && subData && subData.plan_id && subData.plan_id.toLowerCase() !== 'basic';
       syncLimits.dm_limit = hasPaidPremium ? null : 2000;
       syncLimits.automation_limit = hasPaidPremium ? null : 5;
       syncLimits.lead_manager = hasPaidPremium;
