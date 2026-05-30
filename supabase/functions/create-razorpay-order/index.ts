@@ -3,6 +3,18 @@ import Razorpay from "npm:razorpay@2.8.4";
 import { Client } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+const PLAN_PRICES = {
+  try_me_out: 199,
+  premium: {
+    annual: 349,
+    quarterly: 399
+  },
+  professional: {
+    annual: 499,
+    quarterly: 599
+  }
+};
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': 'https://app.quickrevert.tech',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -88,11 +100,11 @@ serve(async (req) => {
           );
       }
 
-      amount = 199 * 100;
-    } else if (planTier === 'premium') {
-      amount = planType === 'annual' ? (4199 * 100) : (1199 * 100);
-    } else if (planTier === 'professional') {
-      amount = planType === 'annual' ? (5999 * 100) : (1799 * 100);
+      amount = PLAN_PRICES.try_me_out * 100;
+    } else if (planTier === 'premium' || planTier === 'professional') {
+      const monthly = PLAN_PRICES[planTier][planType as 'annual' | 'quarterly'];
+      const months = planType === 'annual' ? 12 : 3;
+      amount = monthly * months * 100;
     } else {
       return new Response(
         JSON.stringify({ error: "Invalid plan tier selected." }),

@@ -428,18 +428,26 @@ async function processEvent(body: any) {
                     }
 
                     if (activeRoutes.routes.length > 0) {
-                        const payloadData = {
-                            platform: object,
-                            account_id: internalAccountId,
-                            event_type: 'messaging',
-                            sub_type,
-                            payload: msg,
-                            entry: [legacyEntry],
-                            event_id: eventId,
-                            is_basic_display: true,
-                            activity_id: primaryActivityId
-                        };
-                        await triggerWorkflows(payloadData, activeRoutes.routes, activeRoutes.workflows);
+                        // 🔀 STEP 2: Route split — code logic OR n8n
+                        const useCodeLogic = await checkCodeLogicFlag(supabaseClient, accountsData[0].user_id);
+                        console.log(`[ROUTING] user=${accountsData[0].user_id} use_code_logic=${useCodeLogic} event=messaging`);
+
+                        if (useCodeLogic) {
+                            await triggerCodeLogic(supabaseClient, accountsData[0], msg, 'messaging', eventId);
+                        } else {
+                            const payloadData = {
+                                platform: object,
+                                account_id: internalAccountId,
+                                event_type: 'messaging',
+                                sub_type,
+                                payload: msg,
+                                entry: [legacyEntry],
+                                event_id: eventId,
+                                is_basic_display: true,
+                                activity_id: primaryActivityId
+                            };
+                            await triggerWorkflows(payloadData, activeRoutes.routes, activeRoutes.workflows);
+                        }
                     }
                 } else {
                     console.error("No Internal Account ID found for routing.");
@@ -566,43 +574,51 @@ async function processEvent(body: any) {
                             metadata: { reason: 'dm_limit_exceeded', field: change.field }
                         });
                     } else {
-                        const payloadData = {
-                            platform: object,
-                            account_id: internalAccountId,
-                            event_type: 'changes',
-                            sub_type: change.field,
-                            payload: change,
-                            entry: [legacyEntry],
-                            event_id: eventId,
-                            activity_id: primaryActivityId
-                        };
-                        await triggerWorkflows(payloadData, activeRoutes.routes, activeRoutes.workflows);
+                        // 🔀 STEP 2: Route split — code logic OR n8n
+                        const useCodeLogicComment = await checkCodeLogicFlag(supabaseClient, accountsData[0].user_id);
+                        console.log(`[ROUTING] user=${accountsData[0].user_id} use_code_logic=${useCodeLogicComment} event=changes field=${change.field}`);
 
-                        // 🔥 FIX: Log the outgoing DM triggered by this comment automation.
-                        // The N8N workflow sends the DM via Instagram API but never logs it.
-                        // Instagram echo webhooks for private replies (via comment_id) are unreliable,
-                        // so we proactively log the send_dm activity here to ensure the counter increments.
-                        if (change.field === 'comments') {
-                            const commentUsername = change.value?.from?.username || 'Instagram User';
-                            for (const account of accountsData) {
-                                await supabaseClient.from('automation_activities').insert({
-                                    user_id: account.user_id,
-                                    instagram_account_id: account.id,
-                                    contact_id: null,
-                                    automation_id: matchedAutomationId,
-                                    activity_type: 'send_dm',
-                                    target_username: commentUsername,
-                                    message: 'DM sent (triggered by comment automation)',
-                                    status: 'success',
-                                    metadata: {
-                                        direction: 'outbound',
-                                        trigger: 'comment_automation',
-                                        event_id: eventId,
-                                        media_id: change.value?.media?.id
-                                    }
-                                });
+                        if (useCodeLogicComment) {
+                            await triggerCodeLogic(supabaseClient, accountsData[0], change, 'changes', eventId);
+                        } else {
+                            const payloadData = {
+                                platform: object,
+                                account_id: internalAccountId,
+                                event_type: 'changes',
+                                sub_type: change.field,
+                                payload: change,
+                                entry: [legacyEntry],
+                                event_id: eventId,
+                                activity_id: primaryActivityId
+                            };
+                            await triggerWorkflows(payloadData, activeRoutes.routes, activeRoutes.workflows);
+
+                            // 🔥 FIX: Log the outgoing DM triggered by this comment automation.
+                            // The N8N workflow sends the DM via Instagram API but never logs it.
+                            // Instagram echo webhooks for private replies (via comment_id) are unreliable,
+                            // so we proactively log the send_dm activity here to ensure the counter increments.
+                            if (change.field === 'comments') {
+                                const commentUsername = change.value?.from?.username || 'Instagram User';
+                                for (const account of accountsData) {
+                                    await supabaseClient.from('automation_activities').insert({
+                                        user_id: account.user_id,
+                                        instagram_account_id: account.id,
+                                        contact_id: null,
+                                        automation_id: matchedAutomationId,
+                                        activity_type: 'send_dm',
+                                        target_username: commentUsername,
+                                        message: 'DM sent (triggered by comment automation)',
+                                        status: 'success',
+                                        metadata: {
+                                            direction: 'outbound',
+                                            trigger: 'comment_automation',
+                                            event_id: eventId,
+                                            media_id: change.value?.media?.id
+                                        }
+                                    });
+                                }
+                                console.log(`[DM COUNTER] Logged send_dm for comment automation → ${commentUsername}`);
                             }
-                            console.log(`[DM COUNTER] Logged send_dm for comment automation → ${commentUsername}`);
                         }
                     }
                 }
@@ -866,6 +882,93 @@ async function resolveRoutes(supabaseClient: any, account_id: string, event_type
         .select('n8n_workflow_id, webhook_path, automation_id').in('n8n_workflow_id', workflowIds);
 
     return { routes: uniqueRoutes, workflows: workflows || [] };
+}
+
+// 🔀 ROUTING FLAG: Reads use_code_logic from user_limits for a given user.
+// Returns true only if explicitly set — defaults to false (n8n) for all users.
+async function checkCodeLogicFlag(supabaseClient: any, userId: string): Promise<boolean> {
+    try {
+        const { data } = await supabaseClient
+            .from('user_limits')
+            .select('use_code_logic')
+            .eq('user_id', userId)
+            .maybeSingle();
+        return data?.use_code_logic === true;
+    } catch (e) {
+        console.error('[CODE LOGIC FLAG] Error reading flag, defaulting to n8n:', e);
+        return false; // fail-safe: always fall back to n8n
+    }
+}
+
+// 🔀 STEP 3: Code logic router — translates Meta payload and calls execute-automation.
+async function triggerCodeLogic(
+    supabaseClient: any,
+    account: any,
+    rawPayload: any,
+    eventType: string,
+    eventId: string
+): Promise<void> {
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+    const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    // Translate raw Meta payload → EventData shape that execute-automation expects
+    let triggerType: string;
+    let eventData: any;
+
+    if (eventType === 'changes') {
+        // Comment event (entry.changes[])
+        triggerType = 'post_comment';
+        eventData = {
+            commentId: rawPayload.value?.id,
+            commentText: rawPayload.value?.text,
+            postId: rawPayload.value?.media?.id,
+            from: {
+                id: rawPayload.value?.from?.id || '',
+                username: rawPayload.value?.from?.username || ''
+            },
+            timestamp: new Date().toISOString()
+        };
+    } else {
+        // Messaging event — DM or postback button tap
+        const isPostback = !!(rawPayload.postback || rawPayload.message?.quick_reply);
+        triggerType = isPostback ? 'postback' : 'user_dm';
+        eventData = {
+            messageId: rawPayload.message?.mid,
+            messageText: rawPayload.message?.text,
+            postbackPayload: rawPayload.postback?.payload || rawPayload.message?.quick_reply?.payload,
+            from: {
+                id: rawPayload.sender?.id || '',
+                username: rawPayload.sender_name || ''
+            },
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    const body = {
+        userId: account.user_id,
+        instagramAccountId: account.id,
+        triggerType,
+        eventData
+    };
+
+    console.log(`[CODE LOGIC] 🚀 Calling execute-automation | user=${account.user_id} triggerType=${triggerType}`);
+
+    try {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/execute-automation`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${SERVICE_KEY}`,
+                'x-quickrevert-internal': 'true'
+            },
+            body: JSON.stringify(body)
+        });
+
+        const result = await res.json().catch(() => ({}));
+        console.log(`[CODE LOGIC] execute-automation response: ${res.status}`, JSON.stringify(result));
+    } catch (err: any) {
+        console.error(`[CODE LOGIC] Failed to call execute-automation:`, err.message);
+    }
 }
 
 async function triggerWorkflows(normalized: any, routes: any[], workflows: any[]) {

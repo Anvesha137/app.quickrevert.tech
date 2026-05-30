@@ -4,6 +4,18 @@ import { Client } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
 import Razorpay from "npm:razorpay@2.8.4";
 import { sendAlert } from "../_shared/alert.ts";
 
+const PLAN_PRICES = {
+  try_me_out: 199,
+  premium: {
+    annual: 349,
+    quarterly: 399
+  },
+  professional: {
+    annual: 499,
+    quarterly: 599
+  }
+};
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': 'https://app.quickrevert.tech',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -108,10 +120,15 @@ serve(async (req) => {
         }
 
         let baseAmountPaise = 0;
-        if (planTier === 'try_me_out') baseAmountPaise = 199 * 100;
-        else if (planTier === 'premium') baseAmountPaise = planType === 'annual' ? 4199 * 100 : 1199 * 100;
-        else if (planTier === 'professional') baseAmountPaise = planType === 'annual' ? 5999 * 100 : 1799 * 100;
-        else baseAmountPaise = planType === 'annual' ? (599 * 12 * 100) : (899 * 3 * 100);
+        if (planTier === 'try_me_out') {
+          baseAmountPaise = PLAN_PRICES.try_me_out * 100;
+        } else if (planTier === 'premium' || planTier === 'professional') {
+          const monthly = PLAN_PRICES[planTier][planType as 'annual' | 'quarterly'];
+          const months = planType === 'annual' ? 12 : 3;
+          baseAmountPaise = monthly * months * 100;
+        } else {
+          baseAmountPaise = planType === 'annual' ? (599 * 12 * 100) : (899 * 3 * 100);
+        }
 
         const discountType = coupon.discount_type || 'percentage';
         const discountPct = coupon.discount_percentage || 0;
@@ -207,11 +224,11 @@ serve(async (req) => {
     // ---------------------------------------------------------------
     let baseAmountPaise = 0;
     if (planTier === 'try_me_out') {
-      baseAmountPaise = 199 * 100;
-    } else if (planTier === 'premium') {
-      baseAmountPaise = planType === 'annual' ? 4199 * 100 : 1199 * 100;
-    } else if (planTier === 'professional') {
-      baseAmountPaise = planType === 'annual' ? 5999 * 100 : 1799 * 100;
+      baseAmountPaise = PLAN_PRICES.try_me_out * 100;
+    } else if (planTier === 'premium' || planTier === 'professional') {
+      const monthly = PLAN_PRICES[planTier][planType as 'annual' | 'quarterly'];
+      const months = planType === 'annual' ? 12 : 3;
+      baseAmountPaise = monthly * months * 100;
     } else {
       baseAmountPaise = planType === 'annual' ? (599 * 12 * 100) : (899 * 3 * 100);
     }

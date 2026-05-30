@@ -118,18 +118,27 @@ export default function UpgradeModal() {
         ];
     };
 
-    const getBaseTotal = () => {
-        if (planTier === 'try_me_out') return 199;
-        if (planTier === 'premium') return billingCycle === 'annual' ? 4199 : 1199;
-        if (planTier === 'professional') return billingCycle === 'annual' ? 5999 : 1799;
-        return 0;
+    const PLAN_PRICES = {
+        try_me_out: 199,
+        premium: {
+            annual: 349,
+            quarterly: 399
+        },
+        professional: {
+            annual: 499,
+            quarterly: 599
+        }
     };
 
     const getMonthlyPrice = () => {
-        if (planTier === 'try_me_out') return 199;
-        if (planTier === 'premium') return billingCycle === 'annual' ? 349 : 399;
-        if (planTier === 'professional') return billingCycle === 'annual' ? 499 : 599;
-        return 0;
+        if (planTier === 'try_me_out') return PLAN_PRICES.try_me_out;
+        return PLAN_PRICES[planTier][billingCycle];
+    };
+
+    const getBaseTotal = () => {
+        if (planTier === 'try_me_out') return PLAN_PRICES.try_me_out;
+        const monthly = getMonthlyPrice();
+        return billingCycle === 'annual' ? monthly * 12 : monthly * 3;
     };
 
     const getDisplayTotal = () => {

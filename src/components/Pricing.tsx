@@ -5,6 +5,17 @@ import { useNavigate } from 'react-router-dom';
 import { useUpgradeModal } from '../contexts/UpgradeModalContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 
+const PLAN_PRICES = {
+    premium: {
+        annual: 349,
+        quarterly: 399
+    },
+    professional: {
+        annual: 499,
+        quarterly: 599
+    }
+};
+
 export default function Pricing() {
     const { signOut } = useAuth();
     const navigate = useNavigate();
@@ -63,8 +74,8 @@ export default function Pricing() {
             name: 'PREMIUM',
             id: 'premium',
             description: 'For creators ready to scale.',
-            price: billingCycle === 'annual' ? '₹349' : '₹399',
-            totalPrice: billingCycle === 'annual' ? '₹4199 billed yearly' : '₹1199 billed quarterly',
+            price: `₹${PLAN_PRICES.premium[billingCycle]}`,
+            totalPrice: `₹${PLAN_PRICES.premium[billingCycle] * (billingCycle === 'annual' ? 12 : 3)} billed ${billingCycle === 'annual' ? 'yearly' : 'quarterly'}`,
             period: '/ mo',
             cta: 'Start Premium',
             features: [
@@ -81,8 +92,8 @@ export default function Pricing() {
             name: 'PROFESSIONAL',
             id: 'professional',
             description: 'Advanced tools for high-growth accounts.',
-            price: billingCycle === 'annual' ? '₹499' : '₹599',
-            totalPrice: billingCycle === 'annual' ? '₹5999 billed yearly' : '₹1799 billed quarterly',
+            price: `₹${PLAN_PRICES.professional[billingCycle]}`,
+            totalPrice: `₹${PLAN_PRICES.professional[billingCycle] * (billingCycle === 'annual' ? 12 : 3)} billed ${billingCycle === 'annual' ? 'yearly' : 'quarterly'}`,
             period: '/ mo',
             cta: 'Go Professional',
             features: [

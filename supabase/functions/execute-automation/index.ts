@@ -36,6 +36,18 @@ Deno.serve(async (req: Request) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    // 🔒 AUTH: Only accept internal calls from webhook-meta (service role key + internal header)
+    const authHeader = req.headers.get('Authorization') || '';
+    const isInternal = req.headers.get('x-quickrevert-internal') === 'true'
+      && authHeader === `Bearer ${supabaseServiceKey}`;
+    if (!isInternal) {
+      console.warn('[execute-automation] Rejected unauthorized call');
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const requestBody = await req.json();
@@ -251,13 +263,55 @@ async function executeAction(params: any) {
   const { action, eventData, accessToken, supabase, automationId, userId, instagramAccountId, triggerType } = params;
   
   if (action.type === 'reply_to_comment' && eventData.commentId) {
-    const text = (action.replyTemplates?.[Math.floor(Math.random() * action.replyTemplates.length)] || "Check your DMs!").replace('{{username}}', eventData.from.username);
-    await fetch(`https://graph.instagram.com/v21.0/${eventData.commentId}/replies?access_token=${accessToken}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text }) });
+    const templates = action.replyTemplates;
+    let text = "Check your DMs!";
+
+    if (templates && templates.length > 0) {
+      // 🔄 TRUE ROUND-ROBIN: use execution count modulo template count
+      // This ensures sequential cycling (0,1,2,3,0,1,2...) instead of random repeats
+      const { count } = await supabase
+        .from('automation_activities')
+        .select('*', { count: 'exact', head: true })
+        .eq('automation_id', automationId)
+        .eq('activity_type', 'comment');
+
+      const index = (count || 0) % templates.length;
+      text = templates[index];
+      console.log(`[ROUND-ROBIN] automation=${automationId} count=${count} index=${index} template="${text.substring(0, 30)}"`);
+    }
+
+    text = text.replace('{{username}}', eventData.from.username || '');
+    const replyRes = await fetch(`https://graph.instagram.com/v21.0/${eventData.commentId}/replies?access_token=${accessToken}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text })
+    });
+    if (!replyRes.ok) {
+      const err = await replyRes.json().catch(() => ({}));
+      console.error(`[reply_to_comment] Failed:`, JSON.stringify(err));
+    } else {
+      console.log(`[reply_to_comment] ✅ Replied to comment ${eventData.commentId}`);
+    }
   }
 
   if (action.type === 'send_dm') {
-    const recipient = (triggerType === 'post_comment' && eventData.commentId) ? { comment_id: eventData.commentId } : { id: eventData.from.id };
-    await sendDirectMessage(accessToken, recipient, (action.messageTemplate || "Hi!").replace('{{username}}', eventData.from.username), action.actionButtons || []);
+    // 🔧 FIX: Try all field names the UI uses for the message
+    // Simple Message → messageTemplate
+    // Carousel / older format → title
+    // Teaser → teaserMessage
+    const dmText = (
+      action.messageTemplate ||
+      action.title ||
+      action.teaserMessage ||
+      "Hi!"
+    ).replace('{{username}}', eventData.from.username || '');
+
+    const recipient = (triggerType === 'post_comment' && eventData.commentId)
+      ? { comment_id: eventData.commentId }
+      : { id: eventData.from.id };
+
+    console.log(`[send_dm] Sending to ${JSON.stringify(recipient)}: "${dmText.substring(0, 50)}"`);
+    await sendDirectMessage(accessToken, recipient, dmText, action.actionButtons || []);
   }
 }
 

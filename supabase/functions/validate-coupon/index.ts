@@ -1,6 +1,18 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { Client } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
 
+const PLAN_PRICES = {
+  try_me_out: 199,
+  premium: {
+    annual: 349,
+    quarterly: 399
+  },
+  professional: {
+    annual: 499,
+    quarterly: 599
+  }
+};
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': 'https://app.quickrevert.tech',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -130,11 +142,11 @@ serve(async (req) => {
       // 6. Final Calculations
       let baseAmount = 0;
       if (selectedTier === 'try_me_out') {
-        baseAmount = 199;
-      } else if (selectedTier === 'premium') {
-        baseAmount = selectedPlan === 'annual' ? 4199 : 1199;
-      } else if (selectedTier === 'professional') {
-        baseAmount = selectedPlan === 'annual' ? 5999 : 1799;
+        baseAmount = PLAN_PRICES.try_me_out;
+      } else if (selectedTier === 'premium' || selectedTier === 'professional') {
+        const monthly = PLAN_PRICES[selectedTier][selectedPlan as 'annual' | 'quarterly'];
+        const months = selectedPlan === 'annual' ? 12 : 3;
+        baseAmount = monthly * months;
       } else {
         baseAmount = (selectedPlan === 'annual') ? (599 * 12) : (899 * 3);
       }
