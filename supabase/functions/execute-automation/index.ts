@@ -237,6 +237,16 @@ Deno.serve(async (req: Request) => {
       if (payload) {
         const cid = automation.id.replace(/-/g, '');
         if (payload === `START_FLOW_${cid}` || payload === `CHECK_FOLLOW_${cid}`) return true;
+        
+        // Match Menu Flow postbacks
+        const sendDmAction = automation.actions?.find((a: any) => a.type === 'send_dm');
+        if (sendDmAction) {
+          if (sendDmAction.actionButtons?.some((b: any) => b.payload === payload)) return true;
+          if (sendDmAction.conversationCards?.some((c: any) => 
+            c.id === payload || c.actionButtons?.some((b: any) => b.payload === payload)
+          )) return true;
+        }
+
         if (config.keywords?.some((k: string) => payload.toLowerCase() === k.toLowerCase())) return true;
         return false;
       }
@@ -293,25 +303,62 @@ Deno.serve(async (req: Request) => {
 
     // 🚀 6. EXECUTION
     for (const automation of matchedAutomations) {
-      // Logic for "Ask to Follow" enforcement
-      const askToFollow = automation.actions?.some((a: any) => a.type === 'send_dm' && a.askToFollow);
-      if (askToFollow && !eventData.isFollowing) {
-          const tFollow = Date.now();
-          const followRes = await sendDirectMessage(instagramAccount.access_token, eventData.from.id, "Please follow us to unlock this automation! 🔒", [
-              { text: "I've Followed! ✅", payload: `CHECK_FOLLOW_${automation.id.replace(/-/g, '')}` }
-          ]);
-          tracker.track(
-            'ask_to_follow',
-            followRes.ok,
-            'Sent check-follow prompt',
-            !followRes.ok ? `Failed to send follow prompt` : undefined,
-            tFollow
-          );
-          continue; 
-      }
-
       // Init Lead State if needed
       const leadAction = automation.actions?.find((a: any) => a.type === 'save_lead');
+      const sendDmAction = automation.actions?.find((a: any) => a.type === 'send_dm');
+
+      // 🔥 "Ask to Follow" & Teaser Flow Logic
+      const cid = automation.id.replace(/-/g, '');
+      const payload = eventData.postbackPayload;
+      let shouldExecuteActions = true;
+
+      if (sendDmAction && sendDmAction.askToFollow) {
+          const tFollow = Date.now();
+          const recipient = (triggerType === 'post_comment' && eventData.commentId)
+              ? { comment_id: eventData.commentId }
+              : { id: eventData.from.id };
+
+          // STATE 1: Comment Trigger -> Send Teaser
+          if (triggerType === 'post_comment' && !payload) {
+              const teaserMsg = sendDmAction.teaserMessage || "Hey! Glad you're here... Tap below and I'll send you a message shortly 👀";
+              const teaserBtn = sendDmAction.teaserBtnText || "Send Access";
+              const followRes = await sendDirectMessage(instagramAccount.access_token, recipient, teaserMsg, [
+                  { text: teaserBtn, payload: `START_FLOW_${cid}` }
+              ]);
+              tracker.track('teaser_prompt', followRes.ok, 'Sent teaser prompt', !followRes.ok ? 'Failed to send teaser' : undefined, tFollow);
+              shouldExecuteActions = false; // Stop here, wait for them to click "Send Access"
+          }
+          // STATE 2: Clicked "Send Access" -> Check Follow Status
+          else if (payload === `START_FLOW_${cid}`) {
+              if (!eventData.isFollowing) {
+                  const askMsg = sendDmAction.askToFollowMessage || "Oops! Looks like you haven't followed me yet 👀...";
+                  const askBtn = sendDmAction.askToFollowBtnText || "I've Followed! ✅";
+                  const followRes = await sendDirectMessage(instagramAccount.access_token, recipient, askMsg, [
+                      { text: askBtn, payload: `CHECK_FOLLOW_${cid}` }
+                  ]);
+                  tracker.track('ask_to_follow', followRes.ok, 'Sent ask-to-follow prompt', !followRes.ok ? 'Failed to send follow prompt' : undefined, tFollow);
+                  shouldExecuteActions = false; // Stop here, wait for them to follow and click button
+              }
+          }
+          // STATE 3: Clicked "I've Followed" -> Deliver Reward
+          else if (payload === `CHECK_FOLLOW_${cid}`) {
+              // We proceed to execute actions. 
+              // (If the API couldn't verify isFollowing securely, we trust the button click as a fallback)
+              tracker.track('verify_follow', true, 'User verified follow via button', undefined, tFollow);
+          }
+      }
+
+      if (!shouldExecuteActions) {
+          // If we sent a teaser or a follow prompt, we still want to log the reply_to_comment if it exists
+          const replyAction = automation.actions?.find((a: any) => a.type === 'reply_to_comment');
+          if (replyAction && triggerType === 'post_comment' && !payload) {
+              const tAction = Date.now();
+              const actionResult = await executeAction({ action: replyAction, eventData, accessToken: instagramAccount.access_token, supabase, automationId: automation.id, userId, instagramAccountId, triggerType });
+              tracker.track('reply_to_comment', actionResult.ok, actionResult.detail || undefined, actionResult.error || undefined, tAction);
+          }
+          continue; // Skip the rest of the actions (like send_dm)
+      }
+
       if (leadAction) {
         const tLead = Date.now();
         await updateContactMetadata(supabase, contactId, {
@@ -580,19 +627,36 @@ async function executeAction(params: any) {
   }
 
   if (action.type === 'send_dm') {
-    const dmText = (
-      action.messageTemplate ||
-      action.title ||
-      action.teaserMessage ||
-      "Hi!"
-    ).replace('{{username}}', eventData.from.username || '');
+    let dmText = "";
+    let buttonsToInclude: any[] = [];
+    const payload = eventData.postbackPayload;
+
+    // Menu Flow Resolution
+    if (payload && action.dmType === 'conversation_flow' && action.conversationCards) {
+        // Find the card that matches the clicked button's payload
+        const matchingCard = action.conversationCards.find((c: any) => c.id === payload);
+        if (matchingCard) {
+            dmText = matchingCard.messageTemplate || matchingCard.title || "Here you go!";
+            buttonsToInclude = matchingCard.actionButtons || [];
+        } else {
+            // If somehow not found, fallback to main
+            dmText = action.messageTemplate || action.title || action.teaserMessage || "Hi!";
+            buttonsToInclude = action.actionButtons || [];
+        }
+    } else {
+        // Top-level message (either not a menu flow, or first message of the flow)
+        dmText = action.messageTemplate || action.title || action.teaserMessage || "Hi!";
+        buttonsToInclude = action.actionButtons || [];
+    }
+
+    dmText = dmText.replace('{{username}}', eventData.from.username || '');
 
     const recipient = (triggerType === 'post_comment' && eventData.commentId)
       ? { comment_id: eventData.commentId }
       : { id: eventData.from.id };
 
     console.log(`[send_dm] Sending to ${JSON.stringify(recipient)}: "${dmText.substring(0, 50)}"`);
-    const dmRes = await sendDirectMessage(accessToken, recipient, dmText, action.actionButtons || []);
+    const dmRes = await sendDirectMessage(accessToken, recipient, dmText, buttonsToInclude);
     if (!dmRes.ok) {
       const err = await dmRes.json().catch(() => ({}));
       return { ok: false, error: err.error?.message || dmRes.statusText || 'Failed to send DM' };
@@ -611,9 +675,23 @@ async function sendDirectMessage(accessToken: string, recipient: any, text: stri
     payload.message = {
       attachment: { type: 'template', payload: {
           template_type: 'generic',
-          elements: [{ title: text.substring(0, 80), subtitle: "Powered by QuickRevert", buttons: buttons.slice(0, 3).map(btn => ({
-              type: btn.url ? 'web_url' : 'postback', title: (btn.text || btn.title).substring(0, 20), url: btn.url, payload: btn.payload || (btn.text || btn.title).toUpperCase()
-          })) }]
+          elements: [{ 
+              title: text.substring(0, 80), 
+              subtitle: "Powered by QuickRevert", 
+              buttons: buttons.slice(0, 3).map(btn => {
+                  const isWeb = !!(btn.url && btn.url.trim() !== '');
+                  const mapped: any = {
+                      type: isWeb ? 'web_url' : 'postback',
+                      title: (btn.text || btn.title).substring(0, 20)
+                  };
+                  if (isWeb) {
+                      mapped.url = btn.url;
+                  } else {
+                      mapped.payload = btn.payload || (btn.text || btn.title).toUpperCase();
+                  }
+                  return mapped;
+              })
+          }]
       } }
     };
   }
