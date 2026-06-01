@@ -42,6 +42,25 @@ interface ExecutionResponse {
 }
 
 export class N8nWorkflowService {
+  /**
+   * Checks if the given user has use_code_logic = true in user_limits.
+   * Code-logic users bypass n8n entirely — their automations are executed
+   * server-side by the execute-automation edge function.
+   */
+  static async isCodeLogicUser(userId: string): Promise<boolean> {
+    try {
+      const { data } = await supabase
+        .from('user_limits')
+        .select('use_code_logic')
+        .eq('user_id', userId)
+        .maybeSingle();
+      return data?.use_code_logic === true;
+    } catch (e) {
+      console.warn('[N8nWorkflowService] Failed to check code logic flag, defaulting to n8n:', e);
+      return false;
+    }
+  }
+
   static async createWorkflow(
     data: Omit<WorkflowCreationData, 'userId'>,
     userId: string

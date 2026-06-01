@@ -328,8 +328,19 @@ export default function Automations() {
     setTogglingId(id);
 
     try {
-      // 1. Trigger n8n sync if workflow exists (atomic update via Edge Function)
-      if (n8nWorkflowId && user) {
+      // Check if user is on code logic engine (bypasses n8n entirely)
+      const isCodeLogic = user ? await N8nWorkflowService.isCodeLogicUser(user.id) : false;
+
+      if (isCodeLogic) {
+        // Code-logic users: just update the DB status directly
+        const { error } = await supabase
+          .from('automations')
+          .update({ status: newStatus })
+          .eq('id', id);
+        if (error) throw error;
+        console.log(`[CODE LOGIC] Toggled automation ${id} to ${newStatus} (no n8n call).`);
+      } else if (n8nWorkflowId && user) {
+        // 1. Trigger n8n sync if workflow exists (atomic update via Edge Function)
         let result;
         if (newStatus === 'active') {
           result = await N8nWorkflowService.activateWorkflow(n8nWorkflowId, user.id);
@@ -414,10 +425,20 @@ export default function Automations() {
     setBulkTotal(toToggle.length);
     setBulkProgress(0);
 
+    // Check code logic flag once for the entire batch
+    const isCodeLogic = user ? await N8nWorkflowService.isCodeLogicUser(user.id) : false;
+
     let successCount = 0;
     for (const auto of toToggle) {
       try {
-        if (auto.n8n_workflow_id && user) {
+        if (isCodeLogic) {
+          // Code-logic users: just update the DB status directly
+          const { error } = await supabase
+            .from('automations')
+            .update({ status: targetStatus })
+            .eq('id', auto.id);
+          if (error) throw error;
+        } else if (auto.n8n_workflow_id && user) {
           // Atomic Edge Function Call
           let result;
           if (targetStatus === 'active') {
@@ -487,27 +508,34 @@ export default function Automations() {
     const { id } = automationToDelete;
 
     try {
-      // First, get the n8n workflow ID if it exists
-      let n8nWorkflowId: string | undefined;
-      if (user) {
-        const { data: workflowData } = await supabase
-          .from('n8n_workflows')
-          .select('n8n_workflow_id')
-          .eq('automation_id', id)
-          .eq('user_id', user.id)
-          .maybeSingle();
+      // Check if user is on code logic engine (bypasses n8n entirely)
+      const isCodeLogic = user ? await N8nWorkflowService.isCodeLogicUser(user.id) : false;
 
-        n8nWorkflowId = workflowData?.n8n_workflow_id;
-      }
+      if (!isCodeLogic) {
+        // Only look up and delete n8n workflow for non-code-logic users
+        let n8nWorkflowId: string | undefined;
+        if (user) {
+          const { data: workflowData } = await supabase
+            .from('n8n_workflows')
+            .select('n8n_workflow_id')
+            .eq('automation_id', id)
+            .eq('user_id', user.id)
+            .maybeSingle();
 
-      // Delete from n8n if workflow exists
-      if (n8nWorkflowId && user) {
-        try {
-          await N8nWorkflowService.deleteWorkflow(n8nWorkflowId, user.id);
-        } catch (n8nError) {
-          console.error('Error deleting n8n workflow:', n8nError);
-          // Continue with database deletion even if n8n deletion fails
+          n8nWorkflowId = workflowData?.n8n_workflow_id;
         }
+
+        // Delete from n8n if workflow exists
+        if (n8nWorkflowId && user) {
+          try {
+            await N8nWorkflowService.deleteWorkflow(n8nWorkflowId, user.id);
+          } catch (n8nError) {
+            console.error('Error deleting n8n workflow:', n8nError);
+            // Continue with database deletion even if n8n deletion fails
+          }
+        }
+      } else {
+        console.log(`[CODE LOGIC] Skipping n8n workflow deletion for automation ${id}.`);
       }
 
       // Delete automation from database

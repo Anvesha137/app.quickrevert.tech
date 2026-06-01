@@ -366,38 +366,45 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
         automationData = data;
       }
 
-      try {
-        const { data: igAccount } = await supabase
-          .from('instagram_accounts')
-          .select('id, instagram_user_id, username')
-          .eq('user_id', user.id)
-          .eq('status', 'active')
-          .order('connected_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+      // Skip n8n entirely for code-logic users — their automations are handled
+      // server-side by the execute-automation edge function.
+      const isCodeLogic = await N8nWorkflowService.isCodeLogicUser(user!.id);
+      if (isCodeLogic) {
+        console.log('[CODE LOGIC] Skipping n8n workflow creation — user is on code logic engine.');
+      } else {
+        try {
+          const { data: igAccount } = await supabase
+            .from('instagram_accounts')
+            .select('id, instagram_user_id, username')
+            .eq('user_id', user!.id)
+            .eq('status', 'active')
+            .order('connected_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
 
-        if (igAccount) {
-          const replyAction = finalActions.find((a: any) => a.type === 'reply_to_comment') as any;
-          const dmAction = finalActions.find((a: any) => a.type === 'send_dm') as any;
+          if (igAccount) {
+            const replyAction = finalActions.find((a: any) => a.type === 'reply_to_comment') as any;
+            const dmAction = finalActions.find((a: any) => a.type === 'send_dm') as any;
 
-          await N8nWorkflowService.createWorkflow({
-            template: 'instagram_automation_v1',
-            instagramAccountId: igAccount.id,
-            workflowName: `${formData.name.trim()} - ${new Date().toISOString().split('T')[0]}`,
-            automationId: automationData.id,
-            actions: finalActions,
-            triggerType: formData.triggerType,
-            variables: {
-              brandName: 'QuickRevert',
-              replyMessage: replyAction?.replyTemplates?.[0] || 'Thanks for your comment!',
-              dmTitle: dmAction?.title || 'Hi there!',
-              dmImageUrl: (dmAction?.showImage && dmAction?.imageUrl) ? dmAction.imageUrl : '',
-            },
-            autoActivate: true,
-          }, user.id);
+            await N8nWorkflowService.createWorkflow({
+              template: 'instagram_automation_v1',
+              instagramAccountId: igAccount.id,
+              workflowName: `${formData.name.trim()} - ${new Date().toISOString().split('T')[0]}`,
+              automationId: automationData.id,
+              actions: finalActions,
+              triggerType: formData.triggerType,
+              variables: {
+                brandName: 'QuickRevert',
+                replyMessage: replyAction?.replyTemplates?.[0] || 'Thanks for your comment!',
+                dmTitle: dmAction?.title || 'Hi there!',
+                dmImageUrl: (dmAction?.showImage && dmAction?.imageUrl) ? dmAction.imageUrl : '',
+              },
+              autoActivate: true,
+            }, user!.id);
+          }
+        } catch (n8nErr: any) {
+          toast.warning(`Automation saved, but the workflow setup had an issue: ${n8nErr.message || 'Unknown error'}`);
         }
-      } catch (n8nErr: any) {
-        toast.warning(`Automation saved, but the workflow setup had an issue: ${n8nErr.message || 'Unknown error'}`);
       }
 
       // Clear draft on successful save

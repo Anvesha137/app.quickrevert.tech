@@ -429,59 +429,40 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
       }
 
       // Re-generate N8N workflow (for both create and update)
-      try {
-        // existing logic...
-        const { data: instagramAccount } = await supabase
-          .from('instagram_accounts')
-          .select('id, instagram_user_id, username')
-          .eq('user_id', user.id)
-          .eq('status', 'active')
-          .order('connected_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (!instagramAccount) {
-          console.warn('No active Instagram account found for user. Workflow will not be created.');
-          toast.warning('Warning: Automation saved but no Instagram account found. Please connect an Instagram account to create workflows.');
-          navigate('/automation');
-          return;
-        }
-
-        // Create workflow using the service
-        const workflowName = `${formData.name.trim()} - ${new Date().toISOString().split('T')[0]}`;
-
-        const replyAction = finalActions.find((a: any) => a.type === 'reply_to_comment') as ReplyToCommentAction | undefined;
-        const replyMessage = replyAction?.replyTemplates?.[0] || 'Thanks for your comment!';
-
-        const dmAction = finalActions.find((a: any) => a.type === 'send_dm') as SendDmAction | undefined;
-        const dmTitle = dmAction?.title || 'Hi there!';
-
-        const result = await N8nWorkflowService.createWorkflow({
-          template: 'instagram_automation_v1',
-          instagramAccountId: instagramAccount.id,
-          workflowName: workflowName,
-          automationId: automationData.id,
-          actions: finalActions,
-          triggerType: formData.triggerType,
-          variables: {
-            brandName: 'QuickRevert',
-            replyMessage: replyMessage,
-            dmTitle: dmTitle,
-            dmImageUrl: (dmAction?.showImage && dmAction?.imageUrl) ? dmAction.imageUrl : '',
-          },
-          autoActivate: true,
-        }, user.id);
-
-        console.log('N8N workflow created (pass 1):', result);
-
-        // ─── Auto-Sync: Re-generate the workflow immediately after creation ──────
-        // The first call creates the n8n workflow and stores its ID in n8n_workflows.
-        // The second call (PUT update) re-runs the full workflow builder against the
-        // now-persisted automation row in the DB — this is exactly what the admin
-        // "Sync" button does and ensures routes, payloads, and tracked_posts are
-        // cleanly registered so the automation works without manual admin intervention.
+      // Skip n8n entirely for code-logic users — their automations are handled
+      // server-side by the execute-automation edge function.
+      const isCodeLogic = await N8nWorkflowService.isCodeLogicUser(user.id);
+      if (isCodeLogic) {
+        console.log('[CODE LOGIC] Skipping n8n workflow creation — user is on code logic engine.');
+      } else {
         try {
-          await N8nWorkflowService.createWorkflow({
+          // existing logic...
+          const { data: instagramAccount } = await supabase
+            .from('instagram_accounts')
+            .select('id, instagram_user_id, username')
+            .eq('user_id', user.id)
+            .eq('status', 'active')
+            .order('connected_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (!instagramAccount) {
+            console.warn('No active Instagram account found for user. Workflow will not be created.');
+            toast.warning('Warning: Automation saved but no Instagram account found. Please connect an Instagram account to create workflows.');
+            navigate('/automation');
+            return;
+          }
+
+          // Create workflow using the service
+          const workflowName = `${formData.name.trim()} - ${new Date().toISOString().split('T')[0]}`;
+
+          const replyAction = finalActions.find((a: any) => a.type === 'reply_to_comment') as ReplyToCommentAction | undefined;
+          const replyMessage = replyAction?.replyTemplates?.[0] || 'Thanks for your comment!';
+
+          const dmAction = finalActions.find((a: any) => a.type === 'send_dm') as SendDmAction | undefined;
+          const dmTitle = dmAction?.title || 'Hi there!';
+
+          const result = await N8nWorkflowService.createWorkflow({
             template: 'instagram_automation_v1',
             instagramAccountId: instagramAccount.id,
             workflowName: workflowName,
@@ -496,20 +477,46 @@ export default function AutomationCreate({ readOnly = false }: AutomationCreateP
             },
             autoActivate: true,
           }, user.id);
-          console.log('N8N workflow auto-synced (pass 2 — routes registered)');
-        } catch (syncError: any) {
-          // Non-fatal: first pass already created the workflow; log and continue
-          console.warn('Auto-sync pass 2 failed (non-fatal):', syncError.message);
-        }
-        // ─────────────────────────────────────────────────────────────────────────
 
-        // The workflow mapping is already stored by the backend function
-        // No need to store it again here
-      } catch (n8nError: any) {
-        console.error('Error in N8N workflow creation process:', n8nError);
-        // Don't throw an error here as the main automation was saved
-        // Just log the issue and continue
-        toast.warning(`Warning: Automation saved but workflow creation failed: ${n8nError.message || 'Unknown error'}. This may affect automation functionality.`);
+          console.log('N8N workflow created (pass 1):', result);
+
+          // ─── Auto-Sync: Re-generate the workflow immediately after creation ──────
+          // The first call creates the n8n workflow and stores its ID in n8n_workflows.
+          // The second call (PUT update) re-runs the full workflow builder against the
+          // now-persisted automation row in the DB — this is exactly what the admin
+          // "Sync" button does and ensures routes, payloads, and tracked_posts are
+          // cleanly registered so the automation works without manual admin intervention.
+          try {
+            await N8nWorkflowService.createWorkflow({
+              template: 'instagram_automation_v1',
+              instagramAccountId: instagramAccount.id,
+              workflowName: workflowName,
+              automationId: automationData.id,
+              actions: finalActions,
+              triggerType: formData.triggerType,
+              variables: {
+                brandName: 'QuickRevert',
+                replyMessage: replyMessage,
+                dmTitle: dmTitle,
+                dmImageUrl: (dmAction?.showImage && dmAction?.imageUrl) ? dmAction.imageUrl : '',
+              },
+              autoActivate: true,
+            }, user.id);
+            console.log('N8N workflow auto-synced (pass 2 — routes registered)');
+          } catch (syncError: any) {
+            // Non-fatal: first pass already created the workflow; log and continue
+            console.warn('Auto-sync pass 2 failed (non-fatal):', syncError.message);
+          }
+          // ─────────────────────────────────────────────────────────────────────────
+
+          // The workflow mapping is already stored by the backend function
+          // No need to store it again here
+        } catch (n8nError: any) {
+          console.error('Error in N8N workflow creation process:', n8nError);
+          // Don't throw an error here as the main automation was saved
+          // Just log the issue and continue
+          toast.warning(`Warning: Automation saved but workflow creation failed: ${n8nError.message || 'Unknown error'}. This may affect automation functionality.`);
+        }
       }
 
       // Clear draft on successful save

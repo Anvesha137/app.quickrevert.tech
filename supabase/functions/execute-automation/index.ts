@@ -175,6 +175,8 @@ Deno.serve(async (req: Request) => {
     const conversationState = metadata.conversation_state || { state: 'new' };
     const contactId = contact?.id;
 
+    let skipTriggerMatching = false;
+
     // 🎯 4. STATE-MACHINE (Lead Manager)
     if (conversationState.state && !['new', 'done', 'error'].includes(conversationState.state)) {
       const tState = Date.now();
@@ -197,6 +199,101 @@ Deno.serve(async (req: Request) => {
       );
 
       if (stateResult.processed) {
+        if (stateResult.justFinished && stateResult.automationToExecute) {
+            matchedAutomations = [stateResult.automationToExecute];
+            skipTriggerMatching = true;
+            // update conversationState in memory so execution loop knows it's done
+            conversationState.state = 'done'; 
+        } else {
+            await writeExecutionLog({
+              supabase,
+              userId,
+              instagramAccountId,
+              triggerType,
+              eventData,
+              requestBody,
+              tracker,
+              status: 'success',
+              matchedAutomation: null
+            });
+
+            return new Response(JSON.stringify({ success: true, mode: 'state_machine' }), {
+              status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+        }
+      }
+    }
+
+    // 🔍 5. TRIGGER MATCHING
+    if (!skipTriggerMatching) {
+      const tMatch = Date.now();
+      const { data: automations, error: automationsError } = await supabase
+        .from('automations')
+        .select('id, name, trigger_type, trigger_config, actions')
+        .eq('user_id', userId)
+        .eq('status', 'active');
+
+      if (automationsError) {
+        tracker.track('fetch_automations', false, undefined, automationsError.message, tMatch);
+        throw automationsError;
+      }
+
+      matchedAutomations = (automations || []).filter(automation => {
+        const config = automation.trigger_config || {};
+        const actualTriggerType = automation.trigger_type;
+        const payload = eventData.postbackPayload;
+
+        // Postback Matching
+        if (payload) {
+          const cid = automation.id.replace(/-/g, '');
+          if (payload === `START_FLOW_${cid}` || payload === `CHECK_FOLLOW_${cid}`) return true;
+          
+          // Match Menu Flow postbacks
+          const sendDmAction = automation.actions?.find((a: any) => a.type === 'send_dm');
+          if (sendDmAction) {
+            if (sendDmAction.actionButtons?.some((b: any) => b.payload === payload)) return true;
+            if (sendDmAction.conversationCards?.some((c: any) => 
+              c.id === payload || c.actionButtons?.some((b: any) => b.payload === payload)
+            )) return true;
+          }
+
+          if (config.keywords?.some((k: string) => payload.toLowerCase() === k.toLowerCase())) return true;
+          return false;
+        }
+
+        // Type Check
+        if (triggerType !== actualTriggerType && !(triggerType === 'user_directed_messages' && actualTriggerType === 'user_dm')) return false;
+
+        // Keyword/Specific Post Matching
+        if (triggerType === 'post_comment') {
+          if (config.postsType === 'specific' && !config.specificPosts?.includes(eventData.postId)) return false;
+          if (config.commentsType === 'keywords') {
+              const text = (eventData.commentText || '').toLowerCase();
+              return config.keywords?.some((k: string) => text.includes(k.toLowerCase()));
+          }
+          return config.commentsType === 'all';
+        }
+
+        if (triggerType === 'user_directed_messages' || triggerType === 'user_dm') {
+          if (config.messageType === 'keywords') {
+              const text = (eventData.messageText || '').toLowerCase();
+              return config.keywords?.some((k: string) => text.includes(k.toLowerCase()));
+          }
+          return config.messageType === 'all';
+        }
+
+        return actualTriggerType === 'story_reply';
+      });
+
+      tracker.track(
+        'trigger_match',
+        matchedAutomations.length > 0,
+        `matched=${matchedAutomations.length} automation(s)`,
+        matchedAutomations.length === 0 ? 'No active automations matched the trigger' : undefined,
+        tMatch
+      );
+
+      if (matchedAutomations.length === 0) {
         await writeExecutionLog({
           supabase,
           userId,
@@ -205,100 +302,14 @@ Deno.serve(async (req: Request) => {
           eventData,
           requestBody,
           tracker,
-          status: 'success',
+          status: 'no_match',
           matchedAutomation: null
         });
 
-        return new Response(JSON.stringify({ success: true, mode: 'state_machine' }), {
+        return new Response(JSON.stringify({ success: true, executed: 0 }), {
           status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
-    }
-
-    // 🔍 5. TRIGGER MATCHING
-    const tMatch = Date.now();
-    const { data: automations, error: automationsError } = await supabase
-      .from('automations')
-      .select('id, name, trigger_type, trigger_config, actions')
-      .eq('user_id', userId)
-      .eq('status', 'active');
-
-    if (automationsError) {
-      tracker.track('fetch_automations', false, undefined, automationsError.message, tMatch);
-      throw automationsError;
-    }
-
-    matchedAutomations = (automations || []).filter(automation => {
-      const config = automation.trigger_config || {};
-      const actualTriggerType = automation.trigger_type;
-      const payload = eventData.postbackPayload;
-
-      // Postback Matching
-      if (payload) {
-        const cid = automation.id.replace(/-/g, '');
-        if (payload === `START_FLOW_${cid}` || payload === `CHECK_FOLLOW_${cid}`) return true;
-        
-        // Match Menu Flow postbacks
-        const sendDmAction = automation.actions?.find((a: any) => a.type === 'send_dm');
-        if (sendDmAction) {
-          if (sendDmAction.actionButtons?.some((b: any) => b.payload === payload)) return true;
-          if (sendDmAction.conversationCards?.some((c: any) => 
-            c.id === payload || c.actionButtons?.some((b: any) => b.payload === payload)
-          )) return true;
-        }
-
-        if (config.keywords?.some((k: string) => payload.toLowerCase() === k.toLowerCase())) return true;
-        return false;
-      }
-
-      // Type Check
-      if (triggerType !== actualTriggerType && !(triggerType === 'user_directed_messages' && actualTriggerType === 'user_dm')) return false;
-
-      // Keyword/Specific Post Matching
-      if (triggerType === 'post_comment') {
-        if (config.postsType === 'specific' && !config.specificPosts?.includes(eventData.postId)) return false;
-        if (config.commentsType === 'keywords') {
-            const text = (eventData.commentText || '').toLowerCase();
-            return config.keywords?.some((k: string) => text.includes(k.toLowerCase()));
-        }
-        return config.commentsType === 'all';
-      }
-
-      if (triggerType === 'user_directed_messages' || triggerType === 'user_dm') {
-        if (config.messageType === 'keywords') {
-            const text = (eventData.messageText || '').toLowerCase();
-            return config.keywords?.some((k: string) => text.includes(k.toLowerCase()));
-        }
-        return config.messageType === 'all';
-      }
-
-      return actualTriggerType === 'story_reply';
-    });
-
-    tracker.track(
-      'trigger_match',
-      matchedAutomations.length > 0,
-      `matched=${matchedAutomations.length} automation(s)`,
-      matchedAutomations.length === 0 ? 'No active automations matched the trigger' : undefined,
-      tMatch
-    );
-
-    if (matchedAutomations.length === 0) {
-      await writeExecutionLog({
-        supabase,
-        userId,
-        instagramAccountId,
-        triggerType,
-        eventData,
-        requestBody,
-        tracker,
-        status: 'no_match',
-        matchedAutomation: null
-      });
-
-      return new Response(JSON.stringify({ success: true, executed: 0 }), {
-        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
     }
 
     // 🚀 6. EXECUTION
@@ -359,19 +370,15 @@ Deno.serve(async (req: Request) => {
           continue; // Skip the rest of the actions (like send_dm)
       }
 
-      if (leadAction) {
+      if (leadAction && conversationState.state !== 'done') {
         const tLead = Date.now();
         await updateContactMetadata(supabase, contactId, {
           ...metadata,
           conversation_state: { state: 'waiting_name', automation_id: automation.id, data: {}, last_message_at: new Date().toISOString() }
         });
-        tracker.track(
-          'save_lead_init',
-          true,
-          'Initialized conversation state waiting_name',
-          undefined,
-          tLead
-        );
+        const leadRes = await sendDirectMessage(instagramAccount.access_token, eventData.from.id, leadAction.messages?.askName || "What's your name?");
+        tracker.track('save_lead_init', leadRes.ok, 'Started Lead Manager flow', !leadRes.ok ? 'Failed to start flow' : undefined, tLead);
+        continue; // Skip the rest of the actions
       }
 
       for (const action of automation.actions || []) {
@@ -541,7 +548,7 @@ async function handleConversationState(params: any) {
     await supabase.from('leads').insert({ user_id: userId, automation_id: automationId, contact_id: contactId, name: currentData.name, email: currentData.email, phone: currentData.phone, custom_data: currentData.custom });
     await sendDirectMessage(instagramAccount.access_token, eventData.from.id, leadAction.messages?.success || "Saved! ✅");
     await updateContactMetadata(supabase, contactId, { ...metadata, conversation_state: { state: 'done' } });
-    return { processed: true };
+    return { processed: true, justFinished: true, automationToExecute: automation };
   }
 
   // Process Input
@@ -629,22 +636,36 @@ async function executeAction(params: any) {
   if (action.type === 'send_dm') {
     let dmText = "";
     let buttonsToInclude: any[] = [];
+    let carouselElementsToInclude: any[] = undefined;
     const payload = eventData.postbackPayload;
 
     // Menu Flow Resolution
     if (payload && action.dmType === 'conversation_flow' && action.conversationCards) {
-        // Find the card that matches the clicked button's payload
         const matchingCard = action.conversationCards.find((c: any) => c.id === payload);
         if (matchingCard) {
             dmText = matchingCard.messageTemplate || matchingCard.title || "Here you go!";
             buttonsToInclude = matchingCard.actionButtons || [];
         } else {
-            // If somehow not found, fallback to main
             dmText = action.messageTemplate || action.title || action.teaserMessage || "Hi!";
             buttonsToInclude = action.actionButtons || [];
         }
-    } else {
-        // Top-level message (either not a menu flow, or first message of the flow)
+    } 
+    // Carousel Engine Resolution
+    else if (action.dmType === 'carousel' || action.dmType === 'carousel_engine') {
+        dmText = action.messageTemplate || action.title || action.teaserMessage || "Hi!";
+        if (action.carouselCards && action.carouselCards.length > 0) {
+            carouselElementsToInclude = action.carouselCards.map((c: any) => ({
+                title: (c.title || c.messageTemplate || dmText).replace('{{username}}', eventData.from.username || ''),
+                subtitle: (c.subtitle || action.subtitle || "Powered by QuickRevert").replace('{{username}}', eventData.from.username || ''),
+                image_url: c.imageUrl,
+                buttons: c.actionButtons
+            }));
+        } else {
+            buttonsToInclude = action.actionButtons || [];
+        }
+    } 
+    // Top-level / Simple Message
+    else {
         dmText = action.messageTemplate || action.title || action.teaserMessage || "Hi!";
         buttonsToInclude = action.actionButtons || [];
     }
@@ -656,7 +677,7 @@ async function executeAction(params: any) {
       : { id: eventData.from.id };
 
     console.log(`[send_dm] Sending to ${JSON.stringify(recipient)}: "${dmText.substring(0, 50)}"`);
-    const dmRes = await sendDirectMessage(accessToken, recipient, dmText, buttonsToInclude);
+    const dmRes = await sendDirectMessage(accessToken, recipient, dmText, buttonsToInclude, carouselElementsToInclude);
     if (!dmRes.ok) {
       const err = await dmRes.json().catch(() => ({}));
       return { ok: false, error: err.error?.message || dmRes.statusText || 'Failed to send DM' };
@@ -668,33 +689,51 @@ async function executeAction(params: any) {
   return { ok: true, detail: `Unsupported action type: ${action.type}` };
 }
 
-async function sendDirectMessage(accessToken: string, recipient: any, text: string, buttons: any[] = []) {
+async function sendDirectMessage(accessToken: string, recipient: any, text: string, buttons: any[] = [], carouselElements?: any[]) {
   const recipientObj = typeof recipient === 'string' ? { id: recipient } : recipient;
-  let payload: any = { recipient: recipientObj, message: { text } };
-  if (buttons.length > 0) {
-    payload.message = {
-      attachment: { type: 'template', payload: {
-          template_type: 'generic',
-          elements: [{ 
-              title: text.substring(0, 80), 
-              subtitle: "Powered by QuickRevert", 
-              buttons: buttons.slice(0, 3).map(btn => {
-                  const isWeb = !!(btn.url && btn.url.trim() !== '');
-                  const mapped: any = {
-                      type: isWeb ? 'web_url' : 'postback',
-                      title: (btn.text || btn.title).substring(0, 20)
+  let payload: any = { recipient: recipientObj, message: {} };
+
+  const formatButtons = (btns: any[]) => btns.slice(0, 3).map((btn: any) => {
+      const isWeb = !!(btn.url && btn.url.trim() !== '');
+      const mapped: any = {
+          type: isWeb ? 'web_url' : 'postback',
+          title: (btn.text || btn.title).substring(0, 20)
+      };
+      if (isWeb) mapped.url = btn.url;
+      else mapped.payload = btn.payload || (btn.text || btn.title).toUpperCase();
+      return mapped;
+  });
+
+  if (carouselElements && carouselElements.length > 0) {
+      payload.message = {
+          attachment: { type: 'template', payload: {
+              template_type: 'generic',
+              elements: carouselElements.slice(0, 10).map((el: any) => {
+                  const out: any = {
+                      title: (el.title || text || 'Card').substring(0, 80),
+                      subtitle: (el.subtitle || 'Powered by QuickRevert').substring(0, 80)
                   };
-                  if (isWeb) {
-                      mapped.url = btn.url;
-                  } else {
-                      mapped.payload = btn.payload || (btn.text || btn.title).toUpperCase();
-                  }
-                  return mapped;
+                  if (el.image_url) out.image_url = el.image_url;
+                  if (el.buttons && el.buttons.length > 0) out.buttons = formatButtons(el.buttons);
+                  return out;
               })
-          }]
-      } }
-    };
+          } }
+      };
+  } else if (buttons.length > 0) {
+      payload.message = {
+          attachment: { type: 'template', payload: {
+              template_type: 'generic',
+              elements: [{ 
+                  title: text.substring(0, 80), 
+                  subtitle: "Powered by QuickRevert", 
+                  buttons: formatButtons(buttons)
+              }]
+          } }
+      };
+  } else {
+      payload.message.text = text;
   }
+
   const res = await fetch(`https://graph.instagram.com/v21.0/me/messages?access_token=${accessToken}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
   if (!res.ok) {
     const errBody = await res.json().catch(() => ({}));
