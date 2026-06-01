@@ -427,27 +427,27 @@ async function processEvent(body: any) {
                         continue;
                     }
 
-                    if (activeRoutes.routes.length > 0) {
-                        // 🔀 STEP 2: Route split — code logic OR n8n
-                        const useCodeLogic = await checkCodeLogicFlag(supabaseClient, accountsData[0].user_id);
-                        console.log(`[ROUTING] user=${accountsData[0].user_id} use_code_logic=${useCodeLogic} event=messaging`);
+                    // 🔀 STEP 2: Route split — code logic OR n8n
+                    // Code-logic users bypass DB route matching entirely — execute-automation
+                    // does its own trigger matching against the automations table.
+                    const useCodeLogic = await checkCodeLogicFlag(supabaseClient, accountsData[0].user_id);
+                    console.log(`[ROUTING] user=${accountsData[0].user_id} use_code_logic=${useCodeLogic} event=messaging`);
 
-                        if (useCodeLogic) {
-                            await triggerCodeLogic(supabaseClient, accountsData[0], msg, 'messaging', eventId);
-                        } else {
-                            const payloadData = {
-                                platform: object,
-                                account_id: internalAccountId,
-                                event_type: 'messaging',
-                                sub_type,
-                                payload: msg,
-                                entry: [legacyEntry],
-                                event_id: eventId,
-                                is_basic_display: true,
-                                activity_id: primaryActivityId
-                            };
-                            await triggerWorkflows(payloadData, activeRoutes.routes, activeRoutes.workflows);
-                        }
+                    if (useCodeLogic) {
+                        await triggerCodeLogic(supabaseClient, accountsData[0], msg, 'messaging', eventId);
+                    } else if (activeRoutes.routes.length > 0) {
+                        const payloadData = {
+                            platform: object,
+                            account_id: internalAccountId,
+                            event_type: 'messaging',
+                            sub_type,
+                            payload: msg,
+                            entry: [legacyEntry],
+                            event_id: eventId,
+                            is_basic_display: true,
+                            activity_id: primaryActivityId
+                        };
+                        await triggerWorkflows(payloadData, activeRoutes.routes, activeRoutes.workflows);
                     }
                 } else {
                     console.error("No Internal Account ID found for routing.");
@@ -499,7 +499,9 @@ async function processEvent(body: any) {
                 }
 
                 // 🔥 EARLY EXIT: If no routes found for a comment, stop here before heavy work
-                if (change.field === 'comments' && activeRoutes.routes.length === 0) {
+                // Skip early exit for code-logic users — they don't need DB routes
+                const isCodeLogicUser = await checkCodeLogicFlag(supabaseClient, accountsData[0].user_id);
+                if (change.field === 'comments' && activeRoutes.routes.length === 0 && !isCodeLogicUser) {
                     console.log(`[EARLY EXIT] No active routes found for comment on media ${mediaId}. Bailing out.`);
                     continue;
                 }
@@ -557,7 +559,7 @@ async function processEvent(body: any) {
                     }
                 }
 
-                if (internalAccountId && activeRoutes.routes.length > 0) {
+                if (internalAccountId) {
                     // 🔒 DM LIMIT ENFORCEMENT for comment-triggered automations too
                     const commentUserId = accountsData[0].user_id;
                     const commentLimitExceeded = await checkUserDmLimit(supabaseClient, commentUserId);
@@ -575,12 +577,14 @@ async function processEvent(body: any) {
                         });
                     } else {
                         // 🔀 STEP 2: Route split — code logic OR n8n
-                        const useCodeLogicComment = await checkCodeLogicFlag(supabaseClient, accountsData[0].user_id);
+                        // Code-logic users bypass DB route matching — execute-automation
+                        // does its own trigger matching against the automations table.
+                        const useCodeLogicComment = isCodeLogicUser !== undefined ? isCodeLogicUser : await checkCodeLogicFlag(supabaseClient, accountsData[0].user_id);
                         console.log(`[ROUTING] user=${accountsData[0].user_id} use_code_logic=${useCodeLogicComment} event=changes field=${change.field}`);
 
                         if (useCodeLogicComment) {
                             await triggerCodeLogic(supabaseClient, accountsData[0], change, 'changes', eventId);
-                        } else {
+                        } else if (activeRoutes.routes.length > 0) {
                             const payloadData = {
                                 platform: object,
                                 account_id: internalAccountId,

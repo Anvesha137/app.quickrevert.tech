@@ -128,13 +128,16 @@ Deno.serve(async (req: Request) => {
     let profileError = '';
     try {
       // Try Instagram Graph API first (correct for Instagram tokens)
-      const igRes = await fetch(`https://graph.instagram.com/v21.0/${eventData.from.id}?fields=name,username&access_token=${instagramAccount.access_token}`);
+      const igRes = await fetch(`https://graph.instagram.com/v21.0/${eventData.from.id}?fields=name,username,is_user_follow_business&access_token=${instagramAccount.access_token}`);
       if (igRes.ok) {
         const igData = await igRes.json();
         eventData.from.name = igData.name || igData.username || eventData.from.name;
-        // is_user_follow_business is only available via Facebook Graph API with a Page token.
-        // Default to false if not already set — "Follow to Unlock" will re-check via postback.
-        if (eventData.isFollowing === undefined) eventData.isFollowing = false;
+        // Extract is_user_follow_business (supported in newer IG graph API versions for messaging context)
+        if (igData.is_user_follow_business !== undefined) {
+           eventData.isFollowing = igData.is_user_follow_business;
+        } else if (eventData.isFollowing === undefined) {
+           eventData.isFollowing = false;
+        }
         profileFetched = true;
       } else {
         const errText = await igRes.text();
@@ -353,9 +356,19 @@ Deno.serve(async (req: Request) => {
           }
           // STATE 3: Clicked "I've Followed" -> Deliver Reward
           else if (payload === `CHECK_FOLLOW_${cid}`) {
-              // We proceed to execute actions. 
-              // (If the API couldn't verify isFollowing securely, we trust the button click as a fallback)
-              tracker.track('verify_follow', true, 'User verified follow via button', undefined, tFollow);
+              if (!eventData.isFollowing) {
+                  // They lied! They clicked the button but haven't followed yet.
+                  const askMsg = sendDmAction.askToFollowMessage || "Oops! Looks like you haven't followed me yet 👀...";
+                  const askBtn = sendDmAction.askToFollowBtnText || "I've Followed! ✅";
+                  const followRes = await sendDirectMessage(instagramAccount.access_token, recipient, askMsg, [
+                      { text: askBtn, payload: `CHECK_FOLLOW_${cid}` }
+                  ]);
+                  tracker.track('ask_to_follow_recheck', followRes.ok, 'User clicked followed but was not following', undefined, tFollow);
+                  shouldExecuteActions = false; // Stop here, wait for them to actually follow
+              } else {
+                  // We proceed to execute actions. 
+                  tracker.track('verify_follow', true, 'User verified follow via button and API', undefined, tFollow);
+              }
           }
       }
 
