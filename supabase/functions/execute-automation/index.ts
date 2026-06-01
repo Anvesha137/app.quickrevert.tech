@@ -12,7 +12,7 @@ interface EventData {
   commentText?: string;
   messageId?: string;
   messageText?: string;
-  postbackPayload?: string; 
+  postbackPayload?: string;
   postId?: string;
   storyId?: string;
   isFollowing?: boolean;
@@ -134,9 +134,9 @@ Deno.serve(async (req: Request) => {
         eventData.from.name = igData.name || igData.username || eventData.from.name;
         // Extract is_user_follow_business (supported in newer IG graph API versions for messaging context)
         if (igData.is_user_follow_business !== undefined) {
-           eventData.isFollowing = igData.is_user_follow_business;
+          eventData.isFollowing = igData.is_user_follow_business;
         } else if (eventData.isFollowing === undefined) {
-           eventData.isFollowing = false;
+          eventData.isFollowing = false;
         }
         profileFetched = true;
       } else {
@@ -203,26 +203,26 @@ Deno.serve(async (req: Request) => {
 
       if (stateResult.processed) {
         if (stateResult.justFinished && stateResult.automationToExecute) {
-            matchedAutomations = [stateResult.automationToExecute];
-            skipTriggerMatching = true;
-            // update conversationState in memory so execution loop knows it's done
-            conversationState.state = 'done'; 
+          matchedAutomations = [stateResult.automationToExecute];
+          skipTriggerMatching = true;
+          // update conversationState in memory so execution loop knows it's done
+          conversationState.state = 'done';
         } else {
-            await writeExecutionLog({
-              supabase,
-              userId,
-              instagramAccountId,
-              triggerType,
-              eventData,
-              requestBody,
-              tracker,
-              status: 'success',
-              matchedAutomation: null
-            });
+          await writeExecutionLog({
+            supabase,
+            userId,
+            instagramAccountId,
+            triggerType,
+            eventData,
+            requestBody,
+            tracker,
+            status: 'success',
+            matchedAutomation: null
+          });
 
-            return new Response(JSON.stringify({ success: true, mode: 'state_machine' }), {
-              status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-            });
+          return new Response(JSON.stringify({ success: true, mode: 'state_machine' }), {
+            status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
         }
       }
     }
@@ -250,12 +250,12 @@ Deno.serve(async (req: Request) => {
         if (payload) {
           const cid = automation.id.replace(/-/g, '');
           if (payload === `START_FLOW_${cid}` || payload === `CHECK_FOLLOW_${cid}`) return true;
-          
+
           // Match Menu Flow postbacks
           const sendDmAction = automation.actions?.find((a: any) => a.type === 'send_dm');
           if (sendDmAction) {
             if (sendDmAction.actionButtons?.some((b: any) => b.payload === payload)) return true;
-            if (sendDmAction.conversationCards?.some((c: any) => 
+            if (sendDmAction.conversationCards?.some((c: any) =>
               c.id === payload || c.actionButtons?.some((b: any) => b.payload === payload)
             )) return true;
           }
@@ -271,16 +271,16 @@ Deno.serve(async (req: Request) => {
         if (triggerType === 'post_comment') {
           if (config.postsType === 'specific' && !config.specificPosts?.includes(eventData.postId)) return false;
           if (config.commentsType === 'keywords') {
-              const text = (eventData.commentText || '').toLowerCase();
-              return config.keywords?.some((k: string) => text.includes(k.toLowerCase()));
+            const text = (eventData.commentText || '').toLowerCase();
+            return config.keywords?.some((k: string) => text.includes(k.toLowerCase()));
           }
           return config.commentsType === 'all';
         }
 
         if (triggerType === 'user_directed_messages' || triggerType === 'user_dm') {
           if (config.messageType === 'keywords') {
-              const text = (eventData.messageText || '').toLowerCase();
-              return config.keywords?.some((k: string) => text.includes(k.toLowerCase()));
+            const text = (eventData.messageText || '').toLowerCase();
+            return config.keywords?.some((k: string) => text.includes(k.toLowerCase()));
           }
           return config.messageType === 'all';
         }
@@ -327,60 +327,62 @@ Deno.serve(async (req: Request) => {
       let shouldExecuteActions = true;
 
       if (sendDmAction && sendDmAction.askToFollow) {
-          const tFollow = Date.now();
-          const recipient = (triggerType === 'post_comment' && eventData.commentId)
-              ? { comment_id: eventData.commentId }
-              : { id: eventData.from.id };
+        const tFollow = Date.now();
+        const recipient = (triggerType === 'post_comment' && eventData.commentId)
+          ? { comment_id: eventData.commentId }
+          : { id: eventData.from.id };
 
-          // STATE 1: Comment Trigger -> Send Teaser
-          if (triggerType === 'post_comment' && !payload) {
-              const teaserMsg = sendDmAction.teaserMessage || "Hey! Glad you're here... Tap below and I'll send you a message shortly 👀";
-              const teaserBtn = sendDmAction.teaserBtnText || "Send Access";
-              const followRes = await sendDirectMessage(instagramAccount.access_token, recipient, teaserMsg, [
-                  { text: teaserBtn, payload: `START_FLOW_${cid}` }
-              ]);
-              tracker.track('teaser_prompt', followRes.ok, 'Sent teaser prompt', !followRes.ok ? 'Failed to send teaser' : undefined, tFollow);
-              shouldExecuteActions = false; // Stop here, wait for them to click "Send Access"
+        // STATE 1: Comment Trigger -> Send Teaser
+        if (triggerType === 'post_comment' && !payload) {
+          const teaserMsg = sendDmAction.teaserMessage || "Hey! Glad you're here... Tap below and I'll send you a message shortly 👀";
+          const teaserBtn = sendDmAction.teaserBtnText || "Send Access";
+          const followRes = await sendDirectMessage(instagramAccount.access_token, recipient, teaserMsg, [
+            { text: teaserBtn, payload: `START_FLOW_${cid}` }
+          ]);
+          tracker.track('teaser_prompt', followRes.ok, 'Sent teaser prompt', !followRes.ok ? 'Failed to send teaser' : undefined, tFollow);
+          shouldExecuteActions = false; // Stop here, wait for them to click "Send Access"
+        }
+        // STATE 2: Clicked "Send Access" -> Check Follow Status
+        else if (payload === `START_FLOW_${cid}`) {
+          if (!eventData.isFollowing) {
+            const askMsg = sendDmAction.askToFollowMessage || "Oops! Looks like you haven't followed me yet 👀...";
+            const askBtn = sendDmAction.askToFollowBtnText || "I've Followed! ✅";
+            const followRes = await sendDirectMessage(instagramAccount.access_token, recipient, askMsg, [
+              { text: "Visit Profile", url: `https://instagram.com/${instagramAccount.username}` },
+              { text: askBtn, payload: `CHECK_FOLLOW_${cid}` }
+            ]);
+            tracker.track('ask_to_follow', followRes.ok, 'Sent ask-to-follow prompt', !followRes.ok ? 'Failed to send follow prompt' : undefined, tFollow);
+            shouldExecuteActions = false; // Stop here, wait for them to follow and click button
           }
-          // STATE 2: Clicked "Send Access" -> Check Follow Status
-          else if (payload === `START_FLOW_${cid}`) {
-              if (!eventData.isFollowing) {
-                  const askMsg = sendDmAction.askToFollowMessage || "Oops! Looks like you haven't followed me yet 👀...";
-                  const askBtn = sendDmAction.askToFollowBtnText || "I've Followed! ✅";
-                  const followRes = await sendDirectMessage(instagramAccount.access_token, recipient, askMsg, [
-                      { text: askBtn, payload: `CHECK_FOLLOW_${cid}` }
-                  ]);
-                  tracker.track('ask_to_follow', followRes.ok, 'Sent ask-to-follow prompt', !followRes.ok ? 'Failed to send follow prompt' : undefined, tFollow);
-                  shouldExecuteActions = false; // Stop here, wait for them to follow and click button
-              }
+        }
+        // STATE 3: Clicked "I've Followed" -> Deliver Reward
+        else if (payload === `CHECK_FOLLOW_${cid}`) {
+          if (!eventData.isFollowing) {
+            // They lied! They clicked the button but haven't followed yet.
+            const askMsg = sendDmAction.askToFollowMessage || "Oops! Looks like you haven't followed me yet 👀...";
+            const askBtn = sendDmAction.askToFollowBtnText || "I've Followed! ✅";
+            const followRes = await sendDirectMessage(instagramAccount.access_token, recipient, askMsg, [
+              { text: askBtn, payload: `CHECK_FOLLOW_${cid}` },
+              { text: "Visit Profile", url: `https://instagram.com/${instagramAccount.username}` }
+            ]);
+            tracker.track('ask_to_follow_recheck', followRes.ok, 'User clicked followed but was not following', undefined, tFollow);
+            shouldExecuteActions = false; // Stop here, wait for them to actually follow
+          } else {
+            // We proceed to execute actions. 
+            tracker.track('verify_follow', true, 'User verified follow via button and API', undefined, tFollow);
           }
-          // STATE 3: Clicked "I've Followed" -> Deliver Reward
-          else if (payload === `CHECK_FOLLOW_${cid}`) {
-              if (!eventData.isFollowing) {
-                  // They lied! They clicked the button but haven't followed yet.
-                  const askMsg = sendDmAction.askToFollowMessage || "Oops! Looks like you haven't followed me yet 👀...";
-                  const askBtn = sendDmAction.askToFollowBtnText || "I've Followed! ✅";
-                  const followRes = await sendDirectMessage(instagramAccount.access_token, recipient, askMsg, [
-                      { text: askBtn, payload: `CHECK_FOLLOW_${cid}` }
-                  ]);
-                  tracker.track('ask_to_follow_recheck', followRes.ok, 'User clicked followed but was not following', undefined, tFollow);
-                  shouldExecuteActions = false; // Stop here, wait for them to actually follow
-              } else {
-                  // We proceed to execute actions. 
-                  tracker.track('verify_follow', true, 'User verified follow via button and API', undefined, tFollow);
-              }
-          }
+        }
       }
 
       if (!shouldExecuteActions) {
-          // If we sent a teaser or a follow prompt, we still want to log the reply_to_comment if it exists
-          const replyAction = automation.actions?.find((a: any) => a.type === 'reply_to_comment');
-          if (replyAction && triggerType === 'post_comment' && !payload) {
-              const tAction = Date.now();
-              const actionResult = await executeAction({ action: replyAction, eventData, accessToken: instagramAccount.access_token, supabase, automationId: automation.id, userId, instagramAccountId, triggerType });
-              tracker.track('reply_to_comment', actionResult.ok, actionResult.detail || undefined, actionResult.error || undefined, tAction);
-          }
-          continue; // Skip the rest of the actions (like send_dm)
+        // If we sent a teaser or a follow prompt, we still want to log the reply_to_comment if it exists
+        const replyAction = automation.actions?.find((a: any) => a.type === 'reply_to_comment');
+        if (replyAction && triggerType === 'post_comment' && !payload) {
+          const tAction = Date.now();
+          const actionResult = await executeAction({ action: replyAction, eventData, accessToken: instagramAccount.access_token, supabase, automationId: automation.id, userId, instagramAccountId, triggerType });
+          tracker.track('reply_to_comment', actionResult.ok, actionResult.detail || undefined, actionResult.error || undefined, tAction);
+        }
+        continue; // Skip the rest of the actions (like send_dm)
       }
 
       if (leadAction && conversationState.state !== 'done') {
@@ -437,7 +439,7 @@ Deno.serve(async (req: Request) => {
         context: 'execute-automation',
         details: `Automation "${matchedAutomations[0]?.name || 'unknown'}" failed for user ${userId}.\n${tracker.steps.filter(s => !s.ok).map(s => `${s.step}: ${s.error}`).join('\n')}`,
         data: { userId, triggerType, steps: tracker.steps }
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     return new Response(JSON.stringify({ success: true, executed: matchedAutomations.length }), {
@@ -468,7 +470,7 @@ Deno.serve(async (req: Request) => {
         context: 'execute-automation',
         details: `Automation execution crashed for user ${userId}.\nError: ${error.message}`,
         data: { userId, triggerType, error: error.message, steps: tracker.steps }
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     return new Response(JSON.stringify({ error: error.message }), {
@@ -569,7 +571,7 @@ async function handleConversationState(params: any) {
     if (state.state === 'waiting_name') {
       currentData.name = msg;
       nextState = dataToCollect.includes('email') ? 'waiting_email' : (dataToCollect.includes('phone') ? 'waiting_phone' : (dataToCollect.includes('custom') ? 'waiting_custom' : 'confirm'));
-    } 
+    }
     else if (state.state === 'waiting_email') {
       if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(msg)) {
         currentData.email = msg;
@@ -580,12 +582,12 @@ async function handleConversationState(params: any) {
       }
     }
     else if (state.state === 'waiting_phone') {
-        currentData.phone = msg;
-        nextState = dataToCollect.includes('custom') ? 'waiting_custom' : 'confirm';
+      currentData.phone = msg;
+      nextState = dataToCollect.includes('custom') ? 'waiting_custom' : 'confirm';
     }
     else if (state.state === 'waiting_custom') {
-        currentData.custom = msg;
-        nextState = 'confirm';
+      currentData.custom = msg;
+      nextState = 'confirm';
     }
   }
 
@@ -598,10 +600,10 @@ async function handleConversationState(params: any) {
   else if (nextState === 'waiting_custom') nextMessage = leadAction.customField?.label || "Tell us more:";
   else if (nextState === 'confirm') {
     nextMessage = (leadAction.messages?.confirmAll || "Confirm details:\n👤 Name: {{name}}\n📧 Email: {{email}}")
-        .replace('{{name}}', currentData.name || 'N/A')
-        .replace('{{email}}', currentData.email || 'N/A')
-        .replace('{{phone}}', currentData.phone || 'N/A')
-        .replace('{{custom}}', currentData.custom || 'N/A');
+      .replace('{{name}}', currentData.name || 'N/A')
+      .replace('{{email}}', currentData.email || 'N/A')
+      .replace('{{phone}}', currentData.phone || 'N/A')
+      .replace('{{custom}}', currentData.custom || 'N/A');
     buttons = [{ text: "Confirm ✅", payload: `CONFIRM_SAVE_${cid}` }, { text: "Edit Name 👤", payload: `CHANGE_NAME_${cid}` }];
   }
 
@@ -613,7 +615,7 @@ async function handleConversationState(params: any) {
 
 async function executeAction(params: any) {
   const { action, eventData, accessToken, supabase, automationId, userId, instagramAccountId, triggerType } = params;
-  
+
   if (action.type === 'reply_to_comment' && eventData.commentId) {
     const templates = action.replyTemplates;
     let text = "Check your DMs!";
@@ -654,33 +656,33 @@ async function executeAction(params: any) {
 
     // Menu Flow Resolution
     if (payload && action.dmType === 'conversation_flow' && action.conversationCards) {
-        const matchingCard = action.conversationCards.find((c: any) => c.id === payload);
-        if (matchingCard) {
-            dmText = matchingCard.messageTemplate || matchingCard.title || "Here you go!";
-            buttonsToInclude = matchingCard.actionButtons || [];
-        } else {
-            dmText = action.messageTemplate || action.title || action.teaserMessage || "Hi!";
-            buttonsToInclude = action.actionButtons || [];
-        }
-    } 
-    // Carousel Engine Resolution
-    else if (action.dmType === 'carousel' || action.dmType === 'carousel_engine') {
-        dmText = action.messageTemplate || action.title || action.teaserMessage || "Hi!";
-        if (action.carouselCards && action.carouselCards.length > 0) {
-            carouselElementsToInclude = action.carouselCards.map((c: any) => ({
-                title: (c.title || c.messageTemplate || dmText).replace('{{username}}', eventData.from.username || ''),
-                subtitle: (c.subtitle || action.subtitle || "Powered by QuickRevert").replace('{{username}}', eventData.from.username || ''),
-                image_url: c.imageUrl,
-                buttons: c.actionButtons
-            }));
-        } else {
-            buttonsToInclude = action.actionButtons || [];
-        }
-    } 
-    // Top-level / Simple Message
-    else {
+      const matchingCard = action.conversationCards.find((c: any) => c.id === payload);
+      if (matchingCard) {
+        dmText = matchingCard.messageTemplate || matchingCard.title || "Here you go!";
+        buttonsToInclude = matchingCard.actionButtons || [];
+      } else {
         dmText = action.messageTemplate || action.title || action.teaserMessage || "Hi!";
         buttonsToInclude = action.actionButtons || [];
+      }
+    }
+    // Carousel Engine Resolution
+    else if (action.dmType === 'carousel' || action.dmType === 'carousel_engine') {
+      dmText = action.messageTemplate || action.title || action.teaserMessage || "Hi!";
+      if (action.carouselCards && action.carouselCards.length > 0) {
+        carouselElementsToInclude = action.carouselCards.map((c: any) => ({
+          title: (c.title || c.messageTemplate || dmText).replace('{{username}}', eventData.from.username || ''),
+          subtitle: (c.subtitle || action.subtitle || "Powered by QuickRevert").replace('{{username}}', eventData.from.username || ''),
+          image_url: c.imageUrl,
+          buttons: c.actionButtons
+        }));
+      } else {
+        buttonsToInclude = action.actionButtons || [];
+      }
+    }
+    // Top-level / Simple Message
+    else {
+      dmText = action.messageTemplate || action.title || action.teaserMessage || "Hi!";
+      buttonsToInclude = action.actionButtons || [];
     }
 
     dmText = dmText.replace('{{username}}', eventData.from.username || '');
@@ -707,44 +709,48 @@ async function sendDirectMessage(accessToken: string, recipient: any, text: stri
   let payload: any = { recipient: recipientObj, message: {} };
 
   const formatButtons = (btns: any[]) => btns.slice(0, 3).map((btn: any) => {
-      const isWeb = !!(btn.url && btn.url.trim() !== '');
-      const mapped: any = {
-          type: isWeb ? 'web_url' : 'postback',
-          title: (btn.text || btn.title).substring(0, 20)
-      };
-      if (isWeb) mapped.url = btn.url;
-      else mapped.payload = btn.payload || (btn.text || btn.title).toUpperCase();
-      return mapped;
+    const isWeb = !!(btn.url && btn.url.trim() !== '');
+    const mapped: any = {
+      type: isWeb ? 'web_url' : 'postback',
+      title: (btn.text || btn.title).substring(0, 20)
+    };
+    if (isWeb) mapped.url = btn.url;
+    else mapped.payload = btn.payload || (btn.text || btn.title).toUpperCase();
+    return mapped;
   });
 
   if (carouselElements && carouselElements.length > 0) {
-      payload.message = {
-          attachment: { type: 'template', payload: {
-              template_type: 'generic',
-              elements: carouselElements.slice(0, 10).map((el: any) => {
-                  const out: any = {
-                      title: (el.title || text || 'Card').substring(0, 80),
-                      subtitle: (el.subtitle || 'Powered by QuickRevert').substring(0, 80)
-                  };
-                  if (el.image_url) out.image_url = el.image_url;
-                  if (el.buttons && el.buttons.length > 0) out.buttons = formatButtons(el.buttons);
-                  return out;
-              })
-          } }
-      };
+    payload.message = {
+      attachment: {
+        type: 'template', payload: {
+          template_type: 'generic',
+          elements: carouselElements.slice(0, 10).map((el: any) => {
+            const out: any = {
+              title: (el.title || text || 'Card').substring(0, 80),
+              subtitle: (el.subtitle || 'Powered by QuickRevert').substring(0, 80)
+            };
+            if (el.image_url) out.image_url = el.image_url;
+            if (el.buttons && el.buttons.length > 0) out.buttons = formatButtons(el.buttons);
+            return out;
+          })
+        }
+      }
+    };
   } else if (buttons.length > 0) {
-      payload.message = {
-          attachment: { type: 'template', payload: {
-              template_type: 'generic',
-              elements: [{ 
-                  title: text.substring(0, 80), 
-                  subtitle: "Powered by QuickRevert", 
-                  buttons: formatButtons(buttons)
-              }]
-          } }
-      };
+    payload.message = {
+      attachment: {
+        type: 'template', payload: {
+          template_type: 'generic',
+          elements: [{
+            title: text.substring(0, 80),
+            subtitle: "Powered by QuickRevert",
+            buttons: formatButtons(buttons)
+          }]
+        }
+      }
+    };
   } else {
-      payload.message.text = text;
+    payload.message.text = text;
   }
 
   const res = await fetch(`https://graph.instagram.com/v21.0/me/messages?access_token=${accessToken}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
