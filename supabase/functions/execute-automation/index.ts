@@ -673,7 +673,7 @@ async function executeAction(params: any) {
           title: (c.title || c.messageTemplate || dmText).replace('{{username}}', eventData.from.username || ''),
           subtitle: (c.subtitle || action.subtitle || "Powered by QuickRevert").replace('{{username}}', eventData.from.username || ''),
           image_url: c.imageUrl,
-          buttons: c.actionButtons
+          buttons: c.buttons
         }));
       } else {
         buttonsToInclude = action.actionButtons || [];
