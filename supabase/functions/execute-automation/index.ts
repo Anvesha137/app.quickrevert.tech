@@ -150,9 +150,9 @@ Deno.serve(async (req: Request) => {
     }
     tracker.track(
       'fetch_profile',
-      profileFetched,
-      `isFollowing=${eventData.isFollowing}`,
-      profileError || undefined,
+      true, // Mark true as this is a non-fatal Instagram API limitation
+      `isFollowing=${eventData.isFollowing}${profileError ? ' (fetch failed)' : ''}`,
+      profileError ? `Ignored: ${profileError}` : undefined,
       tProfile
     );
 
@@ -179,6 +179,7 @@ Deno.serve(async (req: Request) => {
     const contactId = contact?.id;
 
     let skipTriggerMatching = false;
+    let justFinishedLeadManager = false;
 
     // 🎯 4. STATE-MACHINE (Lead Manager)
     if (conversationState.state && !['new', 'done', 'error'].includes(conversationState.state)) {
@@ -205,6 +206,7 @@ Deno.serve(async (req: Request) => {
         if (stateResult.justFinished && stateResult.automationToExecute) {
           matchedAutomations = [stateResult.automationToExecute];
           skipTriggerMatching = true;
+          justFinishedLeadManager = true;
           // update conversationState in memory so execution loop knows it's done
           conversationState.state = 'done';
         } else {
@@ -385,13 +387,26 @@ Deno.serve(async (req: Request) => {
         continue; // Skip the rest of the actions (like send_dm)
       }
 
-      if (leadAction && conversationState.state !== 'done') {
+      if (leadAction && !justFinishedLeadManager) {
+        // ALWAYS log reply_to_comment if it exists when starting a lead manager flow
+        const replyAction = automation.actions?.find((a: any) => a.type === 'reply_to_comment');
+        if (replyAction && triggerType === 'post_comment' && !payload) {
+          const tAction = Date.now();
+          const actionResult = await executeAction({ action: replyAction, eventData, accessToken: instagramAccount.access_token, supabase, automationId: automation.id, userId, instagramAccountId, triggerType });
+          tracker.track('reply_to_comment', actionResult.ok, actionResult.detail || undefined, actionResult.error || undefined, tAction);
+        }
+
         const tLead = Date.now();
         await updateContactMetadata(supabase, contactId, {
           ...metadata,
           conversation_state: { state: 'waiting_name', automation_id: automation.id, data: {}, last_message_at: new Date().toISOString() }
         });
-        const leadRes = await sendDirectMessage(instagramAccount.access_token, eventData.from.id, leadAction.messages?.askName || "What's your name?");
+        
+        const recipient = (triggerType === 'post_comment' && eventData.commentId)
+          ? { comment_id: eventData.commentId }
+          : { id: eventData.from.id };
+
+        const leadRes = await sendDirectMessage(instagramAccount.access_token, recipient, leadAction.messages?.askName || "What's your name?");
         tracker.track('save_lead_init', leadRes.ok, 'Started Lead Manager flow', !leadRes.ok ? 'Failed to start flow' : undefined, tLead);
         continue; // Skip the rest of the actions
       }
@@ -543,7 +558,7 @@ async function handleConversationState(params: any) {
   const payload = eventData.postbackPayload;
   const automationId = state.automation_id;
 
-  const { data: automation } = await supabase.from('automations').select('actions, id').eq('id', automationId).single();
+  const { data: automation } = await supabase.from('automations').select('actions, id, name').eq('id', automationId).single();
   if (!automation) return { processed: false };
 
   const leadAction = automation.actions.find((a: any) => a.type === 'save_lead');
@@ -560,7 +575,17 @@ async function handleConversationState(params: any) {
   else if (payload === `CONFIRM_SAVE_${cid}`) nextState = 'saving';
 
   if (nextState === 'saving') {
-    await supabase.from('leads').insert({ user_id: userId, automation_id: automationId, contact_id: contactId, name: currentData.name, email: currentData.email, phone: currentData.phone, custom_data: currentData.custom });
+    await supabase.from('leads').insert({
+      user_id: userId,
+      automation_id: automationId,
+      full_name: currentData.name || eventData.from.name || null,
+      instagram_username: eventData.from.username,
+      automation_name: automation.name,
+      email: currentData.email || null,
+      phone: currentData.phone || null,
+      custom_data: currentData.custom || null,
+      custom_label: leadAction.customField?.label || ''
+    });
     await sendDirectMessage(instagramAccount.access_token, eventData.from.id, leadAction.messages?.success || "Saved! ✅");
     await updateContactMetadata(supabase, contactId, { ...metadata, conversation_state: { state: 'done' } });
     return { processed: true, justFinished: true, automationToExecute: automation };
