@@ -54,10 +54,13 @@ export class N8nWorkflowService {
         .select('use_code_logic')
         .eq('user_id', userId)
         .maybeSingle();
-      return data?.use_code_logic === true;
+      // No row yet (brand-new user) → default to code_logic
+      if (data === null) return true;
+      // Explicit false = n8n; anything else = code_logic
+      return data.use_code_logic !== false;
     } catch (e) {
-      console.warn('[N8nWorkflowService] Failed to check code logic flag, defaulting to n8n:', e);
-      return false;
+      console.warn('[N8nWorkflowService] Failed to check code logic flag, defaulting to code_logic:', e);
+      return true;
     }
   }
 

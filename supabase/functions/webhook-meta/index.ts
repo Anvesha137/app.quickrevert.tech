@@ -889,7 +889,7 @@ async function resolveRoutes(supabaseClient: any, account_id: string, event_type
 }
 
 // 🔀 ROUTING FLAG: Reads use_code_logic from user_limits for a given user.
-// Returns true only if explicitly set — defaults to false (n8n) for all users.
+// Defaults to TRUE (code_logic) for all users — including new users with no row yet.
 async function checkCodeLogicFlag(supabaseClient: any, userId: string): Promise<boolean> {
     try {
         const { data } = await supabaseClient
@@ -897,10 +897,13 @@ async function checkCodeLogicFlag(supabaseClient: any, userId: string): Promise<
             .select('use_code_logic')
             .eq('user_id', userId)
             .maybeSingle();
-        return data?.use_code_logic === true;
+        // No row yet (brand-new user) → default to code_logic
+        if (data === null) return true;
+        // Explicit false = n8n; anything else (true or null column) = code_logic
+        return data.use_code_logic !== false;
     } catch (e) {
-        console.error('[CODE LOGIC FLAG] Error reading flag, defaulting to n8n:', e);
-        return false; // fail-safe: always fall back to n8n
+        console.error('[CODE LOGIC FLAG] Error reading flag, defaulting to code_logic:', e);
+        return true; // fail-safe: default to code_logic
     }
 }
 

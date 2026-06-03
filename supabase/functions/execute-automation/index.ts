@@ -572,6 +572,8 @@ async function handleConversationState(params: any) {
   const cid = automation.id.replace(/-/g, '');
   if (payload === `CHANGE_NAME_${cid}`) nextState = 'waiting_name';
   else if (payload === `CHANGE_EMAIL_${cid}`) nextState = 'waiting_email';
+  else if (payload === `CHANGE_PHONE_${cid}`) nextState = 'waiting_phone';
+  else if (payload === `CHANGE_CUSTOM_${cid}`) nextState = 'waiting_custom';
   else if (payload === `CONFIRM_SAVE_${cid}`) nextState = 'saving';
 
   if (nextState === 'saving') {
@@ -607,10 +609,24 @@ async function handleConversationState(params: any) {
       }
     }
     else if (state.state === 'waiting_phone') {
-      currentData.phone = msg;
-      nextState = dataToCollect.includes('custom') ? 'waiting_custom' : 'confirm';
+      // Accept: optional leading +, then digits / spaces / dashes / parens, total 6–15 digits
+      const digitsOnly = msg.replace(/[\s\-\(\)]/g, '');
+      const isValidPhone = /^\+?\d{6,15}$/.test(digitsOnly);
+      if (isValidPhone) {
+        currentData.phone = msg;
+        nextState = dataToCollect.includes('custom') ? 'waiting_custom' : 'confirm';
+      } else {
+        await sendDirectMessage(instagramAccount.access_token, eventData.from.id, leadAction.messages?.invalidPhone || "That doesn't look like a valid phone number. Please enter digits only (e.g. +919876543210).");
+        return { processed: true };
+      }
     }
     else if (state.state === 'waiting_custom') {
+      // If the field was configured as 'number', reject non-numeric input
+      const customType = leadAction.customField?.type || 'text';
+      if (customType === 'number' && (msg.trim() === '' || isNaN(Number(msg.trim())))) {
+        await sendDirectMessage(instagramAccount.access_token, eventData.from.id, leadAction.messages?.invalidCustom || "Please enter a valid number.");
+        return { processed: true };
+      }
       currentData.custom = msg;
       nextState = 'confirm';
     }
@@ -629,7 +645,23 @@ async function handleConversationState(params: any) {
       .replace('{{email}}', currentData.email || 'N/A')
       .replace('{{phone}}', currentData.phone || 'N/A')
       .replace('{{custom}}', currentData.custom || 'N/A');
-    buttons = [{ text: "Confirm ✅", payload: `CONFIRM_SAVE_${cid}` }, { text: "Edit Name 👤", payload: `CHANGE_NAME_${cid}` }];
+
+    // Build confirm buttons dynamically from frontend-configured labels
+    buttons = [
+      { text: leadAction.messages?.btnYesLooksGood || "✅ Yes, looks good!", payload: `CONFIRM_SAVE_${cid}` }
+    ];
+    if (dataToCollect.includes('name')) {
+      buttons.push({ text: leadAction.messages?.btnChangeName || "👤 Change Name", payload: `CHANGE_NAME_${cid}` });
+    }
+    if (dataToCollect.includes('email')) {
+      buttons.push({ text: leadAction.messages?.btnChangeEmail || "📧 Change Email", payload: `CHANGE_EMAIL_${cid}` });
+    }
+    if (dataToCollect.includes('phone')) {
+      buttons.push({ text: leadAction.messages?.btnChangePhone || "📱 Change Phone", payload: `CHANGE_PHONE_${cid}` });
+    }
+    if (dataToCollect.includes('custom')) {
+      buttons.push({ text: leadAction.messages?.btnChangeCustom || "✏️ Change Answer", payload: `CHANGE_CUSTOM_${cid}` });
+    }
   }
 
   if (nextMessage) await sendDirectMessage(instagramAccount.access_token, eventData.from.id, nextMessage, buttons);
