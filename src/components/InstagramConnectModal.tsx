@@ -32,7 +32,7 @@ const InstagramConnectModal = ({ isOpen, onClose }: Omit<InstagramConnectModalPr
       msg.includes('504') ||
       msg.includes('Failed to fetch')
     ) {
-      return 'Connection timed out. Please check your internet and try again.';
+      return 'Connection timed out. Please check your internet and try again. Try closing the tab and then connecting the account';
     }
     if (
       msg.includes('Unauthorized') ||
@@ -190,9 +190,8 @@ const InstagramConnectModal = ({ isOpen, onClose }: Omit<InstagramConnectModalPr
           <a
             href={directRedirectUrl || oauthUrl || '#'}
             onClick={handleConnect}
-            className={`w-full bg-gradient-to-r from-orange-500 to-purple-700 text-white font-bold py-4 rounded-2xl shadow-xl shadow-purple-500/20 hover:shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 mb-4 ${
-              loading || (!oauthUrl && !directRedirectUrl) ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''
-            }`}
+            className={`w-full bg-gradient-to-r from-orange-500 to-purple-700 text-white font-bold py-4 rounded-2xl shadow-xl shadow-purple-500/20 hover:shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 mb-4 ${loading || (!oauthUrl && !directRedirectUrl) ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''
+              }`}
           >
             {loading ? (
               <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
