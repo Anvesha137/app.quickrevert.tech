@@ -21,6 +21,7 @@ const InstagramConnectModal = ({ isOpen, onClose }: Omit<InstagramConnectModalPr
   const [error, setError] = useState<string | null>(null);
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showTimeoutSteps, setShowTimeoutSteps] = useState(false);
 
   // Map raw SDK/network errors to plain human-readable messages
   const getReadableError = (err: any): string => {
@@ -57,6 +58,7 @@ const InstagramConnectModal = ({ isOpen, onClose }: Omit<InstagramConnectModalPr
     try {
       setLoading(true);
       setError(null);
+      setShowTimeoutSteps(false);
 
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
@@ -86,6 +88,14 @@ const InstagramConnectModal = ({ isOpen, onClose }: Omit<InstagramConnectModalPr
       );
     } catch (err: any) {
       console.error('Error fetching OAuth URL:', err);
+      const msg = err?.message || '';
+      const isTimeout =
+        msg.includes('non-2xx') ||
+        msg.includes('timeout') ||
+        msg.includes('503') ||
+        msg.includes('504') ||
+        msg.includes('Failed to fetch');
+      if (isTimeout) setShowTimeoutSteps(true);
       setError(getReadableError(err));
     } finally {
       setLoading(false);
@@ -96,6 +106,7 @@ const InstagramConnectModal = ({ isOpen, onClose }: Omit<InstagramConnectModalPr
     if (!isOpen) {
       setLoading(true);
       setError(null);
+      setShowTimeoutSteps(false);
       return;
     }
     fetchOAuthUrl();
@@ -172,18 +183,43 @@ const InstagramConnectModal = ({ isOpen, onClose }: Omit<InstagramConnectModalPr
           </div>
 
           {error && (
-            <div className="w-full p-4 rounded-2xl bg-red-50 border border-red-100 text-red-600 text-sm font-medium mb-4 text-center space-y-3">
-              <p>{error}</p>
-              <button
-                onClick={fetchOAuthUrl}
-                disabled={loading}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all active:scale-95"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Try Again
-              </button>
+            <div className="w-full p-4 rounded-2xl bg-red-50 border border-red-100 text-red-600 mb-4 space-y-3">
+              <p className="text-sm font-semibold text-center">{error}</p>
+
+              {showTimeoutSteps && (
+                <ol className="text-left text-xs text-red-700 font-medium space-y-1.5 border-t border-red-100 pt-3">
+                  <li className="flex items-start gap-2">
+                    <span className="shrink-0 w-4 h-4 rounded-full bg-red-200 text-red-800 text-[9px] font-black flex items-center justify-center mt-0.5">1</span>
+                    Close this tab completely
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="shrink-0 w-4 h-4 rounded-full bg-red-200 text-red-800 text-[9px] font-black flex items-center justify-center mt-0.5">2</span>
+                    Open a new tab and go to{' '}
+                    <a href="https://app.quickrevert.tech" target="_blank" rel="noopener noreferrer" className="underline font-bold text-red-800">app.quickrevert.tech</a>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="shrink-0 w-4 h-4 rounded-full bg-red-200 text-red-800 text-[9px] font-black flex items-center justify-center mt-0.5">3</span>
+                    Log in if needed, then go to <strong>Connect Instagram</strong>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="shrink-0 w-4 h-4 rounded-full bg-red-200 text-red-800 text-[9px] font-black flex items-center justify-center mt-0.5">4</span>
+                    Try connecting your account again
+                  </li>
+                </ol>
+              )}
+
+              <div className="flex justify-center pt-1">
+                <button
+                  onClick={fetchOAuthUrl}
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all active:scale-95"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Try Again
+                </button>
+              </div>
             </div>
           )}
 
