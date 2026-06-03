@@ -697,8 +697,8 @@ async function executeAction(params: any) {
         .eq('activity_type', 'comment');
 
       const index = (count || 0) % templates.length;
-      text = templates[index];
-      console.log(`[ROUND-ROBIN] automation=${automationId} count=${count} index=${index} template="${text.substring(0, 30)}"`);
+      text = templates[index] || "Check your DMs!";
+      console.log(`[ROUND-ROBIN] automation=${automationId} count=${count} index=${index} template="${text?.substring ? text.substring(0, 30) : ''}"`);
     }
 
     text = text.replace('{{username}}', eventData.from.username || '');
@@ -760,7 +760,7 @@ async function executeAction(params: any) {
       ? { comment_id: eventData.commentId }
       : { id: eventData.from.id };
 
-    console.log(`[send_dm] Sending to ${JSON.stringify(recipient)}: "${dmText.substring(0, 50)}"`);
+    console.log(`[send_dm] Sending to ${JSON.stringify(recipient)}: "${dmText?.substring ? dmText.substring(0, 50) : ''}"`);
     const dmRes = await sendDirectMessage(accessToken, recipient, dmText, buttonsToInclude, carouselElementsToInclude);
     if (!dmRes.ok) {
       const err = await dmRes.json().catch(() => ({}));
@@ -779,12 +779,13 @@ async function sendDirectMessage(accessToken: string, recipient: any, text: stri
 
   const formatButtons = (btns: any[]) => btns.slice(0, 3).map((btn: any) => {
     const isWeb = !!(btn.url && btn.url.trim() !== '');
+    const btnLabel = String(btn.text || btn.title || 'Button');
     const mapped: any = {
       type: isWeb ? 'web_url' : 'postback',
-      title: (btn.text || btn.title).substring(0, 20)
+      title: btnLabel.substring(0, 20)
     };
     if (isWeb) mapped.url = btn.url;
-    else mapped.payload = btn.payload || (btn.text || btn.title).toUpperCase();
+    else mapped.payload = btn.payload || btnLabel.toUpperCase();
     return mapped;
   });
 
@@ -794,9 +795,11 @@ async function sendDirectMessage(accessToken: string, recipient: any, text: stri
         type: 'template', payload: {
           template_type: 'generic',
           elements: carouselElements.slice(0, 10).map((el: any) => {
+            const elTitle = String(el.title || text || 'Card');
+            const elSubtitle = String(el.subtitle || 'Powered by QuickRevert');
             const out: any = {
-              title: (el.title || text || 'Card').substring(0, 80),
-              subtitle: (el.subtitle || 'Powered by QuickRevert').substring(0, 80)
+              title: elTitle.substring(0, 80),
+              subtitle: elSubtitle.substring(0, 80)
             };
             if (el.image_url) out.image_url = el.image_url;
             if (el.buttons && el.buttons.length > 0) out.buttons = formatButtons(el.buttons);
@@ -811,7 +814,7 @@ async function sendDirectMessage(accessToken: string, recipient: any, text: stri
         type: 'template', payload: {
           template_type: 'generic',
           elements: [{
-            title: text.substring(0, 80),
+            title: String(text || 'Message').substring(0, 80),
             subtitle: "Powered by QuickRevert",
             buttons: formatButtons(buttons)
           }]
