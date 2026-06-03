@@ -35,6 +35,8 @@ interface SubscriptionContextType {
     isExpired: boolean;
     isAtLimit: boolean;
     giftedSettings: any | null;
+    hadExpiredGift: boolean;
+    expiredGiftSettings: any | null;
     canUseAskToFollow: boolean;
     canUseCarousel: boolean;
     canUseLeadManager: boolean;
@@ -466,6 +468,16 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     const isProfessional = isGiftedActive || (['professional', 'enterprise'].some(p => planId.includes(p)) && !!isPlanActive);
     const isGold = isPremium && planId.includes('enterprise');
 
+    // ── Track expired gift for display purposes (Billing history) ────────────────
+    // Even if gift is expired, we still want to show it in billing history.
+    // hadExpiredGift = true if there's a gift record in DB with a past expiry.
+    const hadExpiredGift = !!userLimitsGiftExpired ||
+        (!isGiftedActive && isGifted && !!giftedSettings?.expiry_date && new Date(giftedSettings.expiry_date) <= now);
+    const expiredGiftSettings = hadExpiredGift ? (giftedSettings || {
+        expiry_date: userLimits?.expiry_date,
+        dm_limit: userLimits?.dm_limit,
+    }) : null;
+
     // ── Effective gifted settings ───────────────────────────────────────────────
     // userLimits (Supabase, refreshed every 15 min + immediately on admin saves) takes priority
     // over giftedSettings (from Neon sync, stale up to 6 hours).
@@ -541,6 +553,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
             isExpired,
             isAtLimit,
             giftedSettings,
+            hadExpiredGift,
+            expiredGiftSettings,
             canUseAskToFollow,
             canUseCarousel,
             canUseLeadManager,

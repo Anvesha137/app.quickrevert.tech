@@ -11,7 +11,10 @@ const Billing = () => {
     loading, 
     isPremium, 
     isGifted, 
+    isGiftedActive,
     giftedSettings, 
+    hadExpiredGift,
+    expiredGiftSettings,
     dmLimit, 
     automationLimit,
     invoices
@@ -168,6 +171,21 @@ const Billing = () => {
               )}
             </div>
           </div>
+
+          {/* Expired gift notice — shown below active plan when gift has lapsed */}
+          {hadExpiredGift && !isGiftedActive && expiredGiftSettings && (
+            <div className="mt-4 flex items-start gap-3 px-4 py-3 bg-yellow-500/5 border border-yellow-500/15 rounded-2xl">
+              <Crown className="w-4 h-4 text-yellow-500/60 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-[10px] font-black text-yellow-500/70 uppercase tracking-widest mb-0.5">Gift Premium Expired</p>
+                <p className="text-[11px] text-gray-500">
+                  You had Gifted Premium until{' '}
+                  <span className="text-yellow-500/80 font-bold">{formatDate(expiredGiftSettings.expiry_date)}</span>.
+                  Upgrade to restore premium features.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right Section: Usage & History Tabs */}
@@ -256,33 +274,53 @@ const Billing = () => {
               <tbody className="text-white">
                 {(() => {
                   const allInvoices = [...(invoices || [])];
-                  if (isGifted || giftedSettings) {
+                  // Show active gifted row
+                  if (isGiftedActive || giftedSettings) {
                     allInvoices.unshift({
                       id: 'gifted-special',
                       plan_id: 'gifted',
                       amount_paid: 0,
-                      created_at: new Date().toISOString(), // Current session view
-                      status: isGifted ? 'active' : 'expired'
+                      created_at: new Date().toISOString(),
+                      status: 'active'
+                    } as any);
+                  }
+                  // Show expired gift row even when gift is no longer active
+                  if (hadExpiredGift && expiredGiftSettings && !isGiftedActive) {
+                    allInvoices.unshift({
+                      id: 'gifted-expired',
+                      plan_id: 'gifted',
+                      amount_paid: 0,
+                      created_at: expiredGiftSettings.expiry_date || new Date().toISOString(),
+                      status: 'expired'
                     } as any);
                   }
 
                   if (allInvoices.length > 0) {
                     return allInvoices.map((inv, idx) => {
                       const isGiftedRow = inv.id === 'gifted-special';
+                      const isExpiredGiftRow = inv.id === 'gifted-expired';
+                      const anyGiftRow = isGiftedRow || isExpiredGiftRow;
+                      const giftRowSettings = isGiftedRow ? giftedSettings : expiredGiftSettings;
                       return (
                         <tr key={inv.id} className="border-b border-white/[0.02] last:border-0 hover:bg-white/[0.02] transition-colors">
                           <td className="py-4 font-bold flex flex-col justify-center">
                             <div className="flex items-center gap-2">
-                              <div className={`w-1.5 h-1.5 rounded-full ${isGiftedRow ? 'bg-yellow-500' : (idx === 0 && !isGifted ? 'bg-blue-600' : 'bg-gray-600')}`}></div>
-                              {isGiftedRow ? 'GIFTED' : `INV-${new Date(inv.created_at || new Date()).getFullYear()}-${(invoices.length - ((isGifted || giftedSettings) ? idx - 1 : idx)).toString().padStart(3, '0')}`}
+                              <div className={`w-1.5 h-1.5 rounded-full ${isGiftedRow ? 'bg-yellow-500' : isExpiredGiftRow ? 'bg-yellow-500/30' : (idx === 0 ? 'bg-blue-600' : 'bg-gray-600')}`}></div>
+                              {anyGiftRow ? 'GIFT PREMIUM' : `INV-${new Date(inv.created_at || new Date()).getFullYear()}-${(invoices.length - ((isGiftedActive || giftedSettings) ? idx - 1 : idx)).toString().padStart(3, '0')}`}
                             </div>
-                            <span className="text-[9px] text-gray-500 uppercase tracking-widest ml-3.5 mt-1">
-                              {isGiftedRow 
-                                ? (giftedSettings?.expiry_date ? `${isGifted ? 'VALID UNTIL' : 'EXPIRED ON'} ${formatDate(giftedSettings.expiry_date)}` : 'LIFETIME')
+                            <span className="text-[9px] uppercase tracking-widest ml-3.5 mt-1 "
+                              style={{ color: isExpiredGiftRow ? 'rgba(234,179,8,0.4)' : 'rgb(107,114,128)' }}
+                            >
+                              {anyGiftRow
+                                ? (giftRowSettings?.expiry_date
+                                    ? `${isGiftedRow ? 'VALID UNTIL' : 'EXPIRED'} ${formatDate(giftRowSettings.expiry_date)}`
+                                    : 'LIFETIME')
                                 : getRawPlanName(inv.plan_id)}
                             </span>
                           </td>
-                          <td className="py-4 text-gray-500">{isGiftedRow ? (isGifted ? 'Current Plan' : 'Expired') : formatDate(inv.created_at)}</td>
+                          <td className="py-4" style={{ color: isExpiredGiftRow ? 'rgba(234,179,8,0.4)' : 'rgb(107,114,128)' }}>
+                            {isGiftedRow ? 'Current Plan' : isExpiredGiftRow ? 'Expired' : formatDate(inv.created_at)}
+                          </td>
                           <td className="py-4 text-right font-black text-green-400">₹{inv.amount_paid || 0}</td>
                         </tr>
                       );
