@@ -480,10 +480,9 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     const isGold = isPremium && planId.includes('enterprise');
 
     // ── Track expired gift for display purposes (Billing history) ────────────────
-    // Even if gift is expired, we still want to show it in billing history.
-    // hadExpiredGift = true if there's a gift record in DB with a past expiry.
-    const hadExpiredGift = !!userLimitsGiftExpired ||
-        (!isGiftedActive && isGifted && !!giftedSettings?.expiry_date && new Date(giftedSettings.expiry_date) <= now);
+    // hadExpiredGift = true if there's a gift record in DB with a past expiry, 
+    // or if the gift was revoked/expired from sync but giftedSettings still exists.
+    const hadExpiredGift = !!userLimitsGiftExpired || (!isGiftedActive && !!giftedSettings);
     const expiredGiftSettings = hadExpiredGift ? (giftedSettings || {
         expiry_date: userLimits?.expiry_date,
         dm_limit: userLimits?.dm_limit,
