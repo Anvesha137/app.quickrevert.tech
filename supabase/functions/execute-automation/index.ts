@@ -666,7 +666,19 @@ async function handleConversationState(params: any) {
 
   if (nextMessage) await sendDirectMessage(instagramAccount.access_token, eventData.from.id, nextMessage, buttons);
 
-  await updateContactMetadata(supabase, contactId, { ...metadata, conversation_state: { ...state, state: nextState, data: currentData } });
+  const followUpAction = automation.actions.find((a: any) => a.type === 'follow_up');
+  let nextFollowupAt = null;
+  if (followUpAction && followUpAction.enabled) {
+    const delayValue = followUpAction.delayValue || 1;
+    const delayUnit = (followUpAction.delayUnit || 'hours').toLowerCase();
+    let delayMs = 0;
+    if (delayUnit === 'minutes') delayMs = delayValue * 60 * 1000;
+    else if (delayUnit === 'hours') delayMs = delayValue * 60 * 60 * 1000;
+    else if (delayUnit === 'days') delayMs = delayValue * 24 * 60 * 60 * 1000;
+    nextFollowupAt = new Date(Date.now() + delayMs).toISOString();
+  }
+
+  await updateContactMetadata(supabase, contactId, { ...metadata, conversation_state: { ...state, state: nextState, data: currentData, last_message_at: new Date().toISOString(), next_followup_at: nextFollowupAt, followup_sent: false } });
   return { processed: true };
 }
 

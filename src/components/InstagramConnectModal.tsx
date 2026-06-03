@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, Instagram, CheckCircle, Infinity } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -22,52 +22,84 @@ const InstagramConnectModal = ({ isOpen, onClose }: Omit<InstagramConnectModalPr
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
 
+  // Map raw SDK/network errors to plain human-readable messages
+  const getReadableError = (err: any): string => {
+    const msg: string = err?.message || '';
+    if (
+      msg.includes('non-2xx') ||
+      msg.includes('timeout') ||
+      msg.includes('503') ||
+      msg.includes('504') ||
+      msg.includes('Failed to fetch')
+    ) {
+      return 'Connection timed out. Please check your internet and try again.';
+    }
+    if (
+      msg.includes('Unauthorized') ||
+      msg.includes('Authentication failed') ||
+      msg.includes('401') ||
+      msg.includes('expired') ||
+      msg.includes('Invalid')
+    ) {
+      return 'Your session may have expired. Please refresh the page and try again.';
+    }
+    if (msg.includes('Please log in')) {
+      return 'Please log in to connect your Instagram account.';
+    }
+    if (msg.includes('No authorization URL')) {
+      return 'Server did not respond correctly. Please try again in a moment.';
+    }
+    return 'Something went wrong. Please try again in a moment.';
+  };
+
+  // Extracted as useCallback so the Retry button can re-invoke it directly
+  const fetchOAuthUrl = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setError('Please log in to connect your Instagram account.');
+        return;
+      }
+
+      const { data: result, error: invokeError } = await supabase.functions.invoke('instagram-oauth-init', {
+        method: 'GET'
+      });
+
+      if (invokeError) {
+        throw new Error(invokeError.message || 'Failed to initialize OAuth');
+      }
+
+      if (result?.error) {
+        throw new Error(result.error);
+      }
+
+      if (!result?.authUrl) {
+        throw new Error('No authorization URL received from server');
+      }
+
+      setOauthUrl(result.authUrl);
+      setDirectRedirectUrl(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/instagram-oauth-init?redirect=true&token=${session.access_token}`
+      );
+    } catch (err: any) {
+      console.error('Error fetching OAuth URL:', err);
+      setError(getReadableError(err));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!isOpen) {
       setLoading(true);
       setError(null);
       return;
     }
-
-    const fetchOAuthUrl = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) {
-          setError('Please log in to connect Instagram');
-          return;
-        }
-
-        const { data: result, error: invokeError } = await supabase.functions.invoke('instagram-oauth-init', {
-          method: 'GET'
-        });
-
-        if (invokeError) {
-          throw new Error(invokeError.message || 'Failed to initialize OAuth');
-        }
-
-        if (result?.error) {
-          throw new Error(result.error);
-        }
-
-        if (!result.authUrl) {
-          throw new Error('No authorization URL received from server');
-        }
-
-        setOauthUrl(result.authUrl);
-        setDirectRedirectUrl(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/instagram-oauth-init?redirect=true&token=${session.access_token}`);
-      } catch (err: any) {
-        console.error('Error fetching OAuth URL:', err);
-        setError(err.message || 'Failed to initialize connection');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchOAuthUrl();
-  }, [isOpen]);
+  }, [isOpen, fetchOAuthUrl]);
 
 
   const handleConnect = (e: React.MouseEvent) => {
@@ -140,8 +172,18 @@ const InstagramConnectModal = ({ isOpen, onClose }: Omit<InstagramConnectModalPr
           </div>
 
           {error && (
-            <div className="w-full p-4 rounded-2xl bg-red-50 border border-red-100 text-red-600 text-sm font-medium mb-6 text-center">
-              {error}
+            <div className="w-full p-4 rounded-2xl bg-red-50 border border-red-100 text-red-600 text-sm font-medium mb-4 text-center space-y-3">
+              <p>{error}</p>
+              <button
+                onClick={fetchOAuthUrl}
+                disabled={loading}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all active:scale-95"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Try Again
+              </button>
             </div>
           )}
 
