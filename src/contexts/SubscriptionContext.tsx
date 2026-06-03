@@ -428,6 +428,17 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     ) && new Date(subscription.current_period_end) > new Date();
 
     // ── Gifted status & settings derived from live userLimits ──────────────────
+    // Always check expiry before treating gift as active.
+    // The DB flag is_gifted may still be true even after expiry (no server-side cron clears it),
+    // so the client must enforce the date check as the authoritative guard.
+    const now = new Date();
+
+    const userLimitsGiftExpired =
+        userLimits?.is_gifted === true &&
+        userLimits?.expiry_date &&
+        new Date(userLimits.expiry_date) <= now;
+
+    // isGifted: has a gift record (may be expired)
     const isGifted = (userLimits?.is_gifted === true) || isGiftedState;
 
     const giftedSettings = userLimits?.is_gifted === true ? {
@@ -442,13 +453,14 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         expiry_date: userLimits.expiry_date
     } : giftedSettingsState;
 
-    // ── Gifted status ──────────────────────────────────────────────────────────
-    // userLimits.is_gifted is the live authoritative flag (pushed immediately when admin saves
-    // Gift Premium). We fall back to the Neon-sync-derived `isGifted` + `giftedSettings` for
-    // users whose user_limits row hasn't been written yet.
+    // ── Gifted active: only true if NOT expired ────────────────────────────────
+    // Check expiry_date from both userLimits (live) and giftedSettings (Neon sync).
+    // If expiry_date is set and has passed, treat gift as inactive regardless of is_gifted flag.
     const isGiftedActive =
-        (userLimits?.is_gifted === true) ||
-        (isGifted && (!giftedSettings?.expiry_date || new Date(giftedSettings.expiry_date) > new Date()));
+        // Live userLimits path — must pass expiry check
+        (userLimits?.is_gifted === true && !userLimitsGiftExpired) ||
+        // Neon-sync fallback path — also must pass expiry check
+        (isGifted && !userLimits && (!giftedSettings?.expiry_date || new Date(giftedSettings.expiry_date) > now));
 
     const isPremium = isGiftedActive || (!planId.includes('basic') && isPlanActive);
     const isProfessional = isGiftedActive || (['professional', 'enterprise'].some(p => planId.includes(p)) && !!isPlanActive);
