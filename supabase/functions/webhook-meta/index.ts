@@ -1029,11 +1029,10 @@ const DM_ACTIVITY_TYPES = ['dm', 'send_dm', 'incoming_message', 'incoming_event'
 
 async function checkUserDmLimit(supabaseClient: any, userId: string): Promise<boolean> {
     try {
-        // 🚀 OPTIMIZED: Read dm_limit AND total_dms counter in ONE query — no table scan
-        // total_dms is auto-incremented by the increment_user_dm_count trigger on every insert
+        // 🚀 OPTIMIZED: Read dm_limit, monthly_dms, and dm_reset_date in ONE query
         const { data: userData, error: userError } = await supabaseClient
             .from('user_limits')
-            .select('dm_limit, total_dms, is_gifted')
+            .select('dm_limit, monthly_dms, dm_reset_date, is_gifted')
             .eq('user_id', userId)
             .maybeSingle();
 
@@ -1049,14 +1048,28 @@ async function checkUserDmLimit(supabaseClient: any, userId: string): Promise<bo
             return false;
         }
 
-        // Read from counter — zero table scan, instant lookup
-        const currentCount = userData.total_dms || 0;
+        // Read from monthly counter — zero table scan, instant lookup
+        let currentCount = userData.monthly_dms || 0;
+
+        // Lazy-reset check: If the cycle has rolled over, treat count as 0.
+        // The Postgres trigger will actually reset it on the next insert, but we need
+        // to evaluate accurately right now before the insert happens.
+        if (userData.dm_reset_date) {
+            const resetDate = new Date(userData.dm_reset_date);
+            const nextResetDate = new Date(resetDate);
+            nextResetDate.setMonth(nextResetDate.getMonth() + 1); // 1 month rolling cycle
+            
+            if (new Date() >= nextResetDate) {
+                currentCount = 0; // Fresh cycle!
+            }
+        }
+
         const exceeded = currentCount >= dmLimit;
 
         if (exceeded) {
-            console.log(`[DM LIMIT] User ${userId} at ${currentCount}/${dmLimit} — LIMIT EXCEEDED`);
+            console.log(`[DM LIMIT] User ${userId} at ${currentCount}/${dmLimit} (Monthly Cycle) — LIMIT EXCEEDED`);
         } else {
-            console.log(`[DM LIMIT] User ${userId} at ${currentCount}/${dmLimit} — OK`);
+            console.log(`[DM LIMIT] User ${userId} at ${currentCount}/${dmLimit} (Monthly Cycle) — OK`);
         }
 
         return exceeded;

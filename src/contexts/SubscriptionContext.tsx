@@ -208,8 +208,19 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
             setSubscription(subData[0] || null);
             setHasInstagramConnected((instagramAccountResult.count || 0) > 0);
 
+            let monthlyDms = dmCountResult.data?.monthly_dms || 0;
+            if (dmCountResult.data?.dm_reset_date) {
+                const resetDate = new Date(dmCountResult.data.dm_reset_date);
+                const nextResetDate = new Date(resetDate);
+                nextResetDate.setMonth(nextResetDate.getMonth() + 1); // 1-month rolling cycle
+                
+                if (new Date() >= nextResetDate) {
+                    monthlyDms = 0; // Cycle reset!
+                }
+            }
+
             setUsage({
-                dms: dmCountResult.data?.total_dms || 0,  // reads from counter, not table scan
+                dms: monthlyDms,  // reads from monthly counter, with lazy-reset fallback
                 contacts: contactCountResult.count || 0,
                 automations: automationCountResult.count || 0,
                 accounts: instagramAccountResult.count || 0
@@ -291,7 +302,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
                     subscription: subResult.data?.[0] || null,
                     invoices: subResult.data || [],
                     usage: {
-                        dms: dmCountResult.data?.total_dms || 0,
+                        dms: monthlyDms,
                         contacts: contactCountResult.count || 0,
                         automations: automationCountResult.count || 0,
                         accounts: instagramAccountResult.count || 0
@@ -308,7 +319,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
                     subscription: subResult.data?.[0] || null,
                     invoices: subResult.data || [],
                     usage: {
-                        dms: dmCountResult.data?.total_dms || 0,
+                        dms: monthlyDms,
                         contacts: contactCountResult.count || 0,
                         automations: automationCountResult.count || 0,
                         accounts: instagramAccountResult.count || 0
