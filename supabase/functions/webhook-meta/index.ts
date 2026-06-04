@@ -1027,12 +1027,15 @@ async function triggerWorkflows(normalized: any, routes: any[], workflows: any[]
 // total_dms is maintained by a Postgres trigger on automation_activities insert
 const DM_ACTIVITY_TYPES = ['dm', 'send_dm', 'incoming_message', 'incoming_event', 'interaction'];
 
+// Plans that NEVER get a monthly reset — their DM count accumulates forever
+const NON_RESETTING_PLANS = new Set(['premium', 'gift_premium', 'try_me_out', 'professional']);
+
 async function checkUserDmLimit(supabaseClient: any, userId: string): Promise<boolean> {
     try {
-        // 🚀 OPTIMIZED: Read dm_limit, monthly_dms, and dm_reset_date in ONE query
+        // 🚀 OPTIMIZED: Read all needed fields in ONE query (added plan_type)
         const { data: userData, error: userError } = await supabaseClient
             .from('user_limits')
-            .select('dm_limit, monthly_dms, dm_reset_date, is_gifted')
+            .select('dm_limit, monthly_dms, dm_reset_date, is_gifted, plan_type')
             .eq('user_id', userId)
             .maybeSingle();
 
@@ -1051,25 +1054,31 @@ async function checkUserDmLimit(supabaseClient: any, userId: string): Promise<bo
         // Read from monthly counter — zero table scan, instant lookup
         let currentCount = userData.monthly_dms || 0;
 
-        // Lazy-reset check: If the cycle has rolled over, treat count as 0.
-        // The Postgres trigger will actually reset it on the next insert, but we need
-        // to evaluate accurately right now before the insert happens.
-        if (userData.dm_reset_date) {
+        // ✅ PLAN-AWARE lazy-reset check:
+        // ONLY Basic/Free plan users get their count zeroed when the cycle rolls over.
+        // Gift Premium, Try Me Out, Premium, Professional → count NEVER resets.
+        const planType = (userData.plan_type || 'basic').toLowerCase();
+        const isBasicPlan = !NON_RESETTING_PLANS.has(planType) && !userData.is_gifted;
+
+        if (isBasicPlan && userData.dm_reset_date) {
             const resetDate = new Date(userData.dm_reset_date);
             const nextResetDate = new Date(resetDate);
             nextResetDate.setMonth(nextResetDate.getMonth() + 1); // 1 month rolling cycle
-            
+
             if (new Date() >= nextResetDate) {
-                currentCount = 0; // Fresh cycle!
+                currentCount = 0; // Fresh cycle for basic users only!
+                console.log(`[DM LIMIT] User ${userId} (${planType}) — cycle rolled over, treating monthly_dms as 0`);
             }
+        } else if (!isBasicPlan) {
+            console.log(`[DM LIMIT] User ${userId} plan=${planType} is_gifted=${userData.is_gifted} — NO monthly reset applies`);
         }
 
         const exceeded = currentCount >= dmLimit;
 
         if (exceeded) {
-            console.log(`[DM LIMIT] User ${userId} at ${currentCount}/${dmLimit} (Monthly Cycle) — LIMIT EXCEEDED`);
+            console.log(`[DM LIMIT] User ${userId} at ${currentCount}/${dmLimit} (plan=${planType}) — LIMIT EXCEEDED`);
         } else {
-            console.log(`[DM LIMIT] User ${userId} at ${currentCount}/${dmLimit} (Monthly Cycle) — OK`);
+            console.log(`[DM LIMIT] User ${userId} at ${currentCount}/${dmLimit} (plan=${planType}) — OK`);
         }
 
         return exceeded;

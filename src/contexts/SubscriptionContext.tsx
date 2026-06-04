@@ -208,19 +208,34 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
             setSubscription(subData[0] || null);
             setHasInstagramConnected((instagramAccountResult.count || 0) > 0);
 
-            let monthlyDms = dmCountResult.data?.monthly_dms || 0;
-            if (dmCountResult.data?.dm_reset_date) {
-                const resetDate = new Date(dmCountResult.data.dm_reset_date);
-                const nextResetDate = new Date(resetDate);
-                nextResetDate.setMonth(nextResetDate.getMonth() + 1); // 1-month rolling cycle
-                
-                if (new Date() >= nextResetDate) {
-                    monthlyDms = 0; // Cycle reset!
+            // ✅ PLAN-AWARE DM COUNT:
+            // - Basic/Free users → show monthly_dms (resets each cycle)
+            // - Gift Premium, Premium, Try Me Out, Professional → show total_dms (NEVER resets)
+            const limitsData = dmCountResult.data;
+            const planTypeRaw = (limitsData?.plan_type || 'basic').toLowerCase();
+            const NON_RESETTING = new Set(['premium', 'gift_premium', 'try_me_out', 'professional']);
+            const isNonResettingPlan = NON_RESETTING.has(planTypeRaw) || limitsData?.is_gifted === true;
+
+            let displayDms: number;
+            if (isNonResettingPlan) {
+                // Always show all-time total — no monthly reset ever
+                displayDms = limitsData?.total_dms || 0;
+            } else {
+                // Basic plan: show monthly counter with lazy-reset check
+                let monthlyDms = limitsData?.monthly_dms || 0;
+                if (limitsData?.dm_reset_date) {
+                    const resetDate = new Date(limitsData.dm_reset_date);
+                    const nextResetDate = new Date(resetDate);
+                    nextResetDate.setMonth(nextResetDate.getMonth() + 1);
+                    if (new Date() >= nextResetDate) {
+                        monthlyDms = 0; // Cycle rolled over
+                    }
                 }
+                displayDms = monthlyDms;
             }
 
             setUsage({
-                dms: monthlyDms,  // reads from monthly counter, with lazy-reset fallback
+                dms: displayDms,  // total for premium plans, monthly for basic
                 contacts: contactCountResult.count || 0,
                 automations: automationCountResult.count || 0,
                 accounts: instagramAccountResult.count || 0
@@ -302,7 +317,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
                     subscription: subResult.data?.[0] || null,
                     invoices: subResult.data || [],
                     usage: {
-                        dms: monthlyDms,
+                        dms: displayDms,
                         contacts: contactCountResult.count || 0,
                         automations: automationCountResult.count || 0,
                         accounts: instagramAccountResult.count || 0
@@ -319,7 +334,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
                     subscription: subResult.data?.[0] || null,
                     invoices: subResult.data || [],
                     usage: {
-                        dms: monthlyDms,
+                        dms: displayDms,
                         contacts: contactCountResult.count || 0,
                         automations: automationCountResult.count || 0,
                         accounts: instagramAccountResult.count || 0
