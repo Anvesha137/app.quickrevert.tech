@@ -104,7 +104,7 @@ export const TermsOfServiceModal: React.FC<{ isOpen: boolean; onClose: () => voi
 
             <h3 className="text-lg font-bold text-gray-900 mt-6">10. Governing Law</h3>
             <p>
-                These Terms are governed by the laws of India. Any disputes shall be subject to the exclusive jurisdiction of the courts in Udaipur, Rajasthan, India.
+                These Terms are governed by the laws of India. Any disputes shall be subject to the exclusive jurisdiction of the courts in Delhi, India.
             </p>
 
             <h3 className="text-lg font-bold text-gray-900 mt-6">11. Contact</h3>
