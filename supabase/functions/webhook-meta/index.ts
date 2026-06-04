@@ -427,28 +427,8 @@ async function processEvent(body: any) {
                         continue;
                     }
 
-                    // 🔀 STEP 2: Route split — code logic OR n8n
-                    // Code-logic users bypass DB route matching entirely — execute-automation
-                    // does its own trigger matching against the automations table.
-                    const useCodeLogic = await checkCodeLogicFlag(supabaseClient, accountsData[0].user_id);
-                    console.log(`[ROUTING] user=${accountsData[0].user_id} use_code_logic=${useCodeLogic} event=messaging`);
-
-                    if (useCodeLogic) {
-                        await triggerCodeLogic(supabaseClient, accountsData[0], msg, 'messaging', eventId);
-                    } else if (activeRoutes.routes.length > 0) {
-                        const payloadData = {
-                            platform: object,
-                            account_id: internalAccountId,
-                            event_type: 'messaging',
-                            sub_type,
-                            payload: msg,
-                            entry: [legacyEntry],
-                            event_id: eventId,
-                            is_basic_display: true,
-                            activity_id: primaryActivityId
-                        };
-                        await triggerWorkflows(payloadData, activeRoutes.routes, activeRoutes.workflows);
-                    }
+                    // 🔀 All users are on code logic — call execute-automation directly.
+                    await triggerCodeLogic(supabaseClient, accountsData[0], msg, 'messaging', eventId);
                 } else {
                     console.error("No Internal Account ID found for routing.");
                     await logFailedEvent(supabaseClient, { event_id: eventId, payload: msg }, "No Internal Account ID found (accountsData empty)");
@@ -576,54 +556,8 @@ async function processEvent(body: any) {
                             metadata: { reason: 'dm_limit_exceeded', field: change.field }
                         });
                     } else {
-                        // 🔀 STEP 2: Route split — code logic OR n8n
-                        // Code-logic users bypass DB route matching — execute-automation
-                        // does its own trigger matching against the automations table.
-                        const useCodeLogicComment = isCodeLogicUser !== undefined ? isCodeLogicUser : await checkCodeLogicFlag(supabaseClient, accountsData[0].user_id);
-                        console.log(`[ROUTING] user=${accountsData[0].user_id} use_code_logic=${useCodeLogicComment} event=changes field=${change.field}`);
-
-                        if (useCodeLogicComment) {
-                            await triggerCodeLogic(supabaseClient, accountsData[0], change, 'changes', eventId);
-                        } else if (activeRoutes.routes.length > 0) {
-                            const payloadData = {
-                                platform: object,
-                                account_id: internalAccountId,
-                                event_type: 'changes',
-                                sub_type: change.field,
-                                payload: change,
-                                entry: [legacyEntry],
-                                event_id: eventId,
-                                activity_id: primaryActivityId
-                            };
-                            await triggerWorkflows(payloadData, activeRoutes.routes, activeRoutes.workflows);
-
-                            // 🔥 FIX: Log the outgoing DM triggered by this comment automation.
-                            // The N8N workflow sends the DM via Instagram API but never logs it.
-                            // Instagram echo webhooks for private replies (via comment_id) are unreliable,
-                            // so we proactively log the send_dm activity here to ensure the counter increments.
-                            if (change.field === 'comments') {
-                                const commentUsername = change.value?.from?.username || 'Instagram User';
-                                for (const account of accountsData) {
-                                    await supabaseClient.from('automation_activities').insert({
-                                        user_id: account.user_id,
-                                        instagram_account_id: account.id,
-                                        contact_id: null,
-                                        automation_id: matchedAutomationId,
-                                        activity_type: 'send_dm',
-                                        target_username: commentUsername,
-                                        message: 'DM sent (triggered by comment automation)',
-                                        status: 'success',
-                                        metadata: {
-                                            direction: 'outbound',
-                                            trigger: 'comment_automation',
-                                            event_id: eventId,
-                                            media_id: change.value?.media?.id
-                                        }
-                                    });
-                                }
-                                console.log(`[DM COUNTER] Logged send_dm for comment automation → ${commentUsername}`);
-                            }
-                        }
+                        // 🔀 All users are on code logic — call execute-automation directly.
+                        await triggerCodeLogic(supabaseClient, accountsData[0], change, 'changes', eventId);
                     }
                 }
             }
@@ -978,48 +912,8 @@ async function triggerCodeLogic(
     }
 }
 
-async function triggerWorkflows(normalized: any, routes: any[], workflows: any[]) {
-    const N8N_BASE_URL = Deno.env.get("N8N_BASE_URL");
-    const N8N_API_KEY = Deno.env.get("X-N8N-API-KEY");
-
-    if (!N8N_BASE_URL) console.error("Missing N8N_BASE_URL");
-
-    const pathMap = new Map();
-    workflows.forEach((w: any) => { if (w.webhook_path) pathMap.set(w.n8n_workflow_id, w.webhook_path); });
-
-    // 🔥 PARALLEL PERFORMANCE FIX: Trigger all routes at once
-    await Promise.all(routes.map(async (route) => {
-        try {
-            // Priority: use specific webhook_path from route (from tracked_payloads/posts)
-            // otherwise fallback to the default one for the workflow
-            const webhookPath = route.webhook_path || pathMap.get(route.n8n_workflow_id);
-            let targetUrl = `${N8N_BASE_URL}/api/v1/workflows/${route.n8n_workflow_id}/execute`;
-            const headers: any = { "Content-Type": "application/json" };
-
-            if (webhookPath) {
-                targetUrl = `${N8N_BASE_URL}/webhook/${webhookPath}`;
-            } else {
-                headers["X-N8N-API-KEY"] = N8N_API_KEY;
-            }
-
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
-
-            const res = await fetch(targetUrl, {
-                method: "POST",
-                headers: headers,
-                body: JSON.stringify(normalized),
-                signal: controller.signal
-            });
-            clearTimeout(timeoutId);
-
-            if (!res.ok) throw new Error(`n8n responded with ${res.status}: ${await res.text()}`);
-            console.log(`[n8n] Successfully triggered workflow: ${route.n8n_workflow_id}`);
-        } catch (err) {
-            console.error(`Failed to trigger workflow ${route.n8n_workflow_id}`, err);
-        }
-    }));
-}
+// triggerWorkflows removed — all users are on code logic (execute-automation).
+// N8N_BASE_URL and X-N8N-API-KEY are no longer read anywhere in this function.
 
 // 🔒 DM LIMIT CHECK — reads pre-computed counter from user_limits (Phase 2 optimization)
 // Returns true if user has EXCEEDED their limit (should block)

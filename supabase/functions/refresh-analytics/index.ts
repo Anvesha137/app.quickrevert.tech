@@ -1,6 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+// ✅ FULLY CODE-LOGIC — n8n removed.
+// This function directly hits the Instagram Graph API for the requesting user's
+// connected accounts and updates instagram_accounts in Supabase.
+// No n8n dependency, no analytics workflow needed.
+
 const corsHeaders = {
     "Access-Control-Allow-Origin": "https://app.quickrevert.tech",
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
@@ -9,80 +14,111 @@ const corsHeaders = {
 
 Deno.serve(async (req: Request) => {
     if (req.method === "OPTIONS") {
-        return new Response(null, {
-            status: 200,
-            headers: corsHeaders,
-        });
+        return new Response(null, { status: 200, headers: corsHeaders });
     }
 
     try {
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
         const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-        const n8nBaseUrl = Deno.env.get("N8N_BASE_URL");
-        const n8nApiKey = Deno.env.get("X-N8N-API-KEY");
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-        if (!n8nBaseUrl || !n8nApiKey) throw new Error("Missing n8n config");
-
+        // Validate the calling user
         const authHeader = req.headers.get("Authorization");
-        if (!authHeader) {
-            throw new Error("Missing authorization header");
-        }
+        if (!authHeader) throw new Error("Missing authorization header");
 
         const token = authHeader.replace("Bearer ", "");
         const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+        if (userError || !user) throw new Error("Invalid user token");
 
-        if (userError || !user) {
-            throw new Error("Invalid user token");
-        }
-
-        const { data: analyticsWorkflow, error: wfError } = await supabase
-            .from("n8n_workflows")
-            .select("n8n_workflow_id")
+        // Fetch all active Instagram accounts for this user
+        const { data: accounts, error: fetchError } = await supabase
+            .from("instagram_accounts")
+            .select("id, instagram_user_id, access_token, initial_followers_count, username")
             .eq("user_id", user.id)
-            .like("n8n_workflow_name", "[Analytics]%")
-            .limit(1)
-            .maybeSingle();
+            .eq("status", "active")
+            .not("access_token", "is", null);
 
-        if (wfError || !analyticsWorkflow) {
-            throw new Error("Analytics workflow not found. Please enable it first.");
+        if (fetchError) throw fetchError;
+        if (!accounts || accounts.length === 0) {
+            return new Response(
+                JSON.stringify({ success: true, message: "No active Instagram accounts found" }),
+                { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
         }
 
-        // Trigger the manual execution endpoint for this specific workflow in n8n
-        const workflowId = analyticsWorkflow.n8n_workflow_id;
+        let successCount = 0;
+        let failCount = 0;
+        const results: any[] = [];
 
-        const triggerResponse = await fetch(`${n8nBaseUrl}/webhook/analytics-refresh-${user.id}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({}) // Empty body since it just triggers the flow
-        });
+        // Hit Graph API directly for each account — same as sync-all-followers
+        for (const account of accounts) {
+            try {
+                const igRes = await fetch(
+                    `https://graph.instagram.com/v21.0/me?fields=followers_count,username,media_count&access_token=${account.access_token}`
+                );
 
-        if (!triggerResponse.ok) {
-            const errBody = await triggerResponse.text();
-            console.error("Failed to trigger n8n manual workflow:", errBody);
-            throw new Error(`Failed to trigger analytics refresh in n8n: ${triggerResponse.statusText}`);
+                if (!igRes.ok) {
+                    const errText = await igRes.text();
+                    console.error(`[refresh-analytics] Graph API failed for ${account.username}:`, errText);
+                    failCount++;
+                    results.push({ username: account.username, status: "failed", error: errText });
+                    continue;
+                }
+
+                const igData = await igRes.json();
+                const followersCount = igData.followers_count;
+
+                if (typeof followersCount !== "number") {
+                    console.warn(`[refresh-analytics] No followers_count for ${account.username}`);
+                    failCount++;
+                    continue;
+                }
+
+                const updatePayload: any = {
+                    followers_count: followersCount,
+                    followers_last_updated: new Date().toISOString(),
+                };
+
+                // Lock in baseline if never set
+                if (!account.initial_followers_count || account.initial_followers_count === 0) {
+                    updatePayload.initial_followers_count = followersCount;
+                }
+
+                const { error: updateError } = await supabase
+                    .from("instagram_accounts")
+                    .update(updatePayload)
+                    .eq("id", account.id);
+
+                if (updateError) {
+                    console.error(`[refresh-analytics] DB update failed for ${account.username}:`, updateError);
+                    failCount++;
+                    results.push({ username: account.username, status: "db_error" });
+                } else {
+                    successCount++;
+                    results.push({ username: account.username, status: "updated", followers: followersCount });
+                    console.log(`[refresh-analytics] ✅ ${account.username} → ${followersCount} followers`);
+                }
+            } catch (err: any) {
+                console.error(`[refresh-analytics] Exception for ${account.username}:`, err.message);
+                failCount++;
+                results.push({ username: account.username, status: "exception", error: err.message });
+            }
         }
 
         return new Response(
             JSON.stringify({
                 success: true,
-                message: "Analytics refresh triggered successfully via n8n"
+                message: `Updated ${successCount} account(s). Failed: ${failCount}.`,
+                results,
             }),
-            {
-                status: 200,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
+
     } catch (error: any) {
-        console.error("Error triggering manual refresh:", error);
+        console.error("[refresh-analytics] Error:", error);
         return new Response(
             JSON.stringify({ error: error.message || "Internal server error" }),
-            {
-                status: 500,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
     }
 });
