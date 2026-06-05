@@ -52,7 +52,7 @@ export const TermsOfServiceModal: React.FC<{ isOpen: boolean; onClose: () => voi
 
             <h3 className="text-lg font-bold text-gray-900 mt-6">1. Access and Registration</h3>
             <p>
-                You must be at least 18 years old, or have parental/guardian consent if between 13 and 18, to use quickrevert.tech. By registering, you represent that all information provided is accurate and complete. You are responsible for maintaining the confidentiality of your account and password.
+                You must be at least 18 years old to use quickrevert.tech. By registering, you represent that all information provided is accurate and complete. You are responsible for maintaining the confidentiality of your account and password.
             </p>
 
             <h3 className="text-lg font-bold text-gray-900 mt-6">2. License to Use</h3>
