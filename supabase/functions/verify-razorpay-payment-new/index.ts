@@ -3,6 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Client } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
 import Razorpay from "npm:razorpay@2.8.4";
 import { sendAlert } from "../_shared/alert.ts";
+import { sendEmail } from "../_shared/email.ts";
 
 const PLAN_PRICES = {
   try_me_out: 199,
@@ -412,6 +413,40 @@ serve(async (req) => {
 
     console.log(`✅ Supabase subscription written for user ${userId}, plan ${planTier}_${planType}`);
 
+    // ---------------------------------------------------------------
+    // Notify: Discord + Payment Email (fire-and-forget, never blocks)
+    // ---------------------------------------------------------------
+    (() => {
+      const packageLabel = planTier === 'try_me_out'
+        ? 'Monthly Sampler'
+        : planTier
+          ? planTier.charAt(0).toUpperCase() + planTier.slice(1).replace(/_/g, ' ')
+          : 'Premium';
+      const packageLabelFull = packageLabel + (planType === 'quarterly' ? ' (Quarterly)' : planType === 'annual' ? ' (Annual)' : '');
+      const expiryStr = periodEnd.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
+      const amountStr = isFree ? '₹0 (Free via coupon)' : `₹${amountPaidRs.toLocaleString('en-IN')}`;
+
+      sendAlert({
+        channel: 'payment',
+        level: 'info',
+        subject: `New Payment — ${packageLabelFull}`,
+        context: 'verify-razorpay-payment-new',
+        details: `**${email}** subscribed to **${packageLabelFull}**\n**Amount:** ${amountStr}${discountRs > 0 ? ` (saved ₹${discountRs})` : ''}\n**Coupon:** ${couponCode || 'None'}\n**Expires:** ${expiryStr}\n**Assisted by:** ${assistedBy || '—'}`,
+        data: { userId, email, planTier, planType, amountPaidRs, discountRs, couponCode: couponCode || null, isFree, assistedBy: assistedBy || null },
+      }).catch(() => {});
+
+      sendEmail({
+        emailType: 'payment_success',
+        to: email,
+        name: email.split('@')[0],
+        planName: packageLabelFull,
+        expiryDate: periodEnd.toISOString(),
+        amountPaid: amountPaidRs,
+        isFree,
+      }).catch(() => {});
+    })();
+
+
       // ---------------------------------------------------------------
       // Sync to Neon DB (Dashboard analytics)
       // ---------------------------------------------------------------
@@ -581,6 +616,7 @@ serve(async (req) => {
         } catch (neonError: any) {
           console.error("⚠️ Neon Sync Failed (non-critical):", neonError);
           sendAlert({
+            channel: "warning",
             level: "warning",
             subject: `Neon Sync Failed — Manual Fix Needed (${email})`,
             context: "verify-razorpay-payment-new",

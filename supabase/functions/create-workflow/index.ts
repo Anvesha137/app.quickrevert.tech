@@ -3018,21 +3018,8 @@ return { json: { userId, username, isFollowing } };`
       });
       if (!createRes.ok) throw new Error(`n8n Create Failed: ${createRes.statusText}`);
       n8nResult = await createRes.json();
+      // Discord notification handled below after routing completes
 
-      // 🔔 NOTIFY ADMIN of New Automation
-      sendAlert({
-        level: "info",
-        subject: "New Automation Created! ⚡",
-        context: "Automation Engine",
-        details: `A user has created a new automation.\n\n**User ID:** ${userId}\n**Name:** ${workflowName}\n**Trigger:** ${bodyTriggerType || 'user_dm'}\n**Instagram:** ${instagramAccount.username}`,
-        data: {
-          userId,
-          automationName: workflowName,
-          triggerType: bodyTriggerType,
-          instagram: instagramAccount.username,
-          workflowId: n8nResult.id
-        }
-      }).catch(err => console.error("[ALERT] Failed to send new automation alert:", err));
     }
 
     // 🔥 PERFORMANCE: Return response as soon as we have the workflow ID
@@ -3267,6 +3254,18 @@ return { json: { userId, username, isFollowing } };`
 
     // No-op: Registration handled by RPC in finalizationTask above
 
+    // Notify Discord — new automation created (awaited for reliability)
+    if (bodyTriggerType !== 'enable_analytics') {
+      console.log(`[ALERT] Sending automation Discord notification for ${instagramAccount?.username} - ${bodyTriggerType}`);
+      await sendAlert({
+        channel: 'automation',
+        level: 'info',
+        subject: `New Automation Created`,
+        context: 'create-workflow',
+        details: `**@${instagramAccount?.username}** created a new automation\n**Type:** \`${bodyTriggerType || automationData?.trigger_type || 'user_dm'}\`\n**Workflow:** ${finalWorkflowName}`,
+        data: { userId, automationId, triggerType: bodyTriggerType || automationData?.trigger_type, username: instagramAccount?.username },
+      }).catch((e) => console.error("[ALERT] Automation discord failed:", e));
+    }
 
     return new Response(JSON.stringify({
       success: true,
@@ -3281,6 +3280,7 @@ return { json: { userId, username, isFollowing } };`
     console.error(error);
     // Fire-and-forget alert email
     sendAlert({
+      channel: "error",
       level: "error",
       subject: "Automation Creation Failed",
       context: "create-workflow",

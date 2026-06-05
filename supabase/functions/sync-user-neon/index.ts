@@ -244,25 +244,9 @@ serve(async (req) => {
       packageName, planStatus, status
     ]);
 
-    // 2.5 Notify Admin of New User
-    if (isNewUser) {
-      console.log(`[sync-user-neon] Sending notification for new user: ${cleanEmail}`);
-      const assistedByDisplay = existingAssistedBy || 'Unassigned';
-      sendAlert({
-        level: "info",
-        subject: "New User Registered! 🚀",
-        context: "Account Sync",
-        details: `A new user has joined QuickRevert.\n\n**Email:** ${cleanEmail}\n**Name:** ${usernameValue}\n**Instagram:** ${connectedHandle || 'Not connected'}\n**Followers:** ${followers}\n**Assisted By:** ${assistedByDisplay}`,
-        data: {
-          userId,
-          email: cleanEmail,
-          name: usernameValue,
-          instagram: connectedHandle,
-          followers,
-          assistedBy: existingAssistedBy || null
-        }
-      }).catch(err => console.error("[ALERT] Failed to send new user notification:", err));
-    }
+    // New user notification is now handled by the on-new-user Edge Function
+    // triggered via Supabase DB Webhook on auth.users INSERT.
+
 
     // 3. Smart Limit Sync (Update Supabase user_limits)
     // ⚠️  CRITICAL: syncLimits must NEVER include total_dms, monthly_dms,

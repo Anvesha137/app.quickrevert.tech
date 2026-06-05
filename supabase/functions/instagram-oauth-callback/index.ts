@@ -92,9 +92,9 @@ Deno.serve(async (req: Request) => {
 
     console.log('Long-lived token received, expires in:', longLivedTokenData.expires_in, 'seconds');
 
-    // 3. Fetch Instagram profile (for username and profile picture)
+    // 3. Fetch Instagram profile (for username, profile picture and followers count)
     // We still need this for the UI, even if the ID is wrong for webhooks.
-    const profileUrl = `https://graph.instagram.com/me?fields=id,username,profile_picture_url`;
+    const profileUrl = `https://graph.instagram.com/me?fields=id,username,profile_picture_url,followers_count`;
     console.log('Fetching Instagram profile...');
 
     const profileRes = await fetch(profileUrl, {
@@ -112,6 +112,7 @@ Deno.serve(async (req: Request) => {
 
     const username = profileData.username || `user_${instagramUserId}`;
     const profilePictureUrl = profileData.profile_picture_url || null;
+    const followersCount: number = profileData.followers_count ?? 0;
 
     // 4. Fetch the Instagram Business Account ID (IGBA) linked to the user's Page
     // standard /me endpoint returns the User ID, which is WRONG for webhooks.
@@ -196,6 +197,21 @@ Deno.serve(async (req: Request) => {
       instagramAccountId = newAcc.id;
       console.log('New account created successfully');
     }
+
+    // Notify Discord — Instagram account connected (fire-and-forget)
+    // Fetch email from auth to include in the alert
+    supabase.auth.admin.getUserById(userId).then(({ data: authUser }) => {
+      const userEmail = authUser?.user?.email || 'unknown';
+      return sendAlert({
+        channel: 'instagram',
+        level: 'info',
+        subject: `Instagram Connected — @${username}`,
+        context: 'instagram-oauth-callback',
+        details: `A user connected their Instagram account\n**Email:** ${userEmail}\n**Handle:** @${username}\n**Followers:** ${followersCount.toLocaleString('en-IN')}\n**IG User ID:** \`${instagramUserId}\`\n**Business Account ID:** \`${igbaId || 'Not found'}\``,
+        data: { userId, email: userEmail, username, followersCount, instagramUserId, igbaId: igbaId || null },
+      });
+    }).catch(() => {});
+
 
     // --- SYNC TO N8N ---
     console.log('🔄 Syncing to n8n...');
@@ -289,6 +305,7 @@ Deno.serve(async (req: Request) => {
   } catch (error: any) {
     console.error('Unexpected error:', error);
     sendAlert({
+      channel: "error",
       level: "error",
       subject: "Instagram OAuth Failed",
       context: "instagram-oauth-callback",

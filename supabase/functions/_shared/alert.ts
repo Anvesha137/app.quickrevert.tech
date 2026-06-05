@@ -1,105 +1,111 @@
 /**
  * QuickRevert Alerting System
- * Sends email alerts to the admin via Resend API.
- * Usage: import { sendAlert } from "../_shared/alert.ts";
+ * Sends Discord notifications to the admin via a single webhook.
+ * Color-coded by channel/type for easy scanning.
  *
- * Requires env var: RESEND_API_KEY
- * Requires env var: ALERT_EMAIL (admin destination email)
- * Requires env var: ALERT_FROM_EMAIL (verified sender in Resend, e.g. alerts@quickrevert.tech)
+ * Requires env var: DISCORD_WEBHOOK_URL
+ *
+ * Usage:
+ *   import { sendAlert } from "../_shared/alert.ts";
+ *   await sendAlert({ channel: "payment", level: "info", subject: "...", context: "...", details: "..." });
  */
 
 export type AlertLevel = "error" | "warning" | "info";
 
+export type AlertChannel =
+  | "new_user"    // 🎉 Green  — new signup
+  | "payment"     // 💰 Purple — payment success
+  | "automation"  // ⚡ Blue   — new automation created
+  | "instagram"   // 📸 Pink   — Instagram connected
+  | "error"       // 🔴 Red    — errors
+  | "warning"     // 🟡 Yellow — warnings
+  | "info";       // 🔵 Blue   — general info
+
 export interface AlertPayload {
   level: AlertLevel;
+  channel?: AlertChannel;   // Determines embed color + emoji. Defaults to level.
   subject: string;
-  context: string;        // Which function / system area
-  details: string;        // Human-readable description of what happened
-  data?: Record<string, unknown>; // Any extra structured data (account, user, error)
+  context: string;          // Which function / system area
+  details: string;          // Human-readable description of what happened
+  data?: Record<string, unknown>; // Extra structured data (shown as JSON code block)
 }
+
+// Channel → Discord embed color (decimal)
+const CHANNEL_COLORS: Record<AlertChannel, number> = {
+  new_user:   0x57F287, // Green
+  payment:    0x9B59B6, // Purple
+  automation: 0x3498DB, // Blue
+  instagram:  0xE1306C, // Instagram Pink
+  error:      0xFF4D4D, // Red
+  warning:    0xFFCC00, // Yellow
+  info:       0x3399FF, // Light Blue
+};
+
+// Channel → emoji prefix for the title
+const CHANNEL_EMOJI: Record<AlertChannel, string> = {
+  new_user:   "🎉",
+  payment:    "💰",
+  automation: "⚡",
+  instagram:  "📸",
+  error:      "🔴",
+  warning:    "🟡",
+  info:       "🔵",
+};
 
 export async function sendAlert(payload: AlertPayload): Promise<void> {
   const discordWebhookUrl = Deno.env.get("DISCORD_WEBHOOK_URL");
-  const resendApiKey = Deno.env.get("RESEND_API_KEY");
-  const alertEmail = Deno.env.get("ALERT_EMAIL");
-  const fromEmail = Deno.env.get("ALERT_FROM_EMAIL") || "alerts@quickrevert.tech";
 
-  const levelEmoji = payload.level === "error" ? "🔴" : payload.level === "warning" ? "🟡" : "🔵";
+  if (!discordWebhookUrl) {
+    console.warn(`[ALERT:${payload.level.toUpperCase()}] ${payload.subject} — DISCORD_WEBHOOK_URL not configured`);
+    return;
+  }
+
+  // Resolve channel — fall back to level if channel not specified
+  const channel: AlertChannel = payload.channel ?? (
+    payload.level === "error" ? "error" :
+    payload.level === "warning" ? "warning" : "info"
+  );
+
+  const color = CHANNEL_COLORS[channel];
+  const emoji = CHANNEL_EMOJI[channel];
   const timestamp = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
-  const color = payload.level === "error" ? 0xff4d4d : payload.level === "warning" ? 0xffcc00 : 0x3399ff;
 
-  // --- OPTION 1: DISCORD (Recommended) ---
-  if (discordWebhookUrl) {
-    try {
-      const discordPayload = {
-        embeds: [{
-          title: `${levelEmoji} ${payload.subject}`,
-          description: payload.details,
-          color: color,
-          fields: [
-            { name: "Context", value: payload.context, inline: true },
-            { name: "Timestamp (IST)", value: timestamp, inline: true },
-            ...(payload.data ? [{ name: "Data", value: "```json\n" + JSON.stringify(payload.data, null, 2).substring(0, 1000) + "\n```" }] : [])
-          ],
-          footer: { text: "QuickRevert System Alert" }
-        }]
-      };
+  const fields: Array<{ name: string; value: string; inline?: boolean }> = [
+    { name: "📌 Context", value: payload.context, inline: true },
+    { name: "🕐 Time (IST)", value: timestamp, inline: true },
+  ];
 
-      const res = await fetch(discordWebhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(discordPayload)
-      });
+  if (payload.data && Object.keys(payload.data).length > 0) {
+    const jsonStr = JSON.stringify(payload.data, null, 2);
+    // Discord field values max 1024 chars
+    const truncated = jsonStr.length > 980 ? jsonStr.substring(0, 980) + "\n..." : jsonStr;
+    fields.push({ name: "📋 Data", value: "```json\n" + truncated + "\n```" });
+  }
 
-      if (res.ok) {
-        console.log(`[ALERT] ✅ Discord notification sent: ${payload.subject}`);
-        return;
-      }
+  const discordPayload = {
+    embeds: [{
+      title: `${emoji} ${payload.subject}`,
+      description: payload.details,
+      color,
+      fields,
+      footer: { text: "QuickRevert System" },
+      timestamp: new Date().toISOString(),
+    }],
+  };
+
+  try {
+    const res = await fetch(discordWebhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(discordPayload),
+    });
+
+    if (res.ok) {
+      console.log(`[ALERT] ✅ Discord sent: ${payload.subject}`);
+    } else {
       console.error(`[ALERT] Discord failed (${res.status}): ${await res.text()}`);
-    } catch (e) {
-      console.error("[ALERT] Discord error:", e);
     }
+  } catch (e) {
+    console.error("[ALERT] Discord error:", e);
   }
-
-  // --- OPTION 2: RESEND (Fallback) ---
-  if (resendApiKey && alertEmail) {
-    const html = `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"/></head>
-<body style="font-family:sans-serif;max-width:640px;margin:0 auto;padding:24px;color:#222;">
-  <div style="background:${payload.level === "error" ? "#fff0f0" : payload.level === "warning" ? "#fffbe6" : "#f0f4ff"};border-left:4px solid ${payload.level === "error" ? "#e53e3e" : payload.level === "warning" ? "#d97706" : "#3b82f6"};padding:16px 20px;border-radius:4px;margin-bottom:24px;">
-    <h2 style="margin:0 0 4px 0;">${levelEmoji} ${payload.subject}</h2>
-    <p style="margin:0;color:#555;font-size:13px;">${payload.context} &nbsp;|&nbsp; ${timestamp} IST</p>
-  </div>
-  <p style="font-size:15px;line-height:1.6;">${payload.details.replace(/\n/g, "<br>")}</p>
-  ${payload.data ? `<h3>Details</h3><pre style="background:#f5f5f5;padding:12px;border-radius:6px;font-size:13px;overflow:auto;">${JSON.stringify(payload.data, null, 2)}</pre>` : ""}
-  <hr style="border:none;border-top:1px solid #eee;margin:24px 0;"/>
-  <p style="font-size:12px;color:#999;">QuickRevert Automated Alert &nbsp;•&nbsp; Do not reply to this email</p>
-</body>
-</html>`;
-
-    try {
-      const res = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          from: fromEmail,
-          to: [alertEmail],
-          subject: `${levelEmoji} [QuickRevert] ${payload.subject}`,
-          html,
-        }),
-      });
-
-      if (res.ok) {
-        console.log(`[ALERT] ✅ Email sent: ${payload.subject}`);
-        return;
-      }
-    } catch (e) {
-      console.error("[ALERT] Resend error:", e);
-    }
-  }
-
-  // If no method worked or was configured
-  console.warn(`[ALERT:${payload.level.toUpperCase()}] ${payload.subject} — No notification method configured (Discord or Resend)`);
 }
