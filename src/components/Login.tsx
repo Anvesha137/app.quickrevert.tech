@@ -155,6 +155,9 @@ export default function Login() {
 
             <div className="space-y-6">
               <div className="space-y-4">
+                <p className="text-[11px] text-slate-400 font-medium text-center -mb-2">
+                  By signing up you agree you are 18+
+                </p>
                 <button
                   onClick={handleGoogleSignIn}
                   disabled={loading !== null}
