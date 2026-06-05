@@ -4,7 +4,7 @@ import { Client } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
 import { sendAlert } from "../_shared/alert.ts";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://app.quickrevert.tech',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
@@ -266,8 +266,10 @@ serve(async (req) => {
     }
 
     // 3. Smart Limit Sync (Update Supabase user_limits)
+    // ⚠️  CRITICAL: syncLimits must NEVER include total_dms, monthly_dms,
+    //     dm_reset_date or plan_type — those are owned by the Postgres trigger
+    //     on automation_activities and must not be overwritten here.
     const syncLimits: any = {
-      user_id: userId,
       is_gifted: isGifted,
       updated_at: new Date().toISOString()
     };
@@ -297,9 +299,47 @@ serve(async (req) => {
       syncLimits.expiry_date = null;
     }
 
-    // ALWAYS update Supabase for now to confirm the sync is working
-    console.log(`[sync-user-neon] FORCING update for user_limits: ${userId}`);
-    await supabaseClient.from('user_limits').upsert(syncLimits, { onConflict: 'user_id' });
+    // SAFE UPDATE STRATEGY:
+    // - Existing row → UPDATE only the columns in syncLimits.
+    //   This leaves total_dms, monthly_dms, dm_reset_date, plan_type completely untouched.
+    // - No row yet (brand-new user) → INSERT with safe counter defaults (0).
+    console.log(`[sync-user-neon] Safe-updating user_limits for: ${userId}`);
+
+    const { data: existingLimitRow } = await supabaseClient
+      .from('user_limits')
+      .select('user_id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (existingLimitRow) {
+      // Row already exists — only touch the plan/feature columns, NEVER the counters
+      const { error: updateErr } = await supabaseClient
+        .from('user_limits')
+        .update(syncLimits)
+        .eq('user_id', userId);
+      if (updateErr) {
+        console.error(`[sync-user-neon] user_limits UPDATE failed for ${userId}:`, updateErr.message);
+      } else {
+        console.log(`[sync-user-neon] ✅ user_limits updated (counters preserved) for ${userId}`);
+      }
+    } else {
+      // Brand-new user — INSERT with zero counters and today as the reset anchor
+      const { error: insertErr } = await supabaseClient
+        .from('user_limits')
+        .insert({
+          user_id: userId,
+          ...syncLimits,
+          total_dms: 0,
+          monthly_dms: 0,
+          dm_reset_date: new Date().toISOString(),
+          plan_type: 'basic',
+        });
+      if (insertErr) {
+        console.error(`[sync-user-neon] user_limits INSERT failed for ${userId}:`, insertErr.message);
+      } else {
+        console.log(`[sync-user-neon] ✅ user_limits inserted (new user) for ${userId}`);
+      }
+    }
 
 
 

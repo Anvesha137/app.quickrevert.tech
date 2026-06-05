@@ -95,8 +95,7 @@ export default function Dashboard() {
       const [
         instagramResult,
         automationsResult,
-        dmCountResult,
-        commentCountResult,
+        limitsResult,
         contactsCountResult,
         analyticsWorkflowResult,
       ] = await Promise.all([
@@ -114,21 +113,14 @@ export default function Dashboard() {
           .select('id, status')
           .eq('user_id', user!.id),
 
-        // 2. DM count — from pre-computed counter (no table scan)
+        // 2. DM + Comment counts — from pre-computed counters (no table scan)
         supabase
           .from('user_limits')
-          .select('total_dms')
+          .select('total_dms, total_comments')
           .eq('user_id', user!.id)
           .maybeSingle(),
 
-        // 3. Comment count server-side
-        supabase
-          .from('automation_activities')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', user!.id)
-          .in('activity_type', COMMENT_ACTIVITY_TYPES),
-
-        // 4. Unique users count server-side
+        // 3. Unique users count server-side
         supabase
           .from('contacts')
           .select('id', { count: 'exact', head: true })
@@ -152,9 +144,9 @@ export default function Dashboard() {
       const activeAutomationsCount = automationsResult.data?.filter(a => a.status === 'active').length || 0;
 
       setStats({
-        dmsTriggered: dmCountResult.data?.total_dms || 0,
+        dmsTriggered: limitsResult.data?.total_dms || 0,
         activeAutomations: activeAutomationsCount,
-        commentReplies: commentCountResult.count || 0,
+        commentReplies: limitsResult.data?.total_comments || 0,
         uniqueUsers: contactsCountResult.count || 0,
         followersCount: instaAccount?.followers_count ?? null,
         initialFollowersCount: instaAccount?.initial_followers_count ?? null,

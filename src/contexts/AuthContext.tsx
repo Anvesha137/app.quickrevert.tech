@@ -138,6 +138,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    localStorage.removeItem('quickrevert_subscription_cache_v2');
+    localStorage.removeItem('quickrevert_banned');
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   };
