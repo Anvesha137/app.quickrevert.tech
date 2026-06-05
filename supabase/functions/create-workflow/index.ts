@@ -3254,18 +3254,7 @@ return { json: { userId, username, isFollowing } };`
 
     // No-op: Registration handled by RPC in finalizationTask above
 
-    // Notify Discord — new automation created (awaited for reliability)
-    if (bodyTriggerType !== 'enable_analytics') {
-      console.log(`[ALERT] Sending automation Discord notification for ${instagramAccount?.username} - ${bodyTriggerType}`);
-      await sendAlert({
-        channel: 'automation',
-        level: 'info',
-        subject: `New Automation Created`,
-        context: 'create-workflow',
-        details: `**@${instagramAccount?.username}** created a new automation\n**Type:** \`${bodyTriggerType || automationData?.trigger_type || 'user_dm'}\`\n**Workflow:** ${finalWorkflowName}`,
-        data: { userId, automationId, triggerType: bodyTriggerType || automationData?.trigger_type, username: instagramAccount?.username },
-      }).catch((e) => console.error("[ALERT] Automation discord failed:", e));
-    }
+    // Notify Discord — handled by DB trigger (on-new-automation) now!
 
     return new Response(JSON.stringify({
       success: true,

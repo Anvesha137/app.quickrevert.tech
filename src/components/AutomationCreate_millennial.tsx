@@ -371,6 +371,22 @@ export default function AutomationCreateMillennial({ readOnly = false }: Automat
       const isCodeLogic = await N8nWorkflowService.isCodeLogicUser(user!.id);
       if (isCodeLogic) {
         console.log('[CODE LOGIC] Skipping n8n workflow creation — user is on code logic engine.');
+        // Trigger Discord alert for new automations created via code_logic
+        if (!id) {
+          try {
+            await supabase.functions.invoke('on-new-automation', {
+              body: {
+                type: 'INSERT',
+                record: {
+                  id: automationData.id,
+                  user_id: user!.id,
+                  name: formData.name.trim(),
+                  trigger_type: formData.triggerType
+                }
+              }
+            });
+          } catch (e) { console.error('Discord alert failed:', e); }
+        }
       } else {
         try {
           const { data: igAccount } = await supabase
