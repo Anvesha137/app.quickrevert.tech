@@ -117,6 +117,12 @@ serve(async (req) => {
     
     const isDeletedFlag = existingNeonUsers.length > 0 ? (existingNeonUsers[0] as any).deleted : false;
 
+    if (isDeletedFlag) {
+      console.log(`[sync-user-neon] User is deleted. Skipping sync to freeze historical data.`);
+      await neonClient.end();
+      return new Response(JSON.stringify({ success: true, message: "User is deleted. Sync skipped to preserve history." }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     const isNewUser = existingNeonUsers.length === 0;
     const existingAssistedBy = existingNeonUsers.length > 0 ? (existingNeonUsers[0] as any).assisted_by : null;
 
