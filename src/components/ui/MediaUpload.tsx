@@ -38,6 +38,14 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({
       return;
     }
 
+    // ⚠ Enforce 100KB limit (Instagram carousel requirement)
+    const MAX_SIZE_BYTES = 100 * 1024; // 100KB
+    if (file.size > MAX_SIZE_BYTES) {
+      toast.error(`Image too large: ${(file.size / 1024).toFixed(0)}KB. Max allowed is 100KB per image.`);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
     try {
       setUploading(true);
       setUploaded(false);
@@ -117,10 +125,17 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({
         )}
       </button>
 
-      {/* 100KB Note */}
-      <div className="flex items-center gap-1 mt-1.5 px-2">
-        <ImageIcon className={cn("w-3 h-3", darkMode ? "text-white/20" : "text-gray-400")} />
-        {/* <span className={cn("text-[9px] font-bold uppercase tracking-widest", darkMode ? "text-white/20" : "text-gray-400")}>Max 100KB (Auto-optimized)</span> */}
+      {/* 100KB Warning Badge */}
+      <div className={cn(
+        "flex items-center gap-1.5 mt-1.5 px-2 py-1 rounded-lg",
+        darkMode
+          ? "bg-amber-500/10 border border-amber-500/20"
+          : "bg-amber-50 border border-amber-200"
+      )}>
+        <span className={cn("text-[10px]", darkMode ? "text-amber-400" : "text-amber-600")}>⚠</span>
+        <span className={cn("text-[9px] font-bold uppercase tracking-wider", darkMode ? "text-amber-400" : "text-amber-600")}>
+          Max file size: 100KB per image
+        </span>
       </div>
     </div>
   );

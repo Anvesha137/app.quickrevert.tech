@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useUIStyle } from '../contexts/UIStyleContext';
 import { supabase } from '../lib/supabase';
-import { Gift, Copy, CheckCircle, Clock } from 'lucide-react';
+import { Gift, Copy, CheckCircle, Clock, Sparkles, ArrowRight, Zap } from 'lucide-react';
 
 interface PromoCode {
   promo_code: string;
@@ -107,12 +107,64 @@ export default function MyReferrals() {
       </div>
 
       {promoCodes.length === 0 ? (
-        <div className={`text-center py-20 rounded-2xl border-2 border-dashed ${darkMode ? 'border-slate-800 bg-slate-900/50' : 'border-slate-200 bg-slate-50'}`}>
-          <Gift className={`w-12 h-12 mx-auto mb-4 opacity-50 ${darkMode ? 'text-slate-600' : 'text-slate-400'}`} />
-          <h3 className="text-lg font-bold mb-2">No Promo Codes Assigned</h3>
-          <p className={darkMode ? 'text-slate-400' : 'text-slate-500'}>
-            You haven't been assigned any referral promo codes yet.
-          </p>
+        <div className={`relative overflow-hidden rounded-3xl border ${darkMode ? 'border-indigo-500/20 bg-indigo-500/[0.03]' : 'border-indigo-100 bg-indigo-50/30'} p-8 md:p-12 transition-all`}>
+          {/* Background decorations */}
+          <div className={`absolute top-0 right-0 w-[400px] h-[400px] bg-gradient-to-br ${isGenZ ? 'from-fuchsia-500/20 to-pink-500/20' : 'from-indigo-500/20 to-purple-500/20'} rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none`} />
+          <div className={`absolute bottom-0 left-0 w-[300px] h-[300px] bg-gradient-to-tr ${isGenZ ? 'from-orange-500/10 to-fuchsia-500/10' : 'from-blue-500/10 to-indigo-500/10'} rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 pointer-events-none`} />
+
+          <div className="relative z-10 flex flex-col md:flex-row items-center gap-8 md:gap-12">
+            <div className="flex-1 text-center md:text-left">
+              <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-widest mb-6 ${isGenZ ? 'bg-fuchsia-500/10 text-fuchsia-500' : 'bg-indigo-500/10 text-indigo-500'}`}>
+                <Sparkles className="w-3.5 h-3.5" /> Collab Program
+              </div>
+              <h2 className={`text-3xl md:text-4xl font-black mb-4 tracking-tight ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+                Get <span className={`text-transparent bg-clip-text bg-gradient-to-r ${isGenZ ? 'from-fuchsia-500 to-pink-500' : 'from-indigo-500 to-purple-500'}`}>2 Months Free</span> Premium
+              </h2>
+              <p className={`text-base md:text-lg mb-8 leading-relaxed font-medium ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                Join the QuickRevert partner program. Get your own custom referral code, share it with your audience, and unlock full access.
+              </p>
+              
+              <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-4">
+                <a
+                  href="https://quickrevert.tech/collab"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`group flex items-center justify-center gap-2 px-8 py-4 rounded-2xl font-black text-sm text-white transition-all shadow-xl hover:scale-105 active:scale-95 ${
+                    isGenZ
+                      ? 'bg-gradient-to-r from-fuchsia-500 to-pink-500 hover:shadow-fuchsia-500/30'
+                      : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:shadow-indigo-500/30'
+                  }`}
+                >
+                  Apply Now <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                </a>
+                <p className={`text-xs font-bold uppercase tracking-widest mt-2 sm:mt-0 ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                  Takes 2 minutes
+                </p>
+              </div>
+            </div>
+
+            <div className="hidden md:flex w-72 h-72 relative shrink-0">
+               {/* 3D-like floating cards */}
+               <div className={`absolute top-4 right-4 w-48 h-56 rounded-2xl border ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} shadow-2xl rotate-6 p-4 flex flex-col justify-between transition-transform hover:rotate-12 hover:-translate-y-2 duration-500`}>
+                 <div>
+                   <div className={`w-8 h-8 rounded-full mb-3 flex items-center justify-center ${isGenZ ? 'bg-fuchsia-500/10' : 'bg-indigo-500/10'}`}>
+                      <Zap className={`w-4 h-4 ${isGenZ ? 'text-fuchsia-500' : 'text-indigo-500'}`} />
+                   </div>
+                   <div className={`h-2 w-24 rounded mb-2 ${darkMode ? 'bg-slate-800' : 'bg-slate-100'}`} />
+                   <div className={`h-2 w-16 rounded ${darkMode ? 'bg-slate-800' : 'bg-slate-100'}`} />
+                 </div>
+                 <div className={`h-8 w-full rounded-lg ${isGenZ ? 'bg-fuchsia-500/10' : 'bg-indigo-500/10'}`} />
+               </div>
+               
+               <div className={`absolute bottom-4 left-4 w-48 h-56 rounded-2xl border ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'} shadow-2xl -rotate-6 p-4 z-10 flex flex-col items-center justify-center text-center transition-transform hover:-rotate-12 hover:-translate-y-2 duration-500`}>
+                  <div className={`text-[10px] font-black uppercase tracking-widest mb-1 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Your Code</div>
+                  <div className={`text-xl font-black font-mono mb-4 ${isGenZ ? 'text-fuchsia-500' : 'text-indigo-500'}`}>GET2FREE</div>
+                  <div className={`px-3 py-1.5 rounded-lg text-xs font-bold ${darkMode ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600'}`}>
+                    Active Status
+                  </div>
+               </div>
+            </div>
+          </div>
         </div>
       ) : (
         <div className="space-y-8">

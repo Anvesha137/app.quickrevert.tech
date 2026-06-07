@@ -2,7 +2,10 @@
  * QuickRevert Email System — powered by Brevo
  * Sends transactional emails to users from connect@quickrevert.tech
  *
- * Requires env var: BREVO_API_KEY
+ * Requires env vars:
+ *   BREVO_API_KEY
+ *   UNSUBSCRIBE_SECRET   (HMAC secret for unsubscribe tokens)
+ *   NEON_DB_URL          (to check email_unsubscribed flag before sending)
  *
  * Usage:
  *   import { sendEmail } from "../_shared/email.ts";
@@ -23,9 +26,28 @@ export interface SendEmailOptions {
   expiryDate?: string;  // ISO date string
   amountPaid?: number;  // in ₹ rupees
   isFree?: boolean;
+  userEmail?: string;   // used for unsubscribe token (defaults to opts.to)
 }
 
-// ─── HTML Templates ────────────────────────────────────────────────────────────
+// ─── HMAC Token Generation (Web Crypto — available in Deno) ─────────────────────
+
+export async function generateUnsubscribeToken(email: string): Promise<string> {
+  const secret = Deno.env.get("UNSUBSCRIBE_SECRET") || "quickrevert-unsub-secret";
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(email));
+  return Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+// ─── Styles ─────────────────────────────────────────────────────────────────────
 
 const LOGO_URL = "https://app.quickrevert.tech/full_logo.png";
 
@@ -50,15 +72,72 @@ const BASE_STYLE = `
   .tutorial-card .t-title { font-size:14px; font-weight:600; color:#e5e5e5; margin:0 0 4px; }
   .tutorial-card .t-link { font-size:12px; color:#6c3fff; }
   .tutorials-label { font-size:13px; color:#6b6b80; text-transform:uppercase; letter-spacing:1px; margin:24px 0 8px; }
-  .footer { padding:24px 32px; text-align:center; color:#555570; font-size:12px; border-top:1px solid #2a2a3e; }
-  .footer a { color:#6c3fff; text-decoration:none; }
   .badge { display:inline-block; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:600; }
   .badge-green { background:#0d2e1a; color:#4ade80; border:1px solid #166534; }
   .badge-purple { background:#1e0d3e; color:#c084fc; border:1px solid #6c3fff; }
   .badge-red { background:#2e0d0d; color:#f87171; border:1px solid #991b1b; }
+  .email-footer { padding:28px 32px 20px; border-top:1px solid #2a2a3e; background:#0f0f1a; }
+  .footer-logo { max-width:140px; height:auto; display:block; margin:0 auto 20px; opacity:0.75; }
+  .footer-divider { height:1px; background:#2a2a3e; margin:16px 0; }
+  .footer-section-label { font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:#4a4a60; margin:0 0 8px; }
+  .footer-link { color:#6c3fff; text-decoration:none; font-size:13px; }
+  .footer-social-row { display:table; }
+  .social-btn { display:inline-block; padding:5px 12px; border:1px solid #2a2a3e; border-radius:20px; font-size:11px; font-weight:600; color:#a0a0b0; text-decoration:none; background:#1a1a2e; margin:3px 4px 3px 0; }
+  .footer-desc { font-size:12px; color:#555570; line-height:1.7; margin:12px 0; }
+  .footer-copy { font-size:11px; color:#3a3a50; text-align:center; margin:16px 0 4px; }
+  .unsub-link { font-size:11px; color:#3a3a50; text-align:center; display:block; margin-top:4px; }
+  .unsub-link a { color:#4a4a60; text-decoration:underline; }
 `;
 
-function baseTemplate(content: string): string {
+// ─── Footer Builder ──────────────────────────────────────────────────────────────
+
+function buildFooter(unsubscribeUrl: string): string {
+  return `
+  <div class="email-footer">
+    <img src="${LOGO_URL}" alt="QuickRevert" class="footer-logo" />
+    <div class="footer-divider"></div>
+
+    <p class="footer-section-label">What We Do</p>
+    <p style="font-size:13px;color:#6b6b80;margin:0 0 12px;">
+      <a href="https://quickrevert.tech/#features" class="footer-link">&#8594; Explore QuickRevert Features</a>
+    </p>
+
+    <p class="footer-section-label">Follow Us</p>
+    <div class="footer-social-row">
+      <a href="https://www.instagram.com/quickrevert/" class="social-btn" target="_blank">&#128248; Instagram</a>
+      <a href="https://www.youtube.com/@quickrevert" class="social-btn" target="_blank">&#9654; YouTube</a>
+      <a href="https://www.linkedin.com/company/quickrevert" class="social-btn" target="_blank">in LinkedIn</a>
+      <a href="https://x.com/quickrevert" class="social-btn" target="_blank">X Twitter</a>
+    </div>
+
+    <div class="footer-divider"></div>
+
+    <p class="footer-desc">
+      QuickRevert is India's leading platform for Instagram DM automation, helping creators &amp; businesses grow.<br/>
+      Officially <strong style="color:#a0a0b0;">Meta Business Partner</strong> &#8212; verified &amp; trusted.<br/>
+      Trusted by <strong style="color:#a0a0b0;">1000+ creators</strong> across India.
+    </p>
+
+    <div class="footer-divider"></div>
+
+    <p class="footer-section-label">Help &amp; Support</p>
+    <p style="font-size:13px;color:#6b6b80;margin:0 0 16px;">
+      <a href="https://quickrevert.tech/faqs" class="footer-link">&#8594; Frequently Asked Questions</a>
+    </p>
+
+    <p class="footer-copy">&#169; ${new Date().getFullYear()} QuickRevert. All rights reserved.</p>
+    <span class="unsub-link">
+      <a href="${unsubscribeUrl}">Click here to unsubscribe</a>
+    </span>
+  </div>
+  `;
+}
+
+async function baseTemplate(content: string, userEmail: string): Promise<string> {
+  const token = await generateUnsubscribeToken(userEmail);
+  const unsubUrl = `https://app.quickrevert.tech/unsubscribe?email=${encodeURIComponent(userEmail)}&token=${token}`;
+  const footer = buildFooter(unsubUrl);
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -75,21 +154,19 @@ function baseTemplate(content: string): string {
     <div class="body">
       ${content}
     </div>
-    <div class="footer">
-      <p>You received this email because you have an account on <a href="https://app.quickrevert.tech">QuickRevert</a>.<br/>
-      Questions? Reply to this email or visit <a href="https://app.quickrevert.tech">app.quickrevert.tech</a></p>
-      <p style="margin-top:8px;">© ${new Date().getFullYear()} QuickRevert. All rights reserved.</p>
-    </div>
+    ${footer}
   </div>
 </div>
 </body>
 </html>`;
 }
 
-function welcomeTemplate(name: string): { subject: string; html: string } {
+// ─── Email Templates ─────────────────────────────────────────────────────────────
+
+async function welcomeTemplate(name: string, userEmail: string): Promise<{ subject: string; html: string }> {
   return {
     subject: "Welcome to QuickRevert! 🎉 Let's automate your Instagram",
-    html: baseTemplate(`
+    html: await baseTemplate(`
       <h2>Hey ${name}, welcome aboard! 🎉</h2>
       <p>You've joined QuickRevert — the smartest way to automate your Instagram DMs, comments, and lead generation.</p>
 
@@ -119,21 +196,22 @@ function welcomeTemplate(name: string): { subject: string; html: string } {
       </p>
       <p>If you have any questions, just reply to this email — we're always here to help.</p>
       <p>Let's go! 🚀<br/><strong>— The QuickRevert Team</strong></p>
-    `),
+    `, userEmail),
   };
 }
 
-function paymentSuccessTemplate(opts: SendEmailOptions): { subject: string; html: string } {
+async function paymentSuccessTemplate(opts: SendEmailOptions): Promise<{ subject: string; html: string }> {
   const name = opts.name || "there";
   const plan = opts.planName || "your plan";
   const expiry = opts.expiryDate
     ? new Date(opts.expiryDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" })
     : "—";
   const amount = opts.isFree ? "₹0 (Free via coupon)" : opts.amountPaid ? `₹${opts.amountPaid.toLocaleString("en-IN")}` : "—";
+  const userEmail = opts.userEmail || opts.to;
 
   return {
     subject: `Your QuickRevert plan is now active ✅`,
-    html: baseTemplate(`
+    html: await baseTemplate(`
       <h2>Payment confirmed! ✅</h2>
       <p>Hey ${name}, your <strong>${plan}</strong> plan is now active. Here's a summary of your purchase:</p>
       <div class="highlight-box">
@@ -147,20 +225,21 @@ function paymentSuccessTemplate(opts: SendEmailOptions): { subject: string; html
         <a href="https://app.quickrevert.tech/automations" class="btn">Create Automation →</a>
       </p>
       <p>Thank you for trusting QuickRevert. 🙏<br/><strong>— The QuickRevert Team</strong></p>
-    `),
+    `, userEmail),
   };
 }
 
-function expiry3DayTemplate(opts: SendEmailOptions): { subject: string; html: string } {
+async function expiry3DayTemplate(opts: SendEmailOptions): Promise<{ subject: string; html: string }> {
   const name = opts.name || "there";
   const plan = opts.planName || "your plan";
   const expiry = opts.expiryDate
     ? new Date(opts.expiryDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" })
     : "in 3 days";
+  const userEmail = opts.userEmail || opts.to;
 
   return {
     subject: `⏰ Your QuickRevert plan expires in 3 days`,
-    html: baseTemplate(`
+    html: await baseTemplate(`
       <h2>Your plan expires in 3 days ⏰</h2>
       <p>Hey ${name}, just a heads-up — your <strong>${plan}</strong> plan expires on <strong>${expiry}</strong>.</p>
       <div class="highlight-box">
@@ -173,20 +252,21 @@ function expiry3DayTemplate(opts: SendEmailOptions): { subject: string; html: st
         <a href="https://app.quickrevert.tech/pricing" class="btn">Renew Plan →</a>
       </p>
       <p>Questions? Just reply to this email.<br/><strong>— The QuickRevert Team</strong></p>
-    `),
+    `, userEmail),
   };
 }
 
-function expiryLastDayTemplate(opts: SendEmailOptions): { subject: string; html: string } {
+async function expiryLastDayTemplate(opts: SendEmailOptions): Promise<{ subject: string; html: string }> {
   const name = opts.name || "there";
   const plan = opts.planName || "your plan";
   const expiry = opts.expiryDate
     ? new Date(opts.expiryDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" })
     : "today";
+  const userEmail = opts.userEmail || opts.to;
 
   return {
     subject: `🚨 Last day of your QuickRevert plan — renew today`,
-    html: baseTemplate(`
+    html: await baseTemplate(`
       <h2>Today is your last day 🚨</h2>
       <p>Hey ${name}, your <strong>${plan}</strong> plan expires <strong>today (${expiry})</strong>. After today, your automations will be paused.</p>
       <div class="highlight-box">
@@ -199,11 +279,32 @@ function expiryLastDayTemplate(opts: SendEmailOptions): { subject: string; html:
         <a href="https://app.quickrevert.tech/pricing" class="btn">Renew Now →</a>
       </p>
       <p>Don't let your momentum stop. We're rooting for you! 💪<br/><strong>— The QuickRevert Team</strong></p>
-    `),
+    `, userEmail),
   };
 }
 
-// ─── Main sendEmail Function ────────────────────────────────────────────────────
+// ─── Unsubscribe Opt-Out Check ───────────────────────────────────────────────────
+
+async function isUnsubscribed(email: string): Promise<boolean> {
+  const neonDbUrl = Deno.env.get("NEON_DB_URL");
+  if (!neonDbUrl) return false;
+  try {
+    const { Client } = await import("https://deno.land/x/postgres@v0.17.0/mod.ts");
+    const client = new Client(neonDbUrl);
+    await client.connect();
+    const res = await client.queryObject<{ email_unsubscribed: boolean }>(
+      "SELECT email_unsubscribed FROM users WHERE email = $1 LIMIT 1",
+      [email]
+    );
+    await client.end();
+    return res.rows[0]?.email_unsubscribed === true;
+  } catch (e: any) {
+    console.warn("[EMAIL] Could not check unsubscribe status:", e.message);
+    return false;
+  }
+}
+
+// ─── Main sendEmail Function ─────────────────────────────────────────────────────
 
 export async function sendEmail(opts: SendEmailOptions): Promise<void> {
   const brevoApiKey = Deno.env.get("BREVO_API_KEY");
@@ -212,24 +313,31 @@ export async function sendEmail(opts: SendEmailOptions): Promise<void> {
     return;
   }
 
+  // ── Opt-out guard ──
+  if (await isUnsubscribed(opts.to)) {
+    console.log(`[EMAIL] Skipping — ${opts.to} is unsubscribed.`);
+    return;
+  }
+
   const name = opts.name || opts.to.split("@")[0];
+  const userEmail = opts.userEmail || opts.to;
 
   let template: { subject: string; html: string };
   switch (opts.emailType) {
     case "welcome":
-      template = welcomeTemplate(name);
+      template = await welcomeTemplate(name, userEmail);
       break;
     case "payment_success":
-      template = paymentSuccessTemplate(opts);
+      template = await paymentSuccessTemplate({ ...opts, userEmail });
       break;
     case "expiry_warning_3days":
-      template = expiry3DayTemplate(opts);
+      template = await expiry3DayTemplate({ ...opts, userEmail });
       break;
     case "expiry_warning_1day":
-      template = expiryLastDayTemplate(opts);
+      template = await expiryLastDayTemplate({ ...opts, userEmail });
       break;
     default:
-      console.error("[EMAIL] Unknown emailType:", opts.emailType);
+      console.error("[EMAIL] Unknown emailType:", (opts as any).emailType);
       return;
   }
 

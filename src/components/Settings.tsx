@@ -12,7 +12,8 @@ import {
   Shield,
   Trash2,
   Camera,
-  Settings as LucideSettings
+  Settings as LucideSettings,
+  AlertTriangle
 } from 'lucide-react';
 import { motion } from "motion/react";
 import { clsx, type ClassValue } from "clsx";
@@ -188,6 +189,7 @@ export default function Settings({ isNested = false }: { isNested?: boolean }) {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
 
   useEffect(() => {
     loadUserProfile();
@@ -322,6 +324,7 @@ export default function Settings({ isNested = false }: { isNested?: boolean }) {
     } finally {
       setDeleteLoading(false);
       setShowDeleteConfirm(false);
+      setConfirmText('');
     }
   }
 
@@ -471,59 +474,176 @@ export default function Settings({ isNested = false }: { isNested?: boolean }) {
           </GlassCard>
         </div>
 
-      {/* Danger Zone */}
-      {false && (
-        <GlassCard className="border-rose-200/50 bg-rose-50/20" delay={0.5}>
-          <div className="flex items-start gap-4 mb-8">
-            <div className="w-12 h-12 bg-rose-500 rounded-2xl flex items-center justify-center shadow-lg shadow-rose-500/30 flex-shrink-0">
-              <Shield className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-rose-900 tracking-tight">Danger Zone</h2>
-              <p className="text-sm text-rose-700/70 font-medium">
-                Irreversible actions for your account
-              </p>
-            </div>
-          </div>
+      {/* ── Danger Zone Card ── */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.4 }}
+        className={cn(
+          "relative rounded-3xl border-2 p-8 transition-all duration-300",
+          theme.darkMode
+            ? "border-red-500/20 bg-red-500/[0.04] hover:border-red-500/30"
+            : "border-red-100 bg-red-50/40 hover:border-red-200"
+        )}
+      >
+        {/* Corner accent */}
+        <div className="absolute top-0 right-0 w-32 h-32 overflow-hidden rounded-3xl pointer-events-none">
+          <div className={cn("absolute -top-12 -right-12 w-32 h-32 rounded-full opacity-10", theme.darkMode ? "bg-red-500" : "bg-red-300")} />
+        </div>
 
-          {!showDeleteConfirm ? (
-            <GlassButton
-              variant="danger"
-              onClick={() => setShowDeleteConfirm(true)}
-              className="bg-white hover:bg-rose-600 hover:text-white transition-colors"
-              icon={Trash2}
-            >
-              Delete Account
-            </GlassButton>
-          ) : (
-            <div className="space-y-6 animate-in zoom-in-95 duration-300">
-              <div className="bg-white/80 border border-rose-200 rounded-2xl p-6">
-                <p className="text-sm font-bold text-rose-900 mb-2">
-                  Are you absolutely sure?
-                </p>
-                <p className="text-xs text-rose-700/80 leading-relaxed font-medium">
-                  This action **cannot be undone**. All your automations, triggers, contacts, and historical analytics will be permanently wiped.
-                </p>
+        <div className="flex items-start gap-4 mb-6">
+          <div className="w-11 h-11 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center flex-shrink-0">
+            <AlertTriangle className="w-5 h-5 text-red-500" />
+          </div>
+          <div>
+            <h3 className={cn("text-lg font-black tracking-tight", theme.darkMode ? "text-red-400" : "text-red-700")}>Danger Zone</h3>
+            <p className={cn("text-xs font-medium mt-0.5", theme.darkMode ? "text-red-400/50" : "text-red-500/70")}>
+              Permanent and irreversible actions
+            </p>
+          </div>
+        </div>
+
+        <div className={cn(
+          "rounded-2xl border p-5 mb-5",
+          theme.darkMode ? "bg-black/30 border-white/5" : "bg-white/60 border-red-100"
+        )}>
+          <p className={cn("text-sm font-bold mb-2", theme.darkMode ? "text-white" : "text-gray-900")}>Delete My Data</p>
+          <p className={cn("text-[13px] leading-relaxed font-medium", theme.darkMode ? "text-white/40" : "text-gray-500")}>
+            Permanently delete your account and erase all associated data including automations, contacts, analytics, and billing history.
+            This cannot be undone.
+          </p>
+        </div>
+
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => { setShowDeleteConfirm(true); setConfirmText(''); }}
+          className={cn(
+            "flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm border transition-all",
+            theme.darkMode
+              ? "border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:border-red-500/50"
+              : "border-red-200 bg-white text-red-600 hover:bg-red-50 hover:border-red-300 shadow-sm"
+          )}
+        >
+          <Trash2 className="w-4 h-4" />
+          Delete My Data
+        </motion.button>
+      </motion.div>
+
+      {/* ── Full-screen Delete Modal ── */}
+      {showDeleteConfirm && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[999] flex items-center justify-center p-4"
+          style={{ backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', background: 'rgba(0,0,0,0.85)' }}
+          onClick={(e) => { if (e.target === e.currentTarget && !deleteLoading) { setShowDeleteConfirm(false); setConfirmText(''); } }}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.92, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+            className="relative w-full max-w-md rounded-3xl border overflow-hidden"
+            style={{ background: theme.darkMode ? '#0d0d12' : '#fff', borderColor: theme.darkMode ? 'rgba(239,68,68,0.25)' : '#fecaca' }}
+          >
+            {/* Red top bar */}
+            <div className="h-1 w-full bg-gradient-to-r from-red-600 via-rose-500 to-red-600" />
+
+            <div className="p-8">
+              {/* Icon */}
+              <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                <Trash2 className="w-7 h-7 text-red-500" />
               </div>
-              <div className="flex flex-wrap gap-4">
-                <GlassButton
-                  variant="danger"
-                  className="bg-rose-600 text-white hover:bg-rose-700"
-                  onClick={handleDeleteAccount}
-                  loading={deleteLoading}
-                >
-                  Yes, Delete Everything
-                </GlassButton>
-                <GlassButton
-                  variant="secondary"
-                  onClick={() => setShowDeleteConfirm(false)}
+
+              <h2 className={cn("text-xl font-black text-center mb-2", theme.darkMode ? "text-white" : "text-gray-900")}>
+                Delete All My Data?
+              </h2>
+              <p className={cn("text-sm text-center leading-relaxed mb-6", theme.darkMode ? "text-white/40" : "text-gray-500")}>
+                This will permanently erase your account, all automations, contacts, analytics, and billing history. <strong className={theme.darkMode ? 'text-white/60' : 'text-gray-700'}>This cannot be undone.</strong>
+              </p>
+
+              {/* What gets deleted */}
+              <div className={cn("rounded-2xl border p-4 mb-6 space-y-2", theme.darkMode ? "bg-white/[0.03] border-white/5" : "bg-gray-50 border-gray-100")}>
+                {[
+                  'All automations and workflows',
+                  'Instagram account connections',
+                  'Contacts and lead data',
+                  'Analytics and activity logs',
+                  'Subscription and billing history',
+                  'Your profile and account',
+                ].map((item) => (
+                  <div key={item} className="flex items-center gap-2.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />
+                    <span className={cn("text-xs font-medium", theme.darkMode ? "text-white/40" : "text-gray-500")}>{item}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Typed confirmation */}
+              <div className="mb-6">
+                <label className={cn("block text-xs font-black uppercase tracking-widest mb-2", theme.darkMode ? "text-white/40" : "text-gray-500")}>
+                  Type <span className={theme.darkMode ? 'text-red-400' : 'text-red-600'}>DELETE</span> to confirm
+                </label>
+                <input
+                  type="text"
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value)}
+                  placeholder="DELETE"
+                  autoFocus
+                  disabled={deleteLoading}
+                  className={cn(
+                    "w-full rounded-xl px-4 py-3 font-black text-sm outline-none border-2 transition-all tracking-widest",
+                    theme.darkMode
+                      ? "bg-white/5 text-white placeholder:text-white/20 border-white/10 focus:border-red-500/60"
+                      : "bg-white text-gray-900 placeholder:text-gray-300 border-gray-200 focus:border-red-500"
+                  )}
+                />
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setShowDeleteConfirm(false); setConfirmText(''); }}
+                  disabled={deleteLoading}
+                  className={cn(
+                    "flex-1 py-3 rounded-xl font-bold text-sm border transition-all",
+                    theme.darkMode
+                      ? "border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
+                      : "border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100"
+                  )}
                 >
                   Cancel
-                </GlassButton>
+                </button>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={confirmText !== 'DELETE' || deleteLoading}
+                  className={cn(
+                    "flex-1 py-3 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2",
+                    confirmText === 'DELETE' && !deleteLoading
+                      ? "bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-500/30"
+                      : "bg-red-500/20 text-red-500/40 cursor-not-allowed"
+                  )}
+                >
+                  {deleteLoading ? (
+                    <>
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
+                      </svg>
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Delete Everything
+                    </>
+                  )}
+                </button>
               </div>
             </div>
-          )}
-        </GlassCard>
+          </motion.div>
+        </motion.div>
       )}
     </div>
   );

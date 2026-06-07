@@ -497,7 +497,29 @@ export default function TriggerConfigStep({ triggerType, config, onConfigChange,
             />
             <OptionCard
               icon={Target}
-              title="Only specific keywords"
+              title={
+                <span className="flex items-center gap-1.5">
+                  Only specific keywords
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        className={cn(
+                          "inline-flex items-center justify-center w-4 h-4 rounded-full border text-[9px] font-black cursor-help transition-colors flex-shrink-0",
+                          darkMode
+                            ? "border-white/20 text-white/40 hover:border-purple-400 hover:text-purple-400"
+                            : "border-gray-300 text-gray-400 hover:border-purple-500 hover:text-purple-600"
+                        )}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        ℹ
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[240px] text-center text-xs">
+                      Keywords are case-insensitive. 'Link', 'LINK', and 'link' all match the same trigger.
+                    </TooltipContent>
+                  </Tooltip>
+                </span>
+              }
               description="Only runs when they write certain words."
               selected={(triggerType === 'post_comment' ? (currentConfig as PostCommentTriggerConfig).commentsType : triggerType === 'story_reply' ? (currentConfig as StoryReplyTriggerConfig).replyType : (currentConfig as UserDirectMessageTriggerConfig).messageType) === 'keywords'}
               onClick={() => handleCommentsTypeChange('keywords')}
