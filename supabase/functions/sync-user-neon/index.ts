@@ -112,12 +112,10 @@ serve(async (req) => {
     neonClient = new Client(neonDbUrl);
     await neonClient.connect();
 
-    // 2.1 First, ensure user exists in Neon (clean up deleted users)
+    // 2.1 First, check if user exists in Neon to preserve deleted flag
     const { rows: existingNeonUsers } = await neonClient.queryObject(`SELECT id, deleted, assisted_by FROM users WHERE email ILIKE $1`, [cleanEmail]);
     
-    if (existingNeonUsers.length > 0 && (existingNeonUsers[0] as any).deleted) {
-      await neonClient.queryObject(`DELETE FROM users WHERE id = $1`, [(existingNeonUsers[0] as any).id]);
-    }
+    const isDeletedFlag = existingNeonUsers.length > 0 ? (existingNeonUsers[0] as any).deleted : false;
 
     const isNewUser = existingNeonUsers.length === 0;
     const existingAssistedBy = existingNeonUsers.length > 0 ? (existingNeonUsers[0] as any).assisted_by : null;
@@ -214,9 +212,9 @@ serve(async (req) => {
         no_of_automations, automations_active, automations_deactivated,
         total_dms, total_comments, total_reach,
         plan_name, plan_status, status,
-        last_active, joining_date
+        last_active, joining_date, deleted
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW(), NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW(), NOW(), $18)
       ON CONFLICT (email) DO UPDATE SET
         username = EXCLUDED.username,
         instagram_handle = EXCLUDED.instagram_handle,
@@ -233,7 +231,8 @@ serve(async (req) => {
         plan_name = EXCLUDED.plan_name,
         plan_status = EXCLUDED.plan_status,
         status = EXCLUDED.status,
-        last_active = NOW();
+        last_active = NOW(),
+        deleted = EXCLUDED.deleted;
     `;
 
     await neonClient.queryArray(upsertQuery, [
@@ -241,7 +240,7 @@ serve(async (req) => {
       followers, initialFollowers, growth,
       totalAutomations, activeAutomations, deactivatedAutomations,
       totalDMs, totalComments, totalReach,
-      packageName, planStatus, status
+      packageName, planStatus, status, isDeletedFlag
     ]);
 
     // New user notification is now handled by the on-new-user Edge Function
