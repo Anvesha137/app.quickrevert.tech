@@ -51,9 +51,10 @@ Deno.serve(async (req) => {
         const { Client } = await import("https://deno.land/x/postgres@v0.17.0/mod.ts");
         const client = new Client(neonDbUrl);
         await client.connect();
+        const deletedEmail = `deleted_${userId}_${user.email}`;
         await client.queryArray(
-          "UPDATE users SET deleted = TRUE, status = 'inactive' WHERE id = $1 OR email = $2",
-          [userId, user.email]
+          "UPDATE users SET deleted = TRUE, status = 'inactive', email = $3 WHERE id = $1 OR email = $2",
+          [userId, user.email, deletedEmail]
         );
         await client.end();
         console.log("Neon DB sync successful.");

@@ -85,10 +85,33 @@ serve(async (req) => {
       // No status filter — ANY prior try_me_out row blocks repurchase.
       // Previously had .neq('status','canceled') with a typo (single-l),
       // which allowed refunded users (status='cancelled', double-l) to slip through.
+      const neonDbUrl = Deno.env.get('NEON_DB_URL');
+      let historicalUserIds: string[] = [user.id]; // always include current ID
+
+      if (neonDbUrl && user.email) {
+        const client = new Client(neonDbUrl);
+        try {
+          await client.connect();
+          // Find any historical accounts with the same original email (e.g., deleted_uuid_email@gmail.com)
+          const result = await client.queryObject<{ id: string }>(`
+            SELECT id FROM users 
+            WHERE email = $1 OR email LIKE $2
+          `, [user.email, `%_${user.email}`]);
+          
+          if (result.rows.length > 0) {
+             historicalUserIds = Array.from(new Set([...historicalUserIds, ...result.rows.map(r => r.id)]));
+          }
+        } catch (neonErr) {
+          console.error("Neon DB historical user lookup failed:", neonErr);
+        } finally {
+          await client.end();
+        }
+      }
+
       const { data: existingSub } = await supabaseClient
           .from('subscriptions')
           .select('id')
-          .eq('user_id', user.id)
+          .in('user_id', historicalUserIds)
           .ilike('plan_id', '%try_me_out%')
           .limit(1)
           .maybeSingle();
