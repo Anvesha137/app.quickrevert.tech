@@ -17,11 +17,11 @@ interface MediaUploadProps {
   readOnly?: boolean;
 }
 
-export const MediaUpload: React.FC<MediaUploadProps> = ({ 
-  onUploadSuccess, 
-  className, 
+export const MediaUpload: React.FC<MediaUploadProps> = ({
+  onUploadSuccess,
+  className,
   label = "Upload Image",
-  readOnly = false 
+  readOnly = false
 }) => {
   const { darkMode } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -34,14 +34,14 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({
 
     // Check if it's an image
     if (!file.type.startsWith('image/')) {
-       toast.error("Please upload an image file (PNG, JPG, etc)");
-       return;
+      toast.error("Please upload an image file (PNG, JPG, etc)");
+      return;
     }
 
     try {
       setUploading(true);
       setUploaded(false);
-      
+
       // Immediate readability check - ensures the browser can actually read the bits
       await new Promise((resolve, reject) => {
         const checkReader = new FileReader();
@@ -53,7 +53,7 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({
 
       // Register the file locally instead of uploading it to Supabase immediately
       const blobUrl = registerPendingUpload(file);
-      
+
       onUploadSuccess(blobUrl);
       setUploaded(true);
       toast.success("Image selected and ready for saving!");
@@ -83,20 +83,20 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({
         accept="image/*"
         disabled={readOnly || uploading}
       />
-      
+
       <button
         type="button"
         onClick={triggerUpload}
         disabled={readOnly || uploading}
         className={cn(
           "w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all border-2",
-          uploading 
+          uploading
             ? (darkMode ? "bg-white/5 border-white/10 text-white/50 cursor-wait" : "bg-gray-50 border-gray-100 text-gray-400 cursor-wait")
             : uploaded
               ? (darkMode ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-emerald-50 border-emerald-100 text-emerald-600")
-              : (darkMode 
-                  ? "bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-purple-500/50" 
-                  : "bg-white border-gray-200 text-gray-700 hover:border-purple-500 hover:bg-purple-50/30")
+              : (darkMode
+                ? "bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-purple-500/50"
+                : "bg-white border-gray-200 text-gray-700 hover:border-purple-500 hover:bg-purple-50/30")
         )}
       >
         {uploading ? (
@@ -120,7 +120,7 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({
       {/* 100KB Note */}
       <div className="flex items-center gap-1 mt-1.5 px-2">
         <ImageIcon className={cn("w-3 h-3", darkMode ? "text-white/20" : "text-gray-400")} />
-        <span className={cn("text-[9px] font-bold uppercase tracking-widest", darkMode ? "text-white/20" : "text-gray-400")}>Max 100KB (Auto-optimized)</span>
+        {/* <span className={cn("text-[9px] font-bold uppercase tracking-widest", darkMode ? "text-white/20" : "text-gray-400")}>Max 100KB (Auto-optimized)</span> */}
       </div>
     </div>
   );
