@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, Check, Bot, MessageSquare, Image as ImageIcon, Mail, Pencil, ChevronRight
+  ArrowLeft, Check, Bot, MessageSquare, Image as ImageIcon, Mail, Pencil, ChevronRight, Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../lib/supabase';

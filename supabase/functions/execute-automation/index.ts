@@ -274,7 +274,11 @@ Deno.serve(async (req: Request) => {
           if (config.postsType === 'specific' && !config.specificPosts?.includes(eventData.postId)) return false;
           if (config.commentsType === 'keywords') {
             const text = (eventData.commentText || '').toLowerCase();
-            return config.keywords?.some((k: string) => text.includes(k.toLowerCase()));
+            // Flatten: each keyword entry may itself be comma-separated (user data-entry bug)
+            const flatKeywords = (config.keywords || []).flatMap((k: string) =>
+              k.split(',').map((kk: string) => kk.trim()).filter(Boolean)
+            );
+            return flatKeywords.some((k: string) => text.includes(k.toLowerCase()));
           }
           return config.commentsType === 'all';
         }
@@ -282,9 +286,26 @@ Deno.serve(async (req: Request) => {
         if (triggerType === 'user_directed_messages' || triggerType === 'user_dm') {
           if (config.messageType === 'keywords') {
             const text = (eventData.messageText || '').toLowerCase();
-            return config.keywords?.some((k: string) => text.includes(k.toLowerCase()));
+            // Flatten: each keyword entry may itself be comma-separated (user data-entry bug)
+            const flatKeywords = (config.keywords || []).flatMap((k: string) =>
+              k.split(',').map((kk: string) => kk.trim()).filter(Boolean)
+            );
+            return flatKeywords.some((k: string) => text.includes(k.toLowerCase()));
           }
           return config.messageType === 'all';
+        }
+
+        if (triggerType === 'story_reply') {
+          if (config.storiesType === 'specific' && !config.specificStories?.includes(eventData.storyId)) return false;
+          if (config.replyType === 'keywords') {
+            const text = (eventData.replyText || eventData.messageText || '').toLowerCase();
+            // Flatten: each keyword entry may itself be comma-separated (user data-entry bug)
+            const flatKeywords = (config.keywords || []).flatMap((k: string) =>
+              k.split(',').map((kk: string) => kk.trim()).filter(Boolean)
+            );
+            return flatKeywords.some((k: string) => text.includes(k.toLowerCase()));
+          }
+          return config.replyType === 'all' || !config.replyType; // default: match all
         }
 
         return actualTriggerType === 'story_reply';
