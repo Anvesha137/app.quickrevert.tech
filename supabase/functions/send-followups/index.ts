@@ -33,9 +33,9 @@ Deno.serve(async (req: Request) => {
     const { data: contacts, error } = await supabase
       .from('contacts')
       .select('id, user_id, instagram_account_id, instagram_user_id, metadata')
-      .not('metadata->conversation_state->>next_followup_at', 'is', null)
-      .lte('metadata->conversation_state->>next_followup_at', nowIso)
-      .in('metadata->conversation_state->>state', ['waiting_name', 'waiting_email', 'waiting_phone', 'waiting_custom', 'confirm']);
+      .not('next_followup_at', 'is', null)
+      .lte('next_followup_at', nowIso)
+      .in('conversation_state', ['waiting_name', 'waiting_email', 'waiting_phone', 'waiting_custom', 'confirm']);
 
     if (error) {
       console.error('[send-followups] Error fetching contacts:', error);
@@ -151,7 +151,11 @@ Deno.serve(async (req: Request) => {
          if (dmRes.ok) {
             // Update state
             conversationState.followup_sent = true;
-            await supabase.from('contacts').update({ metadata: { ...metadata, conversation_state: conversationState } }).eq('id', contact.id);
+            await supabase.from('contacts').update({ 
+              metadata: { ...metadata, conversation_state: conversationState },
+              next_followup_at: conversationState.next_followup_at || null,
+              conversation_state: conversationState.state || null
+            }).eq('id', contact.id);
             
             // Log Activity (DM)
             await supabase.from('automation_activities').insert({

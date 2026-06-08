@@ -72,6 +72,39 @@ Deno.serve(async (req) => {
     }
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+
+    // 5.5 Backup Trial History for Abuse Prevention
+    try {
+      const { data: hasSampler } = await supabaseAdmin
+        .from('user_subscriptions')
+        .select('id')
+        .eq('user_id', userId)
+        .ilike('plan_id', '%try_me_out%')
+        .limit(1);
+
+      if (hasSampler && hasSampler.length > 0) {
+        const { data: igAccounts } = await supabaseAdmin
+          .from('instagram_accounts')
+          .select('instagram_user_id, instagram_business_id')
+          .eq('user_id', userId);
+
+        const records = (igAccounts || []).map((ig: any) => ({
+          email: user.email,
+          instagram_user_id: ig.instagram_user_id,
+          instagram_business_id: ig.instagram_business_id
+        }));
+
+        if (records.length === 0 && user.email) {
+          records.push({ email: user.email, instagram_user_id: null, instagram_business_id: null } as any);
+        }
+
+        if (records.length > 0) {
+          await supabaseAdmin.from('historical_trials').insert(records);
+        }
+      }
+    } catch (e: any) {
+      console.warn("Trial history backup failed (ignoring):", e.message);
+    }
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
     if (deleteError) {

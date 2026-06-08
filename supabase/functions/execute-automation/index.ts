@@ -388,6 +388,13 @@ Deno.serve(async (req: Request) => {
               { text: askBtn, payload: `CHECK_FOLLOW_${cid}` },
               { text: "Visit Profile", url: `https://instagram.com/${instagramAccount.username}` }
             ]);
+            if (followRes.ok) {
+              await logActivity(supabase, {
+                userId, automationId: automation.id, instagramAccountId, activityType: 'send_dm',
+                targetUsername: eventData.from.username || 'Instagram User',
+                message: askMsg, status: 'success'
+              });
+            }
             tracker.track('ask_to_follow_recheck', followRes.ok, 'User clicked followed but was not following', undefined, tFollow);
             shouldExecuteActions = false; // Stop here, wait for them to actually follow
           } else {
@@ -428,6 +435,13 @@ Deno.serve(async (req: Request) => {
           : { id: eventData.from.id };
 
         const leadRes = await sendDirectMessage(instagramAccount.access_token, recipient, leadAction.messages?.askName || "What's your name?");
+        if (leadRes.ok) {
+          await logActivity(supabase, {
+            userId, automationId: automation.id, instagramAccountId, activityType: 'send_dm',
+            targetUsername: eventData.from.username || 'Instagram User',
+            message: leadAction.messages?.askName || "What's your name?", status: 'success'
+          });
+        }
         tracker.track('save_lead_init', leadRes.ok, 'Started Lead Manager flow', !leadRes.ok ? 'Failed to start flow' : undefined, tLead);
         continue; // Skip the rest of the actions
       }
@@ -734,6 +748,18 @@ async function executeAction(params: any) {
       return { ok: false, error: err.error?.message || replyRes.statusText || 'Failed to reply to comment' };
     } else {
       console.log(`[reply_to_comment] ✅ Replied to comment ${eventData.commentId}`);
+      
+      // FIX: Log activity to trigger KPI counters
+      await logActivity(supabase, {
+         userId, 
+         automationId, 
+         instagramAccountId, 
+         activityType: 'reply',
+         targetUsername: eventData.from.username || 'Instagram User',
+         message: text,
+         status: 'success'
+      });
+      
       return { ok: true, detail: `Replied commentId=${eventData.commentId}` };
     }
   }
@@ -787,6 +813,17 @@ async function executeAction(params: any) {
       const err = await dmRes.json().catch(() => ({}));
       return { ok: false, error: err.error?.message || dmRes.statusText || 'Failed to send DM' };
     } else {
+      // FIX: Log activity to trigger KPI counters
+      await logActivity(supabase, {
+         userId, 
+         automationId, 
+         instagramAccountId, 
+         activityType: 'send_dm',
+         targetUsername: eventData.from.username || 'Instagram User',
+         message: dmText,
+         status: 'success'
+      });
+      
       return { ok: true, detail: `DM sent to ${eventData.from.username || 'recipient'}` };
     }
   }
@@ -855,7 +892,15 @@ async function sendDirectMessage(accessToken: string, recipient: any, text: stri
 }
 
 async function updateContactMetadata(supabase: any, contactId: string, metadata: any) {
-  if (contactId) await supabase.from('contacts').update({ metadata }).eq('id', contactId);
+  if (contactId) {
+    const next_followup_at = metadata?.conversation_state?.next_followup_at || null;
+    const conversation_state = metadata?.conversation_state?.state || null;
+    await supabase.from('contacts').update({ 
+      metadata,
+      next_followup_at,
+      conversation_state
+    }).eq('id', contactId);
+  }
 }
 
 async function logActivity(supabase: any, data: any) {

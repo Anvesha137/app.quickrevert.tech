@@ -116,7 +116,22 @@ serve(async (req) => {
           .limit(1)
           .maybeSingle();
 
-      if (existingSub) {
+      let historicalTrialMatch = false;
+      if (user.email) {
+        // We must use admin client to bypass RLS since the user is not authenticated as the old deleted user
+        const supabaseAdmin = createClient(supabaseUrl, supabaseSecretKey);
+        const { data: historicalSub } = await supabaseAdmin
+            .from('historical_trials')
+            .select('id')
+            .eq('email', user.email)
+            .limit(1)
+            .maybeSingle();
+        if (historicalSub) {
+            historicalTrialMatch = true;
+        }
+      }
+
+      if (existingSub || historicalTrialMatch) {
           return new Response(
               JSON.stringify({ error: "You have already used the 'Try Me Out' plan. This offer is available only once per unique email account." }),
               { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
