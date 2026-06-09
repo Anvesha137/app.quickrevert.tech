@@ -267,7 +267,11 @@ Deno.serve(async (req: Request) => {
         }
 
         // Type Check
-        if (triggerType !== actualTriggerType && !(triggerType === 'user_directed_messages' && actualTriggerType === 'user_dm')) return false;
+        if (triggerType !== actualTriggerType) {
+          const isDm = (triggerType === 'user_dm' || triggerType === 'user_directed_messages') && 
+                       (actualTriggerType === 'user_dm' || actualTriggerType === 'user_directed_messages');
+          if (!isDm) return false;
+        }
 
         // Keyword/Specific Post Matching
         if (triggerType === 'post_comment') {
