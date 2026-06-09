@@ -119,7 +119,7 @@ Deno.serve(async (req: Request) => {
     // We must find the Page that this Instagram account is connected to.
 
     console.log('Fetching Pages to find linked Instagram Business Account...');
-    const pagesUrl = `https://graph.facebook.com/v24.0/me/accounts?fields=instagram_business_account,name`;
+    const pagesUrl = `https://graph.facebook.com/v24.0/me/accounts?fields=instagram_business_account{id,username},name`;
     const pagesRes = await fetch(pagesUrl, {
       headers: { "Authorization": `Bearer ${accessToken}` }
     });
@@ -129,12 +129,28 @@ Deno.serve(async (req: Request) => {
     let pageName = null;
 
     if (pagesData.data) {
+      // First pass: try to find an exact username match
       for (const page of pagesData.data) {
         if (page.instagram_business_account) {
-          igbaId = page.instagram_business_account.id;
-          pageName = page.name;
-          console.log(`✅ Found Linked Instagram Business ID: ${igbaId} (Page: ${pageName})`);
-          break;
+          const igbaUsername = page.instagram_business_account.username;
+          if (username && igbaUsername && username.toLowerCase() === igbaUsername.toLowerCase()) {
+            igbaId = page.instagram_business_account.id;
+            pageName = page.name;
+            console.log(`✅ Found Exact Match Linked Instagram Business ID: ${igbaId} for @${username} (Page: ${pageName})`);
+            break;
+          }
+        }
+      }
+
+      // Second pass: if no exact match, fallback to the first one available
+      if (!igbaId) {
+        for (const page of pagesData.data) {
+          if (page.instagram_business_account) {
+            igbaId = page.instagram_business_account.id;
+            pageName = page.name;
+            console.log(`⚠️ No exact username match found. Falling back to first available IGBA ID: ${igbaId} (Page: ${pageName})`);
+            break;
+          }
         }
       }
     }

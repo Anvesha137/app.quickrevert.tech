@@ -108,8 +108,15 @@ async function processEvent(body: any) {
     // DEBUG: Log basic webhook metadata only
     console.log(`[WEBHOOK EVENT] Processing ${entries.length} entries for object: ${object}`);
 
+    // Silently drop Facebook Page webhooks to avoid spamming errors, 
+    // since we only handle Instagram-specific webhooks (object: "instagram").
+    if (object === 'page') {
+        console.log(`[BOUNCER] Dropped 'page' object webhook.`);
+        return;
+    }
+
     for (const entry of entries) {
-        const account_id = String(entry.id); // ✅ CRITICAL: Convert to string for DB comparison!
+        const account_id = String(entry.id).trim(); // ✅ CRITICAL: Convert to string for DB comparison!
 
         // FETCH ALL ACCOUNT DETAILS (access_token, user_id)
         // ✅ CRITICAL: Webhooks send IGBA ID in entry.id, so check BOTH fields!
@@ -211,7 +218,9 @@ async function processEvent(body: any) {
             // Log failure
             await logFailedEvent(supabaseClient, {
                 event_id: "unknown",
-                payload: entry
+                payload: entry,
+                account_id: account_id,
+                object_type: object
             }, "No Internal Account ID found (accountsData empty)");
             continue;
         } else {
