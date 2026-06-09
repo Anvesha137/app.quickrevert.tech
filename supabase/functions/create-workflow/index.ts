@@ -3254,8 +3254,21 @@ return { json: { userId, username, isFollowing } };`
 
     // No-op: Registration handled by RPC in finalizationTask above
 
-    // Notify Discord — handled by DB trigger (on-new-automation) now!
-
+    // Notify Discord reliably from the edge function
+    const username = instagramAccount?.username || "Unknown";
+    sendAlert({
+      channel: 'automation',
+      level: 'info',
+      subject: `New Automation Created`,
+      context: 'create-workflow',
+      details: `**@${username}** created a new automation\n**Type:** \`${automationData?.trigger_type || bodyTriggerType || 'Unknown'}\`\n**Name:** ${automationData?.name || workflowName || 'Untitled'}`,
+      data: {
+        userId: user.id,
+        automationId: automationId,
+        triggerType: automationData?.trigger_type || bodyTriggerType,
+        username
+      },
+    }).catch(e => console.error("[ROUTING] Discord alert failed:", e));
     return new Response(JSON.stringify({
       success: true,
       workflowId: n8nResult.id,

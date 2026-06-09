@@ -2,7 +2,15 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 import { sendAlert } from "../_shared/alert.ts";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey, x-quickrevert-internal",
+};
+
 Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response(null, { status: 200, headers: corsHeaders });
+
   const authHeader = req.headers.get("Authorization");
   const isInternal = req.headers.get("x-quickrevert-internal") === "true";
   const expectedAuth = `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`;
@@ -16,7 +24,7 @@ Deno.serve(async (req: Request) => {
     // Check if it's a valid user JWT
     const { data: { user }, error } = await supabase.auth.getUser(authHeader?.replace("Bearer ", "") || "");
     if (error || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
   }
 
@@ -26,7 +34,7 @@ Deno.serve(async (req: Request) => {
 
     // Only alert on INSERT
     if (payload.type !== 'INSERT' || !record) {
-      return new Response("Not an INSERT event", { status: 200 });
+      return new Response("Not an INSERT event", { status: 200, headers: corsHeaders });
     }
 
     // Get the user's instagram username
@@ -55,9 +63,9 @@ Deno.serve(async (req: Request) => {
       },
     });
 
-    return new Response("Success", { status: 200 });
+    return new Response("Success", { status: 200, headers: corsHeaders });
   } catch (error: any) {
     console.error("Failed:", error);
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });
