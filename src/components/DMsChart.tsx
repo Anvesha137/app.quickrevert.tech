@@ -37,8 +37,10 @@ export default function DMsChart() {
 
             if (error) throw error;
 
-            // Filter for DM-like activities (sent + received) in the aggregated set
-            const DM_TYPES = new Set(['dm', 'send_dm', 'incoming_message', 'incoming_event', 'interaction']);
+            // ✅ Only count bot-sent DMs ('send_dm')
+            // 'dm' = inbound message from user — do NOT count
+            // 'send_dm' = bot sent a DM — ✅ count this
+            const DM_TYPES = new Set(['send_dm']);
             
             // Process data for the chart
             const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -50,10 +52,10 @@ export default function DMsChart() {
                 const dayName = days[date.getDay()];
                 const dateStr = date.toISOString().split('T')[0];
 
-                // Sum up counts for DM types on this specific date
+                // Sum up counts for bot-sent DMs on this specific date
                 const count = stats?.filter((s: any) => {
                     const type = (s.activity_type || '').toLowerCase();
-                    return s.date === dateStr && (DM_TYPES.has(type) || type.includes('dm') || type.includes('message'));
+                    return s.date === dateStr && DM_TYPES.has(type);
                 }).reduce((acc: number, curr: any) => acc + Number(curr.count), 0) || 0;
 
                 chartData.push({ name: dayName, value: count });

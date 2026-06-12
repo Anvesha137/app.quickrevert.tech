@@ -146,11 +146,9 @@ export default function ContactActivities({ username }: ContactActivitiesProps) 
           const StatusIcon = statusConfig[activity.status].icon;
           const Icon = config.icon;
 
-          // Determine direction
-          const isIncoming = ['incoming_message', 'incoming_comment', 'incoming_event', 'comment', 'dm'].includes(activity.activity_type) || activity.metadata?.direction === 'inbound';
-
-          // Helper to check if it's a "reply" action (outgoing)
-          const isReply = ['reply', 'dm_sent', 'reply_to_comment', 'send_dm'].includes(activity.activity_type);
+          // ✅ Canonical bot-output types: 'send_dm' = bot sent a DM, 'reply' = bot replied to comment
+          const isReply = ['send_dm', 'reply'].includes(activity.activity_type)
+            || activity.metadata?.direction === 'outbound';
 
           return (
             <div key={activity.id} className={`flex flex-col ${isReply ? 'items-end' : 'items-start'}`}>

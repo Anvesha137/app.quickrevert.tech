@@ -271,10 +271,12 @@ export default function AutomationActivityDetail({ automationId }: AutomationAct
                 const StatusIcon = statusConfig[activity.status].icon;
                 const Icon = config.icon;
 
-                // Determine direction
-                const isIncoming = ['incoming_message', 'incoming_comment', 'incoming_event', 'comment', 'dm'].includes(activity.activity_type) || activity.metadata?.direction === 'inbound';
-                // Helper to check if it's a "reply" action (outgoing)
-                const isReply = ['reply', 'dm_sent', 'reply_to_comment', 'send_dm'].includes(activity.activity_type);
+                // ✅ Canonical inbound types: 'dm' = user sent DM, 'comment' = user posted comment
+                const isIncoming = ['comment', 'dm', 'interaction'].includes(activity.activity_type)
+                  || activity.metadata?.direction === 'inbound';
+                // ✅ Canonical bot-output types: 'send_dm' = bot sent DM, 'reply' = bot replied to comment
+                const isReply = ['send_dm', 'reply'].includes(activity.activity_type)
+                  || activity.metadata?.direction === 'outbound';
 
                 // RESOLVE DISPLAY NAME (Source of Truth: Contact Table)
                 let displayName = 'Unknown';

@@ -153,7 +153,9 @@ export default function RecentActivity() {
             const status = statusConfig[activity.status] || statusConfig.pending;
             const StatusIcon = status.icon;
             const Icon = config.icon;
-            const isOutbound = activity.metadata.direction === 'outbound' || ['reply', 'dm_sent', 'reply_to_comment', 'send_dm'].includes(activity.activity_type);
+            // ✅ Canonical bot-output types: 'send_dm' = bot sent a DM, 'reply' = bot replied to comment
+            const isOutbound = activity.metadata.direction === 'outbound'
+              || ['send_dm', 'reply'].includes(activity.activity_type);
 
             return (
               <div key={activity.id} className="group relative backdrop-blur-md bg-white/40 border border-white/20 p-4 rounded-2xl hover:bg-white/60 transition-all duration-300 shadow-sm hover:shadow-md cursor-pointer">

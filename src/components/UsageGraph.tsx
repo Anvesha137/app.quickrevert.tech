@@ -47,9 +47,12 @@ export default function UsageGraph() {
                         const entry = dataMap.get(dateKey);
                         const type = (stat.activity_type || '').toLowerCase();
                         
-                        if (['dm', 'dm_sent', 'send_dm', 'user_directed_messages', 'incoming_message', 'interaction'].includes(type)) {
+                        // ✅ 'send_dm'  = bot sent a DM — count toward DMs bar
+                        // ✅ 'reply'    = bot replied to a comment — count toward Comments bar
+                        // ❌ everything else (inbound 'dm', 'comment', 'interaction') = do NOT count
+                        if (type === 'send_dm') {
                             entry.dms += Number(stat.count);
-                        } else if (['incoming_comment', 'reply_to_comment', 'comment', 'reply', 'post_comment', 'comment_reply'].includes(type)) {
+                        } else if (type === 'reply') {
                             entry.comments += Number(stat.count);
                         }
                     }
