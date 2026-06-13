@@ -99,6 +99,9 @@ export interface LeadMessages {
   askEmail?: string;
   askPhone?: string;
   confirmName?: string;
+  confirmEmail?: string;  // Per-field email confirmation text
+  confirmPhone?: string;  // Per-field phone confirmation text
+  confirmCustom?: string; // Per-field custom field confirmation text
   confirmAll?: string;
   finalMessage?: string;
   askNameAgain?: string;
@@ -124,6 +127,9 @@ export const DEFAULT_LEAD_MESSAGES: LeadMessages = {
   askEmail: "What email should we use to get in touch with you? 📧",
   askPhone: "What's your phone number? 📱",
   confirmName: "Awesome, {{name}}! 😊 If you typed your name wrong, fix it below.",
+  confirmEmail: "Got it! ✅ We'll use that email to reach you.",
+  confirmPhone: "Got it! 📱 We've noted your number.",
+  confirmCustom: "Got it! ✅",
   confirmAll: "Perfect! Just confirming ✅\nName: {{name}}\nEmail: {{email}}\nPhone: {{phone}}\n{{label}}: {{custom}}",
   finalMessage: "🎉 We've got you, {{name}}! Your details have been saved and our team will reach out soon. Thank you! 🙏",
   askNameAgain: "No problem! What's your correct first name? ✏️",
@@ -136,7 +142,7 @@ export const DEFAULT_LEAD_MESSAGES: LeadMessages = {
   btnChangeName: "✏️ Change Name",
   btnChangeEmail: "✏️ Change Email",
   btnChangePhone: "✏️ Change Phone",
-  btnChangeCustom: "✏️ Change {{label}}",
+  btnChangeCustom: "✏️ Change Answer",
   btnYesLooksGood: "✅ Yes, looks good!",
 
   askCustom: "{{label}}? ✏️",

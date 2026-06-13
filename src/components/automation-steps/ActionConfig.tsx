@@ -233,8 +233,8 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
       onActionsChange([...actions, {
         type: 'follow_up',
         enabled: true,
-        delayValue: 30,
-        delayUnit: 'minutes',
+        delayValue: 1,
+        delayUnit: 'hours',
         message: 'Hey! Just checking in to see if you had any other questions? 😊'
       } as FollowUpAction]);
     }
@@ -1471,7 +1471,7 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                                           const customLabel = leadAction?.customField?.label || 'Custom';
                                           const fieldTitle = field === 'custom' ? customLabel.toUpperCase() : field.toUpperCase();
                                           const qKey = field === 'name' ? 'askName' : field === 'email' ? 'askEmail' : field === 'phone' ? 'askPhone' : 'askCustom';
-                                          const cKey = field === 'name' ? 'confirmName' : null;
+                                          const cKey = field === 'name' ? 'confirmName' : field === 'email' ? 'confirmEmail' : field === 'phone' ? 'confirmPhone' : 'confirmCustom';
                                           const rKey = field === 'name' ? 'askNameAgain' : field === 'email' ? 'askEmailAgain' : field === 'phone' ? 'askPhoneAgain' : 'askCustomAgain';
                                           const bKey = field === 'name' ? 'btnChangeName' : field === 'email' ? 'btnChangeEmail' : field === 'phone' ? 'btnChangePhone' : 'btnChangeCustom';
                                           const iKey = field === 'email' ? 'invalidEmail' : field === 'phone' ? 'invalidPhone' : field === 'custom' && leadAction?.customField?.type === 'number' ? 'invalidCustom' : null;
@@ -1546,7 +1546,7 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                                                     <span className={cn("text-[8px] font-bold uppercase", darkMode ? "text-white/20" : "text-gray-300")}>BTN:</span>
                                                     <input
                                                       type="text"
-                                                      value={(leadAction?.messages as any)?.[bKey] ?? (DEFAULT_LEAD_MESSAGES as any)[bKey]?.replace('{{label}}', customLabel)}
+                                                      value={(leadAction?.messages as any)?.[bKey] ?? ((DEFAULT_LEAD_MESSAGES as any)[bKey] || '').replace('{{label}}', customLabel)}
                                                       onChange={(e) => {
                                                         const newActions = [...actions];
                                                         const idx = newActions.findIndex(a => a.type === 'save_lead');
@@ -1778,24 +1778,39 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                       <div className="flex flex-col md:flex-row gap-6 md:items-end">
                         <div className="flex-1 space-y-2">
                           <label className={cn("text-[10px] font-black uppercase tracking-wider text-gray-500", darkMode && "text-white/40")}>Send delay</label>
-                          <div className="flex items-center gap-3">
-                            <input 
-                              type="number"
-                              min="1"
-                              max="30"
-                              value={followUpAction?.delayValue || 30}
+                          <div className="relative">
+                            <select
+                              value={`${followUpAction?.delayValue || 1}-${followUpAction?.delayUnit || 'hours'}`}
                               onChange={(e) => {
-                                const val = Math.min(30, Math.max(1, parseInt(e.target.value) || 1));
+                                const [valStr, unitStr] = e.target.value.split('-');
+                                const val = parseInt(valStr) || 1;
+                                const unit = unitStr as 'minutes' | 'hours' | 'days';
                                 const newActions = [...actions];
                                 const idx = newActions.findIndex(a => a.type === 'follow_up');
                                 if (idx >= 0) {
-                                  newActions[idx] = { ...newActions[idx], delayValue: val, delayUnit: 'minutes' } as FollowUpAction;
+                                  newActions[idx] = { ...newActions[idx], delayValue: val, delayUnit: unit } as FollowUpAction;
                                   onActionsChange(newActions);
                                 }
                               }}
-                              className={cn("w-20 px-4 py-2 rounded-xl border-2 font-black text-center outline-none transition-all", darkMode ? "bg-white/5 border-white/10 text-white focus:border-emerald-500" : "bg-gray-50 border-gray-100 focus:bg-white focus:border-emerald-500")}
-                            />
-                            <span className={cn("text-[11px] font-black uppercase tracking-widest opacity-40")}>Minutes</span>
+                              disabled={readOnly}
+                              className={cn(
+                                "w-full border-2 rounded-xl px-4 py-2.5 pr-10 outline-none font-semibold text-sm transition-all appearance-none cursor-pointer",
+                                darkMode 
+                                  ? "border-white/10 bg-white/5 text-white focus:border-white/20" 
+                                  : "border-gray-200 bg-white text-gray-900 focus:border-purple-500"
+                              )}
+                            >
+                              <option value="1-hours" className={darkMode ? 'bg-gray-900' : ''}>1 hr</option>
+                              <option value="3-hours" className={darkMode ? 'bg-gray-900' : ''}>3 hr</option>
+                              <option value="6-hours" className={darkMode ? 'bg-gray-900' : ''}>6 hr</option>
+                              <option value="10-hours" className={darkMode ? 'bg-gray-900' : ''}>10 hr</option>
+                              {followUpAction && !['1-hours', '3-hours', '6-hours', '10-hours'].includes(`${followUpAction.delayValue}-${followUpAction.delayUnit}`) && (
+                                <option value={`${followUpAction.delayValue}-${followUpAction.delayUnit}`} className={darkMode ? 'bg-gray-900' : ''}>
+                                  {followUpAction.delayValue} {followUpAction.delayUnit === 'minutes' ? 'min' : followUpAction.delayUnit === 'hours' ? 'hr' : 'day'}(s) (current)
+                                </option>
+                              )}
+                            </select>
+                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                           </div>
                         </div>
                       </div>
