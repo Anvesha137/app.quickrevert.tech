@@ -18,6 +18,9 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+const ensureHttps = (url: string) =>
+  url && !url.match(/^https?:\/\//i) ? 'https://' + url : url;
+
 interface ActionConfigProps {
   triggerType: TriggerType;
   triggerConfig?: any;
@@ -672,6 +675,14 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                                           btns[i].url = e.target.value;
                                           updateDmAction({ actionButtons: btns });
                                         }}
+                                        onBlur={(e) => {
+                                          const v = ensureHttps(e.target.value);
+                                          if (v !== e.target.value) {
+                                            const btns = [...dmAction.actionButtons];
+                                            btns[i].url = v;
+                                            updateDmAction({ actionButtons: btns });
+                                          }
+                                        }}
                                         placeholder="https://..."
                                         className="w-full bg-transparent border-b border-gray-200 dark:border-white/10 outline-none text-[11px] font-medium text-blue-500 text-center"
                                       />
@@ -841,6 +852,14 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                                                     newCards[cardIndex].actionButtons[btnIdx].url = e.target.value;
                                                     updateDmAction({ conversationCards: newCards });
                                                   }}
+                                                  onBlur={(e) => {
+                                                    const v = ensureHttps(e.target.value);
+                                                    if (v !== e.target.value) {
+                                                      const newCards = [...(dmAction.conversationCards || [])];
+                                                      newCards[cardIndex].actionButtons[btnIdx].url = v;
+                                                      updateDmAction({ conversationCards: newCards });
+                                                    }
+                                                  }}
                                                   placeholder="URL"
                                                   className="w-full bg-transparent border-b border-gray-100 outline-none text-[8px] text-center text-blue-500"
                                                 />
@@ -964,6 +983,7 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                                             type="url"
                                             value={dmAction?.imageUrl || ''}
                                             onChange={(e) => updateDmAction({ imageUrl: e.target.value })}
+                                            onBlur={(e) => { const v = ensureHttps(e.target.value); if (v !== e.target.value) updateDmAction({ imageUrl: v }); }}
                                             disabled={readOnly}
                                             placeholder="https://yourapp.com/image.jpg"
                                             className={`w-full border-2 rounded-xl px-4 py-2.5 outline-none font-medium text-base transition-all ${darkMode ? 'border-white/10 bg-white/5 text-white focus:border-white/20 placeholder:text-white/20' : 'border-gray-200 bg-white text-gray-900 placeholder:text-gray-300 focus:border-purple-500'}`}
@@ -1012,6 +1032,14 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                                         const btns = [...dmAction.actionButtons];
                                         btns[i].url = e.target.value;
                                         updateDmAction({ actionButtons: btns });
+                                      }}
+                                      onBlur={(e) => {
+                                        const v = ensureHttps(e.target.value);
+                                        if (v !== e.target.value) {
+                                          const btns = [...dmAction.actionButtons];
+                                          btns[i].url = v;
+                                          updateDmAction({ actionButtons: btns });
+                                        }
                                       }}
                                       disabled={readOnly}
                                       className={`w-full border-2 rounded-lg px-3 py-1.5 outline-none font-medium text-base transition-all ${darkMode ? 'border-white/10 bg-white/5 text-white focus:border-white/20 placeholder:text-white/20' : 'border-gray-200 bg-white text-gray-900 focus:border-purple-500'} ${btn.url && !/^(https?:\/\/)?([\w.-]+)\.([a-z]{2,})(:\d{1,5})?(\/.*)?$/i.test(btn.url) ? 'border-red-500 focus:border-red-500' : ''}`}
@@ -1088,6 +1116,14 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                                             const newCards = [...dmAction!.carouselCards!];
                                             newCards[i] = { ...newCards[i], imageUrl: e.target.value };
                                             updateDmAction({ carouselCards: newCards });
+                                          }}
+                                          onBlur={(e) => {
+                                            const v = ensureHttps(e.target.value);
+                                            if (v !== e.target.value) {
+                                              const newCards = [...dmAction!.carouselCards!];
+                                              newCards[i] = { ...newCards[i], imageUrl: v };
+                                              updateDmAction({ carouselCards: newCards });
+                                            }
                                           }}
                                           placeholder="or paste URL..."
                                           className="w-full bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-3 py-2 text-[11px] text-white placeholder:text-white/40 outline-none focus:border-purple-400 transition-all font-medium"
@@ -1209,6 +1245,16 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                                                   btns[btnIdx] = { ...btns[btnIdx], url: e.target.value };
                                                   newCards[i] = { ...newCards[i], buttons: btns };
                                                   updateDmAction({ carouselCards: newCards });
+                                                }}
+                                                onBlur={(e) => {
+                                                  const v = ensureHttps(e.target.value);
+                                                  if (v !== e.target.value) {
+                                                    const newCards = [...dmAction!.carouselCards!];
+                                                    const btns = [...(newCards[i].buttons || [])];
+                                                    btns[btnIdx] = { ...btns[btnIdx], url: v };
+                                                    newCards[i] = { ...newCards[i], buttons: btns };
+                                                    updateDmAction({ carouselCards: newCards });
+                                                  }
                                                 }}
                                                 placeholder="https://..."
                                                 className={cn("w-full text-xs font-bold bg-transparent border-b outline-none pb-1 transition-all", darkMode ? "border-white/10 focus:border-purple-400 text-purple-400" : "border-gray-200 focus:border-purple-500 text-purple-600")}
@@ -1894,6 +1940,20 @@ export default function ActionConfig({ triggerType, triggerConfig, onTriggerConf
                                       btns[bIdx] = { ...btns[bIdx], url: e.target.value, buttonType: 'web_url' };
                                       newActions[idx] = { ...followUp, actionButtons: btns };
                                       onActionsChange(newActions);
+                                    }
+                                  }}
+                                  onBlur={(e) => {
+                                    const v = ensureHttps(e.target.value);
+                                    if (v !== e.target.value) {
+                                      const newActions = [...actions];
+                                      const idx = newActions.findIndex(a => a.type === 'follow_up');
+                                      if (idx >= 0) {
+                                        const followUp = { ...newActions[idx] } as FollowUpAction;
+                                        const btns = [...(followUp.actionButtons || [])];
+                                        btns[bIdx] = { ...btns[bIdx], url: v, buttonType: 'web_url' };
+                                        newActions[idx] = { ...followUp, actionButtons: btns };
+                                        onActionsChange(newActions);
+                                      }
                                     }
                                   }}
                                   className={cn("flex-1 bg-transparent border-none outline-none text-[9px] font-medium", darkMode ? "text-emerald-400 placeholder:text-white/10" : "text-emerald-600 placeholder:text-gray-300")}

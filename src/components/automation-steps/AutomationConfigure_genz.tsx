@@ -30,6 +30,9 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+const ensureHttps = (url: string) =>
+  url && !url.match(/^https?:\/\//i) ? 'https://' + url : url;
+
 interface InstagramMedia {
   id: string;
   caption?: string;
@@ -1223,6 +1226,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                                   type="url"
                                   value={dmAction?.imageUrl || ''}
                                   onChange={(e) => updateDmAction({ imageUrl: e.target.value })}
+                                  onBlur={(e) => { const v = ensureHttps(e.target.value); if (v !== e.target.value) updateDmAction({ imageUrl: v }); }}
                                   disabled={readOnly}
                                   placeholder="https://yourapp.com/image.jpg"
                                   className={`w-full border-2 rounded-xl px-4 py-2.5 outline-none font-medium text-base transition-all ${darkMode ? 'border-white/10 bg-white/5 text-white focus:border-white/20 placeholder:text-white/20' : 'border-gray-200 bg-white text-gray-900 placeholder:text-gray-300 focus:border-purple-500'}`}
@@ -1238,7 +1242,7 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                             <div key={i} className={cn("p-2 rounded-lg border space-y-1.5", darkMode ? "bg-white/5 border-white/5" : "bg-gray-50 border-gray-100")}>
                               <div className="flex justify-between items-center"><span className={cn("text-[9px] font-black capitalize", darkMode ? "text-white/50" : "text-gray-400")}>Btn {i + 1}</span><X size={12} className={cn("cursor-pointer", darkMode ? "text-white/40 hover:text-red-400" : "text-gray-400 hover:text-red-500")} onClick={() => updateDmAction({ actionButtons: dmAction.actionButtons.filter((_, idx) => idx !== i) })} /></div>
                               <input type="text" value={btn.text} onChange={(e) => { const btns = [...dmAction.actionButtons]; btns[i].text = e.target.value; updateDmAction({ actionButtons: btns }); }} placeholder="Text" className={cn("w-full bg-transparent border-b outline-none text-xs font-bold pb-1", darkMode ? "border-white/10 text-white placeholder:text-white/20" : "border-gray-300 text-gray-900 placeholder:text-gray-400")} />
-                              <input type="url" value={btn.url} onChange={(e) => { const btns = [...dmAction.actionButtons]; btns[i].url = e.target.value; updateDmAction({ actionButtons: btns }); }} placeholder="URL" className={cn("w-full bg-transparent border-b outline-none text-xs font-bold pb-1", darkMode ? "border-white/10 text-white placeholder:text-white/20" : "border-gray-300 text-gray-900 placeholder:text-gray-400")} />
+                              <input type="url" value={btn.url} onChange={(e) => { const btns = [...dmAction.actionButtons]; btns[i].url = e.target.value; updateDmAction({ actionButtons: btns }); }} onBlur={(e) => { const v = ensureHttps(e.target.value); if (v !== e.target.value) { const btns = [...dmAction.actionButtons]; btns[i].url = v; updateDmAction({ actionButtons: btns }); } }} placeholder="URL" className={cn("w-full bg-transparent border-b outline-none text-xs font-bold pb-1", darkMode ? "border-white/10 text-white placeholder:text-white/20" : "border-gray-300 text-gray-900 placeholder:text-gray-400")} />
                             </div>
                           ))}
                           {!readOnly && (dmAction?.actionButtons.length || 0) < 3 && (
@@ -1308,6 +1312,14 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                                           const newCards = [...dmAction!.carouselCards!];
                                           newCards[i] = { ...newCards[i], imageUrl: e.target.value };
                                           updateDmAction({ carouselCards: newCards });
+                                        }}
+                                        onBlur={(e) => {
+                                          const v = ensureHttps(e.target.value);
+                                          if (v !== e.target.value) {
+                                            const newCards = [...dmAction!.carouselCards!];
+                                            newCards[i] = { ...newCards[i], imageUrl: v };
+                                            updateDmAction({ carouselCards: newCards });
+                                          }
                                         }}
                                         placeholder="or paste URL..."
                                         className="w-full bg-white/10 backdrop-blur-2xl border border-white/20 rounded-2xl px-4 py-2.5 text-[8px] text-white placeholder:text-white/30 outline-none focus:border-blue-400 transition-all font-black uppercase tracking-widest"
@@ -1424,6 +1436,14 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                                                   const newCards = [...dmAction!.carouselCards!];
                                                   newCards[i].buttons[btnIdx].url = e.target.value;
                                                   updateDmAction({ carouselCards: newCards });
+                                                }}
+                                                onBlur={(e) => {
+                                                  const v = ensureHttps(e.target.value);
+                                                  if (v !== e.target.value) {
+                                                    const newCards = [...dmAction!.carouselCards!];
+                                                    newCards[i].buttons[btnIdx].url = v;
+                                                    updateDmAction({ carouselCards: newCards });
+                                                  }
                                                 }}
                                                 placeholder="HTTPS://..."
                                                 className="w-full text-[10px] font-black uppercase tracking-widest bg-transparent border-b border-white/5 outline-none focus:border-blue-400/50 transition-all pb-1 text-blue-400"
@@ -1601,6 +1621,14 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                                         btns[i].url = e.target.value;
                                         updateDmAction({ actionButtons: btns });
                                       }}
+                                      onBlur={(e) => {
+                                        const v = ensureHttps(e.target.value);
+                                        if (v !== e.target.value) {
+                                          const btns = [...dmAction.actionButtons];
+                                          btns[i].url = v;
+                                          updateDmAction({ actionButtons: btns });
+                                        }
+                                      }}
                                       placeholder="https://..."
                                       className="w-full bg-transparent border-b border-gray-200 dark:border-white/10 outline-none text-[11px] font-medium text-blue-500 text-center"
                                     />
@@ -1770,6 +1798,14 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                                                   const newCards = [...(dmAction.conversationCards || [])];
                                                   newCards[cardIndex].actionButtons[btnIdx].url = e.target.value;
                                                   updateDmAction({ conversationCards: newCards });
+                                                }}
+                                                onBlur={(e) => {
+                                                  const v = ensureHttps(e.target.value);
+                                                  if (v !== e.target.value) {
+                                                    const newCards = [...(dmAction.conversationCards || [])];
+                                                    newCards[cardIndex].actionButtons[btnIdx].url = v;
+                                                    updateDmAction({ conversationCards: newCards });
+                                                  }
                                                 }}
                                                 placeholder="URL"
                                                 className="w-full bg-transparent border-b border-gray-100 dark:border-white/10 outline-none text-[8px] text-center text-blue-500"
@@ -2414,6 +2450,20 @@ export default function AutomationConfigureGenz({ formData, setFormData, onSave,
                                   btns[bIdx] = { ...btns[bIdx], url: e.target.value, buttonType: 'web_url' };
                                   newActions[idx] = { ...followUp, actionButtons: btns };
                                   updateActions(newActions);
+                                }
+                              }}
+                              onBlur={(e) => {
+                                const v = ensureHttps(e.target.value);
+                                if (v !== e.target.value) {
+                                  const newActions = [...actions];
+                                  const idx = newActions.findIndex(a => a.type === 'follow_up');
+                                  if (idx >= 0) {
+                                    const followUp = { ...newActions[idx] } as FollowUpAction;
+                                    const btns = [...(followUp.actionButtons || [])];
+                                    btns[bIdx] = { ...btns[bIdx], url: v, buttonType: 'web_url' };
+                                    newActions[idx] = { ...followUp, actionButtons: btns };
+                                    updateActions(newActions);
+                                  }
                                 }
                               }}
                               className={cn("flex-1 bg-transparent border-none outline-none text-[9px] font-medium", darkMode ? "text-emerald-400 placeholder:text-white/10" : "text-emerald-600 placeholder:text-gray-300")}
